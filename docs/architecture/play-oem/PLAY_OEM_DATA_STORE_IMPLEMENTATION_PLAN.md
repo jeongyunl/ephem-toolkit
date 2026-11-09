@@ -159,9 +159,9 @@ direct loading before the view migration is complete.
 Migrate consumers only after Step 5 provides all required query outputs. Preserve plot labels,
 values, segmentation, click-to-seek, empty/partial behavior, and 3D backend behavior.
 
-- **Status:** In progress (the first two view groups are migrated; the caller-facing read context
-  is implemented and validated; Ground Track and station-view migrations are next).
-- **Progress:** 3/6 checklist items.
+- **Status:** In progress (the caller-facing read context, first two view groups, and Ground Track
+  consumers are validated; station-view migration is next).
+- **Progress:** 4/6 checklist items.
 - [x] Migrate RTN Deltas, Angular Velocity, Direction Change, and Geocentric Distance to
       range-limited series-group queries; use the validated `speed-altitude` path as the pattern
       and request only fields each view uses. Store paths share derived-column buffers, apply
@@ -177,7 +177,7 @@ values, segmentation, click-to-seek, empty/partial behavior, and 3D backend beha
       unpacking, and represent empty/no-range results explicitly rather than returning `None`.
       Add a shared view-binding helper for tier subscriptions, context replacement, and cleanup;
       retain non-blocking behavior, read-only views, leases, and zero-copy plotting adapters.
-- [ ] Migrate Ground Track and Pass Ground Track to typed Earth-fixed, Ground Track, and footprint
+- [x] Migrate Ground Track and Pass Ground Track to typed Earth-fixed, Ground Track, and footprint
       results through the bound read context; preserve map, seam, range, and station-selection
       behavior.
 - [ ] Migrate station status, pass strip, profiles, pass list, and sky view to typed
@@ -486,13 +486,14 @@ no view needs to create an orbit-sized projection.
 **Depends on:** Steps 1–4.
 
 **Evidence:** The store-backed `speed-altitude` vertical slice, the first two Step 6 view groups,
-and the snapshot-bound consumer context and binding lifecycle
-validate range-limited inputs, display transforms, segment boundaries, buffer sharing, cursor and
-range updates, empty states, stable limits, backend-specific display packing, and tier-interest
-release. Context tests cover snapshot refresh, no-range typed results, range replacement, and
-subscription cleanup/rebinding. Ground Track queries reuse the Earth-fixed tier, return map-centered
-seam-split groups, and use a bounded cache; point queries cover station metrics and footprints.
-Validation:
+the snapshot-bound consumer context and binding lifecycle, and Ground Track consumers validate
+range-limited inputs, display transforms, segment boundaries, buffer sharing, cursor and range
+updates, empty states, stable limits, map seam handling, pass selection, point footprints,
+backend-specific display packing, and tier-interest release. Store-backed map paths use bounded
+display sampling rather than constructing an orbit-sized plotting projection. Context tests cover
+snapshot refresh, no-range typed results, range replacement, and subscription cleanup/rebinding.
+Ground Track queries reuse the Earth-fixed tier, return map-centered seam-split groups, and use a
+bounded cache; point queries cover station metrics and footprints. Validation:
 `python3 -m pytest tests/ephem_toolkit/play_oem tests/ephem_toolkit/core/interpolator -q`
-passed (666 passed, 4 skipped). `git diff --check` and `compileall` passed. Step 6 next migrates
-Ground Track and Pass Ground Track; the active application still uses `OrbitSeries`.
+passed (669 passed, 4 skipped). `git diff --check` and `compileall` passed. Step 6 next migrates
+station views; the active application still uses `OrbitSeries`.

@@ -257,6 +257,23 @@ def decimate_indices(
     return np.unique(selected)
 
 
+def bounded_sample_indices(
+    sample_count: int,
+    maximum: int = MAX_DISPLAY_POINTS_PER_SEGMENT,
+) -> np.ndarray:
+    """Choose evenly spaced rows with an allocation bounded by ``maximum``."""
+    if sample_count < 0:
+        raise ValueError("sample_count must be non-negative")
+    if maximum < 1:
+        raise ValueError("maximum must be positive")
+    display_count = min(sample_count, maximum)
+    if display_count == sample_count:
+        return np.arange(display_count)
+    return np.linspace(
+        0, sample_count - 1, num=display_count, dtype=np.intp
+    )
+
+
 def plot_segments(
     axes: Axes,
     x: np.ndarray,

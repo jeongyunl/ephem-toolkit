@@ -19,12 +19,15 @@ from ..ground_track import (
     prepare_ground_track,
     split_ground_track_runs,
 )
+from ..oem_data_store import GroundTrackGroups
 from ..display_time import UTC_DISPLAY, format_tt
 from ..series import OrbitSeries
 from ..station_access import StationAccessCache
 from ..station_analysis import StationAnalysisContext, StationAnalysisSelection
 from ..time_range import ResolvedTimeRange
 from ..time_unit import TimeUnit
+from .base import StoreViewBinding, StoreViewContext
+from .plotting import bounded_sample_indices
 
 
 class GroundStationPassTrackView:
@@ -54,6 +57,8 @@ class GroundStationPassTrackView:
         self._display_time_zone = display_time_zone
         self._prepared_interval_key: tuple[float, float] | None = None
         self._prepared_coordinates: GroundTrackCoordinates | None = None
+        self._store_context: StoreViewContext | None = None
+        self._store_binding = StoreViewBinding(("ground-track", "earth-fixed"))
         self._panel: wx.Panel | None = None
         self._status: wx.StaticText | None = None
         self._figure: Figure | None = None
@@ -64,6 +69,23 @@ class GroundStationPassTrackView:
         )
 
     def build(self, _series: OrbitSeries, _time_unit: TimeUnit, /) -> wx.Window:
+        return self._build_panel()
+
+    def build_from_store(self, context: StoreViewContext, /) -> wx.Window:
+        """Build from the selected pass's range-bound store query."""
+        self._store_binding.bind(context)
+        self._store_context = context
+        return self._build_panel()
+
+    def update_from_store(self, context: StoreViewContext, /) -> None:
+        """Refresh the selected pass against a newer store snapshot."""
+        if self._store_context is None:
+            raise RuntimeError("Pass Ground Track view was not built from a store")
+        self._store_binding.bind(context)
+        self._store_context = context
+        self._draw()
+
+    def _build_panel(self) -> wx.Window:
         panel = wx.Panel(self._parent, wx.ID_ANY)
         self._panel = panel
         sizer = wx.BoxSizer(wx.VERTICAL)
@@ -85,9 +107,11 @@ class GroundStationPassTrackView:
         pass
 
     def set_time_range(
-        self, _bounds: ResolvedTimeRange | None, _coverage: tuple[float, float], /
+        self, bounds: ResolvedTimeRange | None, coverage: tuple[float, float], /
     ) -> None:
-        pass
+        if self._store_context is not None:
+            self._store_context = self._store_binding.with_range(bounds, coverage)
+            self._draw()
 
     def set_stations(self, stations: Sequence[GroundStation]) -> None:
         self._stations = tuple(stations)
@@ -96,6 +120,8 @@ class GroundStationPassTrackView:
     def close(self) -> None:
         self._context_unsubscribe()
         self._context_unsubscribe = lambda: None
+        self._store_binding.close()
+        self._store_context = None
         self._canvas = None
         self._figure = None
         self._axes = None
@@ -126,57 +152,140 @@ class GroundStationPassTrackView:
             ),
             None,
         )
-        if not self._oem_loaded or self._source is None:
+        if not self._oem_loaded or (
+            self._source is None and self._store_context is None
+        ):
             self._set_status("Load an Earth-centered OEM to view a pass track.")
         elif station is None:
             self._set_status("Select a configured ground station.")
         elif selection.interval_key is None:
             self._set_status("Select a pass in Pass List to view its ground track.")
         else:
-            try:
-                if self._prepared_interval_key != selection.interval_key:
-                    self._prepared_coordinates = prepare_ground_track(
-                        self._source,
-                        position_cache=self._access_cache.position_cache,
-                        bounds=selection.interval_key,
-                    )
-                    self._prepared_interval_key = selection.interval_key
-                coordinates = self._prepared_coordinates
-                if coordinates is None:
-                    raise RuntimeError("pass ground track preparation returned no data")
-            except GroundTrackPreparationError as error:
-                self._set_status(str(error))
-            else:
-                clipped = _clip_coordinates(coordinates, selection.interval_key)
-                if clipped.timestamps_s.size == 0:
-                    self._set_status("No OEM ground-track samples fall within this pass.")
-                else:
-                    runs = split_ground_track_runs(clipped, 0.0)
-                    for index, run in enumerate(runs):
-                        self._axes.plot(
-                            np.rad2deg(run.longitude_relative_rad),
-                            np.rad2deg(run.latitude_rad),
-                            color="#2f7ebc",
-                            linewidth=1.5,
-                            label="Selected pass" if index == 0 else None,
-                        )
-                    self._axes.scatter(
-                        station.longitude_deg,
-                        station.latitude_deg,
-                        color="#16877e",
-                        edgecolors="white",
-                        linewidths=0.8,
-                        zorder=3,
-                        label="Station",
-                    )
+            if self._store_context is not None:
+                pass_range = ResolvedTimeRange(*selection.interval_key)
+                query_context = self._store_context.with_range(
+                    pass_range, self._store_context.coverage
+                )
+                query = query_context.ground_track()
+                if not query.value:
                     self._set_status(
-                        f"{station.name} · "
-                        f"{format_tt(clipped.timestamps_s[0], self._display_time_zone)}–"
-                        f"{format_tt(clipped.timestamps_s[-1], self._display_time_zone)}"
+                        "Ground-track data is loading."
+                        if not query.coverage.complete
+                        else "No OEM ground-track samples fall within this pass."
                     )
-                    self._axes.legend(loc="best")
+                else:
+                    self._draw_store_track(
+                        query.value,
+                        station,
+                        complete=query.coverage.complete,
+                    )
+            else:
+                try:
+                    if self._prepared_interval_key != selection.interval_key:
+                        self._prepared_coordinates = prepare_ground_track(
+                            self._source,
+                            position_cache=self._access_cache.position_cache,
+                            bounds=selection.interval_key,
+                        )
+                        self._prepared_interval_key = selection.interval_key
+                    coordinates = self._prepared_coordinates
+                    if coordinates is None:
+                        raise RuntimeError(
+                            "pass ground track preparation returned no data"
+                        )
+                except GroundTrackPreparationError as error:
+                    self._set_status(str(error))
+                else:
+                    clipped = _clip_coordinates(coordinates, selection.interval_key)
+                    if clipped.timestamps_s.size == 0:
+                        self._set_status(
+                            "No OEM ground-track samples fall within this pass."
+                        )
+                    else:
+                        self._draw_legacy_track(clipped, station)
         if self._canvas is not None:
             self._canvas.draw_idle()
+
+    def _draw_store_track(
+        self,
+        groups: GroundTrackGroups,
+        station: GroundStation,
+        *,
+        complete: bool,
+    ) -> None:
+        first_time_s: float | None = None
+        last_time_s: float | None = None
+        first_line = True
+        for group in groups:
+            time_index = group.columns.index("t")
+            longitude_index = group.columns.index("longitude")
+            latitude_index = group.columns.index("latitude")
+            for span in group.segment_bounds:
+                values = group.values[span.first : span.stop]
+                indices = bounded_sample_indices(len(values))
+                if not len(indices):
+                    continue
+                first_time_s = (
+                    float(values[0, time_index])
+                    if first_time_s is None
+                    else first_time_s
+                )
+                last_time_s = float(values[-1, time_index])
+                self._axes.plot(
+                    np.rad2deg(values[indices, longitude_index]),
+                    np.rad2deg(values[indices, latitude_index]),
+                    color="#2f7ebc",
+                    linewidth=1.5,
+                    label="Selected pass" if first_line else None,
+                )
+                first_line = False
+        self._axes.scatter(
+            station.longitude_deg,
+            station.latitude_deg,
+            color="#16877e",
+            edgecolors="white",
+            linewidths=0.8,
+            zorder=3,
+            label="Station",
+        )
+        self._axes.legend(loc="best")
+        status = station.name
+        if first_time_s is not None and last_time_s is not None:
+            status += (
+                f" · {format_tt(first_time_s, self._display_time_zone)}–"
+                f"{format_tt(last_time_s, self._display_time_zone)}"
+            )
+        if not complete:
+            status += " · Partial coverage"
+        self._set_status(status)
+
+    def _draw_legacy_track(
+        self, coordinates: GroundTrackCoordinates, station: GroundStation
+    ) -> None:
+        runs = split_ground_track_runs(coordinates, 0.0)
+        for index, run in enumerate(runs):
+            self._axes.plot(
+                np.rad2deg(run.longitude_relative_rad),
+                np.rad2deg(run.latitude_rad),
+                color="#2f7ebc",
+                linewidth=1.5,
+                label="Selected pass" if index == 0 else None,
+            )
+        self._axes.scatter(
+            station.longitude_deg,
+            station.latitude_deg,
+            color="#16877e",
+            edgecolors="white",
+            linewidths=0.8,
+            zorder=3,
+            label="Station",
+        )
+        self._set_status(
+            f"{station.name} · "
+            f"{format_tt(coordinates.timestamps_s[0], self._display_time_zone)}–"
+            f"{format_tt(coordinates.timestamps_s[-1], self._display_time_zone)}"
+        )
+        self._axes.legend(loc="best")
 
     def _set_status(self, message: str) -> None:
         if self._status is not None:

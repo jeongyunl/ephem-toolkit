@@ -10,6 +10,7 @@ from ephem_toolkit.play_oem.views import plotting
 from ephem_toolkit.play_oem.views.plotting import (
     MAX_DISPLAY_POINTS_PER_SEGMENT,
     SegmentedPlotHistory,
+    bounded_sample_indices,
     decimate_indices,
     plot_segments,
 )
@@ -30,6 +31,16 @@ def test_decimation_caps_display_points_and_preserves_bucket_extrema() -> None:
     assert indices[-1] == len(values) - 1
     assert np.max(values[indices, 0]) == np.max(values[:, 0])
     assert np.min(values[indices, 1]) == np.min(values[:, 1])
+
+
+def test_bounded_sample_indices_cap_store_backed_plot_inputs() -> None:
+    sample_count = MAX_DISPLAY_POINTS_PER_SEGMENT * 100
+    indices = bounded_sample_indices(sample_count)
+
+    assert len(indices) == MAX_DISPLAY_POINTS_PER_SEGMENT
+    assert indices[0] == 0
+    assert indices[-1] == sample_count - 1
+    assert np.all(np.diff(indices) > 0)
 
 
 def _reference_decimate_indices(values: np.ndarray, maximum: int) -> np.ndarray:

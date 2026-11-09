@@ -30,12 +30,12 @@ Station-access profiles are also lazy, chunked, and shared across minimum-elevat
 Derived results write directly into final tier buffers without orbit-sized temporary arrays.
 Per-chunk LRU eviction protects active ranges and leased views, and evicted chunks are recomputed
 before they can be returned again. Speed / Altitude, RTN Deltas, Angular Velocity, Direction
-Change, Geocentric Distance, State Components, and both 3D backends have store-backed paths.
-Ground Track, station views, and the active player/controller remain unmigrated. The existing
-`StoreViewContext` reduces query
-plumbing, but it is not yet a complete caller-facing read API: callers still unpack generic query
-values, and some point-query paths reach through to the store and snapshot. The application-wide
-no-copy goal has therefore not yet been achieved. See the
+Change, Geocentric Distance, State Components, both 3D backends, Ground Track, and Pass Ground
+Track have store-backed paths. Ground Track consumers use the snapshot-bound context for range
+queries, current state, and footprints; they bound plotting inputs before projection. Station
+views and the active player/controller remain unmigrated. `StoreViewContext` is the caller-facing
+read facade, and the shared binding helper owns context replacement and tier subscriptions for
+migrated consumers. The application-wide no-copy goal has therefore not yet been achieved. See the
 [implementation plan](./PLAY_OEM_DATA_STORE_IMPLEMENTATION_PLAN.md) for the staged work and the
 performance evidence below for the retained measurements and open gates.
 

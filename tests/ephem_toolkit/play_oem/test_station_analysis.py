@@ -9,6 +9,7 @@ from matplotlib.figure import Figure
 import numpy as np
 
 from ephem_toolkit.play_oem.ground_stations import GroundStation
+from ephem_toolkit.play_oem.oem_data_store import OemDataStore
 from ephem_toolkit.play_oem.station_access import (
     AccessInterval,
     LookAngleProfile,
@@ -20,6 +21,7 @@ from ephem_toolkit.play_oem.station_analysis import (
 )
 from ephem_toolkit.play_oem.time_range import ResolvedTimeRange
 from ephem_toolkit.play_oem.time_unit import TimeUnit
+from ephem_toolkit.play_oem.views.base import StoreViewContext
 from ephem_toolkit.play_oem.ground_track import GroundTrackCoordinates
 from ephem_toolkit.play_oem.ground_track import GroundTrackSource
 from ephem_toolkit.play_oem.views import ground_station_pass_track
@@ -298,3 +300,74 @@ def test_pass_ground_track_reuses_shared_position_cache_on_interval_changes(
     ]
     assert np.allclose(view._axes.lines[-1].get_xdata(), np.rad2deg([0.2, 0.4]))
     view.close()
+
+
+def test_ground_station_pass_track_uses_bound_store_queries() -> None:
+    station = GroundStation("north", "North Site", 1.0, 2.0, 0.0)
+    timestamps_s = np.array([0.0, 10.0, 20.0, 30.0])
+    states_m = np.array(
+        [
+            [7_000_000.0, 0.0, 0.0, 0.0, 7_500.0, 0.0],
+            [0.0, 7_000_000.0, 0.0, -7_500.0, 0.0, 0.0],
+            [-7_000_000.0, 0.0, 0.0, 0.0, -7_500.0, 0.0],
+            [0.0, -7_000_000.0, 0.0, 7_500.0, 0.0, 0.0],
+        ]
+    )
+    store = OemDataStore()
+    epoch = store.begin(len(timestamps_s))
+    reservation = store.reserve(len(timestamps_s))
+    reservation.raw[:, 0] = timestamps_s
+    reservation.raw[:, 1:7] = states_m
+    reservation.segment_ids[:] = [0, 0, 1, 1]
+    store.commit(reservation, len(timestamps_s))
+    store.mark_complete(epoch, (), (("CENTER_NAME", "EARTH"), ("REF_FRAME", "ITRF")))
+    snapshot = store.snapshot()
+    for bounds in ((0.0, 10.0), (10.0, 20.0)):
+        store.ground_track(snapshot, bounds, wait=True)
+    store_context = StoreViewContext.capture(
+        store,
+        time_unit=TimeUnit.MINUTES,
+        plot_range=ResolvedTimeRange(0.0, 30.0),
+        coverage=(0.0, 30.0),
+    )
+
+    selection_context = StationAnalysisContext()
+    selection_context.select_station(station.station_id)
+    selection_context.select_interval((0.0, 10.0))
+    view = GroundStationPassTrackView(
+        cast(Any, None),
+        None,
+        cast(Any, SimpleNamespace(t_start=0.0, t_end=30.0)),
+        [station],
+        oem_loaded=True,
+        access_cache=cast(Any, _PreparedAccess(StationAccess(station, ()))),
+        selection_context=selection_context,
+    )
+    view._store_binding.bind(store_context)
+    view._store_context = store_context
+    figure = Figure()
+    view._figure = figure
+    view._axes = figure.add_subplot(111)
+
+    class _Status:
+        message = ""
+
+        def SetLabel(self, message: str) -> None:
+            self.message = message
+
+    class _Canvas:
+        def draw_idle(self) -> None:
+            pass
+
+    view._status = cast(Any, _Status())
+    view._canvas = cast(Any, _Canvas())
+    view._draw()
+    assert len(view._axes.lines) == 1
+    assert view._status.message.startswith("North Site ·")
+
+    selection_context.select_interval((10.0, 20.0))
+    assert len(view._axes.lines) == 2
+    assert len(view._axes.collections) == 1
+    view.close()
+    assert "ground-track" not in store._tier_interest
+    assert "earth-fixed" not in store._tier_interest

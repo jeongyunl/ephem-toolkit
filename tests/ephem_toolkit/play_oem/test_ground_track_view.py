@@ -12,8 +12,12 @@ import pytest
 
 from ephem_toolkit.play_oem.ground_track import GroundTrackCoordinates
 from ephem_toolkit.play_oem.ground_stations import GroundStation
+from ephem_toolkit.play_oem.oem_data_store import OemDataStore
 from ephem_toolkit.play_oem.time_range import ResolvedTimeRange
+from ephem_toolkit.play_oem.time_unit import TimeUnit
+from ephem_toolkit.play_oem.views.base import StoreViewContext
 from ephem_toolkit.play_oem.views import ground_track
+from ephem_toolkit.play_oem.views.plotting import MAX_DISPLAY_POINTS_PER_SEGMENT
 
 
 @pytest.fixture(scope="module")
@@ -158,6 +162,73 @@ def test_ground_track_filters_cached_coordinates_before_seam_splitting() -> None
     assert not view._track_artists
     assert view._track_status_artist.get_text() == "No ground track samples in plot range"
     view.close()
+
+
+def test_ground_track_store_view_uses_bound_queries_and_point_footprints() -> None:
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    from matplotlib.figure import Figure
+
+    timestamps_s = np.array([0.0, 10.0, 20.0, 30.0])
+    states_m = np.array(
+        [
+            [7_000_000.0, 0.0, 0.0, 0.0, 7_500.0, 0.0],
+            [0.0, 7_000_000.0, 0.0, -7_500.0, 0.0, 0.0],
+            [-7_000_000.0, 0.0, 0.0, 0.0, -7_500.0, 0.0],
+            [0.0, -7_000_000.0, 0.0, 7_500.0, 0.0, 0.0],
+        ]
+    )
+    store = OemDataStore()
+    epoch = store.begin(len(timestamps_s))
+    reservation = store.reserve(len(timestamps_s))
+    reservation.raw[:, 0] = timestamps_s
+    reservation.raw[:, 1:7] = states_m
+    reservation.segment_ids[:] = [0, 0, 1, 1]
+    store.commit(reservation, len(timestamps_s))
+    store.mark_complete(epoch, (), (("CENTER_NAME", "EARTH"), ("REF_FRAME", "ITRF")))
+    snapshot = store.snapshot()
+    store.ground_track(snapshot, (0.0, 30.0), wait=True)
+    store.ground_track(snapshot, (10.0, 20.0), wait=True)
+    context = StoreViewContext.capture(
+        store,
+        time_unit=TimeUnit.MINUTES,
+        plot_range=ResolvedTimeRange(0.0, 30.0),
+        coverage=(0.0, 30.0),
+    )
+
+    view = ground_track.GroundTrackView(
+        cast(Any, None), None, None, cast(Any, None), "Test object"
+    )
+    view._store_binding.bind(context)
+    view._store_context = context
+    view._effective_plot_range = context.bounds_s
+    view._figure = Figure()
+    canvas = FigureCanvasAgg(view._figure)
+    view._canvas = cast(Any, canvas)
+    view._axes = view._figure.add_subplot(111)
+    view._draw_map()
+
+    assert view._store_track_query is not None
+    assert view._store_track_query.coverage.complete
+    assert len(view._track_artists) == 2
+    assert all(
+        len(artist.get_xdata()) <= MAX_DISPLAY_POINTS_PER_SEGMENT
+        for artist in view._track_artists
+    )
+
+    view.update(10.0)
+    assert view._marker is not None and len(view._marker.get_xdata()) == 1
+    assert view._last_footprints is not None
+
+    view.set_time_range(ResolvedTimeRange(10.0, 20.0), context.coverage)
+    assert view._store_track_query is not None
+    assert len(view._track_artists) == 2
+    view.set_time_range(None, context.coverage)
+    assert view._store_track_query is not None
+    assert view._store_track_query.coverage.requested_s is None
+    assert not view._track_artists
+    view.close()
+    assert "ground-track" not in store._tier_interest
+    assert "earth-fixed" not in store._tier_interest
 
 
 def test_ground_track_axes_follow_canvas_height_without_fixed_aspect() -> None:
