@@ -16,6 +16,7 @@ from ..display_time import UTC_DISPLAY, format_tt
 from .. import cursor as playback_cursor
 from ..ground_stations import GroundStation
 from ..ground_track import GroundTrackSource, GroundTrackPreparationError
+from ..oem_data_store import StationAccessView, StoreQuery
 from ..series import OrbitSeries
 from ..station_access import (
     AccessInterval,
@@ -26,6 +27,8 @@ from ..station_access import (
 from ..station_analysis import StationAnalysisContext, StationAnalysisSelection
 from ..time_range import ResolvedTimeRange
 from ..time_unit import TimeUnit
+from .base import StoreViewBinding, StoreViewContext, station_access_from_store
+from .plotting import bounded_sample_indices
 
 _TABLE_COLUMN_WIDTHS = (190, 90, 150, 155, 155)
 _TABLE_PANEL_MIN_WIDTH = sum(_TABLE_COLUMN_WIDTHS)
@@ -126,6 +129,9 @@ class GroundStationPassesView:
         )
         self._visible_intervals: tuple[AccessInterval, ...] = ()
         self._access_results: tuple[StationAccess, ...] = ()
+        self._store_context: StoreViewContext | None = None
+        self._store_binding = StoreViewBinding(("station-access",))
+        self._store_queries: dict[str, StoreQuery[StationAccessView]] = {}
         self._time_range_bounds: ResolvedTimeRange | None = None
         self._time_range_applied = False
         self._range_label_text = ""
@@ -167,6 +173,32 @@ class GroundStationPassesView:
         return self._selected_station_id
 
     def build(self, _series: OrbitSeries, _time_unit: TimeUnit, /) -> wx.Window:
+        return self._build_panel()
+
+    def build_from_store(self, context: StoreViewContext, /) -> wx.Window:
+        """Build from range-bound pass queries in a stable store snapshot."""
+        self._store_binding.bind(context)
+        self._store_context = context
+        self._prepare_range = context.plot_range
+        self._time_range_bounds = context.plot_range
+        self._time_range_applied = True
+        self._prepare_access()
+        return self._build_panel()
+
+    def update_from_store(self, context: StoreViewContext, /) -> None:
+        """Refresh pass rows and sky data from a newer store snapshot."""
+        if self._store_context is None:
+            raise RuntimeError("Ground Station Passes view was not built from a store")
+        self._store_binding.bind(context)
+        self._store_context = context
+        self._prepare_range = context.plot_range
+        self._time_range_bounds = context.plot_range
+        self._time_range_applied = True
+        self._prepare_access()
+        self._refresh_rows()
+        self.update(self._current_time_s)
+
+    def _build_panel(self) -> wx.Window:
         panel = wx.Panel(self._parent, wx.ID_ANY)
         self._panel = panel
         root = wx.BoxSizer(wx.VERTICAL)
@@ -322,7 +354,24 @@ class GroundStationPassesView:
         self._wrap_sky_summary()
 
     def _prepare_access(self) -> None:
-        if not self._oem_loaded or self._source is None:
+        self._store_queries.clear()
+        if not self._oem_loaded:
+            self._access_results = ()
+            return
+        if self._store_context is not None:
+            if self._limit_to_range and self._prepare_range is None:
+                self._access_results = tuple(
+                    StationAccess(station, ()) for station in self._stations
+                )
+                return
+            results: list[StationAccess] = []
+            for station in self._stations:
+                query = self._store_context.station_access(station)
+                self._store_queries[station.station_id] = query
+                results.append(station_access_from_store(query.value))
+            self._access_results = tuple(results)
+            return
+        if self._source is None:
             self._access_results = ()
             return
         results = []
@@ -446,7 +495,9 @@ class GroundStationPassesView:
             self._range_label.SetLabel(label)
 
     def _update_coverage_readout(self) -> None:
-        if not self._oem_loaded or self._source is None:
+        if not self._oem_loaded or (
+            self._source is None and self._store_context is None
+        ):
             label = "OEM coverage: unavailable"
         else:
             label = (
@@ -470,12 +521,23 @@ class GroundStationPassesView:
                 )
             else:
                 message = "No ground stations are configured. Add a station to inspect passes."
-        elif not self._oem_loaded or self._source is None:
+        elif not self._oem_loaded or (
+            self._source is None and self._store_context is None
+        ):
             message = "Load an Earth-centered OEM to inspect station passes."
         elif result is None:
             message = "Pass history is unavailable."
         elif result.limitation:
             message = result.limitation
+        elif (
+            (query := self._store_queries.get(station.station_id)) is not None
+            and not query.coverage.complete
+        ):
+            message = (
+                "Pass history is partially available."
+                if result.intervals
+                else "Pass history is loading."
+            )
         elif not result.intervals:
             message = "No access intervals in OEM coverage meet this station's mask."
         elif self._time_range_applied and self._time_range_bounds is None:
@@ -622,15 +684,37 @@ class GroundStationPassesView:
         self, profile: LookAngleProfile, interval: AccessInterval
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         station = self._selected_station()
-        if station is None:
+        if station is None or profile.times_s.size == 0:
             empty = np.asarray([], dtype=float)
             return empty, empty, empty
+        if self._store_context is not None:
+            first = int(
+                np.searchsorted(profile.times_s, interval.start_s, side="left")
+            )
+            stop = int(
+                np.searchsorted(profile.times_s, interval.end_s, side="right")
+            )
+            indices = (
+                first + bounded_sample_indices(stop - first)
+                if first < stop
+                else np.asarray([], dtype=np.intp)
+            )
+            samples = zip(
+                profile.times_s[indices],
+                profile.azimuths_deg[indices],
+                profile.elevations_deg[indices],
+            )
+        else:
+            samples = (
+                (time_s, azimuth, elevation)
+                for time_s, azimuth, elevation in zip(
+                    profile.times_s, profile.azimuths_deg, profile.elevations_deg
+                )
+                if interval.start_s <= time_s <= interval.end_s
+            )
         points = {
             float(time_s): (float(azimuth), float(elevation))
-            for time_s, azimuth, elevation in zip(
-                profile.times_s, profile.azimuths_deg, profile.elevations_deg
-            )
-            if interval.start_s <= time_s <= interval.end_s
+            for time_s, azimuth, elevation in samples
         }
         if (
             interval.start_azimuth_deg is not None
@@ -952,12 +1036,14 @@ class GroundStationPassesView:
         return format_tt(time_s, self._display_time_zone, fractional_second_places=0)
 
     def set_time_range(
-        self, bounds: ResolvedTimeRange | None, _coverage: tuple[float, float], /
+        self, bounds: ResolvedTimeRange | None, coverage: tuple[float, float], /
     ) -> None:
         if self._time_range_applied and bounds == self._time_range_bounds:
             return
         self._time_range_bounds = bounds
         self._time_range_applied = True
+        if self._store_context is not None:
+            self._store_context = self._store_binding.with_range(bounds, coverage)
         if self._limit_to_range and bounds != self._prepare_range:
             self._prepare_range = bounds
             self._prepare_access()
@@ -992,6 +1078,9 @@ class GroundStationPassesView:
     ) -> None:
         """Refresh pass data after an OEM is replaced."""
         self._source = source
+        self._store_binding.close()
+        self._store_context = None
+        self._store_queries.clear()
         self._cursor = cursor
         self._object_name = object_name
         self._oem_loaded = oem_loaded
@@ -1007,6 +1096,9 @@ class GroundStationPassesView:
         self._closed = True
         self._context_unsubscribe()
         self._context_unsubscribe = lambda: None
+        self._store_binding.close()
+        self._store_context = None
+        self._store_queries.clear()
         self._canvas = None
         self._figure = None
         self._axes = None

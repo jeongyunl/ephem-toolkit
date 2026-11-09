@@ -259,7 +259,7 @@ ahead of time.
 | 2D plots | Series (per open panel's column group) | Column-group views over the plot range | Slice only |
 | 3D Orbit | Raw position columns; Earth-fixed when the frame requires it | Column views (VTK may copy, see zero-copy policy) | Slice only |
 | Ground Track, Pass Ground Track | Earth-fixed, Ground Track, footprints; pass graph also reads its selected interval | Coordinate views, small footprint arrays | Slice plus footprint at `now_s` |
-| Station Status, Pass Strip, Elevation / Azimuth / Range Profiles, Pass List, Sky View | Station access, Earth-fixed, interpolation | Profiles, intervals, and current metric records | Lookup in memoized intervals or current cursor state |
+| Station Status, Pass Strip, Elevation / Azimuth / Range Profiles, Pass List, Sky View | Station access, Earth-fixed, interpolation | Leased profile-column views, intervals, and current metric records | Range-limited station query, point-metric lookup, and at most 2,000 plotted samples per profile segment |
 | Controller | None directly | Notices and `covered` spans | None |
 
 ### Shared data across current graph types

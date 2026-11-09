@@ -17,6 +17,7 @@ import pytest
 from ephem_toolkit.play_oem.ground_stations import GroundStation
 from ephem_toolkit.play_oem import station_access
 from ephem_toolkit.play_oem import graph_panel
+from ephem_toolkit.play_oem.oem_data_store import OemDataStore
 from ephem_toolkit.play_oem.station_access import (
     AccessInterval,
     LookAngleProfile,
@@ -26,6 +27,7 @@ from ephem_toolkit.play_oem.station_access import (
 from ephem_toolkit.play_oem.station_analysis import StationAnalysisContext
 from ephem_toolkit.play_oem.time_range import ResolvedTimeRange
 from ephem_toolkit.play_oem.time_unit import TimeUnit
+from ephem_toolkit.play_oem.views.base import StoreViewContext
 from ephem_toolkit.play_oem.views.ground_station_access import (
     GroundStationAccessView,
 )
@@ -147,6 +149,80 @@ def test_range_changes_preserve_or_fallback_selection_without_repreparing() -> N
     view.set_time_range(ResolvedTimeRange(40.0, 50.0), (0.0, 100.0))
     assert view._selected_interval_key == (40.0, 50.0)
     assert cache.prepare_calls == 1
+
+
+def test_store_sky_path_bounds_profile_samples() -> None:
+    times = np.arange(5001.0)
+    profile = LookAngleProfile(times, times % 360.0, times % 90.0)
+    view, _cache = _make_view((_interval(0.0, 5000.0),), profiles=(profile,))
+    view._store_context = cast(Any, object())
+    interval = view._access_results[0].intervals[0]
+
+    sampled_times, _azimuths, _elevations = view._profile_points(profile, interval)
+
+    assert len(sampled_times) <= 2000
+    assert sampled_times[0] == interval.start_s
+    assert sampled_times[-1] == interval.end_s
+
+
+def test_store_pass_view_uses_leased_station_access() -> None:
+    elevations = np.asarray([0.0, 60.0, 0.0])
+    states = np.column_stack(
+        (
+            6_378_137.0 + np.sin(np.deg2rad(elevations)) * 1_000_000.0,
+            np.cos(np.deg2rad(elevations)) * 1_000_000.0,
+            np.zeros(3),
+            np.zeros((3, 3)),
+        )
+    )
+    store = OemDataStore()
+    epoch = store.begin(3)
+    reservation = store.reserve(3)
+    reservation.raw[:, 0] = [0.0, 60.0, 120.0]
+    reservation.raw[:, 1:7] = states
+    reservation.segment_ids[:] = 0
+    store.commit(reservation, 3)
+    store.mark_complete(
+        epoch, (), (("CENTER_NAME", "EARTH"), ("REF_FRAME", "ITRF"))
+    )
+    station = GroundStation("equator", "Equator", 0.0, 0.0, 0.0, 10)
+    bounds = ResolvedTimeRange(0.0, 120.0)
+    context = StoreViewContext.capture(
+        store,
+        time_unit=TimeUnit.MINUTES,
+        plot_range=bounds,
+        coverage=(0.0, 120.0),
+    )
+    store.station_access(context.snapshot, station, (0.0, 120.0), wait=True)
+    view = GroundStationPassesView(
+        cast(Any, None),
+        None,
+        cast(Any, SimpleNamespace(t_start=0.0, t_end=120.0)),
+        [station],
+        "Test object",
+        oem_loaded=True,
+        on_seek=lambda _time: None,
+        on_focus_pass=lambda _start, _end: None,
+        on_station_manager=lambda: None,
+        access_cache=cast(Any, _AccessCache(StationAccess(station, ()))),
+        limit_to_range=True,
+        initial_range=bounds,
+    )
+    view._build_panel = lambda: cast(Any, None)
+
+    try:
+        view.build_from_store(context)
+
+        query = view._store_queries[station.station_id]
+        result = view._result_for(station.station_id)
+        assert result is not None
+        profile = result.look_angle_profiles[0]
+        group = query.value.profiles[0].group
+        assert query.coverage.complete
+        assert np.shares_memory(profile.times_s, group.values)
+    finally:
+        view.close()
+        store.close()
 
 
 def test_pass_view_tracks_shared_stack_selection_and_unsubscribes_on_close() -> None:

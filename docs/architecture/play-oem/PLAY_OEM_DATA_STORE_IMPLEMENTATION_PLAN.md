@@ -159,9 +159,9 @@ direct loading before the view migration is complete.
 Migrate consumers only after Step 5 provides all required query outputs. Preserve plot labels,
 values, segmentation, click-to-seek, empty/partial behavior, and 3D backend behavior.
 
-- **Status:** In progress (the caller-facing read context, first two view groups, and Ground Track
-  consumers are validated; station-view migration is next).
-- **Progress:** 4/6 checklist items.
+- **Status:** In progress (all planned view groups now expose store-backed build/update paths;
+  final range-state, failure-state, snapshot-refresh, and cleanup verification remains).
+- **Progress:** 5/6 checklist items.
 - [x] Migrate RTN Deltas, Angular Velocity, Direction Change, and Geocentric Distance to
       range-limited series-group queries; use the validated `speed-altitude` path as the pattern
       and request only fields each view uses. Store paths share derived-column buffers, apply
@@ -180,9 +180,10 @@ values, segmentation, click-to-seek, empty/partial behavior, and 3D backend beha
 - [x] Migrate Ground Track and Pass Ground Track to typed Earth-fixed, Ground Track, and footprint
       results through the bound read context; preserve map, seam, range, and station-selection
       behavior.
-- [ ] Migrate station status, pass strip, profiles, pass list, and sky view to typed
+- [x] Migrate station status, pass strip, profiles, pass list, and sky view to typed
       station-profile/access and point-metric results through the bound read context; reuse shared
-      store buffers.
+      store buffers. Profile adapters retain leased store columns, and profile/sky plotting bounds
+      display samples per segment.
 - [ ] Verify empty, partial, loading, failed, cancelled, and multi-segment render states;
       confirm plotting buffer sharing, stable-snapshot refresh behavior, and resource release on
       close/replacement.
@@ -486,14 +487,18 @@ no view needs to create an orbit-sized projection.
 **Depends on:** Steps 1–4.
 
 **Evidence:** The store-backed `speed-altitude` vertical slice, the first two Step 6 view groups,
-the snapshot-bound consumer context and binding lifecycle, and Ground Track consumers validate
-range-limited inputs, display transforms, segment boundaries, buffer sharing, cursor and range
-updates, empty states, stable limits, map seam handling, pass selection, point footprints,
-backend-specific display packing, and tier-interest release. Store-backed map paths use bounded
-display sampling rather than constructing an orbit-sized plotting projection. Context tests cover
-snapshot refresh, no-range typed results, range replacement, and subscription cleanup/rebinding.
-Ground Track queries reuse the Earth-fixed tier, return map-centered seam-split groups, and use a
-bounded cache; point queries cover station metrics and footprints. Validation:
+the snapshot-bound consumer context and binding lifecycle, Ground Track consumers, and station
+consumers validate range-limited inputs, display transforms, segment boundaries, buffer sharing,
+empty states, stable limits, map seam handling, pass selection, point footprints, bounded profile
+and sky display samples, backend-specific display packing, and tier-interest release. Store-backed
+map paths use bounded display sampling rather than constructing an orbit-sized plotting projection.
+Context tests cover snapshot refresh, no-range typed results, range replacement, and subscription
+cleanup/rebinding. Ground Track queries reuse the Earth-fixed tier, return map-centered seam-split
+groups, and use a bounded cache; point queries cover station metrics and footprints. Station profile
+adapters are verified to share store-owned columns; station view tests cover pending-to-ready
+snapshot refresh, pending coverage messaging, bounded profile/sky samples, and pass-query reuse;
+legacy station selection/range regression tests remain green. Validation:
 `python3 -m pytest tests/ephem_toolkit/play_oem tests/ephem_toolkit/core/interpolator -q`
-passed (669 passed, 4 skipped). `git diff --check` and `compileall` passed. Step 6 next migrates
-station views; the active application still uses `OrbitSeries`.
+passed (675 passed, 4 skipped). `git diff --check` and `compileall` passed. The remaining Step 6
+item verifies partial/failure/cancellation and multi-segment view states plus snapshot refresh and
+cleanup; the active application still uses `OrbitSeries` until Step 7.

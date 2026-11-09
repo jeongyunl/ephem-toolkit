@@ -9,7 +9,12 @@ from matplotlib.figure import Figure
 import numpy as np
 
 from ephem_toolkit.play_oem.ground_stations import GroundStation
-from ephem_toolkit.play_oem.oem_data_store import OemDataStore
+from ephem_toolkit.play_oem.oem_data_store import (
+    ColumnGroupView,
+    LookAngleProfileView,
+    OemDataStore,
+    StationAccessView,
+)
 from ephem_toolkit.play_oem.station_access import (
     AccessInterval,
     LookAngleProfile,
@@ -21,7 +26,10 @@ from ephem_toolkit.play_oem.station_analysis import (
 )
 from ephem_toolkit.play_oem.time_range import ResolvedTimeRange
 from ephem_toolkit.play_oem.time_unit import TimeUnit
-from ephem_toolkit.play_oem.views.base import StoreViewContext
+from ephem_toolkit.play_oem.views.base import (
+    StoreViewContext,
+    station_access_from_store,
+)
 from ephem_toolkit.play_oem.ground_track import GroundTrackCoordinates
 from ephem_toolkit.play_oem.ground_track import GroundTrackSource
 from ephem_toolkit.play_oem.views import ground_station_pass_track
@@ -115,6 +123,171 @@ def test_range_profile_uses_cached_values_only_inside_plot_range() -> None:
     line = view._axes.lines[-1]
     assert np.array_equal(line.get_xdata(), np.asarray([10.0, 20.0]) / 60.0)
     assert np.array_equal(line.get_ydata(), np.asarray([90.0, 80.0]))
+
+
+def test_store_station_profiles_share_their_backing_columns() -> None:
+    station = GroundStation("north", "North Site", 0.0, 0.0, 0.0)
+    values = np.asarray(
+        [
+            [0.0, 1.0, 2.0, 3.0],
+            [10.0, 11.0, 12.0, 13.0],
+        ]
+    )
+    group = ColumnGroupView(
+        values,
+        ("t", "azimuth_deg", "elevation_deg", "range_km"),
+        (),
+    )
+    adapted = station_access_from_store(
+        StationAccessView(station, (LookAngleProfileView(group),), (), None)
+    )
+    profile = adapted.look_angle_profiles[0]
+
+    assert np.shares_memory(profile.times_s, group.values)
+    assert np.shares_memory(profile.azimuths_deg, group.values)
+    assert np.shares_memory(profile.elevations_deg, group.values)
+    assert np.shares_memory(profile.slant_ranges_km, group.values)
+
+
+def _station_store_context(*, complete: bool) -> tuple[
+    OemDataStore, StoreViewContext, GroundStation
+]:
+    elevations = np.asarray([0.0, 60.0, 0.0])
+    states = np.column_stack(
+        (
+            6_378_137.0 + np.sin(np.deg2rad(elevations)) * 1_000_000.0,
+            np.cos(np.deg2rad(elevations)) * 1_000_000.0,
+            np.zeros(3),
+            np.zeros((3, 3)),
+        )
+    )
+    store = OemDataStore()
+    epoch = store.begin(len(elevations))
+    reservation = store.reserve(len(elevations))
+    reservation.raw[:, 0] = [0.0, 60.0, 120.0]
+    reservation.raw[:, 1:7] = states
+    reservation.segment_ids[:] = 0
+    store.commit(reservation, len(elevations))
+    if complete:
+        store.mark_complete(
+            epoch,
+            (),
+            (("CENTER_NAME", "EARTH"), ("REF_FRAME", "ITRF")),
+        )
+    context = StoreViewContext.capture(
+        store,
+        time_unit=TimeUnit.MINUTES,
+        plot_range=ResolvedTimeRange(0.0, 120.0),
+        coverage=(0.0, 120.0),
+    )
+    station = GroundStation("equator", "Equator", 0.0, 0.0, 0.0, 10)
+    return store, context, station
+
+
+def test_store_station_view_refreshes_pending_data_and_reuses_profile_columns() -> None:
+    store, context, station = _station_store_context(complete=False)
+    view = GroundStationAnalysisView(
+        cast(Any, None),
+        "range-profile",
+        cast(Any, None),
+        cast(Any, SimpleNamespace(t_start=0.0, t_end=120.0)),
+        [station],
+        TimeUnit.MINUTES,
+        "Test object",
+        oem_loaded=True,
+        on_station_manager=lambda: None,
+        access_cache=cast(Any, _PreparedAccess(StationAccess(station, ()))),
+        selection_context=StationAnalysisContext(),
+        initial_range=context.plot_range,
+    )
+    view._build_panel = lambda: cast(Any, None)
+
+    try:
+        view.build_from_store(context)
+        assert not view._store_queries[station.station_id].coverage.complete
+
+        store.mark_complete(
+            context.snapshot.epoch,
+            (),
+            (("CENTER_NAME", "EARTH"), ("REF_FRAME", "ITRF")),
+        )
+        refreshed = context.refresh()
+        store.station_access(refreshed.snapshot, station, (0.0, 120.0), wait=True)
+        view.update_from_store(refreshed)
+
+        query = view._store_queries[station.station_id]
+        profile = view._results[station.station_id].look_angle_profiles[0]
+        group = query.value.profiles[0].group
+        assert query.coverage.complete
+        assert np.shares_memory(profile.times_s, group.values)
+        assert view._store_context is not None
+        assert view._store_context.snapshot.revision > context.snapshot.revision
+    finally:
+        view.close()
+        store.close()
+
+
+def test_store_station_view_reports_pending_access_coverage() -> None:
+    store, context, station = _station_store_context(complete=False)
+    view = GroundStationAnalysisView(
+        cast(Any, None),
+        "range-profile",
+        cast(Any, None),
+        cast(Any, SimpleNamespace(t_start=0.0, t_end=120.0)),
+        [station],
+        TimeUnit.MINUTES,
+        "Test object",
+        oem_loaded=True,
+        on_station_manager=lambda: None,
+        access_cache=cast(Any, _PreparedAccess(StationAccess(station, ()))),
+        selection_context=StationAnalysisContext(),
+        initial_range=context.plot_range,
+    )
+    view._build_panel = lambda: cast(Any, None)
+    labels: list[str] = []
+    view._status_label = SimpleNamespace(SetLabel=labels.append)
+
+    try:
+        view.build_from_store(context)
+        view._update_status_text()
+
+        assert not view._store_queries[station.station_id].coverage.complete
+        assert labels[-1] == "Station data is loading."
+    finally:
+        view.close()
+        store.close()
+
+
+def test_store_profile_plot_bounds_display_samples() -> None:
+    station = GroundStation("north", "North Site", 0.0, 0.0, 0.0)
+    times = np.arange(5001.0)
+    profile = LookAngleProfile(times, times % 360.0, times % 90.0, times + 1.0)
+    result = StationAccess(station, (), look_angle_profiles=(profile,))
+    view = GroundStationAnalysisView(
+        cast(Any, None),
+        "range-profile",
+        cast(Any, object()),
+        cast(Any, SimpleNamespace(t_start=0.0, t_end=5000.0)),
+        [station],
+        TimeUnit.MINUTES,
+        "Test object",
+        oem_loaded=True,
+        on_station_manager=lambda: None,
+        access_cache=cast(Any, _PreparedAccess(result)),
+        selection_context=StationAnalysisContext(),
+        initial_range=ResolvedTimeRange(0.0, 5000.0),
+    )
+    view._store_context = cast(StoreViewContext, object())
+    figure = Figure()
+    view._figure = figure
+    view._axes = figure.add_subplot(111)
+
+    view._draw_profile(result, station)
+
+    line = view._axes.lines[-1]
+    assert len(line.get_xdata()) <= 2000
+    assert line.get_xdata()[0] == 0.0
+    assert line.get_xdata()[-1] == 5000.0 / 60.0
 
 
 def test_time_profiles_hide_samples_below_station_elevation_mask() -> None:

@@ -19,6 +19,7 @@ from ..ground_track import (
     GroundTrackPreparationError,
     GroundTrackSource,
 )
+from ..oem_data_store import StationAccessView, StoreQuery
 from ..series import OrbitSeries
 from ..station_access import (
     AccessInterval,
@@ -29,6 +30,8 @@ from ..station_access import (
 from ..station_analysis import StationAnalysisContext, StationAnalysisSelection
 from ..time_range import ResolvedTimeRange
 from ..time_unit import TimeUnit
+from .base import StoreViewBinding, StoreViewContext, station_access_from_store
+from .plotting import bounded_sample_indices
 
 _PROFILE_TYPES = frozenset(("elevation-profile", "azimuth-profile", "range-profile"))
 
@@ -77,6 +80,11 @@ class GroundStationAnalysisView:
             else (self._stations[0].station_id if self._stations else None)
         )
         self._results: dict[str, StationAccess] = {}
+        self._store_context: StoreViewContext | None = None
+        self._store_binding = StoreViewBinding(
+            () if panel_type == "station-status" else ("station-access",)
+        )
+        self._store_queries: dict[str, StoreQuery[StationAccessView]] = {}
         self._panel: wx.Panel | None = None
         self._station_choice: wx.Choice | None = None
         self._mask_filter_control: wx.CheckBox | None = None
@@ -96,6 +104,28 @@ class GroundStationAnalysisView:
             selection_context.select_station(self._selected_station_id)
 
     def build(self, _series: OrbitSeries, _time_unit: TimeUnit, /) -> wx.Window:
+        return self._build_panel()
+
+    def build_from_store(self, context: StoreViewContext, /) -> wx.Window:
+        """Build from bound station queries and point metrics."""
+        self._store_binding.bind(context)
+        self._store_context = context
+        self._time_range = context.plot_range
+        self._prepare_access()
+        return self._build_panel()
+
+    def update_from_store(self, context: StoreViewContext, /) -> None:
+        """Refresh station results from a newer snapshot or range."""
+        if self._store_context is None:
+            raise RuntimeError("Ground Station view was not built from a store")
+        self._store_binding.bind(context)
+        self._store_context = context
+        self._time_range = context.plot_range
+        self._prepare_access()
+        self._draw()
+        self.update(self._current_time_s)
+
+    def _build_panel(self) -> wx.Window:
         panel = wx.Panel(self._parent, wx.ID_ANY)
         self._panel = panel
         root = wx.BoxSizer(wx.VERTICAL)
@@ -183,11 +213,13 @@ class GroundStationAnalysisView:
                 self._canvas.draw_idle()
 
     def set_time_range(
-        self, bounds: ResolvedTimeRange | None, _coverage: tuple[float, float], /
+        self, bounds: ResolvedTimeRange | None, coverage: tuple[float, float], /
     ) -> None:
         if bounds == self._time_range:
             return
         self._time_range = bounds
+        if self._store_context is not None:
+            self._store_context = self._store_binding.with_range(bounds, coverage)
         self._prepare_access()
         self._draw()
 
@@ -213,6 +245,9 @@ class GroundStationAnalysisView:
         ):
             self._canvas.mpl_disconnect(self._selection_callback_id)
         self._context_unsubscribe = lambda: None
+        self._store_binding.close()
+        self._store_context = None
+        self._store_queries.clear()
         self._canvas = None
         self._figure = None
         self._axes = None
@@ -266,12 +301,21 @@ class GroundStationAnalysisView:
 
     def _prepare_access(self) -> None:
         self._results.clear()
+        self._store_queries.clear()
         if (
             self._panel_type == "station-status"
             or not self._oem_loaded
-            or self._source is None
-            or self._time_range is None
         ):
+            return
+        if self._store_context is not None:
+            for station in self._stations:
+                query = self._store_context.station_access(station)
+                self._store_queries[station.station_id] = query
+                self._results[station.station_id] = station_access_from_store(
+                    query.value
+                )
+            return
+        if self._source is None or self._time_range is None:
             return
         bounds = (self._time_range.start_s, self._time_range.end_s)
         for station in self._stations:
@@ -350,14 +394,32 @@ class GroundStationAnalysisView:
                     label="Access interval" if index == 0 else None,
                 )
         for profile in result.look_angle_profiles:
-            times = profile.times_s
             if self._time_range is None:
                 continue
-            selected = (times >= self._time_range.start_s) & (
-                times <= self._time_range.end_s
-            )
-            times = times[selected]
-            indices = np.flatnonzero(selected)
+            profile_times = profile.times_s
+            if self._store_context is not None:
+                first = int(
+                    np.searchsorted(
+                        profile_times, self._time_range.start_s, side="left"
+                    )
+                )
+                stop = int(
+                    np.searchsorted(
+                        profile_times, self._time_range.end_s, side="right"
+                    )
+                )
+                if first >= stop:
+                    continue
+                indices = first + bounded_sample_indices(stop - first)
+                times = profile_times[indices]
+            else:
+                selected = (profile_times >= self._time_range.start_s) & (
+                    profile_times <= self._time_range.end_s
+                )
+                indices = np.flatnonzero(selected)
+                if not len(indices):
+                    continue
+                times = profile_times[indices]
             if not len(indices):
                 continue
             if self._panel_type == "elevation-profile":
@@ -482,18 +544,38 @@ class GroundStationAnalysisView:
         station = self._selected_station()
         if station is None:
             message = "No ground stations are configured. Add a station to continue."
-        elif not self._oem_loaded or self._source is None:
+        elif not self._oem_loaded or (
+            self._source is None and self._store_context is None
+        ):
             message = "Load an Earth-centered OEM to view station analysis."
         elif self._time_range is None and self._panel_type != "station-status":
             message = "The current Plot Range does not overlap OEM coverage."
         else:
             result = self._results.get(station.station_id)
+            query = self._store_queries.get(station.station_id)
             message = (
                 result.limitation
                 if result is not None and result.limitation
                 else ""
             )
-            if self._panel_type == "pass-strip" and result is not None:
+            if (
+                query is not None
+                and not query.coverage.complete
+                and not message
+            ):
+                has_ready_data = bool(
+                    result is not None
+                    and (
+                        result.intervals
+                        or result.look_angle_profiles
+                    )
+                )
+                message = (
+                    "Station data is partially available."
+                    if has_ready_data
+                    else "Station data is loading."
+                )
+            elif self._panel_type == "pass-strip" and result is not None:
                 intervals = self._visible_intervals(result)
                 if not intervals and not result.intervals:
                     message = "No access intervals in OEM coverage meet this station's mask."
@@ -508,17 +590,31 @@ class GroundStationAnalysisView:
     def _update_status_metrics(self) -> None:
         self._update_status_text()
         station = self._selected_station()
-        if station is None or not self._oem_loaded or self._source is None:
+        if (
+            station is None
+            or not self._oem_loaded
+            or (self._source is None and self._store_context is None)
+        ):
             metrics_text = ""
         else:
             try:
-                metrics = current_station_metrics(
-                    station,
-                    self._cursor,
-                    self._current_time_s,
-                    self._source,
-                    self._access_cache.position_cache,
-                )
+                if self._store_context is not None:
+                    metrics = self._store_context.station_metrics_at(
+                        station, self._current_time_s
+                    )
+                else:
+                    source = self._source
+                    metrics = (
+                        None
+                        if source is None
+                        else current_station_metrics(
+                            station,
+                            self._cursor,
+                            self._current_time_s,
+                            source,
+                            self._access_cache.position_cache,
+                        )
+                    )
             except GroundTrackPreparationError as error:
                 if self._status_label is not None:
                     self._status_label.SetLabel(str(error))

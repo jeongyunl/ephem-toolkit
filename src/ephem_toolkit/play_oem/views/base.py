@@ -35,6 +35,7 @@ from ..oem_data_store import (
 from ..cursor import CursorState
 from ..ground_footprints import GroundFootprints
 from ..ground_stations import GroundStation, StationMetrics
+from ..station_access import LookAngleProfile, StationAccess
 from ..series import OrbitSeries
 from ..time_range import ResolvedTimeRange, validate_coverage
 from ..time_unit import TimeUnit
@@ -287,6 +288,24 @@ class StoreViewBinding:
         for unsubscribe in self._unsubscribers:
             unsubscribe()
         self._unsubscribers.clear()
+
+
+def station_access_from_store(value: StationAccessView) -> StationAccess:
+    """Adapt leased store columns to the station view model without copying."""
+    profiles: list[LookAngleProfile] = []
+    for profile in value.profiles:
+        group = profile.group
+        times = group.values[:, group.columns.index("t")]
+        azimuths = group.values[:, group.columns.index("azimuth_deg")]
+        elevations = group.values[:, group.columns.index("elevation_deg")]
+        ranges = group.values[:, group.columns.index("range_km")]
+        profiles.append(LookAngleProfile(times, azimuths, elevations, ranges))
+    return StationAccess(
+        value.station,
+        value.intervals,
+        value.limitation,
+        look_angle_profiles=tuple(profiles),
+    )
 
 
 class StoreView(Protocol):
