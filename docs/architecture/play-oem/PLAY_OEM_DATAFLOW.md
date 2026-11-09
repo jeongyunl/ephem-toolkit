@@ -8,8 +8,8 @@ open views. The controller binds those views to one snapshot and range through
 `StoreViewContext`; the diagram in [PLAY_OEM_DATAFLOW.mmd](./PLAY_OEM_DATAFLOW.mmd)
 describes this shipped path.
 
-The prepared-batch loader and its duplicate data owners remain as compatibility code, but
-they are not used by the default application load path. Step 8 tracks their removal.
+The prepared-batch loader and its duplicate data owners were removed in Step 8. The default
+application has a single direct-to-store loading path.
 
 The default playback range is the first two days of the OEM, and the default plot range
 follows playback. Saved settings override those defaults.
@@ -57,13 +57,11 @@ follows playback. Saved settings override those defaults.
    Current station metrics and footprints are derived at the playback time; they are not
    lookups into the range-profile results.
 
-## Compatibility path
+## Remaining compatibility
 
-`IncrementalLoader` still supports prepared-batch callbacks. That path uses
-`IncrementalPlaybackPreparer`, `AppendablePlaybackData`, `OrbitSeriesAccumulator`,
-`OemCursor`, `GroundTrackSource`, and the legacy station-access caches. Some views retain
-fallback support for these objects. This path is not represented as the default flow and
-remains scheduled for removal in Step 8.
+The loader no longer publishes prepared state batches or maintains a second derived-data
+owner. Some view builders still accept legacy `GroundTrackSource` and station-cache inputs
+for non-store contexts; store-backed application views use `OemDataStore`.
 
 ## Remaining efficiency considerations
 

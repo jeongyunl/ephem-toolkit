@@ -91,17 +91,7 @@ flowchart TD
     FOOTPRINT --> TRACK_VIEW
     CURRENT_METRICS --> STATION_VIEWS
 
-    subgraph LEGACY["Prepared-batch compatibility path (not the default)"]
-        direction TB
-        BATCH["read_oem_batches"]
-        PREPARE["IncrementalPlaybackPreparer<br/>AppendablePlaybackData"]
-        OWNERS["OrbitSeriesAccumulator, OemCursor,<br/>GroundTrackSource, station caches"]
-        BATCH --> PREPARE --> OWNERS
-    end
-
     classDef store fill:#e8f1ff,stroke:#2463a6,stroke-width:2px
     classDef view fill:#f4f4f4,stroke:#666
-    classDef legacy fill:#eee,stroke:#888,stroke-dasharray:5 5
     class RAW,POLICY,SERIES,EARTH_FIXED,GROUND_TRACK,ACCESS,FOOTPRINT store
     class HISTORIES,TRAJECTORY,TRACK_VIEW,STATION_VIEWS,PASS_TRACK,CURRENT_METRICS view
-    class BATCH,PREPARE,OWNERS legacy

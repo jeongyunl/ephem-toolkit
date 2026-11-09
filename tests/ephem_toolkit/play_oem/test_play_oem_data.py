@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import fields
 from pathlib import Path
+from threading import Event
 
 import numpy as np
 import pytest
@@ -12,8 +13,10 @@ from ephem_toolkit.core.ccsds.oem import CcsdsOem
 from ephem_toolkit.core.time_utils import datetime_to_tt_s, iso8601_to_datetime
 from ephem_toolkit.play_oem.cursor import OemCursor
 from ephem_toolkit.play_oem.data import filter_states_by_duration, read_oem_states
-from ephem_toolkit.play_oem.playback_data import load_playback_data
+from ephem_toolkit.play_oem.oem_data_store import InterpolationPolicy, OemDataStore
+from ephem_toolkit.play_oem.playback_data import oem_slider_bounds
 from ephem_toolkit.play_oem.series import OrbitSeries, compute_orbit_series
+from ephem_toolkit.play_oem.streaming_oem import read_oem_into_store
 from ephem_toolkit.play_oem.time_unit import TimeUnit
 from ephem_toolkit.plot_oem.plot_oem import (
     TimeUnit as PlotTimeUnit,
@@ -28,6 +31,20 @@ def iss_oem_path() -> Path:
     return Path(__file__).resolve().parents[2] / "data" / "ISS_2026-05-20_small.OEM"
 
 
+def _load_store(source: Path) -> OemDataStore:
+    store = OemDataStore()
+    epoch = store.begin(OemDataStore.capacity_for_file(source))
+    read_oem_into_store(
+        source,
+        store,
+        batch_size=512,
+        on_append=lambda _notice: None,
+        cancel_event=Event(),
+        expected_epoch=epoch,
+    )
+    return store
+
+
 def test_read_oem_states_matches_plot_oem(iss_oem_path: Path) -> None:
     play_oem_data, play_timestamps, play_states = read_oem_states(iss_oem_path)
     plot_oem_data, plot_timestamps, plot_states = read_plot_oem_states(iss_oem_path)
@@ -37,47 +54,37 @@ def test_read_oem_states_matches_plot_oem(iss_oem_path: Path) -> None:
     np.testing.assert_allclose(play_states, plot_states)
 
 
-def test_loaded_playback_exposes_oem_metadata_slider_bounds(
+def test_oem_slider_bounds_include_metadata_times(
     iss_oem_path: Path,
 ) -> None:
-    loaded = load_playback_data(iss_oem_path)
     metadata = CcsdsOem.from_file(iss_oem_path).meta
     expected = (
         datetime_to_tt_s(iso8601_to_datetime(metadata.start_time)),
         datetime_to_tt_s(iso8601_to_datetime(metadata.stop_time)),
     )
 
-    assert loaded.slider_bounds == expected
+    _, timestamps_s, _ = read_oem_states(iss_oem_path)
+    assert oem_slider_bounds(
+        metadata.start_time,
+        metadata.stop_time,
+        (timestamps_s[0], timestamps_s[-1]),
+    ) == expected
 
 
-def test_playback_data_exposes_ground_track_source_metadata(iss_oem_path: Path) -> None:
-    loaded = load_playback_data(iss_oem_path)
+def test_direct_store_load_exposes_oem_metadata_and_raw_views(iss_oem_path: Path) -> None:
+    store = _load_store(iss_oem_path)
+    snapshot = store.snapshot()
+    metadata = dict(snapshot.meta)
 
-    assert loaded.ground_track_source is not None
-    assert loaded.ground_track_source.center_name.strip().upper() == "EARTH"
-    assert loaded.ground_track_source.frame_name == "EME2000"
-    assert (
-        loaded.ground_track_source.timestamps_s.shape == loaded.series.segment_ids.shape
-    )
-    assert loaded.ground_track_source.states_m.shape == (
-        len(loaded.series.segment_ids),
-        6,
-    )
-    assert np.shares_memory(
-        loaded.ground_track_source.timestamps_s, loaded.cursor.timestamps_s
-    )
-    assert np.shares_memory(
-        loaded.ground_track_source.states_m, loaded.cursor.states_m
-    )
-    assert np.shares_memory(
-        loaded.ground_track_source.segment_ids, loaded.cursor.segment_ids
-    )
-    np.testing.assert_array_equal(
-        loaded.ground_track_source.segment_ids, loaded.series.segment_ids
-    )
+    assert str(metadata["CENTER_NAME"]).strip().upper() == "EARTH"
+    assert metadata["REF_FRAME"] == "EME2000"
+    assert snapshot.sample_count > 0
+    assert np.shares_memory(snapshot.positions_m, snapshot.raw)
+    assert np.shares_memory(snapshot.velocities_m_s, snapshot.raw)
+    assert np.shares_memory(store.sample_times.values, snapshot.raw)
 
 
-def test_playback_cursor_can_override_oem_interpolation_metadata() -> None:
+def test_store_interpolation_policy_can_use_or_override_oem_metadata() -> None:
     jp_sat_oem_path = (
         Path(__file__).resolve().parents[2] / "data" / "JPSS-1_small.15m.oem"
     )
@@ -85,9 +92,14 @@ def test_playback_cursor_can_override_oem_interpolation_metadata() -> None:
     assert oem_data.meta.interpolation == "Lagrange"
     assert oem_data.meta.interpolation_degree == 5
 
-    loaded_from_metadata = load_playback_data(
-        jp_sat_oem_path, use_oem_interpolation=True
+    store = _load_store(jp_sat_oem_path)
+    store.set_interpolation(
+        InterpolationPolicy(
+            oem_data.meta.interpolation.lower(),
+            oem_data.meta.interpolation_degree,
+        )
     )
+    metadata_snapshot = store.snapshot()
     metadata_cursor = OemCursor(
         timestamps_s,
         states_m,
@@ -95,7 +107,10 @@ def test_playback_cursor_can_override_oem_interpolation_metadata() -> None:
         interpolation_degree=oem_data.meta.interpolation_degree,
         segment_ids=oem_data.segment_ids[: len(timestamps_s)],
     )
-    loaded = load_playback_data(jp_sat_oem_path)
+    store_policy_state = store.state_at(
+        metadata_snapshot, (timestamps_s[0] + timestamps_s[1]) / 2.0
+    ).state_m
+    assert store_policy_state is not None
     reference_cursor = OemCursor(
         timestamps_s,
         states_m,
@@ -104,13 +119,16 @@ def test_playback_cursor_can_override_oem_interpolation_metadata() -> None:
         segment_ids=oem_data.segment_ids[: len(timestamps_s)],
     )
     midpoint = (timestamps_s[0] + timestamps_s[1]) / 2.0
+    store.set_interpolation(InterpolationPolicy("hermite", 5))
+    default_policy_state = store.state_at(store.snapshot(), midpoint).state_m
+    assert default_policy_state is not None
 
     np.testing.assert_allclose(
-        loaded_from_metadata.cursor.lookup(midpoint).state_m,
+        store_policy_state,
         metadata_cursor.lookup(midpoint).state_m,
     )
     np.testing.assert_allclose(
-        loaded.cursor.lookup(midpoint).state_m,
+        default_policy_state,
         reference_cursor.lookup(midpoint).state_m,
     )
 

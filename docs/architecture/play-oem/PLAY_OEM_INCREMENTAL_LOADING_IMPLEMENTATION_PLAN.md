@@ -6,15 +6,15 @@ Current application plan and completed implementation history:
 
 ## Current runtime behavior
 
-`play-oem` currently calls `load_playback_data()` before creating `PlayerApp`. The synchronous
-loader parses the whole OEM, derives all orbit series, prepares cursor lookup, and builds the
-ground-track source before the first window can appear. The Open File workflow runs the same load
-and preparation synchronously from the GUI event handler. Loading therefore blocks both initial
-startup and file replacement.
+`__main__.main()` creates `PlayerApp` with inert initial state, and file selection starts a
+generation-tagged background load directly into a new `OemDataStore`. The worker commits raw
+prefixes; the controller installs `StoreCursor` snapshots and updates views through
+`StoreViewContext`. The one-shot `load_playback_data()` helper, prepared-batch callback path,
+appendable playback owner, and duplicate series accumulator have been removed in Step 8.
 
-This plan implements the separate
-[incremental loading design](./PLAY_OEM_INCREMENTAL_LOADING.md). It targets time to first
-interactive data; it does not claim to reduce the memory needed for a complete history.
+This plan records the earlier incremental-loading implementation. Its completed steps are
+historical evidence; the current runtime behavior and remaining ownership cleanup are tracked in
+the [Unified OEM Data Store Implementation Plan](./PLAY_OEM_DATA_STORE_IMPLEMENTATION_PLAN.md).
 
 ## How to use this plan
 

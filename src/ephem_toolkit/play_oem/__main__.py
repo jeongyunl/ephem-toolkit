@@ -10,7 +10,7 @@ from .play_oem_cli import build_arg_parser, parse_arguments, PlayOemArgs
 
 
 def main(argv: Sequence[str] | None = None) -> None:
-    """Load an OEM and prepare its derived playback series."""
+    """Start the playback workspace and load the selected OEM in the background."""
     cli_args: PlayOemArgs = parse_arguments(build_arg_parser(), argv)
     if cli_args.input_oem is not None and not Path(cli_args.input_oem).is_file():
         raise FileNotFoundError(f"File not found: {cli_args.input_oem}")

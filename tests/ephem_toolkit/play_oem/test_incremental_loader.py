@@ -1,4 +1,4 @@
-"""Tests for cancellable, generation-tagged OEM load sessions."""
+"""Tests for cancellable, generation-tagged direct-store load sessions."""
 
 from __future__ import annotations
 
@@ -10,7 +10,6 @@ import ephem_toolkit.core.ccsds.odm as odm
 from ephem_toolkit.play_oem.incremental_loader import (
     IncrementalLoader,
     IncrementalLoadSession,
-    LoadEvent,
     LoadEventKind,
 )
 from ephem_toolkit.play_oem.oem_data_store import LoadStatus, OemDataStore
@@ -42,7 +41,9 @@ def _drain_until_finished(
     return events
 
 
-def test_load_session_tags_batches_and_completion_with_generation(tmp_path: Path) -> None:
+def test_load_session_tags_raw_appends_and_completion_with_generation(
+    tmp_path: Path,
+) -> None:
     source = tmp_path / "small.oem"
     source.write_text(
         _oem_prefix(
@@ -52,70 +53,59 @@ def test_load_session_tags_batches_and_completion_with_generation(tmp_path: Path
         ),
         encoding="utf-8",
     )
-    session = IncrementalLoadSession(source, generation=42, batch_size=1)
+    store = OemDataStore()
+    epoch = store.begin(3)
+    session = IncrementalLoadSession(
+        source, generation=42, store=store, store_epoch=epoch, batch_size=1
+    )
     session.start()
     events = _drain_until_finished(session)
     assert [event.kind for event in events] == [
         LoadEventKind.STARTED,
-        LoadEventKind.BATCH,
-        LoadEventKind.BATCH,
-        LoadEventKind.BATCH,
+        LoadEventKind.RAW_APPEND,
+        LoadEventKind.RAW_APPEND,
+        LoadEventKind.RAW_APPEND,
         LoadEventKind.COMPLETE,
     ]
     assert all(event.generation == 42 for event in events)
     assert [event.loaded_state_count for event in events] == [0, 1, 2, 3, 3]
+    assert all(event.raw_notice is not None for event in events[1:4])
 
 
-def test_batch_preparation_runs_on_loader_worker(tmp_path: Path) -> None:
-    source = tmp_path / "prepared.oem"
-    source.write_text(
-        _oem_prefix("2026-01-01T00:00:00 7000 0 0 0 7.5 0\n"),
-        encoding="utf-8",
-    )
-    ui_thread = get_ident()
-    preparation_threads: list[int] = []
-
-    def prepare(batch) -> int:
-        preparation_threads.append(get_ident())
-        return len(batch.states)
-
-    session = IncrementalLoadSession(
-        source,
-        generation=8,
-        batch_size=1,
-        prepare_batch=prepare,
-    )
-    session.start()
-    events = _drain_until_finished(session)
-    batches = [event for event in events if event.kind is LoadEventKind.BATCH]
-    assert len(batches) == 1
-    assert batches[0].prepared == 1
-    assert preparation_threads and preparation_threads[0] != ui_thread
-
-
-def test_load_session_cancel_releases_backpressure_without_blocking(tmp_path: Path) -> None:
+def test_load_session_cancel_releases_backpressure_without_blocking(
+    tmp_path: Path,
+) -> None:
     source = tmp_path / "many.oem"
     rows = "".join(
-        f"2026-01-01T00:{index // 60:02d}:{index % 60:02d} 7000 {index} 0 0 7.5 0\n"
+        f"2026-01-01T00:{index // 60:02d}:{index % 60:02d} "
+        f"7000 {index} 0 0 7.5 0\n"
         for index in range(1_000)
     )
     source.write_text(_oem_prefix(rows), encoding="utf-8")
+    store = OemDataStore()
+    epoch = store.begin(1_000)
     session = IncrementalLoadSession(
-        source, generation=7, batch_size=1, queue_size=1
+        source, generation=7, store=store, store_epoch=epoch, batch_size=1,
+        queue_size=1,
     )
     session.start()
     session.cancel()
     events = _drain_until_finished(session)
     assert events[0].kind is LoadEventKind.STARTED
-    assert all(event.kind is LoadEventKind.BATCH for event in events[1:])
+    assert all(event.kind is LoadEventKind.RAW_APPEND for event in events[1:])
     assert len(events) <= 2
     assert session.cancelled
+    assert store.status is LoadStatus.CANCELLED
 
 
 def test_load_session_reports_reader_failure_as_event(tmp_path: Path) -> None:
     source = tmp_path / "bad.oem"
     source.write_text(_oem_prefix("COVARIANCE_STOP\n"), encoding="utf-8")
-    session = IncrementalLoadSession(source, generation=9, batch_size=1)
+    store = OemDataStore()
+    epoch = store.begin_loading()
+    session = IncrementalLoadSession(
+        source, generation=9, store=store, store_epoch=epoch, batch_size=1
+    )
     session.start()
     events = _drain_until_finished(session)
     assert [event.kind for event in events] == [
@@ -124,33 +114,7 @@ def test_load_session_reports_reader_failure_as_event(tmp_path: Path) -> None:
     ]
     assert events[-1].generation == 9
     assert events[-1].error is not None
-
-
-def test_incremental_loader_can_publish_direct_store_appends(tmp_path: Path) -> None:
-    source = tmp_path / "direct.oem"
-    source.write_text(
-        _oem_prefix(
-            "2026-01-01T00:00:00 7000 0 0 0 7.5 0\n"
-            "2026-01-01T00:00:10 7000 1 0 0 7.5 0\n"
-            "2026-01-01T00:00:20 7000 2 0 0 7.5 0\n"
-        ),
-        encoding="utf-8",
-    )
-    store = OemDataStore()
-    loader = IncrementalLoader(batch_size=2, queue_size=8)
-    assert store.capacity_for_file(source) >= 3
-    session = loader.start(source, store=store)
-    events = _drain_until_finished(session)
-    assert [event.kind for event in events] == [
-        LoadEventKind.STARTED,
-        LoadEventKind.RAW_APPEND,
-        LoadEventKind.RAW_APPEND,
-        LoadEventKind.COMPLETE,
-    ]
-    assert [event.loaded_state_count for event in events] == [0, 2, 3, 3]
-    assert all(event.generation == session.generation for event in events)
-    assert all(event.raw_notice is not None for event in events[1:3])
-    assert store.snapshot().sample_count == 3
+    assert store.status is LoadStatus.FAILED
 
 
 def test_automatic_capacity_scan_runs_on_worker_and_cancels(
@@ -182,12 +146,12 @@ def test_automatic_capacity_scan_runs_on_worker_and_cancels(
     assert scan_started.wait(1.0)
     assert store.capacity == 0
     assert store.status is LoadStatus.LOADING
-    assert scan_threads and scan_threads[0] != calling_thread
 
     session.cancel()
     release_scan.set()
     assert session._finished.wait(3.0)
     assert store.status is LoadStatus.CANCELLED
+    assert scan_threads and scan_threads[0] != calling_thread
 
 
 def test_automatic_capacity_scan_failure_marks_store_failed(tmp_path: Path) -> None:
@@ -206,7 +170,8 @@ def test_incremental_loader_replacement_invalidates_old_store_epoch(
 ) -> None:
     slow_source = tmp_path / "many-direct.oem"
     rows = "".join(
-        f"2026-01-01T00:{index // 60:02d}:{index % 60:02d} 7000 {index} 0 0 7.5 0\n"
+        f"2026-01-01T00:{index // 60:02d}:{index % 60:02d} "
+        f"7000 {index} 0 0 7.5 0\n"
         for index in range(1_000)
     )
     slow_source.write_text(_oem_prefix(rows), encoding="utf-8")
@@ -288,7 +253,8 @@ def test_loader_replacement_ignores_events_from_canceled_generation(
 ) -> None:
     slow_source = tmp_path / "many.oem"
     rows = "".join(
-        f"2026-01-01T00:{index // 60:02d}:{index % 60:02d} 7000 {index} 0 0 7.5 0\n"
+        f"2026-01-01T00:{index // 60:02d}:{index % 60:02d} "
+        f"7000 {index} 0 0 7.5 0\n"
         for index in range(1_000)
     )
     slow_source.write_text(_oem_prefix(rows), encoding="utf-8")
@@ -298,8 +264,12 @@ def test_loader_replacement_ignores_events_from_canceled_generation(
         encoding="utf-8",
     )
     loader = IncrementalLoader(batch_size=1, queue_size=1)
-    old_session = loader.start(slow_source)
-    new_session = loader.start(fast_source)
+    old_store = OemDataStore()
+    new_store = OemDataStore()
+    old_session = loader.start(
+        slow_source, store=old_store, store_capacity=1_000
+    )
+    new_session = loader.start(fast_source, store=new_store, store_capacity=1)
     assert old_session.cancelled
     assert new_session.generation == loader.generation == 2
 
@@ -309,71 +279,7 @@ def test_loader_replacement_ignores_events_from_canceled_generation(
     assert all(event.generation == loader.generation for event in loader.drain())
 
 
-def test_loader_drain_discards_stale_event_kinds(tmp_path: Path) -> None:
-    source = tmp_path / "small.oem"
-    source.write_text(
-        _oem_prefix("2026-01-01T00:00:00 7000 0 0 0 7.5 0\n"),
-        encoding="utf-8",
-    )
-    entered = Event()
-    release = Event()
-
-    def prepare(batch):
-        entered.set()
-        if not release.wait(3.0):
-            raise TimeoutError("test preparation was not released")
-        return len(batch.states)
-
-    loader = IncrementalLoader(batch_size=1, queue_size=4)
-    old_session = loader.start(source, prepare_batch=prepare)
-    try:
-        assert entered.wait(3.0)
-        new_session = loader.start(source, prepare_batch=prepare)
-        loader.drain()
-        for kind in (LoadEventKind.BATCH, LoadEventKind.COMPLETE, LoadEventKind.FAILED):
-            new_session._events.put_nowait(LoadEvent(old_session.generation, kind, 0))
-        assert loader.drain() == []
-        release.set()
-        events = _drain_until_finished(new_session)
-        assert any(event.kind is LoadEventKind.COMPLETE for event in events)
-        assert all(event.generation == loader.generation for event in events)
-    finally:
-        loader.cancel()
-        release.set()
-        assert old_session._finished.wait(3.0)
-
-
-def test_cancel_during_preparation_discards_unpublished_batch(
-    tmp_path: Path,
-) -> None:
-    source = tmp_path / "prepared.oem"
-    source.write_text(
-        _oem_prefix("2026-01-01T00:00:00 7000 0 0 0 7.5 0\n"),
-        encoding="utf-8",
-    )
-    started = Event()
-    release = Event()
-
-    def prepare(batch):
-        started.set()
-        if not release.wait(3.0):
-            raise TimeoutError("test preparation was not released")
-        return len(batch.states)
-
-    session = IncrementalLoadSession(
-        source, generation=10, batch_size=1, prepare_batch=prepare
-    )
-    session.start()
-    try:
-        assert started.wait(3.0)
-        session.cancel()
-    finally:
-        release.set()
-    events = _drain_until_finished(session)
-    assert [event.kind for event in events] == [LoadEventKind.STARTED]
-
-
-def test_cancel_during_parsing_rejects_late_batch(
+def test_cancel_during_parsing_rejects_late_store_append(
     monkeypatch, tmp_path: Path
 ) -> None:
     entered = Event()
@@ -393,8 +299,9 @@ def test_cancel_during_parsing_rejects_late_batch(
         return original_validate(line, label)
 
     monkeypatch.setattr(odm, "validate_odm_line", blocked_validate)
-    session = IncrementalLoadSession(source, generation=11)
-    session.start()
+    store = OemDataStore()
+    loader = IncrementalLoader(batch_size=1)
+    session = loader.start(source, store=store, store_capacity=1)
     try:
         assert entered.wait(3.0)
         session.cancel()
@@ -402,3 +309,4 @@ def test_cancel_during_parsing_rejects_late_batch(
         release.set()
     events = _drain_until_finished(session)
     assert [event.kind for event in events] == [LoadEventKind.STARTED]
+    assert store.status is LoadStatus.CANCELLED

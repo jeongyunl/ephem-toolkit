@@ -11,37 +11,35 @@ This design targets startup latency. It does not by itself reduce the memory req
 complete OEM history. It also does not promise a complete overview plot at first paint: views are
 progressively populated while loading.
 
-## Current bottleneck
+## Shipped loading path
 
-`play_oem.__main__.main()` calls `load_playback_data()` before constructing `PlayerApp`. That calls
-`CcsdsOem.from_file()`, which reads and retains all states, then `compute_orbit_series()` derives
-all plot histories, `OemCursor` prepares interpolation data, and `GroundTrackSource` retains the
-source samples. The wx app cannot appear until this work completes. Opening a different file uses
-the same synchronous callback from `PlayerApp._load_oem_file()` and blocks the GUI thread.
+The original synchronous `load_playback_data()` startup path has been removed. `__main__.main()`
+constructs the workspace with inert initial state; when an OEM is selected,
+`PlayerApp._start_incremental_load()` creates an `OemDataStore` and starts
+`IncrementalLoader` in direct-store mode. Its worker scans for capacity when needed and streams
+parsed rows into reserved store buffers. The wx thread installs committed snapshots and refreshes
+views through `StoreViewContext`.
 
-The parser is a whole-file interface today. `_read_oem_impl()` handles header and metadata records,
-segment transitions, state rows, and covariance blocks in one pass, but returns only after EOF.
-Incremental loading therefore needs an explicit streaming API and a GUI-thread handoff; wrapping
-the current method in a thread alone would make the window responsive during a reload but would
-still defer first startup until the entire file is parsed.
+The earlier whole-file loader derived an `OrbitSeries`, prepared an `OemCursor`, and built a
+`GroundTrackSource` before showing useful data. The prepared-batch prototype was removed in
+Step 8; the loader now exposes only direct-to-store raw appends.
 
 ## User-visible behavior
 
 1. Construct the wx app and workspace immediately, with a file-loading status and disabled
    playback controls. The workspace may open without an OEM, as it already does today.
-2. A loader worker opens the selected file, parses its header and first metadata segment, then
-   reads a bounded initial batch of state rows. As soon as the first usable batch is ready, install
-   it and show the first orbit samples, metadata, cursor, and plots.
-3. Continue parsing and deriving bounded batches on the worker. Post prepared results to the wx
-   event loop; the GUI thread only installs the latest series/cursor snapshot and advances its
-   loaded timeline. Do not rebuild full plot histories for every batch. Keep the first visible
-   plots responsive during loading, then refresh them once after EOF validation.
-4. Show progress as loaded samples and, only when trustworthy, a byte-based estimate. Mark the
-   loaded timeline and status as partial until the worker reaches EOF and validates the complete
-   file. Whole-history analyses stay unavailable during this period.
-5. At EOF, mark coverage complete, publish final sample count and bounds, and enable all features
-   that require complete coverage. A parse error after partial display leaves the valid prefix
-   visible, marks loading failed, and prevents the UI from claiming complete coverage.
+2. A loader worker parses and commits raw state rows to the store. As soon as the first usable
+   prefix is committed, install it and show the available orbit samples and plots. Validated OEM
+   metadata is published when the worker reaches EOF.
+3. Continue parsing on the worker and compute derived products lazily as views request them. The
+   wx thread installs the latest store snapshot and advances loaded coverage; it does not receive
+   prepared full-history series for each batch.
+4. Show progress as loaded samples. Mark the timeline and status as partial until the worker
+   reaches EOF and validates the complete file. Queries outside committed coverage remain
+   incomplete.
+5. At EOF, mark coverage complete, publish final metadata and bounds, and enable features that
+   require complete coverage. A parse error after partial display leaves the valid prefix visible,
+   marks loading failed, and prevents the UI from claiming complete coverage.
 
 For **Open File...**, keep the previous OEM usable until the replacement file produces its first
 valid batch. Then atomically switch the active generation to the new file. This avoids both a long
@@ -52,29 +50,24 @@ the previous OEM unchanged.
 
 ### Streaming reader
 
-Add a playback-oriented streaming reader rather than changing the contract of
-`CcsdsOem.from_file()` for every command. It owns the file handle and parser state and yields:
+The default path uses `read_oem_into_store()` rather than whole-file state retention or prepared
+playback batches. It writes parsed rows into store reservations, commits bounded prefixes, and
+emits generation-tagged raw-append, completion, and failure events. EOF validation publishes
+header and metadata to the store. It does not construct an intermediate `OemStateBatch` stream.
 
-- a start event after header and first segment metadata are validated;
-- ordered batches containing timestamps, SI state vectors, segment IDs, and any batch-local
-  covariance records;
-- a completion event after EOF checks and ODM context validation; or
-- a failure event with the source location and parser error.
+The reader currently uses `_read_oem_impl()`'s row sink so ordinary `CcsdsOem.read()` behavior
+remains unchanged. Segment transitions and covariance validation continue to be handled by the
+shared parser. The direct store path does not materialize whole-file `states`, covariance, or
+comment lists.
 
-The parser should factor `_read_oem_impl()`'s line-state logic into reusable stateful parsing
-primitives so ordinary `CcsdsOem.read()` retains exactly its current behavior. State batches must
-not split the data needed to interpret metadata: a new `META_START` closes the prior segment and
-the next state uses the new segment ID. Covariance data must remain associated with its epoch and
-must be finalized and validated even when its rows cross a batch boundary. Do not materialize
-whole-file `states`, covariance, or comment lists in the streaming playback path.
+The loader worker performs file I/O, capacity scanning when needed, parsing, and raw commits.
+Derived work is scheduled lazily by the store for requested tiers and ranges.
 
-Use a worker thread for file I/O, parsing, and numerical batch preparation. Bound work by a target
-state count and a maximum batch latency so sparse files still report progress. The initial batch
-should be small enough for a quick first paint; subsequent batches can be larger to amortize
-dispatch costs. These are configuration constants to tune from measurements, not user-facing
-options initially.
+### Removed prepared-batch design (historical)
 
-### Playback data and append contract
+The following describes the earlier prototype only. Its `PlaybackBatch` events, appendable
+playback owner, and batch callback have been removed; the default and only loader path writes raw
+rows directly to `OemDataStore`.
 
 Introduce a loader/session object that owns the worker, cancellation token, generation ID, current
 coverage, metadata, and completion/error state. It emits immutable `PlaybackBatch` values. The GUI
@@ -100,12 +93,10 @@ do not make every view understand loader internals in the first implementation.
 
 ### Clock, timeline, and view behavior
 
-Distinguish **loaded coverage** from **complete OEM coverage**. The slider's displayed time scale
-uses declared OEM `START_TIME`/`STOP_TIME` when valid, so the track represents the file's intended
-interval from the first batch. Loaded coverage and playable bounds still use observed samples and
-grow as batches arrive. A slider seek into an unread part of the declared interval clamps to loaded
-coverage; metadata does not prove that data exists there. Likewise, `START_TIME`/`STOP_TIME` do not
-replace the observed first and last samples for playback or analysis.
+Distinguish **loaded coverage** from **complete OEM coverage**. During direct store loading, the
+clock and playable bounds use observed samples and grow as raw prefixes are committed. Validated
+declared `START_TIME`/`STOP_TIME` metadata is applied when loading completes; it does not prove
+that data exists outside observed coverage or replace observed samples for playback and analysis.
 
 Playback can run through loaded samples. Reaching the loaded end while loading pauses at that
 boundary and presents a “Loading more data” state; it must not look like end-of-file. When a new
@@ -116,14 +107,11 @@ is installed, even when the saved playback interval extends beyond loaded covera
 playback clock within loaded samples and apply the saved playback interval once its endpoints are
 covered. On completion, the final endpoint becomes the real playback end.
 
-Every batch updates the visible timeline/range labels and playback coverage, but it does not rebuild
-the full history in each open plot. This keeps the wx event thread responsive while the sample
-count grows. Open plots refresh to the complete history after successful EOF validation. Histories
-draw each segment independently, with no line or derived value across gaps. Views that need the
-entire OEM for accurate global results (notably ground-station access/pass prediction and full-span
-statistics) stay unavailable or show an explicit “available when loading completes” state until
-EOF. Ground Track may show the currently loaded prefix, clearly marked partial. Opening a new
-full-history analysis before completion follows the same availability rule.
+Every append updates coverage and refreshes affected store-backed views without rebuilding complete
+series histories on the wx thread. Histories draw each segment independently, with no line or
+derived value across gaps. Queries may show partial results while loading; features that require
+complete metadata or coverage remain incomplete until EOF. Ground Track and station range queries
+use the store's reported coverage rather than treating the committed prefix as complete.
 
 ### Threading, cancellation, and errors
 
@@ -140,23 +128,23 @@ has been accepted; update recent-file state at the same point as the active-file
 
 ## Data structures and module boundaries
 
-Proposed modules (names may be adjusted to match implementation conventions):
+Module ownership in the shipped path:
 
 ```
 play_oem/
-  streaming_oem.py       # reader events and bounded state batches
+  streaming_oem.py       # parser row sink and direct raw-store ingestion
   incremental_loader.py  # worker/session, generation, cancellation, progress
-  playback_data.py       # appendable playback store and batch derivation
+  playback_data.py       # inert startup state and playback-window data model
   app/controller.py     # GUI-thread install/append and status updates
 ```
 
 Keep the streaming parser playback-specific initially. A general public incremental API in
 `core/ccsds/oem.py` should follow only after its event and covariance semantics are proven and a
-clear non-GUI caller exists. Existing `read_oem_states()` and `load_playback_data()` can remain as
-synchronous convenience APIs, implemented by consuming the streaming interface to completion, if
-their signatures and tests stay stable.
+clear non-GUI caller exists. `read_oem_states()` remains available for non-GUI analysis and reference tests. The one-shot
+`load_playback_data()` helper and prepared-batch `playback_data_from_batch()` path have both been
+removed.
 
-## Delivery sequence
+## Original delivery sequence (historical)
 
 1. **Parser equivalence:** factor parser state and implement a stream that can emit batches while
    retaining metadata, segment IDs, comments, and covariance validation semantics. Compare its

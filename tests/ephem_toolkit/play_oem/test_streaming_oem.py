@@ -1,26 +1,20 @@
-"""Tests for bounded background OEM reading."""
+"""Tests for direct-to-store OEM streaming."""
 
 from __future__ import annotations
 
 from pathlib import Path
 from threading import Event
 
-import pytest
 import numpy as np
+import pytest
 
 from ephem_toolkit.core.ccsds.oem import CcsdsOem
 from ephem_toolkit.play_oem.oem_data_store import LoadStatus, OemDataStore
 from ephem_toolkit.play_oem.streaming_oem import (
     OemStreamComplete,
-    OemStreamError,
     _Cancelled,
-    iter_oem_events,
     read_oem_into_store,
 )
-from ephem_toolkit.play_oem.playback_data import AppendablePlaybackData
-from ephem_toolkit.play_oem.cursor import OemCursor
-from ephem_toolkit.play_oem.series import compute_orbit_series
-from ephem_toolkit.play_oem.time_unit import TimeUnit
 
 
 OEM_TEXT = """CCSDS_OEM_VERS = 2.0
@@ -47,33 +41,8 @@ META_STOP
 """
 
 
-def test_stream_matches_whole_file_parse_across_segment_and_batch_boundaries(
-    tmp_path: Path,
-) -> None:
-    source = tmp_path / "stream.oem"
-    source.write_text(OEM_TEXT, encoding="utf-8")
-    parsed = CcsdsOem.from_file(source)
-
-    events = list(iter_oem_events(source, batch_size=2, queue_size=1))
-    batches = [event for event in events if not isinstance(event, OemStreamComplete)]
-    completed = events[-1]
-
-    assert isinstance(completed, OemStreamComplete)
-    assert [len(batch.states) for batch in batches] == [2, 2]
-    assert completed.state_count == len(parsed.states)
-    assert dict(completed.meta)["OBJECT_NAME"] == parsed.meta.object_name
-    assert [
-        segment_id for batch in batches for segment_id in batch.segment_ids
-    ] == parsed.segment_ids
-    streamed_states = [state for batch in batches for state in batch.states]
-    for actual, expected in zip(streamed_states, parsed.states):
-        assert actual[0] == expected[0]
-        assert (actual[1] == expected[1]).all()
-
-
-@pytest.mark.parametrize("batch_size", [1, 2, 3, 10])
 def test_direct_store_stream_matches_one_shot_across_segments(
-    tmp_path: Path, batch_size: int
+    tmp_path: Path,
 ) -> None:
     source = tmp_path / "direct.oem"
     source.write_text(OEM_TEXT, encoding="utf-8")
@@ -82,7 +51,7 @@ def test_direct_store_stream_matches_one_shot_across_segments(
     store.begin(8)
     notices = []
     result = read_oem_into_store(
-        source, store, batch_size=batch_size, on_append=notices.append, cancel_event=Event()
+        source, store, batch_size=2, on_append=notices.append, cancel_event=Event()
     )
     snapshot = store.snapshot()
     assert result.state_count == snapshot.sample_count == 4
@@ -96,6 +65,21 @@ def test_direct_store_stream_matches_one_shot_across_segments(
     assert snapshot.failure is None
     assert notices[-1].sample_count == 4
     assert all(notice.epoch == snapshot.epoch for notice in notices)
+
+
+@pytest.mark.parametrize("batch_size", [1, 2, 3, 10])
+def test_direct_store_stream_accepts_bounded_flush_sizes(
+    tmp_path: Path, batch_size: int
+) -> None:
+    source = tmp_path / "direct.oem"
+    source.write_text(OEM_TEXT, encoding="utf-8")
+    store = OemDataStore()
+    store.begin(8)
+    result = read_oem_into_store(
+        source, store, batch_size=batch_size, on_append=lambda notice: None,
+        cancel_event=Event(),
+    )
+    assert result.state_count == store.snapshot().sample_count == 4
 
 
 def test_direct_store_stream_does_not_allocate_per_state_array(
@@ -133,7 +117,8 @@ def test_direct_store_stream_exposes_failures_and_discards_unpublished_rows(
     store.begin(8)
     with pytest.raises(ValueError):
         read_oem_into_store(
-            source, store, batch_size=3, on_append=lambda notice: None, cancel_event=Event()
+            source, store, batch_size=3, on_append=lambda notice: None,
+            cancel_event=Event(),
         )
     assert store.snapshot().sample_count == 3
     assert store.snapshot().status is LoadStatus.FAILED
@@ -156,7 +141,8 @@ def test_direct_store_stream_cancellation_and_capacity_are_explicit(tmp_path: Pa
     store.begin(3)
     with pytest.raises(OverflowError, match="capacity"):
         read_oem_into_store(
-            source, store, batch_size=2, on_append=lambda notice: None, cancel_event=Event()
+            source, store, batch_size=2, on_append=lambda notice: None,
+            cancel_event=Event(),
         )
     assert store.snapshot().sample_count == 3
     assert store.snapshot().status is LoadStatus.FAILED
@@ -208,18 +194,22 @@ def test_direct_store_stream_cannot_continue_after_epoch_replacement(tmp_path: P
 
 def test_direct_store_stream_context_failure_is_not_completion(tmp_path: Path) -> None:
     source = tmp_path / "bad-context.oem"
-    source.write_text(OEM_TEXT.replace("REF_FRAME = GCRF", "REF_FRAME = INVALID"), encoding="utf-8")
+    source.write_text(
+        OEM_TEXT.replace("REF_FRAME = GCRF", "REF_FRAME = INVALID"), encoding="utf-8"
+    )
     store = OemDataStore()
     store.begin(8)
     with pytest.raises(ValueError, match="REF_FRAME"):
         read_oem_into_store(
-            source, store, batch_size=3, on_append=lambda notice: None, cancel_event=Event()
+            source, store, batch_size=3, on_append=lambda notice: None,
+            cancel_event=Event(),
         )
     assert store.snapshot().sample_count == 4
     assert store.snapshot().status is LoadStatus.FAILED
     with pytest.raises(ValueError, match="empty store"):
         read_oem_into_store(
-            source, store, batch_size=3, on_append=lambda notice: None, cancel_event=Event()
+            source, store, batch_size=3, on_append=lambda notice: None,
+            cancel_event=Event(),
         )
 
 
@@ -232,7 +222,8 @@ def test_direct_store_stream_matches_real_fixture(filename: str, count: int) -> 
     store = OemDataStore()
     store.begin(count)
     result = read_oem_into_store(
-        source, store, batch_size=512, on_append=lambda notice: None, cancel_event=Event()
+        source, store, batch_size=512, on_append=lambda notice: None,
+        cancel_event=Event(),
     )
     snapshot = store.snapshot()
     assert result.state_count == len(expected.states) == count
@@ -241,18 +232,24 @@ def test_direct_store_stream_matches_real_fixture(filename: str, count: int) -> 
     np.testing.assert_array_equal(snapshot.segment_ids, expected.segment_ids)
 
 
-def test_stream_yields_valid_prefix_before_late_parse_error(tmp_path: Path) -> None:
+def test_direct_store_stream_keeps_valid_prefix_before_late_parse_error(
+    tmp_path: Path,
+) -> None:
     source = tmp_path / "malformed.oem"
     source.write_text(OEM_TEXT + "COVARIANCE_STOP\n", encoding="utf-8")
-    events = iter_oem_events(source, batch_size=2)
+    store = OemDataStore()
+    store.begin(8)
+    with pytest.raises(ValueError, match="COVARIANCE_STOP"):
+        read_oem_into_store(
+            source, store, batch_size=2, on_append=lambda notice: None,
+            cancel_event=Event(),
+        )
+    snapshot = store.snapshot()
+    assert snapshot.sample_count == 4
+    assert snapshot.status is LoadStatus.FAILED
 
-    first_batch = next(events)
-    assert len(first_batch.states) == 2
-    with pytest.raises(OemStreamError, match="COVARIANCE_STOP"):
-        list(events)
 
-
-def test_stream_validates_but_does_not_retain_comments_or_covariance(
+def test_direct_store_stream_validates_but_does_not_retain_comments_or_covariance(
     tmp_path: Path,
 ) -> None:
     source = tmp_path / "comments-and-covariance.oem"
@@ -285,131 +282,12 @@ def test_stream_validates_but_does_not_retain_comments_or_covariance(
     assert parsed.data_comments == ["ephemeris"]
     assert len(parsed.covariances) == 1
 
-    events = list(iter_oem_events(source, batch_size=2))
-    completion = events[-1]
+    store = OemDataStore()
+    store.begin(4)
+    completion = read_oem_into_store(
+        source, store, batch_size=2, on_append=lambda notice: None,
+        cancel_event=Event(),
+    )
     assert isinstance(completion, OemStreamComplete)
     assert "COMMENT" not in dict(completion.header)
     assert "COMMENT" not in dict(completion.meta)
-
-
-def test_stream_iterator_close_cancels_backpressured_worker(tmp_path: Path) -> None:
-    source = tmp_path / "stream.oem"
-    source.write_text(OEM_TEXT, encoding="utf-8")
-    events = iter_oem_events(source, batch_size=1, queue_size=1)
-
-    next(events)
-    events.close()
-
-
-def test_stream_rejects_invalid_batch_configuration(tmp_path: Path) -> None:
-    with pytest.raises(ValueError, match="batch_size"):
-        list(iter_oem_events(tmp_path / "unused.oem", batch_size=0))
-
-
-@pytest.mark.parametrize("batch_size", [1, 2, 3, 100])
-def test_appendable_playback_data_matches_one_shot_series_and_cursor(
-    tmp_path: Path, batch_size: int
-) -> None:
-    source = tmp_path / "stream.oem"
-    source.write_text(OEM_TEXT, encoding="utf-8")
-    events = list(iter_oem_events(source, batch_size=batch_size))
-    batches = [event for event in events if not isinstance(event, OemStreamComplete)]
-    complete = events[-1]
-    assert isinstance(complete, OemStreamComplete)
-
-    first = batches[0]
-    store = AppendablePlaybackData.from_batch(
-        first,
-        center_name=str(dict(first.meta)["CENTER_NAME"]),
-        frame_name=str(dict(first.meta)["REF_FRAME"]),
-        interpolation_method="linear",
-    )
-    for batch in batches[1:]:
-        store.append_batch(batch)
-
-    parsed = CcsdsOem.from_file(source)
-    expected = compute_orbit_series(
-        [timestamp for timestamp, _ in parsed.states],
-        [state for _, state in parsed.states],
-        TimeUnit.MINUTES,
-        parsed.segment_ids,
-    )
-    for name in expected.__dataclass_fields__:
-        np.testing.assert_allclose(
-            getattr(store.series, name), getattr(expected, name), equal_nan=True
-        )
-    np.testing.assert_array_equal(
-        store.timestamps_s, [timestamp for timestamp, _ in parsed.states]
-    )
-    np.testing.assert_array_equal(store.segment_ids, parsed.segment_ids)
-    np.testing.assert_allclose(
-        store.ground_track_source.states_m,
-        np.asarray([state for _, state in parsed.states]),
-    )
-    assert store.cursor.lookup(parsed.states[1][0]).status.value == "exact_sample"
-    assert store.cursor.lookup((parsed.states[0][0] + parsed.states[1][0]) / 2).status.value == "interpolated"
-
-
-def test_appendable_cursor_matches_one_shot_hermite_interpolation(
-    tmp_path: Path,
-) -> None:
-    source = tmp_path / "stream.oem"
-    source.write_text(OEM_TEXT, encoding="utf-8")
-    events = list(iter_oem_events(source, batch_size=1))
-    batches = [event for event in events if not isinstance(event, OemStreamComplete)]
-    first = batches[0]
-    store = AppendablePlaybackData.from_batch(
-        first,
-        center_name="EARTH",
-        frame_name="GCRF",
-        interpolation_method="hermite",
-        interpolation_degree=5,
-    )
-    for batch in batches[1:]:
-        store.append_batch(batch)
-
-    parsed = CcsdsOem.from_file(source)
-    expected_cursor = OemCursor(
-        [timestamp for timestamp, _ in parsed.states],
-        [state for _, state in parsed.states],
-        interpolation="hermite",
-        interpolation_degree=5,
-        segment_ids=parsed.segment_ids,
-    )
-    query_time = (parsed.states[0][0] + parsed.states[1][0]) / 2
-    np.testing.assert_allclose(
-        store.cursor.lookup(query_time).state_m,
-        expected_cursor.lookup(query_time).state_m,
-        rtol=0.0,
-        atol=1e-8,
-    )
-
-
-def test_appendable_store_switches_time_units_when_loaded_span_crosses_hour() -> None:
-    from ephem_toolkit.core.ccsds.oem import OemStateBatch
-
-    state = np.array([7_000_000.0, 0.0, 0.0, 0.0, 7_500.0, 0.0])
-    first = OemStateBatch(((0.0, state),), (0,), (), ())
-    store = AppendablePlaybackData.from_batch(
-        first, center_name="EARTH", frame_name="GCRF", interpolation_method="linear"
-    )
-    store.append_batch(OemStateBatch(((1800.0, state),), (0,), (), ()))
-    assert store.time_unit is TimeUnit.MINUTES
-    store.append_batch(OemStateBatch(((4000.0, state),), (0,), (), ()))
-    assert store.time_unit is TimeUnit.HOURS
-    np.testing.assert_allclose(store.series.elapsed_time, [0.0, 0.5, 4000.0 / 3600.0])
-
-
-def test_appendable_store_rejects_out_of_order_batch_without_changing_count() -> None:
-    from ephem_toolkit.core.ccsds.oem import OemStateBatch
-
-    state = np.array([7_000_000.0, 0.0, 0.0, 0.0, 7_500.0, 0.0])
-    store = AppendablePlaybackData.from_batch(
-        OemStateBatch(((10.0, state),), (0,), (), ()),
-        center_name="EARTH",
-        frame_name="GCRF",
-        interpolation_method="linear",
-    )
-    with pytest.raises(ValueError, match="follow loaded timestamps"):
-        store.append_batch(OemStateBatch(((10.0, state),), (0,), (), ()))
-    assert store.source_sample_count == 1

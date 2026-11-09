@@ -51,10 +51,10 @@ creation dispatches through `StoreViewContext` when that builder is available. S
 the active player to direct parser-to-store loading, live sample-time playback, snapshot-bound
 view contexts, range hints, queued store notices, and store-backed station prefetch. Replacement,
 failure, cancellation, metadata finalization, and stale-notice handling are coordinated on that
-path. Compatibility state and the legacy prepared-batch path remain for the separately scoped
-Step 8 cleanup. Step 7 is still in progress because the JPSS-1 automatic-capacity first-append
-gate failed; the application's end-to-end no-copy and responsiveness acceptance gates are not yet
-complete.
+path. Step 8 has removed the prepared-batch path and duplicate derived-series owners; its
+remaining scope is legacy view ownership and copy cleanup. Step 7 is still in progress because
+the JPSS-1 automatic-capacity first-append gate failed; the application's end-to-end no-copy and
+responsiveness acceptance gates are not yet complete.
 
 Historical automatic-sizing measurements counted physical lines and reserved 172,833 rows for
 21,601 JPSS-1 states because covariance rows contributed to the bound. Current sizing excludes
@@ -166,21 +166,22 @@ update architecture documentation, and run final correctness/performance gates.
   coordinate reference have been removed, and store station queries no longer construct a
   temporary `GroundTrackSource`; store-backed app mode no longer retains the legacy
   `StationAccessCache`; typed arrays passed through the remaining
-  `GroundTrackSource.from_samples` helper are now shared rather than copied; frame and
-  interpolation-policy cache identity is verified; current-state dataflow documentation now
-  distinguishes the default store path from compatibility paths; cache retention, support-margin
-  recomputation, view-pinned eviction, and identical recomputation are covered; the first
-  checklist item remains incomplete).
-- **Progress:** 3/8 checklist items.
+  `GroundTrackSource.from_samples` helper are now shared rather than copied; the unused one-shot
+  `load_playback_data` path and prepared-batch loader/derived-data owners have been removed;
+  frame and interpolation-policy cache identity is verified; current-state dataflow documentation
+  now distinguishes the default store path from remaining view fallbacks; cache retention,
+  support-margin recomputation, view-pinned eviction, and identical recomputation are covered;
+  the first checklist item remains incomplete).
+- **Progress:** 4/8 checklist items.
 - [ ] Remove `GroundTrackSource`, `source_prefix_matches`, controller-held Ground Track arrays,
       app-scoped `EarthFixedPositionCache`/`StationAccessCache`, and the module footprint cache.
 - [x] Ensure frame changes are represented in epoch/query identity and interpolation-policy
       changes invalidate only dependent interpolation/access products.
 - [x] Test cache retention for unaffected ranges, invalidation around support margins, safe
       eviction while views are drawing, and identical results after recomputation.
-- [ ] Remove `AppendablePlaybackData`, `PreparedPlaybackBatch`, `IncrementalPlaybackPreparer`,
+- [x] Remove `AppendablePlaybackData`, `PreparedPlaybackBatch`, `IncrementalPlaybackPreparer`,
       `OrbitSeriesAccumulator`, and unused `load_playback_data`/`playback_data_from_batch`
-      compatibility paths.
+      compatibility paths, including their parser and controller branches.
 - [x] Update `PLAY_OEM_DATAFLOW.md` and `PLAY_OEM_DATAFLOW.mmd` to describe shipped behavior;
       update the store design and this plan to distinguish the target contract from shipped
       behavior, while keeping graph names and shared-intermediate relationships aligned.

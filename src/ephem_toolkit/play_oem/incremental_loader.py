@@ -2,30 +2,26 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterator
+from collections.abc import Iterator
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from queue import Empty, Full, Queue
 from threading import Event, Thread
 
-from ephem_toolkit.core.ccsds.oem import OemStateBatch
-
+from .oem_data_store import OemDataStore, RawAppendNotice
 from .streaming_oem import (
     OemStreamComplete,
     OemStreamError,
     _Cancelled as _StreamCancelled,
-    read_oem_batches,
     read_oem_into_store,
 )
-from .oem_data_store import OemDataStore, RawAppendNotice
 
 
 class LoadEventKind(str, Enum):
     """Kinds of messages a load session delivers to its owner."""
 
     STARTED = "started"
-    BATCH = "batch"
     RAW_APPEND = "raw_append"
     COMPLETE = "complete"
     FAILED = "failed"
@@ -38,9 +34,7 @@ class LoadEvent:
     generation: int
     kind: LoadEventKind
     loaded_state_count: int
-    batch: OemStateBatch | None = None
     raw_notice: RawAppendNotice | None = None
-    prepared: object | None = None
     completion: OemStreamComplete | None = None
     error: OemStreamError | None = None
 
@@ -50,23 +44,18 @@ class _Cancelled(Exception):
 
 
 class IncrementalLoadSession:
-    """Read a file off-thread and expose bounded events for consumer polling.
-
-    The optional store mode streams committed raw-row notices instead of
-    constructing legacy ``OemStateBatch`` objects.
-    """
+    """Read a file off-thread and publish committed raw-row notices."""
 
     def __init__(
         self,
         source: str | Path,
         generation: int,
         *,
+        store: OemDataStore,
+        store_epoch: int,
         batch_size: int = 512,
         batch_interval_s: float = 0.1,
         queue_size: int = 2,
-        prepare_batch: Callable[[OemStateBatch], object] | None = None,
-        store: OemDataStore | None = None,
-        store_epoch: int | None = None,
     ) -> None:
         if batch_size < 1:
             raise ValueError("batch_size must be positive")
@@ -74,15 +63,10 @@ class IncrementalLoadSession:
             raise ValueError("queue_size must be positive")
         if batch_interval_s <= 0.0:
             raise ValueError("batch_interval_s must be positive")
-        if (store is None) != (store_epoch is None):
-            raise ValueError("store and store_epoch must be supplied together")
-        if store is not None and prepare_batch is not None:
-            raise ValueError("direct store loading cannot prepare legacy batches")
         self.source = Path(source)
         self.generation = generation
         self.batch_size = batch_size
         self.batch_interval_s = batch_interval_s
-        self._prepare_batch = prepare_batch
         self._store = store
         self._store_epoch = store_epoch
         self._cancelled = Event()
@@ -108,16 +92,13 @@ class IncrementalLoadSession:
         """Start the loader worker once."""
         if self._worker.ident is not None:
             raise RuntimeError("load session has already been started")
-        self._events.put_nowait(
-            LoadEvent(self.generation, LoadEventKind.STARTED, 0)
-        )
+        self._events.put_nowait(LoadEvent(self.generation, LoadEventKind.STARTED, 0))
         self._worker.start()
 
     def cancel(self) -> None:
         """Request cancellation without waiting for the reader or GUI thread."""
         self._cancelled.set()
-        if self._store is not None and self._store_epoch is not None:
-            self._store.cancel_if_epoch(self._store_epoch)
+        self._store.cancel_if_epoch(self._store_epoch)
 
     def drain(self, limit: int | None = None) -> list[LoadEvent]:
         """Return currently queued events without blocking the caller."""
@@ -143,22 +124,6 @@ class IncrementalLoadSession:
     def _run(self) -> None:
         loaded_state_count = 0
 
-        def deliver_batch(batch: OemStateBatch) -> None:
-            nonlocal loaded_state_count
-            prepared = (
-                self._prepare_batch(batch) if self._prepare_batch is not None else None
-            )
-            loaded_state_count += len(batch.states)
-            self._publish(
-                LoadEvent(
-                    self.generation,
-                    LoadEventKind.BATCH,
-                    loaded_state_count,
-                    batch=batch,
-                    prepared=prepared,
-                )
-            )
-
         def deliver_raw_append(notice: RawAppendNotice) -> None:
             nonlocal loaded_state_count
             loaded_state_count = notice.sample_count
@@ -172,40 +137,30 @@ class IncrementalLoadSession:
             )
 
         try:
-            if self._store is None:
-                completion = read_oem_batches(
-                    self.source,
-                    batch_size=self.batch_size,
-                    batch_interval_s=self.batch_interval_s,
-                    on_batch=deliver_batch,
-                    cancel_event=self._cancelled,
-                )
-            else:
-                assert self._store_epoch is not None
-                if self._store.epoch != self._store_epoch:
-                    raise RuntimeError("store epoch has changed")
-                if self._store.capacity == 0:
-                    try:
-                        capacity = OemDataStore.capacity_for_file(
-                            self.source, cancel_event=self._cancelled
-                        )
-                    except InterruptedError:
-                        if self._cancelled.is_set():
-                            return
-                        raise
-                    if self._cancelled.is_set() or not self._store.allocate_if_epoch(
-                        self._store_epoch, capacity
-                    ):
+            if self._store.epoch != self._store_epoch:
+                raise RuntimeError("store epoch has changed")
+            if self._store.capacity == 0:
+                try:
+                    capacity = OemDataStore.capacity_for_file(
+                        self.source, cancel_event=self._cancelled
+                    )
+                except InterruptedError:
+                    if self._cancelled.is_set():
                         return
-                completion = read_oem_into_store(
-                    self.source,
-                    self._store,
-                    batch_size=self.batch_size,
-                    batch_interval_s=self.batch_interval_s,
-                    on_append=deliver_raw_append,
-                    cancel_event=self._cancelled,
-                    expected_epoch=self._store_epoch,
-                )
+                    raise
+                if self._cancelled.is_set() or not self._store.allocate_if_epoch(
+                    self._store_epoch, capacity
+                ):
+                    return
+            completion = read_oem_into_store(
+                self.source,
+                self._store,
+                batch_size=self.batch_size,
+                batch_interval_s=self.batch_interval_s,
+                on_append=deliver_raw_append,
+                cancel_event=self._cancelled,
+                expected_epoch=self._store_epoch,
+            )
             self._publish(
                 LoadEvent(
                     self.generation,
@@ -218,23 +173,8 @@ class IncrementalLoadSession:
             pass
         except _Cancelled:
             pass
-        except OemStreamError as error:
-            if self._store is not None and self._store_epoch is not None:
-                self._store.mark_failed(self._store_epoch, error)
-            try:
-                self._publish(
-                    LoadEvent(
-                        self.generation,
-                        LoadEventKind.FAILED,
-                        loaded_state_count,
-                        error=error,
-                    )
-                )
-            except _Cancelled:
-                pass
         except Exception as error:
-            if self._store is not None and self._store_epoch is not None:
-                self._store.mark_failed(self._store_epoch, error)
+            self._store.mark_failed(self._store_epoch, error)
             try:
                 self._publish(
                     LoadEvent(
@@ -246,8 +186,6 @@ class IncrementalLoadSession:
                 )
             except _Cancelled:
                 pass
-        except _Cancelled:
-            pass
         finally:
             self._finished.set()
 
@@ -275,26 +213,15 @@ class IncrementalLoader:
         self,
         source: str | Path,
         *,
-        prepare_batch: Callable[[OemStateBatch], object] | None = None,
-        store: OemDataStore | None = None,
+        store: OemDataStore,
         store_capacity: int | None = None,
     ) -> IncrementalLoadSession:
-        """Start a generation, optionally sizing and ingesting into a raw store.
-
-        If ``store_capacity`` is omitted, the source is synchronously scanned for
-        physical lines to derive a safe upper bound before starting the worker.
-        """
-        if store is None and store_capacity is not None:
-            raise ValueError("store_capacity requires a store")
-        if store is not None and prepare_batch is not None:
-            raise ValueError("direct store loading cannot prepare legacy batches")
-        store_epoch = None
-        if store is not None:
-            store_epoch = (
-                store.begin(store_capacity)
-                if store_capacity is not None
-                else store.begin_loading()
-            )
+        """Start a generation and ingest directly into the raw store."""
+        store_epoch = (
+            store.begin(store_capacity)
+            if store_capacity is not None
+            else store.begin_loading()
+        )
         if self._session is not None:
             self._session.cancel()
         self._generation += 1
@@ -303,7 +230,6 @@ class IncrementalLoader:
             self._generation,
             batch_size=self.batch_size,
             queue_size=self.queue_size,
-            prepare_batch=prepare_batch,
             store=store,
             store_epoch=store_epoch,
         )
@@ -329,7 +255,7 @@ class IncrementalLoader:
 
 
 def iter_load_events(session: IncrementalLoadSession) -> Iterator[LoadEvent]:
-    """Convenience iterator for non-GUI callers that want to drain to completion."""
+    """Convenience iterator for non-GUI callers that drain to completion."""
     while not session.finished or session._events.qsize():
         events = session.drain()
         if events:

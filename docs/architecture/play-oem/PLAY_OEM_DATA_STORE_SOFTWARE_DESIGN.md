@@ -33,17 +33,18 @@ paths. The active player creates one store per load generation, advances its clo
 store's live sample-time view, retains the installed file until a replacement has usable rows,
 and routes point-state and view reads through `StoreViewContext`. Range hints, queued store
 notices, and store-backed station prefetch drive affected view updates. Replacement, failure,
-cancellation, metadata finalization, and stale notices refresh the active context. The legacy
-prepared-batch and compatibility paths remain pending Step 8. Step 7's migration and correctness
-checks are complete; its JPSS-1 automatic-capacity first-append performance gate is deferred and
-has not passed. Step 8 ownership cleanup is active, and no performance acceptance is claimed.
+cancellation, metadata finalization, and stale notices refresh the active context. The
+prepared-batch loader and duplicate derived-series owners have been removed in Step 8; legacy
+view fallbacks remain under cleanup. Step 7's migration and correctness checks are complete; its
+JPSS-1 automatic-capacity first-append performance gate is deferred and has not passed. Step 8
+ownership cleanup is active, and no performance acceptance is claimed.
 The application's end-to-end no-copy and GUI responsiveness goals are not yet accepted. See the
 [implementation plan](./PLAY_OEM_DATA_STORE_IMPLEMENTATION_PLAN.md) and the performance evidence
 below for remaining work and limitations. Step 8 has begun by removing the module-level footprint
 cache and controller-held Ground Track coordinate reference, eliminating the temporary
 `GroundTrackSource` wrapper from store station queries, and making interpolation-policy identity
 specific to dependent station-access work; the remaining duplicate owners and compatibility paths
-are still under cleanup.
+are legacy view fallbacks and per-generation store lifetime.
 
 `OemDataStore.begin` takes an explicit capacity. For the loader path,
 `OemDataStore.capacity_for_file` counts physical lines outside `COVARIANCE_START` /
@@ -103,13 +104,13 @@ target contract; they do not imply that Step 8 ownership cleanup is complete.
 | Snapshot → views | The controller captures a `StoreViewContext` for the committed snapshot, range, coverage, and time unit. Open views query the store's series, Earth-fixed, Ground Track, station-access, and footprint products. |
 | Playback → point state | The playback clock reads the store's sample-time view; `StoreCursor` and the 3D backends use `state_at` against the store snapshot. |
 | Append/completion → refresh | Raw-append events refresh the view context. Store append, reset, and tier notices schedule affected views; validated metadata is published at completion and the context is refreshed. |
-| Ground Track source wrapper | The default store path does not create a `GroundTrackSource`. The compatibility prepared-batch path still creates wrappers over cursor arrays. `from_samples` shares already-typed arrays; normalization can allocate for lists or mismatched dtypes. |
-| Display series downsampling | The default store path queries lazy series groups directly. The controller's transient `downsample_orbit_series` preview remains limited to the prepared-batch compatibility path. |
+| Ground Track source wrapper | The default store path does not create a `GroundTrackSource`. The optional full-data `PlaybackData` model and non-store view builders still accept the wrapper. `from_samples` shares already-typed arrays; normalization can allocate for lists or mismatched dtypes. |
+| Display series downsampling | The default store path queries lazy series groups directly. The transient `downsample_orbit_series` preview used by prepared-batch loading was removed with that path. |
 | Shared Earth-fixed/access cache | Default-path Earth-fixed positions and station profiles are separate store-owned tiers. Ground Track uses the Earth-fixed tier; station profiles currently evaluate point states independently and do not consume it. The target architecture proposes a shared Earth-fixed intermediate. Legacy views still use `EarthFixedPositionCache` and `StationAccessCache`; store-backed app mode does not retain the app-level station cache. |
 | Controller Ground Track coordinates | The controller-held `_ground_track_coordinates` reference has been removed. Store-backed views query the bounded Ground Track tier; legacy view support remains. |
 | Footprints and station warmup | The module footprint LRU is removed and store footprints have a bounded store-local cache. The legacy station warmup still uses `StationAccessCache`; default store views subscribe and prefetch their requested tiers. |
-| Metadata timing | The direct store path attaches validated header and metadata at completion; it does not rebuild the store or source wrapper then. The prepared-batch compatibility path retains its separate metadata-finalization behavior. |
-| `PlaybackData` and prepared batches | Compatibility loader and `PlaybackData` APIs remain in the repository. They are not the default direct-to-store load path and are pending Step 8 removal. |
+| Metadata timing | The loader attaches validated header and metadata at completion; it does not rebuild the store or source wrapper then. |
+| `PlaybackData` | The one-shot `load_playback_data` and `playback_data_from_batch` helpers and prepared-batch callbacks have been removed. `PlaybackData` remains the inert startup model and the type used by the optional synchronous callback. |
 
 The current-state diagram omits benchmark results by design; historical measurements are
 documented in [Performance evidence and acceptance](#performance-evidence-and-acceptance).
@@ -117,28 +118,25 @@ documented in [Performance evidence and acceptance](#performance-evidence-and-ac
 ## Remaining compatibility ownership
 
 The default direct-to-store path uses one store for raw samples and lazily requested derived
-tiers. The following duplicate owners and identity-based invalidation remain reachable through
-prepared-batch and legacy view compatibility paths:
+tiers. The prepared-batch loader and its duplicate data owners have been removed. Remaining
+compatibility ownership is limited to non-store view and optional full-data callback surfaces:
 
 | Data | Compatibility owner | Invalidation |
 |---|---|---|
-| Source samples and interpolation | `OemCursor` | Append, `set_interpolation` |
-| Orbit series | `AppendablePlaybackData` / `OrbitSeriesAccumulator` | Append; rebuilt on time-unit change |
-| Display series | `controller.series` preview swap | Each compatibility refresh |
-| `GroundTrackSource` | `AppendablePlaybackData`, legacy controller state | Rebuilt per append |
+| `GroundTrackSource` | Optional `PlaybackData` and legacy view inputs | Replaced by callback owner |
 | Ground Track coordinates | Legacy `GroundTrackView` fallback | Range provider replaces out-of-window coordinates |
 | ECEF positions and station access | `StationAccessCache`, `EarthFixedPositionCache` | Source identity and prefix comparison |
 | Footprints | Legacy direct preparation helper | Recomputed outside the store path |
 
-These are cleanup targets, not owners in the default direct-to-store flow. The target architecture
-below still calls for a single application-level store; the shipped controller currently creates
-one store per load generation.
+These are not owners in the default store-backed application flow. The target architecture below
+still calls for a single application-level store; the shipped controller currently creates one
+store per load generation.
 
 ## Architecture
 
 ```mermaid
 flowchart TD
-    FILE[("OEM file")] --> PARSE["read_oem_batches"]
+    FILE[("OEM file")] --> PARSE["read_oem_into_store"]
     PARSE -->|"reserve, fill, commit (loader thread)"| STORE
 
     subgraph STORE["OemDataStore"]
@@ -197,7 +195,7 @@ store lifetime are still Step 8 work.
 ```mermaid
 flowchart LR
     subgraph PRODUCERS["Producers"]
-        LOADER["Loader thread<br/>read_oem_batches"]
+        LOADER["Loader thread<br/>read_oem_into_store"]
     end
     subgraph UI["UI thread consumers"]
         CTRL["Controller<br/>range and drag events"]
@@ -298,7 +296,9 @@ move.
 
 ### Zero-copy policy
 
-The current code duplicates orbit data in many places. Verified instances:
+The original design identified these duplicate owners. Step 8 has removed the prepared-batch
+loader, its series accumulator, per-batch state copies, and preview downsampling; the remaining
+items describe legacy helpers or work still tracked in the implementation plan.
 
 - `OemCursor` keeps samples in its own arrays, and every interpolator stores its own copy through
   `add_data_point`. `_create_interpolators` rebuilds them from `list(zip(...))`, and
@@ -306,13 +306,11 @@ The current code duplicates orbit data in many places. Verified instances:
 - Growing cursor and `OrbitSeriesAccumulator` storage reallocates and copies every array.
 - `OrbitSeries.position_km` and `velocity_km_s` are unit-scaled duplicates of `states_m`;
   `elapsed_time` and `rtn_elapsed_time` are rescaled duplicates of `timestamps_s`.
-- `GroundTrackSource.from_samples` copies timestamps, states, and segment IDs if called, but the
-  current loader and preview construct no such copy. The in-progress Ground Track preview selects
-  bounded coordinates directly; station analysis passes the shared source through and relies on
-  its range-bounded access query.
-- `downsample_orbit_series` copies the selected rows of every series field.
+- `GroundTrackSource.from_samples` can copy timestamps, states, and segment IDs when normalization
+  is required; the default store-backed loader does not construct this wrapper.
+- The removed prepared-batch preview used to copy selected rows of every series field.
 - `_shared_positions_by_window` duplicates ITRF positions that `EarthFixedPositionCache` holds.
-- Parser batches become Python lists, then per-row `.copy()` arrays, then storage rows.
+- The removed parser-batch route converted rows to Python lists and per-row copies before storing.
 
 Zero copy takes priority over every other goal in this document, including lazy-evaluation
 granularity, decimation quality, and API convenience. Where a rule below conflicts with another
@@ -1072,7 +1070,7 @@ cover additional requested time; views query again rather than retaining notice-
 | Removed | Replaced by |
 |---|---|
 | `AppendablePlaybackData`, `PreparedPlaybackBatch`, `IncrementalPlaybackPreparer` | `OemDataStore.begin/reserve/commit`; the loader session writes directly into the store |
-| `PlaybackData` fields `series`, `time_unit`, `cursor`, `ground_track_source`, `incremental_store`, `source_sample_count` | `StoreSnapshot` |
+| Active app's former `PlaybackData`-owned series, cursor, and incremental store | `StoreSnapshot`; `PlaybackData` remains only as inert startup state and an optional full-data callback model |
 | `OemCursor` sample arrays and per-segment interpolator copies, `OrbitSeriesAccumulator` capacity-doubling arrays | Reserved raw group plus the stateless interpolation evaluator |
 | `GroundTrackSource`, `source_prefix_matches` | `StoreSnapshot` arrays plus epoch/revision |
 | `EarthFixedPositionCache`, `StationAccessCache` as app-scoped objects | Store tiers |
@@ -1529,10 +1527,10 @@ separate deferred design decision, not a prerequisite or a substitute for first-
 7. **Cache consolidation:** move Ground Track, access, and footprint caches under the store;
    delete `source_prefix_matches`. The module-level footprint cache has been removed; finish the
    remaining cache consolidation.
-8. **Cleanup:** remove `load_playback_data`/`playback_data_from_batch`, update
-   [PLAY_OEM_DATAFLOW.mmd](./PLAY_OEM_DATAFLOW.mmd) and
-   [PLAY_OEM_DATAFLOW.md](./PLAY_OEM_DATAFLOW.md) to the store model, and rerun
-   `scripts/bench_play_oem.py`.
+8. **Cleanup (in progress):** the one-shot and prepared-batch loading paths, their derived-data
+   owners, and preview downsampling have been removed. Continue removing legacy view owners,
+   updating [PLAY_OEM_DATAFLOW.mmd](./PLAY_OEM_DATAFLOW.mmd) and
+   [PLAY_OEM_DATAFLOW.md](./PLAY_OEM_DATAFLOW.md), then rerun `scripts/bench_play_oem.py`.
 
 ```mermaid
 flowchart TD
