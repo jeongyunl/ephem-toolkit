@@ -84,6 +84,54 @@ def test_direct_store_load_exposes_oem_metadata_and_raw_views(iss_oem_path: Path
     assert np.shares_memory(store.sample_times.values, snapshot.raw)
 
 
+@pytest.mark.parametrize(
+    ("filename", "expected_count"),
+    (("ISS_2026-05-20.OEM", 5402), ("JPSS-1.oem", 21601)),
+)
+def test_real_fixture_store_kinematics_are_lazy_shared_and_numerically_equivalent(
+    filename: str, expected_count: int
+) -> None:
+    source = Path(__file__).resolve().parents[2] / "data" / filename
+    oem_data, timestamps_s, states_m = read_oem_states(source)
+    store = _load_store(source)
+    snapshot = store.snapshot()
+
+    assert snapshot.sample_count == expected_count
+    assert store._series_buffers == {}
+    assert np.shares_memory(snapshot.positions_m, snapshot.raw)
+    assert np.shares_memory(snapshot.velocities_m_s, snapshot.raw)
+
+    query = store.series(
+        snapshot,
+        (float(timestamps_s[0]), float(timestamps_s[-1])),
+        groups=("kinematics",),
+        wait=True,
+    )
+    expected = compute_orbit_series(
+        timestamps_s,
+        list(states_m),
+        TimeUnit.for_duration(float(timestamps_s[-1] - timestamps_s[0])),
+        oem_data.segment_ids[: len(timestamps_s)],
+    )
+    groups = query.value["kinematics"]
+    actual = np.concatenate([group.values for group in groups])
+
+    assert set(store._series_buffers) == {"kinematics"}
+    assert query.coverage.complete
+    assert all(
+        np.shares_memory(group.values, store._series_buffers["kinematics"])
+        for group in groups
+    )
+    np.testing.assert_array_equal(actual[:, 0], timestamps_s)
+    np.testing.assert_allclose(
+        actual[:, 1], expected.velocity_magnitude_km_s * 1000.0
+    )
+    np.testing.assert_allclose(
+        actual[:, 2], expected.geocentric_distance_km * 1000.0
+    )
+    np.testing.assert_allclose(actual[:, 3], expected.altitude_km * 1000.0)
+
+
 def test_store_interpolation_policy_can_use_or_override_oem_metadata() -> None:
     jp_sat_oem_path = (
         Path(__file__).resolve().parents[2] / "data" / "JPSS-1_small.15m.oem"

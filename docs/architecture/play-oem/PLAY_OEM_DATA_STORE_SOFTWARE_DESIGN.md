@@ -1513,6 +1513,19 @@ A separate one-repeat data-layer run on the same fixture measured 0.517627 s dir
 not stable estimates or comparisons with the removed prepared-batch path. GUI responsiveness was
 not measured, and the Step 7 paired first-delivery gate remains deferred and unpassed.
 
+Five additional direct-store session observations were collected in separate fresh processes per
+fixture, each with one unreported warm-up. These are candidate-only diagnostics; Low Power Mode
+was not recorded, and they are not paired with the prepared-batch baseline.
+
+| Fixture | First append median (range) | Validated completion median (range) | Peak RSS median (range) | States / capacity / notices |
+|---|---:|---:|---:|---:|
+| ISS | 12.331 ms (12.290–14.546) | 42.380 ms (42.143–44.634) | 68.2 MiB (68.0–68.2) | 5,402 / 5,437 / 11 |
+| JPSS-1 | 23.530 ms (17.346–27.239) | 0.494408 s (0.491996–0.497087) | 86.2 MiB (86.0–91.2) | 21,601 / 21,624 / 43 |
+
+These runs used automatic capacity, batch size 512, a two-event queue, and 1 ms polling.
+They do not establish a performance improvement or pass either gate. Playback derivation, view
+construction, and GUI responsiveness were not measured.
+
 ## Delivery sequence
 
 0. **Baseline and parser improvements:** retain the measured baseline and parser changes recorded

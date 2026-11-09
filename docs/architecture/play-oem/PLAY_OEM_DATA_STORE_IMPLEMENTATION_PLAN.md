@@ -167,9 +167,9 @@ update architecture documentation, and run final correctness/performance gates.
 - **Status:** In progress (the prepared-batch path, legacy source/cache owners, controller-held
   Ground Track arrays, and module footprint LRU are removed; frame and interpolation-policy cache
   identity is verified; store cache retention, support-margin recomputation, view-pinned eviction,
-  and identical recomputation are covered; broad fixture validation, headless measurements, and
-  final ownership review remain).
-- **Progress:** 6/8 checklist items.
+  and identical recomputation are covered; fixture and lifecycle regressions pass; headless
+  baseline measurements remain).
+- **Progress:** 7/8 checklist items.
 - [x] Remove `GroundTrackSource`, `source_prefix_matches`, controller-held Ground Track arrays,
       app-scoped `EarthFixedPositionCache`/`StationAccessCache`, and the module footprint cache.
 - [x] Ensure frame changes are represented in epoch/query identity and interpolation-policy
@@ -182,10 +182,14 @@ update architecture documentation, and run final correctness/performance gates.
 - [x] Update `PLAY_OEM_DATAFLOW.md` and `PLAY_OEM_DATAFLOW.mmd` to describe shipped behavior;
       update the store design and this plan to distinguish the target contract from shipped
       behavior, while keeping graph names and shared-intermediate relationships aligned.
-- [ ] Run numerical equivalence, laziness, segment/gap, cancellation, replacement, memory-sharing,
-      allocation, and view regressions on ISS, JPSS-1, and multi-segment fixtures.
+- [x] Run numerical equivalence, laziness, segment/gap, cancellation, replacement, memory-sharing,
+      allocation, and view regressions on ISS, JPSS-1, and multi-segment fixtures. Full-fixture
+      ISS/JPSS-1 checks compare lazy store kinematics against eager results and verify shared raw
+      storage; synthetic multi-segment tests cover derived-group parity and gap handling.
 - [ ] Run headless performance and memory benchmarks against the recorded baseline; document
-      remaining UI gates as unverified rather than inferring them from headless results.
+      remaining UI gates as unverified rather than inferring them from headless results. Five
+      fresh-process direct-store observations are now recorded in the store design, but they are
+      candidate-only diagnostics and do not constitute a paired baseline comparison.
 - [x] Review residual ownership and lifecycle paths. Store-backed builders serve loaded data;
       views opened before the first store are rebuilt through those builders when the store arrives.
       Remaining `OrbitSeries` builders are pre-store fallbacks, and their orbit-sized copies are
@@ -198,15 +202,19 @@ explicitly documented.
 **Depends on:** Steps 5–7.
 
 **Evidence to date:** `python3 -m pytest tests/ephem_toolkit/play_oem
-tests/ephem_toolkit/core/interpolator -q` passed (643 passed, 4 skipped); `compileall` and
-`git diff --check` passed. A one-reported-repeat, headless JPSS-1 diagnostic measured 24.314 ms
+tests/ephem_toolkit/core/interpolator -q` passed (646 passed, 4 skipped). The full ISS (5,402
+states) and JPSS-1 (21,601 states) checks confirm raw-buffer sharing, lazy computation of only
+requested kinematics, and numerical equivalence with `compute_orbit_series`. Existing
+multi-segment tests cover direct-stream segmentation, gap-aware derived groups, cancellation,
+replacement, allocation, and store-backed views. `compileall` and `git diff --check` passed. A
+one-reported-repeat, headless JPSS-1 diagnostic measured 24.314 ms
 first raw append, 0.498495 s validated completion, and 90.0 MiB process peak RSS; a separate
 one-repeat data-layer run measured 0.517627 s ingestion and range-query times documented in the
 [store design](./PLAY_OEM_DATA_STORE_SOFTWARE_DESIGN.md#post-cleanup-headless-diagnostic).
-These diagnostics are not paired baseline comparisons and do not pass either performance gate.
-The Step 7 gate remains deferred; GUI responsiveness was not measured.
-After the pre-store view rebuild transition was added, focused app lifecycle tests passed
-(77 passed); package `compileall` and `git diff --check` passed.
+Five additional fresh-process direct-store observations for ISS and JPSS-1 are recorded in the
+[store design](./PLAY_OEM_DATA_STORE_SOFTWARE_DESIGN.md#post-cleanup-headless-diagnostic). They
+remain candidate-only diagnostics without a paired prepared-batch baseline and do not pass either
+performance gate. The Step 7 gate remains deferred; GUI responsiveness was not measured.
 
 ## Deferred, separate work
 
