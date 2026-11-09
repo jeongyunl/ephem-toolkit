@@ -290,6 +290,24 @@ def test_capacity_for_file_scans_ascii_markers_across_chunk_boundaries(
     assert OemDataStore.capacity_for_file(source) == 2
 
 
+def test_capacity_for_file_requires_complete_covariance_marker_lines(
+    tmp_path, monkeypatch
+) -> None:
+    source = tmp_path / "marker-lines.oem"
+    source.write_bytes(
+        b"COVARIANCE_NOT_A_MARKER\n"
+        b"before\n"
+        b"COVARIANCE_START\n"
+        b"covariance row\n"
+        b"COVARIANCE_STOP\n"
+        b"COVARIANCE_START trailing\n"
+        b"after"
+    )
+    monkeypatch.setattr(oem_data_store, "_CAPACITY_SCAN_CHUNK_SIZE", 7)
+
+    assert OemDataStore.capacity_for_file(source) == 4
+
+
 def test_capacity_for_file_checks_ascii_line_length_across_crlf_chunks(
     tmp_path, monkeypatch
 ) -> None:

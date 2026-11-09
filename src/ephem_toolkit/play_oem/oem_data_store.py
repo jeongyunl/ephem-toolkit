@@ -12,6 +12,7 @@ from itertools import tee
 import logging
 import math
 import mmap
+import re
 import weakref
 from pathlib import Path
 from threading import Event, RLock
@@ -158,6 +159,7 @@ def _freeze_metadata(
 
 
 _CAPACITY_SCAN_CHUNK_SIZE = 1024 * 1024
+_CAPACITY_MARKER_PATTERN = re.compile(rb"COVARIANCE_(?:START|STOP)")
 
 
 def _capacity_for_ascii_file(
@@ -185,7 +187,7 @@ def _capacity_for_ascii_file(
                 values = np.frombuffer(
                     data, dtype=np.uint8, count=chunk_length, offset=offset
                 )
-                if np.any(values >= 128):
+                if values.max() >= 128:
                     non_ascii = True
                     del values
                     break
@@ -223,7 +225,9 @@ def _capacity_for_ascii_file(
                         np.any(line_ends - crlf_ends - line_starts > ODM_MAX_LINE_LENGTH)
                     )
                     previous_separator = offset + int(line_ends[-1])
-                    separators.append(line_ends.astype(np.int64) + offset)
+                    line_ends = line_ends.astype(np.int64, copy=False)
+                    line_ends += offset
+                    separators.append(line_ends)
 
                 del values
                 trailing_length = end - (previous_separator + 1)
@@ -258,26 +262,23 @@ def _capacity_for_ascii_file(
                     )
                     search_end = min(
                         file_size,
-                        chunk_end + max(len(start_marker), len(stop_marker)),
+                        chunk_end + len(start_marker) - 1,
                     )
                     while search_position < chunk_end:
                         if cancel_event is not None and cancel_event.is_set():
                             raise InterruptedError("capacity scan cancelled")
-                        start_index = data.find(
-                            start_marker, search_position, search_end
+                        match = _CAPACITY_MARKER_PATTERN.search(
+                            data, search_position, search_end
                         )
-                        stop_index = data.find(
-                            stop_marker, search_position, search_end
-                        )
-                        if start_index < 0:
-                            marker_index, marker = stop_index, stop_marker
-                        elif stop_index < 0 or start_index < stop_index:
-                            marker_index, marker = start_index, start_marker
-                        else:
-                            marker_index, marker = stop_index, stop_marker
-                        if marker_index < 0 or marker_index >= chunk_end:
+                        if match is None or match.start() >= chunk_end:
                             search_position = chunk_end
                             break
+                        marker_index = match.start()
+                        marker = (
+                            start_marker
+                            if match.end() - marker_index == len(start_marker)
+                            else stop_marker
+                        )
 
                         line_start = max(
                             data.rfind(b"\n", 0, marker_index),
@@ -316,7 +317,7 @@ def _capacity_for_ascii_file(
                                 if terminator_end < file_size
                                 else file_size
                             )
-                        search_position = marker_index + len(marker)
+                        search_position = match.end()
 
                 if not in_covariance:
                     line_count += int(

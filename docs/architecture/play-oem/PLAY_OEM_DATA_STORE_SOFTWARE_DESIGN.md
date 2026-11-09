@@ -35,7 +35,9 @@ and routes point-state and view reads through `StoreViewContext`. Range hints, q
 notices, and store-backed station prefetch drive affected view updates. Replacement, failure,
 cancellation, metadata finalization, and stale notices refresh the active context. The legacy
 prepared-batch and compatibility paths remain pending Step 8; Step 7 also remains open because the
-JPSS-1 automatic-capacity first-append gate failed. The application's end-to-end no-copy and GUI
+JPSS-1 automatic-capacity first-append gate failed. Per explicit user direction, Step 8 ownership
+cleanup may proceed while that gate remains unresolved; this sequencing exception does not mark
+Step 7 complete or claim performance acceptance. The application's end-to-end no-copy and GUI
 responsiveness goals are not yet accepted. See the
 [implementation plan](./PLAY_OEM_DATA_STORE_IMPLEMENTATION_PLAN.md) and the performance evidence
 below for remaining work and limitations.
@@ -1409,16 +1411,46 @@ delivery (+200.6%), 1.249734 versus 0.864098 s for validated completion (30.9% f
 versus 82.2 MiB peak RSS (9.3% lower). The first-delivery result failed the 5% regression gate
 and is diagnostic, not acceptance evidence. The mapped-path direct-session measurement is
 consistent with lower first-append latency but is not paired or sufficient to establish that the
-gate passes. Repeat the alternating comparison with power mode verified and stable.
+gate passes.
+
+A newer five-pair fresh-process comparison alternated prepared-batch and mapped automatic-capacity
+direct-store runs. Low Power Mode was `1` before and after; each process included one warm-up.
+
+| Metric | Prepared-batch median (range) | Direct-store median (range) | Change |
+|---|---:|---:|---:|
+| First batch / raw append delivery | 23.967 ms (22.962–26.006) | 68.064 ms (56.555–72.993) | +184.0% |
+| Validated completion | 1.253803 s (1.245386–1.266482) | 0.861978 s (0.852843–0.864548) | −31.3% |
+| Process peak RSS, including startup and warm-up | 90.5 MiB (90.4–90.6) | 93.9 MiB (93.1–95.1) | +3.8% |
+
+Both variants validated 21,601 states; direct-store capacity was 21,624 with 43 append notices.
+Completion meets its provisional gate, and RSS is within the 5% regression limit, but first
+delivery still fails by a wide margin. Because Low Power Mode was on, this comparison remains
+diagnostic rather than acceptance evidence. Repeat the comparison with power mode verified and
+stable before closing Step 7.
 
 Profiling the text path attributes most scan time to reads, per-line splitting/length validation,
 and covariance-marker searches. Varying its read size did not materially reduce latency. A regex
 replacement for line-length validation was about 9.5 times slower and was rejected. An explicit-
 capacity diagnostic had a 17.674 ms median first append, consistent with the capacity scan being
-the dominant added delay, but it is not comparable acceptance evidence. Do not remove covariance
-exclusion, weaken capacity safety, or stage orbit-sized data to improve the result. Step 7 remains
-open until the first-append gate is addressed and the uninstrumented comparison is repeated with
-power mode verified and stable.
+the dominant added delay, but it is not comparable acceptance evidence. An earlier one-pass
+mapped-scan prototype matched the text reference on randomized cases but improved the mapped scan
+by less than 1.1%; larger chunks likewise showed no material gain, so neither change was adopted.
+A later Python-only experiment isolated marker search: a compiled bytes regex over bounded mmap
+windows measured 7.408 ms median versus 18.973 ms for literal-prefix mmap search in nine
+alternating candidate-only rounds. ASCII validation now uses a reduction instead of allocating a
+boolean mask, and newline offsets are shifted in place. In 13 alternating full-scan pairs with
+`lowpowermode=1`, the mapped scanner measured 17.379 ms median (17.163–22.190), versus 50.331 ms
+(50.030–67.890) for the strict text fallback. These scan-only results are diagnostic, not
+acceptance evidence. The scanner retains 1 MiB cancellation-check intervals, matched the text
+scanner on 300 randomized ASCII inputs across varied chunk sizes, and the full play-oem and
+interpolator suites passed (688 passed, 4 skipped). A separate five-repeat automatic-capacity
+direct-session diagnostic with `lowpowermode=1` measured 40.108 ms median first append
+(39.425–43.147), 0.831426 s median validated completion, and 93.3 MiB process peak RSS, with
+21,601 states, capacity 21,624, and 43 append notices. It is unpaired and cannot establish the
+gate.
+Do not remove covariance exclusion, weaken capacity safety, or stage orbit-sized data to improve
+the result. Step 7 remains open until the first-append gate is addressed and the uninstrumented
+comparison is repeated with power mode verified and stable.
 
 Headless lifecycle probes measured JPSS-1-to-ISS replacement completion at 193.948 ms,
 cancellation while waiting on a full queue at 104.616 ms, and synchronized parsing/preparation
