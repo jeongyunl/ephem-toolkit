@@ -13,33 +13,34 @@ specified in [PLAY_OEM_INCREMENTAL_LOADING.md](./PLAY_OEM_INCREMENTAL_LOADING.md
 
 ### Implementation status
 
-An experimental raw store and standalone synchronous direct-ingest path have been added. They
-support fixed-capacity reservations, committed-prefix snapshots and epoch checks without an
-orbit-sample staging array. Direct ingestion is also available as an opt-in
-`IncrementalLoadSession` mode which publishes generation-tagged raw-append notices through the
-bounded session queue; cancellation invalidates only its owned epoch. This mode is **not wired
-into the player/controller**, which still uses its previous preparation and consumer paths.
-The raw snapshot records `LOADING`, `COMPLETE`, `FAILED`, or `CANCELLED`; EOF-validated header and
-metadata are attached only on completion, and failures preserve a committed prefix with an error
-message. Cancellation preserves the committed prefix but prevents further reservations. Lazy
-query/result types, the public raw `StoreSnapshot`, the reusable `ChunkMemo` primitive, and
-stateless mode on the existing core interpolators now exist. The store provides point-state
-queries through one reusable stateless interpolator, lazy chunked series and Earth-fixed tiers,
-prioritized cancellable range prefetch, partial-coverage results, and chunk-completion notices.
-Station-access profiles are also lazy, chunked, and shared across minimum-elevation changes.
-Derived results write directly into final tier buffers without orbit-sized temporary arrays.
-Per-chunk LRU eviction protects active ranges and leased views, and evicted chunks are recomputed
-before they can be returned again. Speed / Altitude, RTN Deltas, Angular Velocity, Direction
-Change, Geocentric Distance, State Components, both 3D backends, Ground Track, and Pass Ground
-Track have store-backed paths. Ground Track consumers use the snapshot-bound context for range
-queries, current state, and footprints; they bound plotting inputs before projection. Station
-views and the active player/controller remain unmigrated. `StoreViewContext` is the caller-facing
-read facade, and the shared binding helper owns context replacement and tier subscriptions for
-migrated consumers. The application-wide no-copy goal has therefore not yet been achieved. See the
-[implementation plan](./PLAY_OEM_DATA_STORE_IMPLEMENTATION_PLAN.md) for the staged work and the
-performance evidence below for the retained measurements and open gates.
+`OemDataStore` supports fixed-capacity reservations, committed-prefix snapshots and epoch checks
+without an orbit-sample staging array. The active player's default load path uses direct
+parser-to-store ingestion and generation-tagged raw-append events; cancellation invalidates only
+its owned epoch. The raw snapshot records `LOADING`, `COMPLETE`, `FAILED`, or `CANCELLED`;
+EOF-validated header and metadata are attached only on completion, and failures preserve a
+committed prefix with an error message. Cancellation preserves the committed prefix but prevents
+further reservations. Lazy query/result types, the public raw `StoreSnapshot`, the reusable
+`ChunkMemo` primitive, and stateless mode on the existing core interpolators support point-state
+queries, lazy chunked series and Earth-fixed tiers, prioritized cancellable range prefetch,
+partial-coverage results, and chunk-completion notices. Station-access profiles are lazy, chunked,
+and shared across minimum-elevation changes. Derived results write directly into final tier
+buffers without orbit-sized temporary arrays. Per-chunk LRU eviction protects active ranges and
+leased views, and evicted chunks are recomputed before they can be returned again.
 
-`OemDataStore.begin` takes an explicit capacity. For the opt-in loader path,
+Speed / Altitude, RTN Deltas, Angular Velocity, Direction Change, Geocentric Distance, State
+Components, both 3D backends, Ground Track, Pass Ground Track, and station views use store-backed
+paths. The active player creates one store per load generation, advances its clock through the
+store's live sample-time view, retains the installed file until a replacement has usable rows,
+and routes point-state and view reads through `StoreViewContext`. Range hints, queued store
+notices, and store-backed station prefetch drive affected view updates. Replacement, failure,
+cancellation, metadata finalization, and stale notices refresh the active context. The legacy
+prepared-batch and compatibility paths remain pending Step 8; Step 7 also remains open because the
+JPSS-1 automatic-capacity first-append gate failed. The application's end-to-end no-copy and GUI
+responsiveness goals are not yet accepted. See the
+[implementation plan](./PLAY_OEM_DATA_STORE_IMPLEMENTATION_PLAN.md) and the performance evidence
+below for remaining work and limitations.
+
+`OemDataStore.begin` takes an explicit capacity. For the loader path,
 `OemDataStore.capacity_for_file` counts physical lines outside `COVARIANCE_START` /
 `COVARIANCE_STOP` blocks. State rows are outside covariance blocks and the parser accepts at most
 one state row per physical line, so this remains a safe upper bound while avoiding reservations
@@ -1355,6 +1356,36 @@ python3 scripts/bench_play_oem.py tests/data/JPSS-1.oem --store-session-bench 21
 python3 scripts/bench_play_oem.py tests/data/ISS_2026-05-20.OEM --store-session-bench auto --skip-data-benchmarks --repeats 5
 python3 scripts/bench_play_oem.py tests/data/JPSS-1.oem --store-session-bench auto --skip-data-benchmarks --repeats 5
 ```
+
+### Controller integration measurements
+
+The earlier comparison was taken while the computer was in Low Power Mode and is superseded by
+this run. With macOS `lowpowermode=0` (macOS 27.2 arm64, Python 3.9.6), five fresh-process
+comparisons alternated the prepared-batch baseline and auto-capacity direct-store candidate on
+JPSS-1 (21,601 states, 15,510,165 bytes). Each process used the same batch=512, flush=0.1 s,
+queue=2, 1 ms consumer poll, and one unreported warm-up measurement.
+
+| Metric | Prepared-batch median (range) | Direct-store median (range) | Change |
+|---|---:|---:|---:|
+| First batch / raw append delivery | 13.736 ms (12.212–15.246) | 52.199 ms (50.169–57.493) | +280.0% |
+| Validated completion | 0.760986 s (0.758379–0.765112) | 0.532368 s (0.527285–0.541059) | −30.0% |
+| Process peak RSS | 90.5 MiB (90.4–90.7) | 82.4 MiB (81.8–82.5) | −9.0% |
+
+The direct-store path used capacity 21,624 for 21,601 states and emitted 43 append notices.
+Completion and RSS meet their respective provisional gates, but the first-append result still
+fails the maximum 5% regression gate. This is a headless result and says nothing about GUI
+responsiveness.
+
+An earlier explicit-capacity run measured a 22.007 ms first append, and an earlier profile
+attributed about 77 ms to the covariance-excluding capacity scan; neither diagnostic was repeated
+in this Low Power Mode-off comparison. A tested scan optimization was slower and was reverted.
+Do not remove covariance exclusion, weaken capacity safety, or stage orbit-sized data to improve
+the result. Step 7 remains open until the first-append gate is addressed and remeasured.
+
+Headless lifecycle probes measured JPSS-1-to-ISS replacement completion at 193.948 ms,
+cancellation while waiting on a full queue at 104.616 ms, and synchronized parsing/preparation
+cancellation at 0.458/0.686 ms. No absolute cancellation-time threshold has been approved; these
+observations do not establish one.
 
 A separate synchronous raw-only million-state probe used an explicit capacity of 1,000,000 and
 four 250,000-row segments. First commit was about 3.65 ms median, validated raw completion about

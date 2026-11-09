@@ -105,6 +105,8 @@ class ViewFactoryMixin:
 
     def _ground_track_source_for_plot_range(self) -> GroundTrackSource | None:
         """Limit in-progress access analysis to samples near the active plot range."""
+        if self._store_view_context is not None:
+            return None
         source = self._ground_track_source
         if source is None or self._oem_coverage_complete:
             return source
@@ -195,8 +197,9 @@ class ViewFactoryMixin:
         force_replace: bool = False,
     ) -> None:
         """Open a Ground Track panel, preparing its static coordinates once per OEM."""
-        source = self._ground_track_source
-        coordinates = self._ground_track_coordinates
+        store_backed = self._store_view_context is not None
+        source = None if store_backed else self._ground_track_source
+        coordinates = None if store_backed else self._ground_track_coordinates
         error_message: str | None = None
         if source is not None and not self._oem_coverage_complete:
             # Ground-track preparation converts every point and runs on the UI

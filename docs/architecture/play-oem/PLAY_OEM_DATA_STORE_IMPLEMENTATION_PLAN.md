@@ -47,11 +47,14 @@ replacement has committed usable rows, then releases the old store after replaci
 
 Stateless mode on the existing core interpolators and zero-copy plotting primitives are
 implemented and validated. Every registered data view has a store-backed builder, and panel
-creation dispatches through `StoreViewContext` when that builder is available. Step 7 remains in
-progress: `PlaybackData`/`OrbitSeries` compatibility state and the legacy prepared-batch path still
-exist, while range-hint publication, notice-driven refresh, station prefetch, and full terminal
-state coordination remain to be migrated. The application's end-to-end no-copy and responsiveness
-acceptance gates are therefore not yet complete.
+creation dispatches through `StoreViewContext` when that builder is available. Step 7 now wires
+the active player to direct parser-to-store loading, live sample-time playback, snapshot-bound
+view contexts, range hints, queued store notices, and store-backed station prefetch. Replacement,
+failure, cancellation, metadata finalization, and stale-notice handling are coordinated on that
+path. Compatibility state and the legacy prepared-batch path remain for the separately scoped
+Step 8 cleanup. Step 7 is still in progress because the JPSS-1 automatic-capacity first-append
+gate failed; the application's end-to-end no-copy and responsiveness acceptance gates are not yet
+complete.
 
 Historical automatic-sizing measurements counted physical lines and reserved 172,833 rows for
 21,601 JPSS-1 states because covariance rows contributed to the bound. Current sizing excludes
@@ -151,8 +154,9 @@ criteria pass. Progress is the number of completed checklist items.
 
 ## Active implementation sequence
 
-Steps 4, 5, and 6 are complete. **Step 7 is active:** direct `RAW_APPEND` ingestion is wired into
-`PlayerApp`; continue with controller ownership, range/scheduling, and lifecycle migration.
+Steps 4, 5, and 6 are complete. **Step 7 is active:** direct `RAW_APPEND` ingestion, controller
+context and lifecycle wiring, range hints, and notice-driven store-view refresh are implemented.
+Resolve its failed headless first-append gate and finish the remaining Step 7 validation.
 **Step 8 removes duplicate ownership and superseded paths.** Do not begin Step 8 until Step 7's
 remaining checks pass.
 
@@ -161,29 +165,31 @@ remaining checks pass.
 Wire direct store loading only after all views consume the store contract. Preserve early playback,
 ordered coverage, user ranges, metadata, errors, cancellation, and replacement semantics.
 
-- **Status:** In progress (the direct-ingestion lifecycle work item is verified; controller
-  ownership, range/scheduling, and complete lifecycle coordination remain).
-- **Progress:** 1/7 checklist items.
+- **Status:** In progress (active store-path and lifecycle wiring are implemented; the
+  automatic-capacity first-append performance gate failed).
+- **Progress:** 6/7 checklist items.
 - [x] Create and own one store per playback epoch; route initial and incremental OEM loading
       through the loader's direct-store mode and raw-append notices without parser-batch-to-playback
       staging or delaying the first usable raw samples. Keep reservation, commit, and abort calls
       inside the loader sink, not in the controller or views. First bind the store to the selected
       file generation, then install its committed snapshots into the clock/cursor and refresh
       store-backed views; preserve the active file until the replacement publishes usable data.
-- [ ] Replace `PlaybackData`'s derived-data fields and controller references to `series`,
+- [x] Replace `PlaybackData`'s derived-data fields and controller references to `series`,
       `time_unit`, `cursor`, `_incremental_store`, and `_ground_track_source` with store-backed
-      reader contexts where appropriate; extend `PlaybackClock` from committed timestamps.
-- [ ] Capture or refresh one snapshot-bound reader context per append, tier, range, or policy
+      reader contexts on the active path where appropriate; extend `PlaybackClock` from committed
+      timestamps.
+- [x] Capture or refresh one snapshot-bound reader context per append, tier, range, or policy
       update and share it with affected views. Route point-state queries through this context
       instead of exposing store/snapshot pairs at each call site.
-- [ ] Publish range hints on plot-range, playback-range, seek, drag, and view-open/close changes;
+- [x] Publish range hints on plot-range, playback-range, seek, drag, and view-open/close changes;
       apply tier/append notices to the affected views without blocking wx event handling.
-- [ ] Replace the station warm-up thread and polling refresh work with store prefetch and notices;
-      keep wx event handling limited to applying notices and updating views.
-- [ ] Coordinate metadata finalization, failed/cancelled prefixes, replacement epochs, stale
+- [x] Replace the station warm-up thread and polling refresh work with store prefetch and notices
+      on the active store path; keep wx event handling limited to applying notices and updating
+      views.
+- [x] Coordinate metadata finalization, failed/cancelled prefixes, replacement epochs, stale
       notices, saved ranges, interpolation policy, and clock coverage through one lifecycle.
-- [ ] Test direct initial/incremental loading, early playback, replacement, failure, cancellation,
-      and scheduling; complete headless measurements against the gates in
+- [ ] Pass direct initial/incremental loading, early playback, replacement, failure, cancellation,
+      and scheduling tests; meet headless performance gates in
       [Performance policy and acceptance](#performance-policy-and-acceptance).
 
 **Done when:** the active player loads and consumes one authoritative store, preserves current
@@ -195,6 +201,18 @@ passed (628 passed, 4 skipped). App tests cover direct loading, store-backed cur
 replacement retention and cleanup, load failure, and saved ranges. `compileall` and
 `git diff --check` passed. This does not certify the remaining scheduling or GUI responsiveness
 gates.
+
+**Current Step 7 evidence:** `python3 -m pytest tests/ephem_toolkit/play_oem
+tests/ephem_toolkit/core/interpolator -q` passed (682 passed, 4 skipped); `compileall` and
+`git diff --check` passed. The new controller regression verifies that replacing an in-progress
+load refreshes the retained store context to `CANCELLED`. A new five-pair, fresh-process
+alternating JPSS-1 comparison with macOS Low Power Mode off still fails the first-append gate:
+direct-store median was 52.199 ms versus 13.736 ms for the prepared-batch baseline (+280.0%,
+against a maximum 5% regression). Direct-store validated completion improved 30.0% and peak RSS
+decreased 9.0%, meeting those gates. This replaces the earlier Low Power Mode result. The prior
+explicit-capacity and capacity-scan profiling observations were not repeated. The complete latest
+comparison and limitations are in the
+[store design's performance evidence](./PLAY_OEM_DATA_STORE_SOFTWARE_DESIGN.md#controller-integration-measurements).
 
 ### 8. Consolidate ownership, remove superseded paths, and accept the migration
 

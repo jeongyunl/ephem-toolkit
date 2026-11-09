@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
+from queue import Empty, SimpleQueue
 import gc
 import math
 import os
@@ -32,7 +33,17 @@ from .. import (
     workspace,
 )
 from .. import playback_data
-from ..oem_data_store import InterpolationPolicy, OemDataStore, StoreSnapshot
+from ..oem_data_store import (
+    AppendNotice,
+    InterpolationPolicy,
+    LoadStatus,
+    OemDataStore,
+    RangeHint,
+    ResetNotice,
+    StoreNotice,
+    StoreSnapshot,
+    TierNotice,
+)
 from ..incremental_loader import (
     IncrementalLoader,
     LoadEventKind,
@@ -260,6 +271,12 @@ class PlayerApp(
         self._pending_oem_store: OemDataStore | None = None
         self._retired_oem_store: OemDataStore | None = None
         self._store_view_context: StoreViewContext | None = None
+        self._store_notice_unsubscribe: Callable[[], None] = lambda: None
+        self._store_notice_queue: SimpleQueue[
+            tuple[OemDataStore, StoreNotice]
+        ] = SimpleQueue()
+        self._pending_store_view_ids: set[str] = set()
+        self._range_dragging = False
         self._active_load_generation: int | None = None
         self._active_load_path: str | None = None
         self._active_load_first_batch = False
@@ -417,6 +434,7 @@ class PlayerApp(
             plot_time_range=self.plot_time_range,
             now_s=lambda: self.clock.t_now,
             on_playback_bounds=self._apply_playback_bounds,
+            on_time_range_dragging=self._set_range_dragging,
             on_plot_endpoint=self._drag_plot_endpoint,
             on_plot_endpoint_mode=self._set_plot_endpoint_mode,
             on_begin_time_range_edit=self._begin_time_range_edit,
@@ -530,7 +548,11 @@ class PlayerApp(
         """Resolve one shared interval before updating any live view cursors."""
         if self._closed:
             return
-        if self._active_load_first_batch and not self._oem_coverage_complete:
+        if (
+            self._oem_store is None
+            and self._active_load_first_batch
+            and not self._oem_coverage_complete
+        ):
             # Coverage extension and playback ticks both notify clock observers.
             # Defer all plot range/cursor updates to the throttled view refresh,
             # which rebuilds each plot from the latest prepared batch.
@@ -544,6 +566,154 @@ class PlayerApp(
             time_s,
         )
         self._dispatch_time_range(resolved, time_s)
+
+    def _set_range_dragging(self, dragging: bool) -> None:
+        self._range_dragging = dragging
+        self._publish_range_hint()
+
+    def _publish_range_hint(self) -> None:
+        store = self._oem_store
+        if store is None:
+            return
+        resolved = self._resolved_plot_range()
+        store.set_range_hint(
+            RangeHint(
+                None if resolved is None else (resolved.start_s, resolved.end_s),
+                (self.clock.playback_start, self.clock.playback_end),
+                self.clock.t_now,
+                self._range_dragging,
+            )
+        )
+
+    def _subscribe_store_notices(self, store: OemDataStore) -> None:
+        self._store_notice_unsubscribe()
+        self._store_notice_unsubscribe = store.subscribe(
+            lambda notice: self._store_notice_queue.put((store, notice))
+        )
+
+    def _drain_store_notices(self) -> None:
+        store = self._oem_store
+        if store is None:
+            while True:
+                try:
+                    self._store_notice_queue.get_nowait()
+                except Empty:
+                    break
+            return
+
+        snapshot = store.snapshot()
+        refresh_all = False
+        affected: set[str] = set()
+        while True:
+            try:
+                notice_store, notice = self._store_notice_queue.get_nowait()
+            except Empty:
+                break
+            if notice_store is not store or notice.epoch != snapshot.epoch:
+                continue
+            if isinstance(notice, (AppendNotice, ResetNotice)):
+                refresh_all = True
+            elif isinstance(notice, TierNotice):
+                affected.update(self._views_for_tier_notice(notice))
+
+        if refresh_all:
+            self._queue_store_view_refresh()
+        elif affected:
+            self._queue_store_view_refresh(affected)
+        if self._pending_store_view_ids:
+            self._refresh_store_views()
+
+    @staticmethod
+    def _views_for_tier_notice(notice: TierNotice) -> set[str]:
+        if notice.tier == "series":
+            group_views = {
+                "kinematics": {"speed-altitude", "distance"},
+                "rtn": {"rtn"},
+                "direction-rates": {"angular-velocity", "direction-change"},
+                "distance-delta": {"distance"},
+            }
+            return set(group_views.get(notice.group, ()))
+        if notice.tier in ("earth-fixed", "ground-track", "footprints"):
+            return {"ground-track", "pass-ground-track"}
+        if notice.tier == "station-access":
+            return {
+                "station-status",
+                "pass-strip",
+                "elevation-profile",
+                "azimuth-profile",
+                "range-profile",
+                "pass-list",
+                "sky-view",
+                "pass-ground-track",
+            }
+        return set()
+
+    def _queue_store_view_refresh(self, view_ids: set[str] | None = None) -> None:
+        if view_ids is None:
+            self._pending_store_view_ids.update(self._open_panels)
+        else:
+            self._pending_store_view_ids.update(
+                panel_id
+                for panel_id, opened in self._open_panels.items()
+                if opened.view_name in view_ids
+            )
+
+    def _refresh_store_views(self) -> None:
+        context = self._store_view_context
+        if context is None:
+            return
+        if self._oem_store is not None:
+            snapshot = self._oem_store.snapshot()
+            if (
+                context.snapshot.epoch != snapshot.epoch
+                or
+                context.snapshot.revision != snapshot.revision
+                or context.snapshot.policy_revision != snapshot.policy_revision
+            ):
+                context = context.refresh()
+                self._store_view_context = context
+        panel_ids = tuple(self._pending_store_view_ids)
+        self._pending_store_view_ids.clear()
+        for panel_id in panel_ids:
+            opened = self._open_panels.get(panel_id)
+            if opened is None:
+                continue
+            view_context = context.with_range(
+                self._resolved_plot_range(),
+                (self.clock.t_start, self.clock.t_end),
+            )
+            update = getattr(opened.view, "update_from_store", None)
+            try:
+                if callable(update):
+                    update(view_context)
+                    set_time_range = getattr(opened.view, "set_time_range", None)
+                    if callable(set_time_range):
+                        set_time_range(
+                            view_context.plot_range, view_context.coverage
+                        )
+                    opened.applied_range = view_context.plot_range
+                    opened.applied_coverage = view_context.coverage
+                    opened.range_initialized = True
+                    opened.view.update(self.clock.t_now)
+                    if opened.canvas is not None:
+                        opened.canvas.draw_idle()
+                    else:
+                        opened.panel.request_redraw()
+                else:
+                    self.open_panel_view(
+                        opened.view_name,
+                        panel_id,
+                        opened.stack,
+                        force_replace=True,
+                    )
+            except Exception as error:
+                self.status_bar.set_message(f"Could not refresh OEM views: {error}")
+        if self._pending_store_view_ids:
+            return
+        retired_store = self._retired_oem_store
+        if retired_store is not None and retired_store is not self._oem_store:
+            self._retired_oem_store = None
+            retired_store.close()
 
     def _saved_state_size(self) -> tuple[int, int]:
         if self._saved_state is None:
@@ -1007,6 +1177,16 @@ class PlayerApp(
         self._active_load_first_batch = False
         self._active_load_failed = False
         self._last_incremental_view_refresh_monotonic_s = None
+        if (
+            previous_pending_store is self._oem_store
+            and previous_pending_store is not None
+        ):
+            snapshot = previous_pending_store.snapshot()
+            if snapshot.status is LoadStatus.CANCELLED:
+                if self._store_view_context is not None:
+                    self._store_view_context = self._store_view_context.refresh()
+                    self._queue_store_view_refresh()
+                    self._refresh_store_views()
         self.status_bar.set_message(f"Loading {os.path.basename(path)}…")
 
     def _poll_incremental_load(self) -> None:
@@ -1190,6 +1370,10 @@ class PlayerApp(
                     self._close_pending_oem_store()
                 elif self._pending_oem_store is self._oem_store:
                     self._pending_oem_store = None
+                if self._store_view_context is not None:
+                    self._store_view_context = self._store_view_context.refresh()
+                    self._queue_store_view_refresh()
+                    self._incremental_view_refresh_pending = True
         if data_changed and self._oem_loaded:
             self.workspace.update_oem_information(
                 self._formatted_dashboard_context(),
@@ -1210,6 +1394,7 @@ class PlayerApp(
         rate = self.clock.rate
         if first_append:
             self._clock_unsubscribe()
+            self._store_notice_unsubscribe()
             self.time_unit = snapshot.time_unit
             self.clock = clock.PlaybackClock(
                 float(snapshot.raw[0, 0]),
@@ -1229,6 +1414,7 @@ class PlayerApp(
                 self._on_clock_time_changed
             )
             self._oem_store = store
+            self._subscribe_store_notices(store)
             self._pending_oem_store = store
             self._retired_oem_store = previous_store
             self._incremental_store = None
@@ -1325,6 +1511,7 @@ class PlayerApp(
             plot_range=self._resolved_plot_range(),
             coverage=(self.clock.t_start, self.clock.t_end),
         )
+        self._publish_range_hint()
         self._oem_interpolation = str(meta.get("INTERPOLATION", "")) or None
         interpolation_degree = meta.get("INTERPOLATION_DEGREE")
         self._oem_interpolation_degree = (
@@ -1442,10 +1629,25 @@ class PlayerApp(
                 self._pending_playback_bounds = None
                 self.clock.set_playback_bounds(*pending_bounds)
         self._station_access_cache.clear()
+        if self._store_view_context is not None:
+            self._store_view_context = self._store_view_context.refresh()
+            self._publish_range_hint()
+            self._queue_store_view_refresh()
         self._incremental_view_refresh_pending = True
 
     def _refresh_incremental_views(self, *, force: bool = False) -> None:
         """Rebuild plots at a bounded rate, or immediately when loading ends."""
+        if self._oem_store is not None:
+            if not self._open_panels and self._oem_loaded:
+                self.open_plots(self._plots)
+                self.workspace.draw_initial_graphs()
+                wx.CallAfter(self._refresh_graph_stack_layouts)
+            self._queue_store_view_refresh()
+            self._refresh_store_views()
+            self._incremental_view_refresh_pending = bool(
+                self._pending_store_view_ids
+            )
+            return
         now = time.monotonic()
         last_refresh = self._last_incremental_view_refresh_monotonic_s
         if (
@@ -1653,6 +1855,7 @@ class PlayerApp(
         )
 
         self._clock_unsubscribe()
+        self._store_notice_unsubscribe()
         previous_store = self._oem_store
         self._oem_store = None
         self._pending_oem_store = None
@@ -1741,6 +1944,7 @@ class PlayerApp(
             self._follow_selection_unsubscribe()
             self._incremental_loader.cancel()
             self._clock_unsubscribe()
+            self._store_notice_unsubscribe()
             self._timer.Stop()
             self._save_application_state()
             try:
@@ -1761,6 +1965,7 @@ class PlayerApp(
                     )
                     if store is not None
                 }
+                self._store_notice_unsubscribe()
                 for store in stores:
                     store.close()
                 self._oem_store = None
@@ -1774,6 +1979,7 @@ class PlayerApp(
         if self._closed:
             return
         self._poll_incremental_load()
+        self._drain_store_notices()
         current_time_s = time.monotonic()
         if (
             self._active_load_first_batch
@@ -1862,6 +2068,10 @@ class PlayerApp(
         self._interpolation_degree = degree
         self._interpolation_config_dirty = True
         self._station_access_cache.clear()
+        if self._store_view_context is not None:
+            self._store_view_context = self._store_view_context.refresh()
+            self._queue_store_view_refresh()
+            self._publish_range_hint()
         self._refresh_open_ground_station_access()
         self.control_window.update_active_interpolation(
             self._active_interpolation_summary()
@@ -1918,7 +2128,12 @@ class PlayerApp(
             self._playback_handle_bounds,
         )
         self.workspace.update_playback_state(self.clock.playing, self.clock.rate)
-        self.control_window.update_current_state(self.cursor.lookup(self.clock.t_now))
+        current_state = (
+            self._store_view_context.state_at(self.clock.t_now)
+            if self._store_view_context is not None
+            else self.cursor.lookup(self.clock.t_now)
+        )
+        self.control_window.update_current_state(current_state)
 
     def _handle_sigint(self, _signum: int, _frame: object) -> None:
         wx.CallAfter(self.close)

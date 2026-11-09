@@ -118,6 +118,7 @@ class _RangeGrip(wx.Control):
         if self.kind == "plot" and self.slider._plot_mode(self) == "follow":
             return
         self._dragging = True
+        self.slider._on_range_dragging(True)
         if not self.HasCapture():
             self.CaptureMouse()
         self.slider._drag(self, event.GetPosition())
@@ -136,12 +137,18 @@ class _RangeGrip(wx.Control):
             event.Skip()
 
     def _up(self, _event: wx.MouseEvent) -> None:
+        was_dragging = self._dragging
         self._dragging = False
         if self.HasCapture():
             self.ReleaseMouse()
+        if was_dragging:
+            self.slider._on_range_dragging(False)
 
     def _capture_lost(self, event: wx.MouseCaptureLostEvent) -> None:
+        was_dragging = self._dragging
         self._dragging = False
+        if was_dragging:
+            self.slider._on_range_dragging(False)
         event.Skip()
 
     def _motion(self, event: wx.MouseEvent) -> None:
@@ -235,6 +242,7 @@ class TimeRangeSlider(wx.Control):
         on_plot_endpoint: Callable[[str, float], None],
         on_plot_endpoint_mode: Callable[[str, time_range.EndpointMode], None],
         on_begin_edit: Callable[[], None],
+        on_range_dragging: Callable[[bool], None] | None = None,
     ) -> None:
         super().__init__(
             parent,
@@ -253,6 +261,7 @@ class TimeRangeSlider(wx.Control):
         self._on_plot_endpoint = on_plot_endpoint
         self._on_plot_endpoint_mode = on_plot_endpoint_mode
         self._on_begin_edit = on_begin_edit
+        self._on_range_dragging = on_range_dragging or (lambda _dragging: None)
         self._coverage = (0.0, 1.0)
         self._slider_bounds = self._coverage
         self._playback = (0.0, 1.0)

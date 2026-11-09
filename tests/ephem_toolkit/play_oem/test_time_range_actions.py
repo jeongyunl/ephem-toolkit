@@ -44,9 +44,16 @@ class _ActionHost(TimeRangeActionsMixin, PlaybackActionsMixin):
         self.display_updates += 1
 
     def _dispatch_time_range(
-        self, resolved: ResolvedTimeRange | None, _time_s: float | None = None
+        self,
+        resolved: ResolvedTimeRange | None,
+        _time_s: float | None = None,
+        *,
+        dragging: bool | None = None,
     ) -> None:
         self.dispatches.append(resolved)
+
+    def _publish_range_hint(self) -> None:
+        pass
 
     def _on_clock_time_changed(self, time_s: float) -> None:
         self._dispatch_time_range(

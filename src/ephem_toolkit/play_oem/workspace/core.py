@@ -64,6 +64,7 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             Callable[[str, range_model.EndpointMode], None] | None
         ) = None,
         on_begin_time_range_edit: Callable[[], None] | None = None,
+        on_time_range_dragging: Callable[[bool], None] | None = None,
         ground_stations: Sequence[GroundStation] = (),
         on_ground_stations_changed: Callable[[list[GroundStation]], None] | None = None,
         display_time_zone: str = UTC_DISPLAY,
@@ -203,6 +204,7 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             on_plot_endpoint=on_plot_endpoint or (lambda _name, _value: None),
             on_plot_endpoint_mode=on_plot_endpoint_mode or (lambda _name, _mode: None),
             on_begin_edit=on_begin_time_range_edit or (lambda: None),
+            on_range_dragging=on_time_range_dragging or (lambda _dragging: None),
         )
         self.timeline_slider.set_display_time_zone(display_time_zone)
         self.timeline_slider.SetName("Playback timeline")

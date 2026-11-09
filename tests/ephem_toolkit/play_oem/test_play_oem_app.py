@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import signal
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from collections.abc import Callable
 from contextlib import nullcontext
 from types import SimpleNamespace
@@ -24,7 +24,12 @@ from ephem_toolkit.play_oem.clock import PlaybackClock
 from ephem_toolkit.play_oem.cursor import OemCursor
 from ephem_toolkit.play_oem.ground_track import GroundTrackSource
 from ephem_toolkit.play_oem.ground_stations import GroundStation
-from ephem_toolkit.play_oem.incremental_loader import LoadEvent, LoadEventKind
+from ephem_toolkit.play_oem.incremental_loader import (
+    IncrementalLoader,
+    LoadEvent,
+    LoadEventKind,
+)
+from ephem_toolkit.play_oem.oem_data_store import LoadStatus, TierNotice
 from ephem_toolkit.play_oem import time_range
 from ephem_toolkit.play_oem.play_oem_cli import build_arg_parser, parse_arguments
 from ephem_toolkit.play_oem.series import compute_orbit_series
@@ -1871,6 +1876,55 @@ def test_incremental_replacement_keeps_old_oem_until_first_batch(
     player.close()
 
 
+def test_replacement_refreshes_cancelled_active_store_context(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    player, _views, _canvases, _frames = make_app(
+        monkeypatch, plots=("speed-altitude",), oem_loaded=False
+    )
+    player._incremental_loader = IncrementalLoader(batch_size=1, queue_size=1)
+    source = tmp_path / "long-load.oem"
+    first_time = datetime(2026, 1, 1)
+    state_rows = "\n".join(
+        f"{first_time + timedelta(seconds=index):%Y-%m-%dT%H:%M:%S} "
+        f"7000 {index} 0 0 7.5 0"
+        for index in range(2_000)
+    )
+    source.write_text(
+        "CCSDS_OEM_VERS = 2.0\n"
+        "META_START\n"
+        "OBJECT_NAME = LONG LOAD\n"
+        "OBJECT_ID = 2026-001A\n"
+        "CENTER_NAME = EARTH\n"
+        "REF_FRAME = GCRF\n"
+        "TIME_SYSTEM = UTC\n"
+        "META_STOP\n"
+        f"{state_rows}\n",
+        encoding="utf-8",
+    )
+
+    player._load_oem_file(str(source))
+    deadline = time.monotonic() + 3.0
+    while not player._active_load_first_batch and time.monotonic() < deadline:
+        player._poll_incremental_load()
+        time.sleep(0.005)
+
+    assert player._active_load_first_batch
+    active_store = player._oem_store
+    assert active_store is not None
+    assert player._store_view_context is not None
+    assert player._store_view_context.snapshot.status is LoadStatus.LOADING
+
+    player._load_oem_file(str(source))
+
+    assert active_store.snapshot().status is LoadStatus.CANCELLED
+    assert player._store_view_context is not None
+    assert player._store_view_context.snapshot.status is LoadStatus.CANCELLED
+    assert player._oem_store is active_store
+    assert player._pending_oem_store is not active_store
+    player.close()
+
+
 def test_start_shows_workspace_before_initial_oem_batch(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
@@ -1995,6 +2049,32 @@ def test_incremental_batches_extend_clock_and_complete_full_history(
     assert len(player.series.elapsed_time) == 1
     assert player._dashboard_context["sample_count"] == "3"
     assert not player._incremental_view_refresh_pending
+    store = player._oem_store
+    hint = store._range_hint
+    assert hint is not None
+    assert hint.playback == (player.clock.playback_start, player.clock.playback_end)
+    plot_range = player._store_view_context.plot_range
+    assert plot_range is not None
+    assert hint.plot == (plot_range.start_s, plot_range.end_s)
+    player._set_range_dragging(True)
+    assert store._range_hint is not None and store._range_hint.dragging
+    player._set_range_dragging(False)
+    assert store._range_hint is not None and not store._range_hint.dragging
+
+    opened = next(
+        opened
+        for opened in player._open_panels.values()
+        if opened.view_name == "speed-altitude"
+    )
+    updated_contexts = []
+    opened.view.update_from_store = updated_contexts.append
+    notice = TierNotice(
+        store.snapshot().epoch, "series", "kinematics", None, 0, 1
+    )
+    player._store_notice_queue.put((store, notice))
+    player._drain_store_notices()
+    assert len(updated_contexts) == 1
+    assert updated_contexts[0].snapshot is player._store_view_context.snapshot
     player.close()
 
 

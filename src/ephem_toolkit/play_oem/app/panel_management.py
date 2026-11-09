@@ -178,6 +178,7 @@ class PanelManagementMixin:
     ) -> None:
         if self._closed:
             raise RuntimeError("cannot open a view in a closed PlayerApp")
+        self._publish_range_hint()
         if stack == "middle":
             stack_parent = self.workspace.main_analysis_stack
         elif stack == "right":
@@ -340,6 +341,7 @@ class PanelManagementMixin:
                 self._release_open_view_resources(replacing)
             finally:
                 replacing.panel.Destroy()
+        self._publish_range_hint()
 
     def _on_plot_click(
         self: PlayerAppState, event: MouseEvent, toolbar: NavigationToolbar2WxAgg
@@ -376,6 +378,7 @@ class PanelManagementMixin:
                 self.workspace.remove_graph_panel(opened.panel, stack=opened.stack)
             finally:
                 opened.panel.Destroy()
+        self._publish_range_hint()
 
     def _release_open_view_resources(self: PlayerAppState, opened: _OpenView) -> None:
         if self._open_views.get(opened.view_name) is opened:

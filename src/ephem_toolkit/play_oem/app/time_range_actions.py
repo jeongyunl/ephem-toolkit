@@ -26,6 +26,13 @@ class TimeRangeActionsMixin:
     def _apply_playback_bounds(
         self: PlayerAppState, start_s: float, end_s: float
     ) -> None:
+        previous_time = self.clock.t_now
+        previous_range = time_range.resolve_plot_range(
+            self.plot_time_range,
+            (self.clock.t_start, self.clock.t_end),
+            (self.clock.playback_start, self.clock.playback_end),
+            previous_time,
+        )
         bounds = time_range.validate_playback_range(
             (start_s, end_s), (self.clock.t_start, self.clock.t_end)
         )
@@ -33,13 +40,25 @@ class TimeRangeActionsMixin:
         self._pending_playback_bounds = None
         self._playback_handle_bounds = (bounds.start_s, bounds.end_s)
         self.clock.set_playback_bounds(bounds.start_s, bounds.end_s)
+        resolved = time_range.resolve_plot_range(
+            self.plot_time_range,
+            (self.clock.t_start, self.clock.t_end),
+            (self.clock.playback_start, self.clock.playback_end),
+            self.clock.t_now,
+        )
+        if self.clock.t_now == previous_time and resolved != previous_range:
+            self._dispatch_time_range(resolved, self.clock.t_now)
+        self._publish_range_hint()
         self._update_time_display()
 
     def _reset_playback_bounds(self: PlayerAppState) -> None:
         self._apply_playback_bounds(self.clock.t_start, self.clock.t_end)
 
     def _apply_plot_time_range(
-        self: PlayerAppState, rule: time_range.PlotTimeRange
+        self: PlayerAppState,
+        rule: time_range.PlotTimeRange,
+        *,
+        dragging: bool = False,
     ) -> None:
         checked = time_range.validate_plot_range(rule)
         coverage = (self.clock.t_start, self.clock.t_end)
@@ -53,7 +72,7 @@ class TimeRangeActionsMixin:
         # applied value so a malformed edit cannot expose a half-updated rule.
         self._begin_time_range_edit()
         self.plot_time_range = checked
-        self._dispatch_time_range(resolved, self.clock.t_now)
+        self._dispatch_time_range(resolved, self.clock.t_now, dragging=dragging)
         if self._active_load_first_batch and not self._oem_coverage_complete:
             self._incremental_view_refresh_pending = True
         self._update_time_display()
@@ -84,7 +103,8 @@ class TimeRangeActionsMixin:
                 current.enabled,
                 replacement if name == "start" else current.start,
                 replacement if name == "end" else current.end,
-            )
+            ),
+            dragging=True,
         )
 
     def _set_plot_endpoint_mode(
@@ -112,10 +132,21 @@ class TimeRangeActionsMixin:
         self: PlayerAppState,
         resolved: time_range.ResolvedTimeRange | None,
         time_s: float | None = None,
+        *,
+        dragging: bool | None = None,
     ) -> None:
         """Apply range and cursor state to visible views, deferring hidden panels."""
         coverage = (self.clock.t_start, self.clock.t_end)
         selected_time = self.clock.t_now if time_s is None else time_s
+        context = self._store_view_context
+        if context is not None and (
+            context.plot_range != resolved or context.coverage != coverage
+        ):
+            self._store_view_context = context.with_range(resolved, coverage)
+            self._queue_store_view_refresh()
+        if dragging is not None:
+            self._range_dragging = dragging
+        self._publish_range_hint()
         for opened in tuple(self._open_panels.values()):
             if not self._is_time_range_panel_visible(opened.panel):
                 opened.pending_range = resolved
