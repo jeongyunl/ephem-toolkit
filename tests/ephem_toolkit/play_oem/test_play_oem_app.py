@@ -1851,6 +1851,23 @@ def test_incremental_replacement_keeps_old_oem_until_first_batch(
     assert player.object_name == "REPLACEMENT"
     assert player._current_oem_path == app.normalize_recent_path(str(source))
     assert player._recent_oem_paths[0] == app.normalize_recent_path(str(source))
+    active_store = player._oem_store
+    assert active_store is not None
+    assert player._pending_oem_store is None
+
+    player._load_oem_file(str(source))
+    assert player._oem_store is active_store
+    replacement_session = player._incremental_loader.session
+    assert replacement_session is not None
+    deadline = time.monotonic() + 3.0
+    while time.monotonic() < deadline:
+        player._poll_incremental_load()
+        if replacement_session.finished and not replacement_session._events.qsize():
+            break
+        time.sleep(0.005)
+
+    assert player._oem_store is not active_store
+    assert active_store._scheduler_closed
     player.close()
 
 
@@ -1967,9 +1984,15 @@ def test_incremental_batches_extend_clock_and_complete_full_history(
         time.sleep(0.005)
 
     assert player._oem_coverage_complete
-    assert player._incremental_store is not None
-    assert player._incremental_store.source_sample_count == 3
-    assert player.clock.t_end == player._incremental_store.timestamps_s[-1]
+    assert player._oem_store is not None
+    assert player._incremental_store is None
+    assert player._oem_store.snapshot().sample_count == 3
+    assert player.clock.t_end == player._oem_store.sample_times[-1]
+    assert isinstance(player.cursor, app.cursor.StoreCursor)
+    assert player._store_view_context is not None
+    assert player._store_view_context.store is player._oem_store
+    assert player._store_view_context.snapshot.sample_count == 3
+    assert len(player.series.elapsed_time) == 1
     assert player._dashboard_context["sample_count"] == "3"
     assert not player._incremental_view_refresh_pending
     player.close()
@@ -2099,12 +2122,16 @@ def test_incremental_load_preserves_and_restores_saved_file_ranges(
         player._poll_incremental_load()
         time.sleep(0.005)
     assert player._active_load_first_batch
-    assert player._slider_bounds == (
-        datetime_to_tt_s(datetime(2025, 12, 31, 23, 59, tzinfo=timezone.utc)),
-        datetime_to_tt_s(datetime(2026, 1, 1, 0, 1, tzinfo=timezone.utc)),
-    )
     assert player._playback_handle_bounds == playback_range
-    assert (player.clock.playback_start, player.clock.playback_end) != playback_range
+    bounds_are_covered = playback_range[1] <= player.clock.t_end
+    applied_playback_range = (
+        player.clock.playback_start,
+        player.clock.playback_end,
+    )
+    if bounds_are_covered:
+        assert applied_playback_range == playback_range
+    else:
+        assert applied_playback_range != playback_range
     assert player.workspace.time_range_controls[2] == plot_range
     assert player.workspace.time_range_controls[-1] == playback_range
     player._save_current_playback_range()
@@ -2117,6 +2144,10 @@ def test_incremental_load_preserves_and_restores_saved_file_ranges(
             break
         time.sleep(0.005)
     assert player._oem_coverage_complete
+    assert player._slider_bounds == (
+        datetime_to_tt_s(datetime(2025, 12, 31, 23, 59, tzinfo=timezone.utc)),
+        datetime_to_tt_s(datetime(2026, 1, 1, 0, 1, tzinfo=timezone.utc)),
+    )
     assert (player.clock.playback_start, player.clock.playback_end) == playback_range
     assert player.plot_time_range == plot_range
     player.close()

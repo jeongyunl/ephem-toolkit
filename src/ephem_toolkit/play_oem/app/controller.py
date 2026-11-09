@@ -32,6 +32,7 @@ from .. import (
     workspace,
 )
 from .. import playback_data
+from ..oem_data_store import InterpolationPolicy, OemDataStore, StoreSnapshot
 from ..incremental_loader import (
     IncrementalLoader,
     LoadEventKind,
@@ -53,6 +54,7 @@ from ..saved_state import (
 )
 from ..display_time import DISPLAY_TIME_ZONES, format_timestamp_text, format_tt
 from ..views import registry
+from ..views.base import StoreViewContext
 from ..views.ground_track import GroundTrackView
 from ..station_access import StationAccessCache
 from ..views.trajectory3d import selection as trajectory3d_selection
@@ -254,6 +256,10 @@ class PlayerApp(
         self._on_open_file_callback = on_open_file
         self._incremental_loader = IncrementalLoader()
         self._incremental_store: playback_data.AppendablePlaybackData | None = None
+        self._oem_store: OemDataStore | None = None
+        self._pending_oem_store: OemDataStore | None = None
+        self._retired_oem_store: OemDataStore | None = None
+        self._store_view_context: StoreViewContext | None = None
         self._active_load_generation: int | None = None
         self._active_load_path: str | None = None
         self._active_load_first_batch = False
@@ -970,21 +976,32 @@ class PlayerApp(
 
     def _start_incremental_load(self, path: str) -> None:
         """Start a replacement session while keeping the active OEM installed."""
-        preparer = playback_data.IncrementalPlaybackPreparer(
-            path,
-            use_oem_interpolation=self._use_oem_interpolation,
-            interpolation_method=self._interpolation_method,
-            interpolation_degree=self._interpolation_degree,
-            display_time_zone=self._display_time_zone,
-        )
-        self._pending_file_playback_bounds = None
-        if self._saved_state is not None:
-            settings = self._saved_state.recent_file_settings.get(
-                normalize_recent_path(path)
-            )
-            if settings is not None:
-                self._pending_file_playback_bounds = settings.playback_range
-        session = self._incremental_loader.start(path, prepare_batch=preparer)
+        previous_pending_store = self._pending_oem_store
+        store = OemDataStore()
+        try:
+            if not self._use_oem_interpolation:
+                store.set_interpolation(
+                    InterpolationPolicy(
+                        self._interpolation_method, self._interpolation_degree
+                    )
+                )
+            self._pending_file_playback_bounds = None
+            if self._saved_state is not None:
+                settings = self._saved_state.recent_file_settings.get(
+                    normalize_recent_path(path)
+                )
+                if settings is not None:
+                    self._pending_file_playback_bounds = settings.playback_range
+            session = self._incremental_loader.start(path, store=store)
+        except Exception:
+            store.close()
+            raise
+        if (
+            previous_pending_store is not None
+            and previous_pending_store is not self._oem_store
+        ):
+            previous_pending_store.close()
+        self._pending_oem_store = store
         self._active_load_generation = session.generation
         self._active_load_path = path
         self._active_load_first_batch = False
@@ -1003,6 +1020,40 @@ class PlayerApp(
             if path is None:
                 continue
             if event.kind is LoadEventKind.STARTED:
+                continue
+            if event.kind is LoadEventKind.RAW_APPEND:
+                store = self._pending_oem_store
+                notice = event.raw_notice
+                if store is None or notice is None:
+                    self.status_bar.set_message(
+                        "Could not install OEM data: missing store append notice."
+                    )
+                    self._active_load_failed = True
+                    continue
+                try:
+                    snapshot = store.snapshot()
+                    if (
+                        notice.epoch != snapshot.epoch
+                        or notice.revision > snapshot.revision
+                        or notice.sample_count > snapshot.sample_count
+                    ):
+                        raise RuntimeError(
+                            "raw append notice does not match store snapshot"
+                        )
+                    self._install_store_snapshot(store, snapshot, path)
+                except Exception as error:
+                    self._active_load_failed = True
+                    self.clock.pause()
+                    self.status_bar.set_message(
+                        f"Could not install OEM data: {error}"
+                    )
+                    continue
+                data_changed = True
+                self._incremental_view_refresh_pending = True
+                self.status_bar.set_message(
+                    f"Loading {os.path.basename(path)}: "
+                    f"{snapshot.sample_count:,} states (partial coverage)"
+                )
                 continue
             if event.kind is LoadEventKind.BATCH:
                 prepared = event.prepared
@@ -1115,10 +1166,13 @@ class PlayerApp(
             elif event.kind is LoadEventKind.COMPLETE:
                 if not self._active_load_first_batch:
                     self.status_bar.set_message("OEM contains no state data.")
+                    self._close_pending_oem_store()
                 else:
                     self._finish_incremental_metadata(event.completion)
                     self._oem_coverage_complete = True
                     self._active_load_failed = False
+                    if self._pending_oem_store is self._oem_store:
+                        self._pending_oem_store = None
                     self.status_bar.set_message("")
                     data_changed = True
                     load_completed = True
@@ -1132,6 +1186,10 @@ class PlayerApp(
                 self.clock.pause()
                 self._active_load_failed = True
                 self.status_bar.set_message(prefix + message)
+                if not self._active_load_first_batch:
+                    self._close_pending_oem_store()
+                elif self._pending_oem_store is self._oem_store:
+                    self._pending_oem_store = None
         if data_changed and self._oem_loaded:
             self.workspace.update_oem_information(
                 self._formatted_dashboard_context(),
@@ -1141,6 +1199,145 @@ class PlayerApp(
             self._update_time_display()
         if self._incremental_view_refresh_pending:
             self._refresh_incremental_views(force=load_completed)
+
+    def _install_store_snapshot(
+        self, store: OemDataStore, snapshot: StoreSnapshot, path: str
+    ) -> None:
+        """Install one committed store prefix and refresh the playback epoch."""
+        first_append = not self._active_load_first_batch
+        previous_store = self._oem_store if first_append else None
+        meta = dict(snapshot.meta)
+        rate = self.clock.rate
+        if first_append:
+            self._clock_unsubscribe()
+            self.time_unit = snapshot.time_unit
+            self.clock = clock.PlaybackClock(
+                float(snapshot.raw[0, 0]),
+                float(snapshot.raw[-1, 0]),
+                sample_times=store.sample_times,
+            )
+            self.clock.set_playback_bounds(
+                self.clock.t_start,
+                self.clock.t_end,
+                follow_coverage=True,
+            )
+            self.clock.set_speed(abs(rate))
+            self.clock.set_direction(-1 if rate < 0.0 else 1)
+            if rate < 0.0:
+                self.clock.seek(self.clock.t_end)
+            self._clock_unsubscribe = self.clock.subscribe(
+                self._on_clock_time_changed
+            )
+            self._oem_store = store
+            self._pending_oem_store = store
+            self._retired_oem_store = previous_store
+            self._incremental_store = None
+            self.series = playback_data.empty_playback_data().series
+            self._ground_track_source = None
+            self._ground_track_coordinates = None
+            self._station_access_cache.clear()
+            self._oem_loaded = True
+            self.workspace.set_oem_loaded(True)
+            self._current_oem_path = normalize_recent_path(path)
+            self.plot_time_range = playback_range_plot_rule()
+            self._restore_recent_file_plot_range(self._current_oem_path)
+            self._pending_playback_bounds = self._pending_file_playback_bounds
+            self._playback_handle_bounds = (
+                self._pending_playback_bounds
+                or (self.clock.playback_start, self.clock.playback_end)
+            )
+            if self._pending_playback_bounds is not None and (
+                self.clock.t_start <= self._pending_playback_bounds[0]
+                and self._pending_playback_bounds[1] <= self.clock.t_end
+            ):
+                bounds = self._pending_playback_bounds
+                self._pending_playback_bounds = None
+                self._playback_handle_bounds = bounds
+                self._installing_incremental_batch = True
+                try:
+                    self.clock.set_playback_bounds(*bounds)
+                finally:
+                    self._installing_incremental_batch = False
+            self._pending_file_playback_bounds = None
+            self._slider_bounds = playback_data.oem_slider_bounds(
+                str(meta.get("START_TIME", "")),
+                str(meta.get("STOP_TIME", "")),
+                (self.clock.t_start, self.clock.t_end),
+            )
+            self._loaded_file_name = os.path.basename(path)
+            self.status_bar.set_file_name(self._loaded_file_name)
+            self._active_load_first_batch = True
+            self._oem_coverage_complete = False
+            self._last_frame_monotonic_s = time.monotonic()
+        else:
+            if self._oem_store is not store:
+                raise RuntimeError("raw append belongs to a non-active store")
+            if not isinstance(self.cursor, cursor.StoreCursor):
+                raise RuntimeError("active store has no store-backed cursor")
+            if snapshot.sample_count > self.cursor.timestamps_s.size:
+                self._installing_incremental_batch = True
+                try:
+                    self.clock.extend_coverage(float(snapshot.raw[-1, 0]))
+                    self.cursor.refresh(snapshot)
+                finally:
+                    self._installing_incremental_batch = False
+            else:
+                self.cursor.refresh(snapshot)
+            pending_bounds = self._pending_playback_bounds
+            if pending_bounds is not None and (
+                self.clock.t_start <= pending_bounds[0]
+                and pending_bounds[1] <= self.clock.t_end
+            ):
+                self._pending_playback_bounds = None
+                self._playback_handle_bounds = pending_bounds
+                self._installing_incremental_batch = True
+                try:
+                    self.clock.set_playback_bounds(*pending_bounds)
+                finally:
+                    self._installing_incremental_batch = False
+            elif pending_bounds is None:
+                self._playback_handle_bounds = (
+                    self.clock.playback_start,
+                    self.clock.playback_end,
+                )
+
+        if first_append:
+            self.cursor = cursor.StoreCursor(store, snapshot)
+        self.time_unit = snapshot.time_unit
+        loaded_name = str(meta.get("OBJECT_NAME", "")).strip()
+        if loaded_name:
+            self.object_name = loaded_name
+        self.object_id = str(meta.get("OBJECT_ID", "")).strip()
+        self.status_bar.set_object(self.object_name, self.object_id)
+        self._dashboard_context.update(
+            {
+                "object": self.object_name,
+                "sample_count": str(snapshot.sample_count),
+                "time_span": (
+                    f"{format_tt(self.clock.t_start, self._display_time_zone)} – "
+                    f"{format_tt(self.clock.t_end, self._display_time_zone)}"
+                ),
+            }
+        )
+        self._store_view_context = StoreViewContext.capture(
+            store,
+            time_unit=self.time_unit,
+            plot_range=self._resolved_plot_range(),
+            coverage=(self.clock.t_start, self.clock.t_end),
+        )
+        self._oem_interpolation = str(meta.get("INTERPOLATION", "")) or None
+        interpolation_degree = meta.get("INTERPOLATION_DEGREE")
+        self._oem_interpolation_degree = (
+            None if interpolation_degree is None else int(interpolation_degree)
+        )
+        self._update_time_display()
+        self._remember_recent_oem(path, save_file_ranges=False)
+
+    def _close_pending_oem_store(self) -> None:
+        store = self._pending_oem_store
+        if store is not None and store is not self._oem_store:
+            store.close()
+        self._pending_oem_store = None
 
     def _batch_intersects_plot_range(self, timestamps_s: Sequence[float]) -> bool:
         """Return whether this batch contributes samples to the visible range."""
@@ -1227,6 +1424,8 @@ class PlayerApp(
             self.cursor.set_interpolation(
                 self._oem_interpolation, self._oem_interpolation_degree
             )
+        if self._oem_store is not None and self._store_view_context is not None:
+            self._store_view_context = self._store_view_context.refresh()
         self.control_window.update_active_interpolation(
             self._active_interpolation_summary()
         )
@@ -1262,7 +1461,8 @@ class PlayerApp(
         for context in self._station_analysis_contexts.values():
             context.select_interval(None)
         full_resolution_series = self.series
-        if self._incremental_store is not None and (
+        store_backed = self._oem_store is not None
+        if not store_backed and self._incremental_store is not None and (
             not self._oem_coverage_complete
             or len(full_resolution_series.elapsed_time) > INCREMENTAL_PLOT_MAX_SAMPLES
         ):
@@ -1288,14 +1488,17 @@ class PlayerApp(
                 elapsed_bounds,
             )
         deferred_layout: list[tuple[str, str, str]] = []
+        refresh_succeeded = False
         try:
             if panel_layout:
                 for panel_id, view_name, stack in panel_layout:
-                    if view_name in INCREMENTAL_DEFERRED_VIEWS:
+                    if not store_backed and view_name in INCREMENTAL_DEFERRED_VIEWS:
                         if force:
                             deferred_layout.append((panel_id, view_name, stack))
                         continue
-                    if self._update_incremental_panel_data(panel_id):
+                    if not store_backed and self._update_incremental_panel_data(
+                        panel_id
+                    ):
                         continue
                     self.open_panel_view(
                         view_name,
@@ -1308,13 +1511,22 @@ class PlayerApp(
             self.workspace.draw_initial_graphs()
             wx.CallAfter(self._refresh_graph_stack_layouts)
             self._last_incremental_view_refresh_monotonic_s = now
-            if deferred_layout:
+            refresh_succeeded = True
+            if deferred_layout and not store_backed:
                 self._warm_station_access_then_refresh(deferred_layout)
         except Exception as error:
             self.status_bar.set_message(f"Could not refresh OEM views: {error}")
         finally:
             self.series = full_resolution_series
-            self._incremental_view_refresh_pending = False
+            self._incremental_view_refresh_pending = not refresh_succeeded
+        retired_store = self._retired_oem_store
+        if (
+            refresh_succeeded
+            and retired_store is not None
+            and retired_store is not self._oem_store
+        ):
+            self._retired_oem_store = None
+            retired_store.close()
 
     def _update_incremental_panel_data(self, panel_id: str) -> bool:
         opened = self._open_panels.get(panel_id)
@@ -1441,6 +1653,11 @@ class PlayerApp(
         )
 
         self._clock_unsubscribe()
+        previous_store = self._oem_store
+        self._oem_store = None
+        self._pending_oem_store = None
+        self._retired_oem_store = None
+        self._store_view_context = None
         self.clock = loaded.clock
         self._playback_handle_bounds = (
             loaded.clock.playback_start,
@@ -1505,6 +1722,8 @@ class PlayerApp(
             self.open_plots(self._plots)
         self.workspace.draw_initial_graphs()
         wx.CallAfter(self._refresh_graph_stack_layouts)
+        if previous_store is not None:
+            previous_store.close()
 
     def _release_wx_resources(self) -> None:
         """Drop wx wrappers and callbacks after the event loop has stopped."""
@@ -1533,6 +1752,21 @@ class PlayerApp(
                 self._open_panels.clear()
                 self._open_views.clear()
             finally:
+                stores = {
+                    store
+                    for store in (
+                        self._oem_store,
+                        self._pending_oem_store,
+                        self._retired_oem_store,
+                    )
+                    if store is not None
+                }
+                for store in stores:
+                    store.close()
+                self._oem_store = None
+                self._pending_oem_store = None
+                self._retired_oem_store = None
+                self._store_view_context = None
                 self.workspace.close()
         event.Skip()
 

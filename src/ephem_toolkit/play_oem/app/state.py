@@ -21,10 +21,12 @@ from .. import (
 )
 from ..ground_track import GroundTrackCoordinates
 from ..ground_stations import GroundStation
+from ..oem_data_store import OemDataStore
 from ..saved_state import SavedAppState
 from ..station_access import StationAccessCache
 from ..station_analysis import StationAnalysisContext
 from ..views import base, registry
+from ..views.base import StoreViewContext
 from .support import _OpenView
 
 if TYPE_CHECKING:
@@ -41,6 +43,8 @@ class PlayerAppState(Protocol):
     frame_context: str
     _ground_track_source: playback_data.GroundTrackSource | None
     _ground_track_coordinates: GroundTrackCoordinates | None
+    _oem_store: OemDataStore | None
+    _store_view_context: StoreViewContext | None
     _ground_stations: list[GroundStation]
     _station_access_cache: StationAccessCache
     _station_analysis_contexts: dict[str, StationAnalysisContext]

@@ -40,15 +40,18 @@ generation-tagged append events. Automatic capacity sizing runs on the loader wo
 covariance-block lines, and is cancellable. Step 3 adds point-state queries, lazy series groups,
 and memoized Earth-fixed position queries. Step 4 adds prioritized cancellable range prefetch,
 partial-coverage results, chunk notices, live playback timestamps, station-access profiles, and
-per-chunk derived-data eviction. This path is not yet used by the active player/controller.
+per-chunk derived-data eviction. The active player's default incremental load path now creates one
+`OemDataStore` per load generation, consumes committed `RAW_APPEND` snapshots, and drives playback
+through the store's live sample-time view and `StoreCursor`. It retains the current file until the
+replacement has committed usable rows, then releases the old store after replacing its views.
 
 Stateless mode on the existing core interpolators and zero-copy plotting primitives are
-implemented and validated. The `speed-altitude` view, four 2D history views, State Components, and
-both 3D trajectory backends now support typed store inputs; Ground Track and station-view migration
-remain.
-The application still uses eager `PlaybackData` preparation, `OemCursor`, `OrbitSeriesAccumulator`,
-and separate Ground Track/station-access/footprint caches; therefore the application-wide no-copy
-goal has not been achieved.
+implemented and validated. Every registered data view has a store-backed builder, and panel
+creation dispatches through `StoreViewContext` when that builder is available. Step 7 remains in
+progress: `PlaybackData`/`OrbitSeries` compatibility state and the legacy prepared-batch path still
+exist, while range-hint publication, notice-driven refresh, station prefetch, and full terminal
+state coordination remain to be migrated. The application's end-to-end no-copy and responsiveness
+acceptance gates are therefore not yet complete.
 
 Historical automatic-sizing measurements counted physical lines and reserved 172,833 rows for
 21,601 JPSS-1 states because covariance rows contributed to the bound. Current sizing excludes
@@ -148,65 +151,25 @@ criteria pass. Progress is the number of completed checklist items.
 
 ## Active implementation sequence
 
-Steps 4, 5, and 6 are complete. **Next is Step 7:** wire the active loader/controller to the
-store-backed views. **Step 8 removes duplicate ownership and superseded paths.** The direct
-`RAW_APPEND` event path and `StoreCursor` adapter exist, but `PlayerApp` still uses
-`IncrementalPlaybackPreparer` and the legacy `View.build` path.
-
-### 6. Migrate views to store snapshots and range queries
-
-Migrate consumers only after Step 5 provides all required query outputs. Preserve plot labels,
-values, segmentation, click-to-seek, empty/partial behavior, and 3D backend behavior.
-
-- **Status:** Done.
-- **Progress:** 6/6 checklist items.
-- [x] Migrate RTN Deltas, Angular Velocity, Direction Change, and Geocentric Distance to
-      range-limited series-group queries; use the validated `speed-altitude` path as the pattern
-      and request only fields each view uses. Store paths share derived-column buffers, apply
-      display transforms, preserve segment breaks and cursor/range behavior, and release tier
-      interest on close.
-- [x] Migrate State Components and 3D trajectory views to raw snapshot columns. State Components
-      paths and the Matplotlib 3D backend use raw-backed inputs; the VTK backend packs only its
-      range-limited, decimated display path. Preserve segment, range, cursor, and camera behavior.
-- [x] Promote `StoreViewContext` to a snapshot-bound consumer read facade. Add a factory and
-      `refresh()` so one context binds a stable snapshot, display unit, plot range, and coverage;
-      provide bound methods for series, state, Ground Track, Earth-fixed, and station queries.
-      Keep query results typed and revision-stamped, expose selected groups without manual mapping
-      unpacking, and represent empty/no-range results explicitly rather than returning `None`.
-      Add a shared view-binding helper for tier subscriptions, context replacement, and cleanup;
-      retain non-blocking behavior, read-only views, leases, and zero-copy plotting adapters.
-- [x] Migrate Ground Track and Pass Ground Track to typed Earth-fixed, Ground Track, and footprint
-      results through the bound read context; preserve map, seam, range, and station-selection
-      behavior.
-- [x] Migrate station status, pass strip, profiles, pass list, and sky view to typed
-      station-profile/access and point-metric results through the bound read context; reuse shared
-      store buffers. Profile adapters retain leased store columns, and profile/sky plotting bounds
-      display samples per segment.
-- [x] Verify empty, partial, loading, failed, cancelled, and multi-segment render states;
-      confirm plotting buffer sharing, stable-snapshot refresh behavior, and resource release on
-      close/replacement. Station views distinguish pending, terminal-failure, and cancelled
-      snapshots; preserve separate profile runs across segments; and release station-tier interest
-      on close. Shared binding tests verify subscription cleanup when replacing stores.
-
-**Done when:** every registered view builds and updates from typed store inputs, preserves current
-visual/numerical and interaction behavior, requests only needed ranges/tiers, and creates no hidden
-orbit-sized `OrbitSeries` projection or downsampled copy. Callers use one snapshot-bound context per
-refresh rather than passing the store, snapshot, and range to each query; tier-interest and cleanup
-boilerplate is handled by the shared binding helper.
-**Depends on:** Step 5.
+Steps 4, 5, and 6 are complete. **Step 7 is active:** direct `RAW_APPEND` ingestion is wired into
+`PlayerApp`; continue with controller ownership, range/scheduling, and lifecycle migration.
+**Step 8 removes duplicate ownership and superseded paths.** Do not begin Step 8 until Step 7's
+remaining checks pass.
 
 ### 7. Migrate loading and controller state to `OemDataStore`
 
 Wire direct store loading only after all views consume the store contract. Preserve early playback,
 ordered coverage, user ranges, metadata, errors, cancellation, and replacement semantics.
 
-- **Status:** Not started (Step 6 is complete; the active controller still uses
-  `IncrementalPlaybackPreparer`).
-- **Progress:** 0/7 checklist items.
-- [ ] Create and own one store per playback epoch; route initial and incremental OEM loading
+- **Status:** In progress (the direct-ingestion lifecycle work item is verified; controller
+  ownership, range/scheduling, and complete lifecycle coordination remain).
+- **Progress:** 1/7 checklist items.
+- [x] Create and own one store per playback epoch; route initial and incremental OEM loading
       through the loader's direct-store mode and raw-append notices without parser-batch-to-playback
       staging or delaying the first usable raw samples. Keep reservation, commit, and abort calls
-      inside the loader sink, not in the controller or views.
+      inside the loader sink, not in the controller or views. First bind the store to the selected
+      file generation, then install its committed snapshots into the clock/cursor and refresh
+      store-backed views; preserve the active file until the replacement publishes usable data.
 - [ ] Replace `PlaybackData`'s derived-data fields and controller references to `series`,
       `time_unit`, `cursor`, `_incremental_store`, and `_ground_track_source` with store-backed
       reader contexts where appropriate; extend `PlaybackClock` from committed timestamps.
@@ -226,6 +189,12 @@ ordered coverage, user ranges, metadata, errors, cancellation, and replacement s
 **Done when:** the active player loads and consumes one authoritative store, preserves current
 behavior, and has no orbit-sized staging or parallel controller copies.
 **Depends on:** Step 6.
+
+**Evidence for the first work item:** `python3 -m pytest tests/ephem_toolkit/play_oem -q`
+passed (628 passed, 4 skipped). App tests cover direct loading, store-backed cursor/context state,
+replacement retention and cleanup, load failure, and saved ranges. `compileall` and
+`git diff --check` passed. This does not certify the remaining scheduling or GUI responsiveness
+gates.
 
 ### 8. Consolidate ownership, remove superseded paths, and accept the migration
 
@@ -501,5 +470,47 @@ empty-versus-loading distinction, terminal failure/cancellation messages, multi-
 bounded samples, and close cleanup. Shared binding tests cover cleanup on store replacement; legacy
 station selection/range regression tests remain green. Validation:
 `python3 -m pytest tests/ephem_toolkit/play_oem tests/ephem_toolkit/core/interpolator -q`
-passed (681 passed, 4 skipped). `git diff --check` and `compileall` passed. Step 7 now wires the
-active application, which still uses `OrbitSeries`, to the completed store-backed view contract.
+passed (681 passed, 4 skipped). `git diff --check` and `compileall` passed. Step 6 is complete;
+active application loading and controller ownership are tracked separately in Step 7.
+
+### 6. Migrate views to store snapshots and range queries
+
+Migrate consumers only after Step 5 provides all required query outputs. Preserve plot labels,
+values, segmentation, click-to-seek, empty/partial behavior, and 3D backend behavior.
+
+- **Status:** Done.
+- **Progress:** 6/6 checklist items.
+- [x] Migrate RTN Deltas, Angular Velocity, Direction Change, and Geocentric Distance to
+      range-limited series-group queries; use the validated `speed-altitude` path as the pattern
+      and request only fields each view uses. Store paths share derived-column buffers, apply
+      display transforms, preserve segment breaks and cursor/range behavior, and release tier
+      interest on close.
+- [x] Migrate State Components and 3D trajectory views to raw snapshot columns. State Components
+      paths and the Matplotlib 3D backend use raw-backed inputs; the VTK backend packs only its
+      range-limited, decimated display path. Preserve segment, range, cursor, and camera behavior.
+- [x] Promote `StoreViewContext` to a snapshot-bound consumer read facade. Add a factory and
+      `refresh()` so one context binds a stable snapshot, display unit, plot range, and coverage;
+      provide bound methods for series, state, Ground Track, Earth-fixed, and station queries.
+      Keep query results typed and revision-stamped, expose selected groups without manual mapping
+      unpacking, and represent empty/no-range results explicitly rather than returning `None`.
+      Add a shared view-binding helper for tier subscriptions, context replacement, and cleanup;
+      retain non-blocking behavior, read-only views, leases, and zero-copy plotting adapters.
+- [x] Migrate Ground Track and Pass Ground Track to typed Earth-fixed, Ground Track, and footprint
+      results through the bound read context; preserve map, seam, range, and station-selection
+      behavior.
+- [x] Migrate station status, pass strip, profiles, pass list, and sky view to typed
+      station-profile/access and point-metric results through the bound read context; reuse shared
+      store buffers. Profile adapters retain leased store columns, and profile/sky plotting bounds
+      display samples per segment.
+- [x] Verify empty, partial, loading, failed, cancelled, and multi-segment render states;
+      confirm plotting buffer sharing, stable-snapshot refresh behavior, and resource release on
+      close/replacement. Station views distinguish pending, terminal-failure, and cancelled
+      snapshots; preserve separate profile runs across segments; and release station-tier interest
+      on close. Shared binding tests verify subscription cleanup when replacing stores.
+
+**Done when:** every registered view builds and updates from typed store inputs, preserves current
+visual/numerical and interaction behavior, requests only needed ranges/tiers, and creates no hidden
+orbit-sized `OrbitSeries` projection or downsampled copy. Callers use one snapshot-bound context per
+refresh rather than passing the store, snapshot, and range to each query; tier-interest and cleanup
+boilerplate is handled by the shared binding helper.
+**Depends on:** Step 5.

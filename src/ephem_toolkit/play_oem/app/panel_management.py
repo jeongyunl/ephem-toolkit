@@ -240,16 +240,24 @@ class PanelManagementMixin:
                 self.workspace.replace_graph_panel(replacing.panel, panel, stack=stack)
             panel_inserted = True
             view = create_view(panel.graph_scroller)
-            content = view.build(self.series, self.time_unit)
             resolved_range = time_range.resolve_plot_range(
                 self.plot_time_range,
                 (self.clock.t_start, self.clock.t_end),
                 (self.clock.playback_start, self.clock.playback_end),
                 self.clock.t_now,
             )
+            coverage = (self.clock.t_start, self.clock.t_end)
+            store_context = self._store_view_context
+            store_builder = getattr(view, "build_from_store", None)
+            if store_context is not None and callable(store_builder):
+                store_context = store_context.with_range(resolved_range, coverage)
+                self._store_view_context = store_context
+                content = store_builder(store_context)
+            else:
+                content = view.build(self.series, self.time_unit)
             set_time_range = getattr(view, "set_time_range", None)
             if callable(set_time_range):
-                set_time_range(resolved_range, (self.clock.t_start, self.clock.t_end))
+                set_time_range(resolved_range, coverage)
             view.update(self.clock.t_now)
             if isinstance(content, Figure):
                 canvas = FigureCanvasWxAgg(panel.graph_scroller, wx.ID_ANY, content)
