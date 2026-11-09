@@ -1376,11 +1376,49 @@ Completion and RSS meet their respective provisional gates, but the first-append
 fails the maximum 5% regression gate. This is a headless result and says nothing about GUI
 responsiveness.
 
-An earlier explicit-capacity run measured a 22.007 ms first append, and an earlier profile
-attributed about 77 ms to the covariance-excluding capacity scan; neither diagnostic was repeated
-in this Low Power Mode-off comparison. A tested scan optimization was slower and was reverted.
-Do not remove covariance exclusion, weaken capacity safety, or stage orbit-sized data to improve
-the result. Step 7 remains open until the first-append gate is addressed and remeasured.
+An immediate diagnostic wrapped `capacity_for_file` in the loader worker and repeated the
+automatic-capacity session in three fresh processes. The measured scan medians were 77.190 ms
+(76.742–79.095); first raw append was 99.388 ms (87.999–101.039), and validated completion was
+0.891 s (0.885–0.892). Power mode was not captured for these instrumented runs, and worker-side
+timing output perturbs scheduling, so they are diagnostics, not acceptance measurements. A
+subsequent run with Low Power Mode on produced similar first-append timings (see below); the
+instrumented measurements therefore do not establish that the Low Power Mode-off comparison is
+irreproducible. The first-append gate still fails in either observed condition.
+
+A separate five-pair comparison was intentionally run with macOS `lowpowermode=1` after that
+setting was discovered. It measured prepared-batch versus direct-store medians of 23.839 versus
+97.794 ms for first delivery (+310.2%), 1.244 versus 0.883 s for validated completion (29.1%
+faster), and 90.5 versus 82.0 MiB peak RSS (9.4% lower). These are contextual observations, not
+acceptance results, and must not be mixed with the Low Power Mode-off comparison.
+
+The capacity scan was optimized without changing its safety contract: it validates the maximum
+line length, excludes covariance rows, handles universal newlines and unterminated final lines,
+and checks cancellation between bounded reads. The first optimization improved the focused scan
+median from 76.318 ms to 50.617 ms (33.7% faster). An ASCII fast path now scans a read-only
+mapping and vectorized newline offsets instead of decoding and splitting every line into a string.
+In an alternating 11-run JPSS-1 microbenchmark with Low Power Mode on, the mapped path measured
+48.711 ms median versus 51.698 ms for the text path (5.8% faster). Non-ASCII input retains strict
+UTF-8 and Unicode-whitespace behavior through the text fallback. This scan-only result does not
+establish an end-to-end improvement. A subsequent five-repeat automatic-capacity direct-session
+run with Low Power Mode on measured 67.209 ms median first-append delivery. It had no paired
+prepared-batch baseline; the first-append acceptance gate remains unverified.
+
+A five-pair comparison taken before the mapped fast path, with Low Power Mode on, measured
+prepared-batch versus automatic-capacity direct-store medians of 24.275 versus 72.911 ms for first
+delivery (+200.6%), 1.249734 versus 0.864098 s for validated completion (30.9% faster), and 90.6
+versus 82.2 MiB peak RSS (9.3% lower). The first-delivery result failed the 5% regression gate
+and is diagnostic, not acceptance evidence. The mapped-path direct-session measurement is
+consistent with lower first-append latency but is not paired or sufficient to establish that the
+gate passes. Repeat the alternating comparison with power mode verified and stable.
+
+Profiling the text path attributes most scan time to reads, per-line splitting/length validation,
+and covariance-marker searches. Varying its read size did not materially reduce latency. A regex
+replacement for line-length validation was about 9.5 times slower and was rejected. An explicit-
+capacity diagnostic had a 17.674 ms median first append, consistent with the capacity scan being
+the dominant added delay, but it is not comparable acceptance evidence. Do not remove covariance
+exclusion, weaken capacity safety, or stage orbit-sized data to improve the result. Step 7 remains
+open until the first-append gate is addressed and the uninstrumented comparison is repeated with
+power mode verified and stable.
 
 Headless lifecycle probes measured JPSS-1-to-ISS replacement completion at 193.948 ms,
 cancellation while waiting on a full queue at 104.616 ms, and synchronized parsing/preparation

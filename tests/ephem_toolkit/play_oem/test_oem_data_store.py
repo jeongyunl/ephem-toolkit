@@ -274,6 +274,54 @@ def test_capacity_for_file_counts_universal_physical_lines(
     assert OemDataStore.capacity_for_file(source) == expected
 
 
+def test_capacity_for_file_scans_ascii_markers_across_chunk_boundaries(
+    tmp_path, monkeypatch
+) -> None:
+    source = tmp_path / "chunk-boundaries.oem"
+    source.write_bytes(
+        b"before\r\n"
+        b"COVARIANCE_START\r\n"
+        b"covariance row\r\n"
+        b"COVARIANCE_STOP\r\n"
+        b"after"
+    )
+    monkeypatch.setattr(oem_data_store, "_CAPACITY_SCAN_CHUNK_SIZE", 7)
+
+    assert OemDataStore.capacity_for_file(source) == 2
+
+
+def test_capacity_for_file_checks_ascii_line_length_across_crlf_chunks(
+    tmp_path, monkeypatch
+) -> None:
+    source = tmp_path / "ascii-line-length.oem"
+    limit = oem_data_store.ODM_MAX_LINE_LENGTH
+    prefix_length = (5 - limit) % 7
+    source.write_bytes(
+        b"p" * prefix_length + b"\n" + b"x" * limit + b"\r\n"
+    )
+    monkeypatch.setattr(oem_data_store, "_CAPACITY_SCAN_CHUNK_SIZE", 7)
+
+    assert OemDataStore.capacity_for_file(source) == 2
+
+    source.write_bytes(b"x" * (limit + 1))
+    with pytest.raises(ValueError, match="character line limit"):
+        OemDataStore.capacity_for_file(source)
+
+
+def test_capacity_for_file_preserves_strict_utf8_and_cancellation(
+    tmp_path,
+) -> None:
+    source = tmp_path / "invalid-utf8.oem"
+    source.write_bytes(b"header\n\xff")
+    with pytest.raises(UnicodeDecodeError):
+        OemDataStore.capacity_for_file(source)
+
+    cancel_event = Event()
+    cancel_event.set()
+    with pytest.raises(InterruptedError, match="capacity scan cancelled"):
+        OemDataStore.capacity_for_file(source, cancel_event=cancel_event)
+
+
 def test_capacity_for_file_excludes_covariance_rows_and_bounds_storage(
     tmp_path,
 ) -> None:
@@ -308,6 +356,40 @@ def test_capacity_for_file_excludes_covariance_rows_and_bounds_storage(
     assert store._raw is not None
     assert store._segment_ids is not None
     assert store._raw.nbytes + store._segment_ids.nbytes == capacity * 64
+
+
+def test_capacity_for_file_only_treats_stripped_covariance_markers_as_boundaries(
+    tmp_path,
+) -> None:
+    source = tmp_path / "marker-boundaries.oem"
+    source.write_text(
+        "header\n"
+        "prefix COVARIANCE_START suffix\n"
+        "\u2003COVARIANCE_START\u2003\n"
+        "covariance row\n"
+        "prefix COVARIANCE_STOP suffix\n"
+        "\u2003COVARIANCE_STOP\u2003\n"
+        "tail\n",
+        encoding="utf-8",
+    )
+
+    assert OemDataStore.capacity_for_file(source) == 3
+
+
+def test_capacity_for_file_preserves_unicode_line_length_limit(tmp_path) -> None:
+    source = tmp_path / "unicode-line-length.oem"
+    source.write_text(
+        "é" * oem_data_store.ODM_MAX_LINE_LENGTH,
+        encoding="utf-8",
+    )
+    assert OemDataStore.capacity_for_file(source) == 1
+
+    source.write_text(
+        "é" * (oem_data_store.ODM_MAX_LINE_LENGTH + 1),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="character line limit"):
+        OemDataStore.capacity_for_file(source)
 
 
 def test_capacity_allocation_rejects_stale_loading_epoch() -> None:

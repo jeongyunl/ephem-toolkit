@@ -208,10 +208,25 @@ tests/ephem_toolkit/core/interpolator -q` passed (682 passed, 4 skipped); `compi
 load refreshes the retained store context to `CANCELLED`. A new five-pair, fresh-process
 alternating JPSS-1 comparison with macOS Low Power Mode off still fails the first-append gate:
 direct-store median was 52.199 ms versus 13.736 ms for the prepared-batch baseline (+280.0%,
-against a maximum 5% regression). Direct-store validated completion improved 30.0% and peak RSS
-decreased 9.0%, meeting those gates. This replaces the earlier Low Power Mode result. The prior
-explicit-capacity and capacity-scan profiling observations were not repeated. The complete latest
-comparison and limitations are in the
+against a maximum 5% regression); its completion and peak RSS medians improved 30.0% and 9.0%.
+This replaces the earlier Low Power Mode result. An instrumented follow-up measured a 77.190 ms
+capacity scan and 99.388 ms first-append median without capturing power mode; those
+worker-instrumented diagnostics are not acceptance measurements. The capacity scanner was then
+optimized while retaining covariance exclusion, line-length validation, universal-newline
+handling, and bounded cancellation checks; its focused median improved from 76.318 to 50.617 ms.
+An ASCII read-only-mapping fast path now avoids per-line string materialization. In an alternating
+11-run JPSS-1 scan microbenchmark with Low Power Mode on, it measured 48.711 ms median versus
+51.698 ms for the strict text path (5.8% faster). This is scan-only evidence; the mapped path has
+not yet been measured in a paired comparison. A subsequent five-repeat automatic-capacity
+direct-session run with Low Power Mode on measured 67.209 ms median first-append delivery, but did
+not include a prepared-batch baseline. A five-pair run taken before the mapped-path change with
+Low Power Mode on measured 72.911 ms direct-store versus 24.275 ms prepared-batch (+200.6%);
+completion improved 30.9% and peak RSS decreased 9.3%. These are diagnostic, not acceptance
+evidence. Profiling of the text path identifies reads, line splitting/validation, and marker
+searches as the scan bottleneck; changing chunk size offered no material improvement, and a regex
+validation alternative was substantially slower and rejected. Repeat the uninstrumented
+alternating benchmark with power mode verified before re-evaluating the gates. The comparisons
+and limitations are in the
 [store design's performance evidence](./PLAY_OEM_DATA_STORE_SOFTWARE_DESIGN.md#controller-integration-measurements).
 
 ### 8. Consolidate ownership, remove superseded paths, and accept the migration
