@@ -13,8 +13,8 @@ prefixes; the controller installs `StoreCursor` snapshots and updates views thro
 appendable playback owner, and duplicate series accumulator have been removed in Step 8.
 
 This plan records the earlier incremental-loading implementation. Its completed steps are
-historical evidence; the current runtime behavior and remaining ownership cleanup are tracked in
-the [Unified OEM Data Store Implementation Plan](./PLAY_OEM_DATA_STORE_IMPLEMENTATION_PLAN.md).
+historical evidence; the current runtime behavior and implementation outcome are recorded in the
+[Unified OEM Data Store Implementation Report](./old/PLAY_OEM_DATA_STORE_IMPLEMENTATION_REPORT.md).
 
 ## How to use this plan
 

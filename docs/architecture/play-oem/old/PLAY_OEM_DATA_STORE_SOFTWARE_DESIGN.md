@@ -1,15 +1,15 @@
 # `play-oem` — Unified OEM Data Store Software Design
 
-**Status: In progress.** This design consolidates the loaded OEM and every quantity derived from it
-for analysis and plotting into one in-memory store, `OemDataStore`. Backwards compatibility with
-the current module, class, and constructor shapes is not required.
+**Status: Archived.** This design describes the implemented unified in-memory store,
+`OemDataStore`, and its analysis/plotting products. Backwards compatibility with the current
+module, class, and constructor shapes was not required.
 
-Implementation is tracked in the
-[Unified OEM Data Store Implementation Plan](./PLAY_OEM_DATA_STORE_IMPLEMENTATION_PLAN.md).
+Implementation outcome is recorded in the
+[Unified OEM Data Store Implementation Report](./PLAY_OEM_DATA_STORE_IMPLEMENTATION_REPORT.md).
 
-Current behavior is described in [PLAY_OEM_DATAFLOW.md](./PLAY_OEM_DATAFLOW.md) and its diagram
-[PLAY_OEM_DATAFLOW.mmd](./PLAY_OEM_DATAFLOW.mmd). Incremental loading semantics remain as
-specified in [PLAY_OEM_INCREMENTAL_LOADING.md](./PLAY_OEM_INCREMENTAL_LOADING.md).
+Current behavior is described in [PLAY_OEM_DATAFLOW.md](../PLAY_OEM_DATAFLOW.md) and its diagram
+[PLAY_OEM_DATAFLOW.mmd](../PLAY_OEM_DATAFLOW.mmd). Incremental loading semantics remain as
+specified in [PLAY_OEM_INCREMENTAL_LOADING.md](../PLAY_OEM_INCREMENTAL_LOADING.md).
 
 ### Implementation status
 
@@ -36,12 +36,11 @@ notices, and store-backed station prefetch drive affected view updates. Replacem
 cancellation, metadata finalization, and stale notices refresh the active context. The
 prepared-batch loader, duplicate derived-series owners, and legacy Ground Track/station
 source/cache fallback APIs have been removed in Step 8. Loaded application views use the
-snapshot-bound store path. Step 7's migration and correctness checks are complete; its
-JPSS-1 automatic-capacity first-append performance gate is deferred and has not passed. Step 8
-validation is active, and no performance acceptance is claimed.
-The application's end-to-end no-copy and GUI responsiveness goals are not yet accepted. See the
-[implementation plan](./PLAY_OEM_DATA_STORE_IMPLEMENTATION_PLAN.md) and the performance evidence
-below for remaining work and limitations. Step 8 removed the module-level footprint cache,
+snapshot-bound store path. Steps 7 and 8 migration and correctness checks are complete; the
+JPSS-1 automatic-capacity first-append performance gate remains deferred and unpassed. No
+performance acceptance is claimed, and GUI responsiveness was not measured. See the
+[implementation report](./PLAY_OEM_DATA_STORE_IMPLEMENTATION_REPORT.md) and the performance
+evidence below for results and limitations. Step 8 removed the module-level footprint cache,
 controller-held Ground Track coordinate reference, duplicate source/cache APIs, and non-store view
 paths. Interpolation-policy identity is specific to dependent station-access work; each load
 generation owns one store and its derived tiers.
@@ -1433,7 +1432,7 @@ Both variants validated 21,601 states; direct-store capacity was 21,624 with 43 
 Completion meets its provisional gate, and RSS is within the 5% regression limit, but first
 delivery still fails by a wide margin. Because Low Power Mode was on, this comparison remains
 diagnostic rather than acceptance evidence. The first-delivery gate is deferred separately; see
-the [implementation plan's deferred work](./PLAY_OEM_DATA_STORE_IMPLEMENTATION_PLAN.md#deferred-separate-work).
+the [implementation report's deferred acceptance](./PLAY_OEM_DATA_STORE_IMPLEMENTATION_REPORT.md#deferred-acceptance-and-follow-up).
 
 Profiling the text path attributes most scan time to reads, per-line splitting/length validation,
 and covariance-marker searches. Varying its read size did not materially reduce latency. A regex
@@ -1458,7 +1457,7 @@ gate.
 Do not remove covariance exclusion, weaken capacity safety, or stage orbit-sized data to improve
 the result. Step 7's implementation is marked done with its first-append gate deferred; the
 diagnostics above do not establish acceptance. The deferred gate and its completion criteria are
-recorded in the [implementation plan](./PLAY_OEM_DATA_STORE_IMPLEMENTATION_PLAN.md#deferred-separate-work).
+recorded in the [implementation report](./PLAY_OEM_DATA_STORE_IMPLEMENTATION_REPORT.md#deferred-acceptance-and-follow-up).
 
 Headless lifecycle probes measured JPSS-1-to-ISS replacement completion at 193.948 ms,
 cancellation while waiting on a full queue at 104.616 ms, and synchronized parsing/preparation
@@ -1529,6 +1528,103 @@ These runs used automatic capacity, batch size 512, a two-event queue, and 1 ms 
 They do not establish a performance improvement or pass either gate. Playback derivation, view
 construction, and GUI responsiveness were not measured.
 
+#### Fresh-process first-load diagnostic
+
+One first-load observation per fixture was taken in a fresh Python process without an unreported
+benchmark warm-up. No production repeat-open cache is implemented. OS file-cache state and Low
+Power Mode were not controlled for these observations, so they are not cold-disk measurements and
+do not represent cache hits.
+
+| Fixture | First raw append | Validated completion | Process peak RSS | States / capacity / notices |
+|---|---:|---:|---:|---:|
+| ISS | 12.859 ms | 0.052686 s | 67.2 MiB | 5,402 / 5,437 / 11 |
+| JPSS-1 | 56.462 ms | 0.526758 s | 87.3 MiB | 21,601 / 21,624 / 43 |
+
+These are individual first-load observations, not stable estimates. Validated in-memory
+repeat-open hits were measured separately with an approved benchmark-only prototype below.
+
+#### Repeated uncached-open diagnostic
+
+The existing headless session benchmark was run for five reported direct-store opens per fixture
+in one process, following its unreported warm-up. Each run creates a new store and reparses the
+OEM; there is no persistent cache. OS file-cache state and Low Power Mode were not recorded, so
+these results describe repeated uncached loads, not validated cache hits.
+
+| Fixture | First append median (range) | Validated completion median (range) | Process peak RSS | States / capacity / notices |
+|---|---:|---:|---:|---:|
+| ISS | 12.694 ms (9.211–13.696) | 0.043071 s (0.042244–0.044463) | 68.4 MiB | 5,402 / 5,437 / 11 |
+| JPSS-1 | 23.598 ms (23.164–28.338) | 0.494874 s (0.491865–0.498693) | 87.2 MiB | 21,601 / 21,624 / 43 |
+
+These observations provide a no-cache repeat-load reference only. They do not measure disk-cache
+hits, application startup or view construction, and are not sufficient by themselves to decide
+whether a persistent cache is justified.
+
+#### Benchmark-only validated in-memory cache prototype
+
+After separate approval for a benchmark-only prototype, a one-entry, same-process cache retained
+the `OemDataStore` produced by a full parser run. It admitted an entry only after EOF validation
+and checked the source's resolved path, device, inode, size, and `mtime_ns` on each open. A hit
+also checked the complete store, state count, and raw-buffer address; creating its snapshot reused
+the same raw buffer without copying orbit data. A same-size edit to a one-row synthetic OEM
+invalidated the entry. This stat-based identity is diagnostic, not production-safe if file
+metadata can be restored or preserved while contents change.
+
+| Fixture | Reported hits | Hit latency including source stat and snapshot |
+|---|---:|---:|
+| ISS, 5,402 states | 5 | 0.072 ms median (0.063–0.143 ms) |
+| JPSS-1, 21,601 states | 10 across two processes | 0.076 ms median (0.064–0.203 ms) |
+
+These are same-process in-memory hits after one validated miss per process. They do not read OEM
+contents on a hit and are not persistent/disk-cache measurements. The prototype was removed after
+the benchmark. Application lifecycle, multi-file eviction, retained-memory cost, derived-tier
+reuse, GUI/view construction, and changes that preserve the source stat signature were not
+measured. The hit latency supports designing a bounded same-process memory cache, subject to
+source identity, invalidation, and memory-retention requirements. These results do not justify a
+persistent disk cache. The bounded in-memory design is approved; production implementation
+requires separate approval.
+
+#### Proposed bounded in-memory repeat-open cache design
+
+The approved direction is a bounded, process-local cache of completed `OemDataStore` instances,
+not serialized OEM data or a persistent disk cache. This approval covers the design only;
+production implementation requires separate approval.
+
+- **Ownership and zero-copy behavior.** Retain the completed store itself, not a second raw array,
+  copied `StoreSnapshot`, or serialized orbit product. A hit returns that same store; its snapshot
+  exposes read-only views over the original raw buffer, and any already-computed derived tiers
+  remain owned by the same store. The cache may drop its reference on eviction, but must not clear
+  a store still owned by an active controller or view.
+- **Source identity and change detection.** The prototype's path/device/inode/size/mtime signature
+  is only a fast candidate lookup and is insufficient on its own. A production hit must compare a
+  streamed content digest (for example SHA-256) as well as canonical path and file metadata, so
+  same-size edits or restored timestamps cannot serve stale data. Hash in bounded chunks without
+  materializing a second file-sized buffer; benchmark this read cost before implementation. On a
+  miss, derive the entry digest from the exact bytes consumed by the parser, without retaining a
+  second copy. Capture file metadata before and after loading and do not publish an entry if the
+  source changed during parsing.
+- **Admission and validation.** Admit an entry only after strict parsing reaches EOF and the store
+  is `COMPLETE`; never cache a loading, cancelled, or failed epoch. On a hit, verify the source
+  identity/digest and complete-store state before returning the existing store. Cache lookup must
+  remain off the GUI thread if content verification can block.
+- **Versioning and persistence.** The in-memory entry cannot outlive its process, so it cannot be
+  reused by a different parser build. Keep the parser/data-contract version implicit in that
+  process lifetime or include an internal contract version if runtime policy variants can coexist.
+  There are no disk writes, partial cache files, or disk-corruption recovery paths; publication is
+  an atomic reference swap under the cache lock after validation. Any future persistent-cache
+  proposal requires a separate design with explicit parser/schema versions and atomic-write and
+  corrupt-entry handling.
+- **Invalidation and storage bounds.** Invalidate when path, metadata, or digest changes, on
+  explicit cache clear, or at process shutdown. Start with one cache entry and a hard byte budget;
+  count the store's reserved raw/segment buffers and retained derived-tier buffers, not only the
+  input file size. Refresh the accounted size as derived tiers grow and drop the cache reference
+  when the budget is exceeded; do not clear a store still used by the active controller. Do not
+  retain an entry larger than the budget. The budget value and accounting mechanism require
+  memory/RSS measurements before implementation.
+
+The prototype did not measure digest verification, retained-memory cost after switching to a
+different file, multi-file eviction, or derived-tier reuse. Those are design acceptance checks;
+the prototype's approximately 0.07 ms stat-only hit is not a production-cache latency estimate.
+
 #### Paired post-cleanup loader comparison
 
 The prepared-batch code was recovered from the pre-removal revision (`0fb87b36^`) into a temporary
@@ -1553,6 +1649,23 @@ and RSS meet their respective provisional limits in this run. The performance ga
 deferred and is not accepted; these loader-only measurements do not measure derived preparation,
 plot construction, or GUI responsiveness.
 
+#### Automatic-versus-explicit capacity diagnostic
+
+To isolate the automatic-sizing contribution, five alternating fresh-process JPSS-1 runs compared
+the current automatic-capacity session with the same session using its measured capacity of
+21,624 rows. Low Power Mode remained `0`; both variants used one unreported warm-up, batch size
+512, a 0.1 s flush interval, a two-event queue, and 1 ms polling.
+
+| Metric | Automatic capacity | Explicit 21,624-row capacity | Difference |
+|---|---:|---:|---:|
+| First append | 23.852 ms (20.153–26.306) | 12.953 ms (5.615–13.266) | +10.899 ms |
+| Validated completion | 0.499530 s (0.489365–0.505327) | 0.488566 s (0.487010–0.495206) | +2.2% |
+| Process peak RSS | 86.8 MiB (85.8–87.0) | 66.7 MiB (66.5–66.8) | +30.1% |
+
+This diagnostic indicates the sizing path contributes to the first-append delay and mapped-file
+RSS, but does not by itself establish the cause of the full baseline regression or justify
+replacing safe automatic capacity with a fixture-specific bound. It is not an acceptance run.
+
 ## Delivery sequence
 
 0. **Baseline and parser improvements:** retain the measured baseline and parser changes recorded
@@ -1576,8 +1689,8 @@ plot construction, or GUI responsiveness.
    `_incremental_store`, `_ground_track_source`, and the `series` swap. Publish `RangeHint` from
    plot-range, playback-range, seek, and drag events. Replace the warm-up thread with `prefetch`.
    Complete the headless scheduling and integration measurements in
-   [PLAY_OEM_DATA_STORE_IMPLEMENTATION_PLAN.md](./PLAY_OEM_DATA_STORE_IMPLEMENTATION_PLAN.md)
-   as these components become available.
+   [implementation report](./PLAY_OEM_DATA_STORE_IMPLEMENTATION_REPORT.md) for the recorded
+   integration measurements and remaining acceptance.
 6. **Views:** switch views to `(store, snapshot)` and remove `GroundTrackSource` and the explicit
    cache parameters.
 7. **Cache consolidation:** move Ground Track, access, and footprint caches under the store;
@@ -1654,7 +1767,7 @@ Dotted edges mark work outside the store that a step depends on.
   progress, not an empty plot, and appears when the parser reaches it.
 - Drawing without decimation produces visually equivalent output to the current decimated plots
   on the ISS and JPSS-1 fixtures, within the interactive frame-time budget measured in the
-  [performance report](./PLAY_OEM_PERFORMANCE_REPORT.md).
+  [performance report](../PLAY_OEM_PERFORMANCE_REPORT.md).
 - Interpolation results from the stateless evaluator match the current interpolators to within
   floating-point tolerance for linear, Hermite, Lagrange, and Chebyshev, across segment boundaries.
 - Stateless mode reuses the configured existing interpolator instance across evaluations,
@@ -1673,7 +1786,7 @@ Dotted edges mark work outside the store that a step depends on.
 - A series request never presents unloaded samples as complete and reports its covered span.
 - Changing the display `TimeUnit` does not recompute series chunks.
 - Performance does not regress against the
-  [measurements in the dataflow document](./PLAY_OEM_DATAFLOW.md#latest-measurements); loader-thread
+  [measurements in the dataflow document](../PLAY_OEM_DATAFLOW.md#latest-measurements); loader-thread
   time per batch drops to parsing plus array append, and time to first plot is not worse.
 
 ## Deferred choices
