@@ -200,14 +200,18 @@ class _SeekGrip(wx.Control):
             return
         self.slider.SetFocus()
         self._dragging = True
+        self.slider._on_range_dragging(True)
         if not self.HasCapture():
             self.CaptureMouse()
         self.slider._seek_from_grip(self, event.GetPosition())
 
     def _up(self, _event: wx.MouseEvent) -> None:
+        was_dragging = self._dragging
         self._dragging = False
         if self.HasCapture():
             self.ReleaseMouse()
+        if was_dragging:
+            self.slider._on_range_dragging(False)
 
     def _motion(self, event: wx.MouseEvent) -> None:
         if (
@@ -220,7 +224,10 @@ class _SeekGrip(wx.Control):
         event.Skip()
 
     def _capture_lost(self, event: wx.MouseCaptureLostEvent) -> None:
+        was_dragging = self._dragging
         self._dragging = False
+        if was_dragging:
+            self.slider._on_range_dragging(False)
         event.Skip()
 
 
@@ -266,6 +273,7 @@ class TimeRangeSlider(wx.Control):
         self._slider_bounds = self._coverage
         self._playback = (0.0, 1.0)
         self._playback_handles = self._playback
+        self._unloaded_from_s: float | None = None
         self._plot_rule: time_range.PlotTimeRange | None = None
         self._display_time_zone = UTC_DISPLAY
         self._now = 0.0
@@ -346,6 +354,17 @@ class TimeRangeSlider(wx.Control):
         dc.SetBrush(wx.Brush(playback_color))
         dc.DrawRoundedRectangle(range_left, center_y - 4, range_width, 8, 4)
 
+        unloaded_segment = self._unloaded_segment_x()
+        if unloaded_segment is not None:
+            unloaded_left, unloaded_right = unloaded_segment
+            if unloaded_right > unloaded_left:
+                unloaded_color = wx.Colour("#b36b00")
+                dc.SetPen(wx.Pen(unloaded_color, 1))
+                dc.SetBrush(wx.Brush(unloaded_color))
+                dc.DrawRoundedRectangle(
+                    unloaded_left, center_y - 4, unloaded_right - unloaded_left, 8, 4
+                )
+
         progress_x = self._x_for(self._now)
         highlight = wx.SystemSettings.GetColour(wx.SYS_COLOUR_HIGHLIGHT)
         dc.SetPen(wx.Pen(highlight, 2))
@@ -356,6 +375,11 @@ class TimeRangeSlider(wx.Control):
 
     def _playable_segment_x(self) -> tuple[int, int]:
         return self._x_for(self._playback[0]), self._x_for(self._playback[1])
+
+    def _unloaded_segment_x(self) -> tuple[int, int] | None:
+        if self._unloaded_from_s is None:
+            return None
+        return self._x_for(self._unloaded_from_s), self._x_for(self._slider_bounds[1])
 
     def _value_at_x(self, x: int) -> int:
         width = self.GetClientSize().width
@@ -381,14 +405,18 @@ class TimeRangeSlider(wx.Control):
             return
         self.SetFocus()
         self._dragging = True
+        self._on_range_dragging(True)
         if not self.HasCapture():
             self.CaptureMouse()
         self._set_value_from_user(self._value_at_x(event.GetX()))
 
     def _left_up(self, _event: wx.MouseEvent) -> None:
+        was_dragging = self._dragging
         self._dragging = False
         if self.HasCapture():
             self.ReleaseMouse()
+        if was_dragging:
+            self._on_range_dragging(False)
 
     def _motion(self, event: wx.MouseEvent) -> None:
         if self._dragging and event.Dragging() and event.LeftIsDown():
@@ -396,7 +424,10 @@ class TimeRangeSlider(wx.Control):
         event.Skip()
 
     def _capture_lost(self, event: wx.MouseCaptureLostEvent) -> None:
+        was_dragging = self._dragging
         self._dragging = False
+        if was_dragging:
+            self._on_range_dragging(False)
         event.Skip()
 
     def _mouse_wheel(self, event: wx.MouseEvent) -> None:
@@ -432,10 +463,13 @@ class TimeRangeSlider(wx.Control):
         now_s: float,
         slider_bounds: tuple[float, float] | None = None,
         playback_handles: tuple[float, float] | None = None,
+        *,
+        unloaded_from_s: float | None = None,
     ) -> None:
         self._coverage, self._playback = coverage, playback
         self._slider_bounds = slider_bounds or coverage
         self._playback_handles = playback_handles or playback
+        self._unloaded_from_s = unloaded_from_s
         self._plot_rule, self._now = plot_rule, now_s
         self.Refresh()
         self._position_grips()
@@ -455,7 +489,7 @@ class TimeRangeSlider(wx.Control):
             self._plot_rule.start if key.endswith("start") else self._plot_rule.end
         )
         if endpoint.mode == "follow":
-            return self._playback[0 if key.endswith("start") else 1]
+            return self._playback_handles[0 if key.endswith("start") else 1]
         return endpoint.value_s + (self._now if endpoint.mode == "offset" else 0.0)
 
     def _plot_mode(self, grip: _RangeGrip) -> time_range.EndpointMode:

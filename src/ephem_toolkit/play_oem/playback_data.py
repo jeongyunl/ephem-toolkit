@@ -32,24 +32,45 @@ def oem_slider_bounds(
     start_time: str,
     stop_time: str,
     observed_bounds: tuple[float, float],
+    *,
+    time_system: str = "UTC",
 ) -> tuple[float, float]:
     """Return an ordered slider domain using declared bounds plus observed data."""
-    declared: list[float] = []
-    for value in (start_time, stop_time):
-        if not value.strip():
-            continue
-        try:
-            declared.append(
-                time_utils.datetime_to_tt_s(time_utils.iso8601_to_datetime(value))
-            )
-        except (TypeError, ValueError, OverflowError):
-            continue
-    candidates = [*observed_bounds, *declared]
-    lower = min(candidates)
-    upper = max(candidates)
-    if len(declared) == 2 and declared[0] > declared[1]:
+    declared = oem_declared_slider_bounds(
+        start_time, stop_time, time_system=time_system
+    )
+    if declared is None:
         return observed_bounds
-    return lower, upper
+    return (
+        min(observed_bounds[0], declared[0]),
+        max(observed_bounds[1], declared[1]),
+    )
+
+
+def oem_declared_slider_bounds(
+    start_time: str,
+    stop_time: str,
+    *,
+    time_system: str = "UTC",
+) -> tuple[float, float] | None:
+    """Parse a valid UTC metadata interval into the slider's TT time domain."""
+    if time_system.strip().upper() != "UTC":
+        raise ValueError(
+            "play-oem currently supports OEM TIME_SYSTEM = UTC only; "
+            f"found {time_system.strip() or 'unspecified'!r}."
+        )
+    if not start_time.strip() or not stop_time.strip():
+        return None
+    try:
+        start = time_utils.datetime_to_tt_s(
+            time_utils.iso8601_to_datetime(start_time)
+        )
+        stop = time_utils.datetime_to_tt_s(time_utils.iso8601_to_datetime(stop_time))
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if start > stop:
+        return None
+    return start, stop
 
 
 def empty_playback_data() -> PlaybackData:

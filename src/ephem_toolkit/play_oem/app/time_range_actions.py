@@ -39,6 +39,7 @@ class TimeRangeActionsMixin:
         self._begin_time_range_edit()
         self._pending_playback_bounds = None
         self._playback_handle_bounds = (bounds.start_s, bounds.end_s)
+        self._playback_handles_fixed_during_load = True
         self.clock.set_playback_bounds(bounds.start_s, bounds.end_s)
         resolved = time_range.resolve_plot_range(
             self.plot_time_range,
@@ -147,6 +148,9 @@ class TimeRangeActionsMixin:
         if dragging is not None:
             self._range_dragging = dragging
         self._publish_range_hint()
+        if self._should_defer_incremental_view_refresh():
+            self._incremental_view_refresh_pending = True
+            return
         for opened in tuple(self._open_panels.values()):
             if not self._is_time_range_panel_visible(opened.panel):
                 opened.pending_range = resolved

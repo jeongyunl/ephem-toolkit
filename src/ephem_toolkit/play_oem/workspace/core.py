@@ -468,6 +468,8 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         now_s: float,
         slider_bounds: tuple[float, float] | None = None,
         playback_handle_bounds: tuple[float, float] | None = None,
+        *,
+        unloaded_from_s: float | None = None,
     ) -> None:
         """Synchronize playback labels and range grips."""
         set_timestamp_label(
@@ -485,6 +487,7 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             now_s,
             slider_bounds,
             playback_handle_bounds,
+            unloaded_from_s=unloaded_from_s,
         )
 
     def set_display_time_zone(self, display_time_zone: str) -> None:

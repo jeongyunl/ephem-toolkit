@@ -30,10 +30,24 @@ class PlaybackActionsMixin:
             self, "_slider_bounds", (self.clock.t_start, self.clock.t_end)
         )
         epoch_s = slider_start + progress * (slider_end - slider_start)
-        # Keep hover text compact; the persistent readouts retain fractions.
-        return format_tt(
+        timestamp = format_tt(
             epoch_s, self._display_time_zone, fractional_second_places=0
         )
+        loaded_through = self._loading_progress_s
+        if (
+            self._active_load_first_batch
+            and not self._oem_coverage_complete
+            and loaded_through is not None
+            and epoch_s > loaded_through
+        ):
+            availability = (
+                "Not loaded (load incomplete)"
+                if self._active_load_failed
+                else "Not loaded yet"
+            )
+            return f"{timestamp}\n{availability}"
+        # Keep hover text compact; the persistent readouts retain fractions.
+        return timestamp
 
     def _set_playback_speed(self: PlayerAppState, speed: float) -> None:
         self.clock.set_speed(speed)

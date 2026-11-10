@@ -59,10 +59,14 @@ class PlayerAppState(Protocol):
     _oem_loaded: bool
     _oem_coverage_complete: bool
     _active_load_first_batch: bool
+    _active_load_failed: bool
     _installing_incremental_batch: bool
     _incremental_view_refresh_pending: bool
+    _pending_oem_slider_bounds: tuple[float, float] | None
+    _loading_progress_s: float | None
     _slider_bounds: tuple[float, float]
     _playback_handle_bounds: tuple[float, float]
+    _playback_handles_fixed_during_load: bool
     _pending_playback_bounds: tuple[float, float] | None
     _pending_file_playback_bounds: tuple[float, float] | None
     _open_panels: dict[str, _OpenView]
@@ -249,6 +253,8 @@ class PlayerAppState(Protocol):
         *,
         dragging: bool | None = None,
     ) -> None: ...
+    def _should_defer_incremental_view_refresh(self) -> bool: ...
+    def _refresh_incremental_views(self, *, force: bool = False) -> None: ...
     def _begin_time_range_edit(self) -> None: ...
     def _apply_playback_bounds(self, start_s: float, end_s: float) -> None: ...
     def _apply_plot_time_range(

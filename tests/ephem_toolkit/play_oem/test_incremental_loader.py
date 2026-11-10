@@ -62,14 +62,17 @@ def test_load_session_tags_raw_appends_and_completion_with_generation(
     events = _drain_until_finished(session)
     assert [event.kind for event in events] == [
         LoadEventKind.STARTED,
+        LoadEventKind.SEGMENT_METADATA,
         LoadEventKind.RAW_APPEND,
         LoadEventKind.RAW_APPEND,
         LoadEventKind.RAW_APPEND,
         LoadEventKind.COMPLETE,
     ]
     assert all(event.generation == 42 for event in events)
-    assert [event.loaded_state_count for event in events] == [0, 1, 2, 3, 3]
-    assert all(event.raw_notice is not None for event in events[1:4])
+    assert [event.loaded_state_count for event in events] == [0, 0, 1, 2, 3, 3]
+    assert events[1].segment_id == 0
+    assert dict(events[1].segment_metadata or ())["TIME_SYSTEM"] == "UTC"
+    assert all(event.raw_notice is not None for event in events[2:5])
 
 
 def test_load_session_cancel_releases_backpressure_without_blocking(
@@ -92,7 +95,10 @@ def test_load_session_cancel_releases_backpressure_without_blocking(
     session.cancel()
     events = _drain_until_finished(session)
     assert events[0].kind is LoadEventKind.STARTED
-    assert all(event.kind is LoadEventKind.RAW_APPEND for event in events[1:])
+    assert all(
+        event.kind in (LoadEventKind.SEGMENT_METADATA, LoadEventKind.RAW_APPEND)
+        for event in events[1:]
+    )
     assert len(events) <= 2
     assert session.cancelled
     assert store.status is LoadStatus.CANCELLED
@@ -110,6 +116,7 @@ def test_load_session_reports_reader_failure_as_event(tmp_path: Path) -> None:
     events = _drain_until_finished(session)
     assert [event.kind for event in events] == [
         LoadEventKind.STARTED,
+        LoadEventKind.SEGMENT_METADATA,
         LoadEventKind.FAILED,
     ]
     assert events[-1].generation == 9
@@ -214,6 +221,7 @@ def test_incremental_load_session_cancel_invalidates_its_store_epoch(
     session = loader.start(source, store=store, store_capacity=1_000)
     deadline = time.monotonic() + 3.0
     while time.monotonic() < deadline and store.snapshot().sample_count == 0:
+        session.drain()
         time.sleep(0.001)
     assert store.snapshot().sample_count > 0
     session.cancel()
@@ -240,6 +248,7 @@ def test_incremental_loader_failure_keeps_prefix_and_reports_failure(
     events = _drain_until_finished(session)
     assert [event.kind for event in events] == [
         LoadEventKind.STARTED,
+        LoadEventKind.SEGMENT_METADATA,
         LoadEventKind.RAW_APPEND,
         LoadEventKind.FAILED,
     ]

@@ -176,7 +176,10 @@ class PlayerApp(
 
         self.clock = clock
         self._slider_bounds = (clock.t_start, clock.t_end)
+        self._pending_oem_slider_bounds: tuple[float, float] | None = None
+        self._loading_progress_s: float | None = None
         self._playback_handle_bounds = (clock.playback_start, clock.playback_end)
+        self._playback_handles_fixed_during_load = False
         self._pending_file_playback_bounds: tuple[float, float] | None = None
         self._pending_playback_bounds: tuple[float, float] | None = None
         if display_time_zone not in DISPLAY_TIME_ZONES:
@@ -542,8 +545,15 @@ class PlayerApp(
         self._dispatch_time_range(resolved, time_s)
 
     def _set_range_dragging(self, dragging: bool) -> None:
+        was_dragging = self._range_dragging
         self._range_dragging = dragging
         self._publish_range_hint()
+        if (
+            was_dragging
+            and not dragging
+            and self._incremental_view_refresh_pending
+        ):
+            self._refresh_incremental_views(force=True)
 
     def _publish_range_hint(self) -> None:
         store = self._oem_store
@@ -633,6 +643,9 @@ class PlayerApp(
             )
 
     def _refresh_store_views(self) -> None:
+        if self._should_defer_incremental_view_refresh():
+            self._incremental_view_refresh_pending = True
+            return
         context = self._store_view_context
         if context is None:
             return
@@ -690,12 +703,23 @@ class PlayerApp(
                     )
             except Exception as error:
                 self.status_bar.set_message(f"Could not refresh OEM views: {error}")
+
         if self._pending_store_view_ids:
             return
         retired_store = self._retired_oem_store
         if retired_store is not None and retired_store is not self._oem_store:
             self._retired_oem_store = None
             retired_store.close()
+
+    def _should_defer_incremental_view_refresh(self) -> bool:
+        return (
+            self._range_dragging
+            and self._active_load_first_batch
+            and (
+                not self._oem_coverage_complete
+                or self._incremental_view_refresh_pending
+            )
+        )
 
     def _saved_state_size(self) -> tuple[int, int]:
         if self._saved_state is None:
@@ -1117,6 +1141,8 @@ class PlayerApp(
 
     def _start_incremental_load(self, path: str) -> None:
         """Start a replacement session while keeping the active OEM installed."""
+        if self._range_dragging:
+            self._set_range_dragging(False)
         previous_pending_store = self._pending_oem_store
         store = OemDataStore()
         try:
@@ -1133,6 +1159,13 @@ class PlayerApp(
                 )
                 if settings is not None:
                     self._pending_file_playback_bounds = settings.playback_range
+            self._playback_handles_fixed_during_load = (
+                self._pending_file_playback_bounds is not None
+            )
+            if not self._oem_loaded:
+                if self._pending_file_playback_bounds is not None:
+                    self._playback_handle_bounds = self._pending_file_playback_bounds
+                self._restore_recent_file_plot_range(normalize_recent_path(path))
             session = self._incremental_loader.start(path, store=store)
         except Exception:
             store.close()
@@ -1147,6 +1180,7 @@ class PlayerApp(
         self._active_load_path = path
         self._active_load_first_batch = False
         self._active_load_failed = False
+        self._pending_oem_slider_bounds = None
         self._last_incremental_view_refresh_monotonic_s = None
         if (
             previous_pending_store is self._oem_store
@@ -1171,6 +1205,34 @@ class PlayerApp(
             if path is None:
                 continue
             if event.kind is LoadEventKind.STARTED:
+                continue
+            if event.kind is LoadEventKind.SEGMENT_METADATA:
+                segment_meta = dict(event.segment_metadata or ())
+                declared_bounds = playback_data.oem_declared_slider_bounds(
+                    str(segment_meta.get("START_TIME", "")),
+                    str(segment_meta.get("STOP_TIME", "")),
+                    time_system=str(segment_meta.get("TIME_SYSTEM", "")),
+                )
+                if declared_bounds is not None:
+                    if self._active_load_first_batch:
+                        self._slider_bounds = (
+                            min(self._slider_bounds[0], declared_bounds[0]),
+                            max(self._slider_bounds[1], declared_bounds[1]),
+                        )
+                        self._update_time_display()
+                    elif self._pending_oem_slider_bounds is None:
+                        self._pending_oem_slider_bounds = declared_bounds
+                    else:
+                        self._pending_oem_slider_bounds = (
+                            min(
+                                self._pending_oem_slider_bounds[0],
+                                declared_bounds[0],
+                            ),
+                            max(
+                                self._pending_oem_slider_bounds[1],
+                                declared_bounds[1],
+                            ),
+                        )
                 continue
             if event.kind is LoadEventKind.RAW_APPEND:
                 store = self._pending_oem_store
@@ -1200,6 +1262,7 @@ class PlayerApp(
                     )
                     continue
                 data_changed = True
+                self._loading_progress_s = notice.end_s
                 self._incremental_view_refresh_pending = True
                 self.status_bar.set_message(
                     f"Loading {os.path.basename(path)}: "
@@ -1213,12 +1276,20 @@ class PlayerApp(
                 else:
                     self._finish_incremental_metadata(event.completion)
                     self._oem_coverage_complete = True
+                    self._loading_progress_s = None
                     self._active_load_failed = False
+                    if not self._playback_handles_fixed_during_load:
+                        self._playback_handle_bounds = (
+                            self.clock.playback_start,
+                            self.clock.playback_end,
+                        )
                     if self._pending_oem_store is self._oem_store:
                         self._pending_oem_store = None
                     self.status_bar.set_message("")
                     data_changed = True
                     load_completed = True
+                if self._range_dragging:
+                    self._set_range_dragging(False)
             elif event.kind is LoadEventKind.FAILED:
                 message = str(event.error) if event.error is not None else "unknown error"
                 prefix = (
@@ -1237,6 +1308,8 @@ class PlayerApp(
                     self._store_view_context = self._store_view_context.refresh()
                     self._queue_store_view_refresh()
                     self._incremental_view_refresh_pending = True
+                if self._range_dragging:
+                    self._set_range_dragging(False)
         if data_changed and self._oem_loaded:
             self.workspace.update_oem_information(
                 self._formatted_dashboard_context(),
@@ -1308,7 +1381,14 @@ class PlayerApp(
                 str(meta.get("START_TIME", "")),
                 str(meta.get("STOP_TIME", "")),
                 (self.clock.t_start, self.clock.t_end),
+                time_system=str(meta.get("TIME_SYSTEM", "UTC")) or "UTC",
             )
+            if self._pending_oem_slider_bounds is not None:
+                self._slider_bounds = (
+                    min(self._slider_bounds[0], self._pending_oem_slider_bounds[0]),
+                    max(self._slider_bounds[1], self._pending_oem_slider_bounds[1]),
+                )
+            self._pending_oem_slider_bounds = None
             self._loaded_file_name = os.path.basename(path)
             self.status_bar.set_file_name(self._loaded_file_name)
             self._active_load_first_batch = True
@@ -1340,7 +1420,10 @@ class PlayerApp(
                     self.clock.set_playback_bounds(*pending_bounds)
                 finally:
                     self._installing_incremental_batch = False
-            elif pending_bounds is None:
+            elif (
+                pending_bounds is None
+                and not self._playback_handles_fixed_during_load
+            ):
                 self._playback_handle_bounds = (
                     self.clock.playback_start,
                     self.clock.playback_end,
@@ -1416,6 +1499,7 @@ class PlayerApp(
             str(meta.get("START_TIME", "")),
             str(meta.get("STOP_TIME", "")),
             (self.clock.t_start, self.clock.t_end),
+            time_system=str(meta.get("TIME_SYSTEM", "UTC")) or "UTC",
         )
         self._slider_bounds = (
             min(self._slider_bounds[0], metadata_slider_bounds[0]),
@@ -1469,6 +1553,9 @@ class PlayerApp(
 
     def _refresh_incremental_views(self, *, force: bool = False) -> None:
         """Rebuild plots at a bounded rate, or immediately when loading ends."""
+        if self._should_defer_incremental_view_refresh():
+            self._incremental_view_refresh_pending = True
+            return
         if self._oem_store is not None:
             if not self._open_panels and self._oem_loaded:
                 self.open_plots(self._plots)
@@ -1589,6 +1676,11 @@ class PlayerApp(
     def _on_frame_close(self, event: wx.CloseEvent) -> None:
         if not self._closed:
             self._closed = True
+            if self._range_dragging:
+                self._range_dragging = False
+                self._publish_range_hint()
+            self._incremental_view_refresh_pending = False
+            self._pending_store_view_ids.clear()
             self._follow_selection_unsubscribe()
             self._incremental_loader.cancel()
             self._clock_unsubscribe()
@@ -1760,6 +1852,11 @@ class PlayerApp(
             self.clock.t_now,
             self._slider_bounds,
             self._playback_handle_bounds,
+            unloaded_from_s=(
+                self._loading_progress_s
+                if self._active_load_first_batch and not self._oem_coverage_complete
+                else None
+            ),
         )
         self.workspace.update_playback_state(self.clock.playing, self.clock.rate)
         current_state = (

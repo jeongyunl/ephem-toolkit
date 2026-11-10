@@ -7,6 +7,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from collections.abc import Callable
 from contextlib import nullcontext
+from threading import Event
 from types import SimpleNamespace
 from typing import Any, cast
 
@@ -15,6 +16,7 @@ import pytest
 from matplotlib.backend_bases import MouseButton
 from matplotlib.figure import Figure
 
+import ephem_toolkit.core.ccsds.odm as odm
 from ephem_toolkit.core.time_utils import datetime_to_tt_s, tt_s_to_datetime
 from ephem_toolkit.play_oem.app import controller as app
 from ephem_toolkit.play_oem.app import panel_management
@@ -33,6 +35,7 @@ from ephem_toolkit.play_oem import time_range
 from ephem_toolkit.play_oem.play_oem_cli import build_arg_parser, parse_arguments
 from ephem_toolkit.play_oem.series import compute_orbit_series
 from ephem_toolkit.play_oem.time_unit import TimeUnit
+from ephem_toolkit.play_oem.workspace.time_range_slider import TimeRangeSlider
 from ephem_toolkit.play_oem.views.registry import VIEW_LABELS
 
 
@@ -560,8 +563,9 @@ class FakeWorkspace:
     def update_oem_information(self, _context, _details, _timeline_enabled) -> None:
         pass
 
-    def set_time_range_controls(self, *controls) -> None:
+    def set_time_range_controls(self, *controls, **options) -> None:
         self.time_range_controls = controls
+        self.time_range_control_options = options
 
     def update_timeline(
         self, progress: float, current_utc: str, *, playing: bool = False
@@ -2025,6 +2029,121 @@ def test_store_refresh_rebuilds_panels_opened_before_the_store(
     player.close()
 
 
+def test_incremental_timeline_uses_declared_domain_and_defers_drag_redraws(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    source = tmp_path / "loading-timeline.oem"
+    source.write_text(
+        "CCSDS_OEM_VERS = 2.0\n"
+        "META_START\n"
+        "OBJECT_NAME = LOADING TIMELINE\n"
+        "CENTER_NAME = EARTH\n"
+        "REF_FRAME = GCRF\n"
+        "TIME_SYSTEM = UTC\n"
+        "START_TIME = 2025-12-31T23:59:00\n"
+        "STOP_TIME = 2026-01-01T00:02:00\n"
+        "META_STOP\n"
+        "2026-01-01T00:00:00 7000 0 0 0 7.5 0\n"
+        "2026-01-01T00:00:10 7000 1 0 0 7.5 0\n"
+        "META_START\n"
+        "OBJECT_NAME = LOADING TIMELINE\n"
+        "CENTER_NAME = EARTH\n"
+        "REF_FRAME = GCRF\n"
+        "TIME_SYSTEM = UTC\n"
+        "START_TIME = 2026-01-01T00:00:15\n"
+        "STOP_TIME = 2026-01-01T00:03:00\n"
+        "META_STOP\n"
+        "2026-01-01T00:00:20 7000 2 0 0 7.5 0\n",
+        encoding="utf-8",
+    )
+    second_row_started = Event()
+    release_second_row = Event()
+    original_validate = odm.validate_odm_line
+
+    def block_second_row(line: str, label: str) -> None:
+        if line.startswith("2026-01-01T00:00:20"):
+            second_row_started.set()
+            if not release_second_row.wait(3.0):
+                raise TimeoutError("test parser was not released")
+        original_validate(line, label)
+
+    monkeypatch.setattr(odm, "validate_odm_line", block_second_row)
+    player, _views, _canvases, _frames = make_app(
+        monkeypatch, plots=("speed-altitude",), oem_loaded=False
+    )
+    player._incremental_loader = app.IncrementalLoader(batch_size=2)
+    session = None
+    try:
+        player._load_oem_file(str(source))
+        session = player._incremental_loader.session
+        assert session is not None
+        deadline = time.monotonic() + 3.0
+        while not second_row_started.is_set() and time.monotonic() < deadline:
+            player._poll_incremental_load()
+            second_row_started.wait(0.005)
+        assert second_row_started.is_set()
+        player._poll_incremental_load()
+
+        expected_domain = (
+            datetime_to_tt_s(datetime(2025, 12, 31, 23, 59, tzinfo=timezone.utc)),
+            datetime_to_tt_s(datetime(2026, 1, 1, 0, 3, tzinfo=timezone.utc)),
+        )
+        assert not player._oem_coverage_complete
+        assert player._slider_bounds == expected_domain
+        assert player._playback_handle_bounds == (
+            player.clock.playback_start,
+            player.clock.playback_end,
+        )
+        assert player.workspace.time_range_controls[4] == expected_domain
+        assert player.workspace.time_range_control_options["unloaded_from_s"] == (
+            player.clock.t_end
+        )
+        assert "Not loaded yet" in player._timeline_tooltip_at(0.9)
+
+        opened_panels = tuple(player._open_panels.values())
+        assert opened_panels
+        before_drag = tuple(
+            (
+                opened.panel.redraw_requests,
+                len(opened.view.updated_times),
+                opened.canvas.draw_idle_count if opened.canvas is not None else 0,
+            )
+            for opened in opened_panels
+        )
+        refresh_calls = []
+        refresh_views = player._refresh_incremental_views
+
+        def record_refresh(*, force: bool = False) -> None:
+            refresh_calls.append(force)
+            refresh_views(force=force)
+
+        player._refresh_incremental_views = record_refresh
+        player._set_range_dragging(True)
+        player._drag_plot_endpoint("start", player.clock.t_start)
+        player._seek_to_fraction(0.9)
+        during_drag = tuple(
+            (
+                opened.panel.redraw_requests,
+                len(opened.view.updated_times),
+                opened.canvas.draw_idle_count if opened.canvas is not None else 0,
+            )
+            for opened in opened_panels
+        )
+        assert during_drag == before_drag
+
+        player._set_range_dragging(False)
+        assert refresh_calls == [True]
+        assert not player._incremental_view_refresh_pending
+    finally:
+        release_second_row.set()
+        if session is not None:
+            deadline = time.monotonic() + 3.0
+            while not session.finished and time.monotonic() < deadline:
+                player._poll_incremental_load()
+                time.sleep(0.005)
+        player.close()
+
+
 def test_incremental_load_preserves_and_restores_saved_file_ranges(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
@@ -2050,8 +2169,8 @@ def test_incremental_load_preserves_and_restores_saved_file_ranges(
     playback_range = (start_s + 5.0, start_s + 15.0)
     plot_range = time_range.PlotTimeRange(
         True,
-        time_range.TimeRangeEndpoint("fixed", start_s + 2.0),
-        time_range.TimeRangeEndpoint("fixed", start_s + 18.0),
+        time_range.TimeRangeEndpoint("follow", 0.0),
+        time_range.TimeRangeEndpoint("follow", 0.0),
     )
     path = app.normalize_recent_path(source)
     saved_state = app.SavedAppState(
@@ -2089,6 +2208,15 @@ def test_incremental_load_preserves_and_restores_saved_file_ranges(
         assert applied_playback_range != playback_range
     assert player.workspace.time_range_controls[2] == plot_range
     assert player.workspace.time_range_controls[-1] == playback_range
+    controls = player.workspace.time_range_controls
+    slider_state = SimpleNamespace(
+        _playback=controls[1],
+        _playback_handles=controls[-1],
+        _plot_rule=controls[2],
+        _now=controls[3],
+    )
+    assert TimeRangeSlider._time_for(slider_state, "plot_start") == playback_range[0]
+    assert TimeRangeSlider._time_for(slider_state, "plot_end") == playback_range[1]
     player._save_current_playback_range()
     assert saved_state.recent_file_settings[path].playback_range == playback_range
     assert player.plot_time_range == plot_range
@@ -2104,6 +2232,7 @@ def test_incremental_load_preserves_and_restores_saved_file_ranges(
         datetime_to_tt_s(datetime(2026, 1, 1, 0, 1, tzinfo=timezone.utc)),
     )
     assert (player.clock.playback_start, player.clock.playback_end) == playback_range
+    assert player._playback_handle_bounds == playback_range
     assert player.plot_time_range == plot_range
     player.close()
 

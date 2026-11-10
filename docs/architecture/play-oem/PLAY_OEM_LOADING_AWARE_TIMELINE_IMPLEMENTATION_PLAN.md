@@ -31,9 +31,9 @@ updates visible views and queues redraws as ranges change.
 ## Interaction and loading rules
 
 - The slider domain is the union of valid OEM-declared bounds and observed sample bounds. Missing,
-  malformed, or reversed declared bounds fall back to observed bounds. Convert metadata bounds
-  using the OEM `TIME_SYSTEM`, and confirm how segment-local metadata contributes to the file-wide
-  domain.
+  malformed, or reversed declared bounds fall back to observed bounds. `play-oem` supports only
+  `TIME_SYSTEM = UTC` for now; convert declared bounds with the same UTC-to-TT path as sample
+  epochs and report other time systems as unsupported.
 - Keep the declared slider domain separate from committed sample coverage and the playback clock's
   valid interval. Expanding the display domain must not make unloaded time playable or change
   clock bounds. Seeking into unloaded time continues to follow the clock's existing committed-
@@ -63,41 +63,42 @@ the timeline, synchronize and render the control, add interaction lifecycle, def
 validate and document. Complete each item before starting the next; later UI and redraw work
 depends on the preceding metadata and state contracts.
 
-- **Status:** Not started.
-- **Progress:** 0/9 checklist items.
-- [ ] Confirm how the parser exposes `START_TIME` and `STOP_TIME`, their `TIME_SYSTEM`, and
-      segment-local metadata. Define the file-wide bounds and ordering rules; cover inconsistent
-      or reversed declarations.
-- [ ] Publish generation-tagged metadata as soon as the background parser reaches it, before
-      raw-row streaming completes. Include committed parser-progress watermarks with append
-      events. Keep parsing off the GUI thread and avoid a second whole-file scan.
-- [ ] Build normalized timeline state with declared bounds, observed sample bounds, parser
+- **Status:** Complete.
+- **Progress:** 9/9 checklist items.
+- [x] Confirm how the parser exposes `START_TIME`, `STOP_TIME`, `TIME_SYSTEM`, and segment-local
+      metadata. Define the file-wide bounds and ordering rules; cover inconsistent or reversed
+      declarations. Limit `play-oem` to UTC and leave other core parser consumers unchanged.
+- [x] Publish generation-tagged metadata as soon as the background parser reaches it, before
+      raw-row streaming completes. Validate UTC before publishing or appending that segment.
+      Include committed parser-progress watermarks with append events. Keep parsing off the GUI
+      thread and avoid a second whole-file scan.
+- [x] Build normalized timeline state with declared bounds, observed sample bounds, parser
       progress, and load status kept separately. Use the union of valid declared and observed
       bounds for the slider domain; fall back to observed bounds for absent or invalid metadata.
       Do not change playback-clock bounds merely to expand the display domain.
-- [ ] Apply slider domain, committed coverage, playback bounds, plot-range rule, and current time
+- [x] Apply slider domain, committed coverage, playback bounds, plot-range rule, and current time
       to the timeline control as one state update so all handles, labels, and the time marker
       move to their correct positions together. Preserve saved and pending range settings.
-- [ ] Paint the not-yet-loaded part of the domain with a visually distinct, accessible treatment
+- [x] Paint the not-yet-loaded part of the domain with a visually distinct, accessible treatment
       and add a legend or accessible text. Base it on parser progress, not sample min/max; do not
       depict OEM gaps or already-processed intervals as unread. Clear the loading treatment on
       success and stop presenting it as active loading on failure or cancel. Explain seeks into
       unloaded time while preserving the clock's current clamping behavior.
-- [ ] Track seek-grip drag start/end and capture loss as well as playback- and plot-range drags.
+- [x] Track seek-grip drag start/end and capture loss as well as playback- and plot-range drags.
       Keep timeline handles and readouts responsive while dragging; cover keyboard adjustments
       with equivalent discrete or repeated-input behavior.
-- [ ] While loading and any timeline handle is being dragged, defer plot-view updates and redraw
+- [x] While loading and any timeline handle is being dragged, defer plot-view updates and redraw
       requests, coalescing playback, plot-range, cursor, and arriving store changes. Flush the
       latest state once when the drag ends; do not defer normal redraws when not loading. Clear
       drag state and discard stale deferred work on completion, failure, cancellation, file
       replacement, or app shutdown.
-- [ ] Add loader, slider, and wx interaction tests for metadata timing, invalid metadata,
+- [x] Add loader, slider, and wx interaction tests for metadata timing, invalid metadata,
       `TIME_SYSTEM` conversion, multi-segment bounds, parser progress versus OEM gaps,
       handle alignment/collision, zero-span and one-sample inputs, loading-color progression and
       accessibility, seek feedback in unloaded time, failed/cancelled/replaced loads, keyboard
       adjustment, and one redraw after drag completion using the latest snapshot and range.
       Verify non-loading interaction remains unchanged.
-- [ ] Update the active concepts and software-design documentation to describe the full timeline
+- [x] Update the active concepts and software-design documentation to describe the full timeline
       domain, loading indicator, and drag behavior.
 
 **Done when:** correctly normalized OEM bounds define the slider domain before EOF; loaded and

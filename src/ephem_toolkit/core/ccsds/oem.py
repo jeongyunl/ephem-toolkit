@@ -765,6 +765,7 @@ class CcsdsOem:
         source: TextIO,
         *,
         include_segment_ids: bool = False,
+        on_segment_metadata: Callable[[int, dict[str, Any]], None] | None = None,
         state_batch_size: int | None = None,
         state_batch_interval_s: float | None = None,
         on_state_batch: Callable[[OemStateBatch], None] | None = None,
@@ -796,6 +797,7 @@ class CcsdsOem:
                 return CcsdsOem._read_oem_impl(
                     file_handle,
                     include_segment_ids=include_segment_ids,
+                    on_segment_metadata=on_segment_metadata,
                     state_batch_size=state_batch_size,
                     state_batch_interval_s=state_batch_interval_s,
                     on_state_batch=on_state_batch,
@@ -818,6 +820,7 @@ class CcsdsOem:
         seen_covariance: bool = False
         seen_header: list[str] = []
         seen_meta: list[str] = []
+        segment_meta: dict[str, Any] = {}
         segment_id = -1
         header_comments_open = False
         meta_comments_open = False
@@ -970,6 +973,7 @@ class CcsdsOem:
                     segment_id += 1
                 else:
                     segment_id = 0
+                segment_meta = {}
                 in_meta = True
                 meta_comments_open = True
                 continue
@@ -978,6 +982,8 @@ class CcsdsOem:
                     raise ValueError("OEM META_STOP without META_START")
                 in_meta = False
                 past_meta = True
+                if on_segment_metadata is not None:
+                    on_segment_metadata(segment_id, deepcopy(segment_meta))
                 continue
 
             if comment_line.startswith(odm.CCSDS_COMMENT_KEYWORD):
@@ -1041,6 +1047,7 @@ class CcsdsOem:
                         pass
                 if in_meta:
                     meta[key] = value
+                    segment_meta[key] = value
                 else:
                     header[key] = value
                 continue

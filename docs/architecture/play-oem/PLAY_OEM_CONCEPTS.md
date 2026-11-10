@@ -22,7 +22,7 @@ is the interactive playback application.
 
 | Concept | Meaning |
 |---------|---------|
-| **Timeline** | The full time span `[t_start, t_end]` from every state in the OEM. All times are shown as UTC and as elapsed time from `t_start`. |
+| **Timeline** | The slider domain is the union of valid UTC `START_TIME`/`STOP_TIME` metadata and observed state times. Playback coverage remains bounded by loaded states; during loading, the unread suffix is marked separately. All times are shown as UTC and as elapsed time from `t_start`. |
 | **Playback clock** | A single shared `t_now` in the timeline. Only the clock advances; views only read it. |
 | **Playback speed** | Ratio of simulated seconds to wall-clock seconds (`|rate|` 1x … 9000x); the sign indicates direction. |
 | **Cursor state** | The OEM state at `t_now`, interpolated from the OEM samples (using the OEM's `INTERPOLATION` metadata when present). |
@@ -51,7 +51,10 @@ which views are open.
 
 1. **Random seek**: any instant of the OEM timeline can be reached in constant time,
    independent of the current position and of playback direction or speed.
-   - Time slider: dragging updates all views live; clicking the trough jumps to that point.
+   - Time slider: dragging updates the time marker immediately; while data is loading, plot
+     updates are coalesced until dragging stops. Hovering over unread time explains that it is not
+     loaded yet; seeking there retains the clock's existing loaded-coverage clamping behavior.
+     Clicking the trough jumps to that point.
    - Direct entry: type an elapsed time (`1h30m`) or a UTC epoch into a time field.
    - Click-to-seek: clicking on a time-series plot seeks to that time.
    - Step buttons/keys: ±1 sample, ±1 minute, jump to start/end.
@@ -75,7 +78,8 @@ which views are open.
    expose less-used values in a details panel.
 6. **Data context**: show object name, reference frame, center, timeline, sample count and
    whether the cursor is in a gap or outside a valid interpolation segment. Clearly distinguish
-   sample values from interpolated values.
+   sample values from interpolated values. Play-OEM currently accepts `TIME_SYSTEM = UTC` only;
+   unsupported time systems are reported before their state rows are loaded.
 7. **View selection**: the graph-panel selector opens individual views; workspace presets open
    `Access Overview` and `Pass Study`. The `--plots` groups also include `Overview` (default),
    `State`, `Motion`, and `All`. Opening an already open view raises it; closing a view does not

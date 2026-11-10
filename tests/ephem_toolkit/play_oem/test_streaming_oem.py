@@ -50,8 +50,21 @@ def test_direct_store_stream_matches_one_shot_across_segments(
     store = OemDataStore()
     store.begin(8)
     notices = []
+    event_order = []
+
+    def record_append(notice) -> None:
+        notices.append(notice)
+        event_order.append(("append", notice.sample_count))
+
     result = read_oem_into_store(
-        source, store, batch_size=2, on_append=notices.append, cancel_event=Event()
+        source,
+        store,
+        batch_size=2,
+        on_append=record_append,
+        on_segment_metadata=lambda segment_id, metadata: event_order.append(
+            ("metadata", segment_id, metadata["TIME_SYSTEM"])
+        ),
+        cancel_event=Event(),
     )
     snapshot = store.snapshot()
     assert result.state_count == snapshot.sample_count == 4
@@ -65,6 +78,34 @@ def test_direct_store_stream_matches_one_shot_across_segments(
     assert snapshot.failure is None
     assert notices[-1].sample_count == 4
     assert all(notice.epoch == snapshot.epoch for notice in notices)
+    assert event_order == [
+        ("metadata", 0, "UTC"),
+        ("append", 2),
+        ("metadata", 1, "UTC"),
+        ("append", 4),
+    ]
+
+
+def test_direct_store_stream_rejects_non_utc_before_appending_rows(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "tai.oem"
+    source.write_text(OEM_TEXT.replace("TIME_SYSTEM = UTC", "TIME_SYSTEM = TAI"))
+    store = OemDataStore()
+    store.begin(8)
+
+    with pytest.raises(ValueError, match="TIME_SYSTEM = UTC only"):
+        read_oem_into_store(
+            source,
+            store,
+            batch_size=1,
+            on_append=lambda _notice: None,
+            cancel_event=Event(),
+        )
+
+    snapshot = store.snapshot()
+    assert snapshot.sample_count == 0
+    assert snapshot.status is LoadStatus.FAILED
 
 
 @pytest.mark.parametrize("batch_size", [1, 2, 3, 10])

@@ -90,8 +90,8 @@ keep all handles aligned, and defer plot updates during handle drags while loadi
 [dedicated implementation plan](./PLAY_OEM_LOADING_AWARE_TIMELINE_IMPLEMENTATION_PLAN.md) for
 the current behavior, interaction rules, checklist, and completion criteria.
 
-- **Status:** Not started.
-- **Progress:** 0/9 checklist items.
+- **Status:** Complete.
+- **Progress:** 9/9 checklist items.
 **Depends on:** Step 27.
 
 ### 29. Cross-platform polish and publish documentation

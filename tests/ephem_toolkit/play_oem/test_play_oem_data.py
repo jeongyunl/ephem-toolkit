@@ -14,7 +14,10 @@ from ephem_toolkit.core.time_utils import datetime_to_tt_s, iso8601_to_datetime
 from ephem_toolkit.play_oem.cursor import OemCursor
 from ephem_toolkit.play_oem.data import filter_states_by_duration, read_oem_states
 from ephem_toolkit.play_oem.oem_data_store import InterpolationPolicy, OemDataStore
-from ephem_toolkit.play_oem.playback_data import oem_slider_bounds
+from ephem_toolkit.play_oem.playback_data import (
+    oem_declared_slider_bounds,
+    oem_slider_bounds,
+)
 from ephem_toolkit.play_oem.series import OrbitSeries, compute_orbit_series
 from ephem_toolkit.play_oem.streaming_oem import read_oem_into_store
 from ephem_toolkit.play_oem.time_unit import TimeUnit
@@ -69,6 +72,33 @@ def test_oem_slider_bounds_include_metadata_times(
         metadata.stop_time,
         (timestamps_s[0], timestamps_s[-1]),
     ) == expected
+
+
+def test_oem_declared_slider_bounds_require_a_valid_utc_interval() -> None:
+    observed = (1.0, 2.0)
+
+    assert oem_declared_slider_bounds(
+        "2026-01-01T00:00:00", "2026-01-01T01:00:00"
+    ) == (
+        datetime_to_tt_s(iso8601_to_datetime("2026-01-01T00:00:00")),
+        datetime_to_tt_s(iso8601_to_datetime("2026-01-01T01:00:00")),
+    )
+    assert oem_declared_slider_bounds("invalid", "2026-01-01T01:00:00") is None
+    assert oem_declared_slider_bounds(
+        "2026-01-01T01:00:00", "2026-01-01T00:00:00"
+    ) is None
+    assert oem_slider_bounds(
+        "2026-01-01T01:00:00", "2026-01-01T00:00:00", observed
+    ) == observed
+
+
+def test_oem_slider_bounds_reject_non_utc_time_systems() -> None:
+    with pytest.raises(ValueError, match="UTC only"):
+        oem_declared_slider_bounds(
+            "2026-01-01T00:00:00",
+            "2026-01-01T01:00:00",
+            time_system="TAI",
+        )
 
 
 def test_direct_store_load_exposes_oem_metadata_and_raw_views(iss_oem_path: Path) -> None:

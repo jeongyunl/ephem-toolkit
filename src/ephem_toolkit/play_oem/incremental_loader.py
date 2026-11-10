@@ -8,6 +8,7 @@ from enum import Enum
 from pathlib import Path
 from queue import Empty, Full, Queue
 from threading import Event, Thread
+from typing import Any
 
 from .oem_data_store import OemDataStore, RawAppendNotice
 from .streaming_oem import (
@@ -22,6 +23,7 @@ class LoadEventKind(str, Enum):
     """Kinds of messages a load session delivers to its owner."""
 
     STARTED = "started"
+    SEGMENT_METADATA = "segment_metadata"
     RAW_APPEND = "raw_append"
     COMPLETE = "complete"
     FAILED = "failed"
@@ -34,6 +36,8 @@ class LoadEvent:
     generation: int
     kind: LoadEventKind
     loaded_state_count: int
+    segment_id: int | None = None
+    segment_metadata: tuple[tuple[str, Any], ...] | None = None
     raw_notice: RawAppendNotice | None = None
     completion: OemStreamComplete | None = None
     error: OemStreamError | None = None
@@ -136,6 +140,19 @@ class IncrementalLoadSession:
                 )
             )
 
+        def deliver_segment_metadata(
+            segment_id: int, metadata: dict[str, Any]
+        ) -> None:
+            self._publish(
+                LoadEvent(
+                    self.generation,
+                    LoadEventKind.SEGMENT_METADATA,
+                    loaded_state_count,
+                    segment_id=segment_id,
+                    segment_metadata=tuple(metadata.items()),
+                )
+            )
+
         try:
             if self._store.epoch != self._store_epoch:
                 raise RuntimeError("store epoch has changed")
@@ -158,6 +175,7 @@ class IncrementalLoadSession:
                 batch_size=self.batch_size,
                 batch_interval_s=self.batch_interval_s,
                 on_append=deliver_raw_append,
+                on_segment_metadata=deliver_segment_metadata,
                 cancel_event=self._cancelled,
                 expected_epoch=self._store_epoch,
             )

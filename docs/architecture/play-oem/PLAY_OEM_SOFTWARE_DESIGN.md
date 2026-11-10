@@ -349,6 +349,13 @@ graph stacks with per-panel view selector, actions, and close controls
   [PLAY_OEM_TIME_RANGE_IMPLEMENTATION_REPORT.md](./old/PLAY_OEM_TIME_RANGE_IMPLEMENTATION_REPORT.md)
   for implemented behavior and current validation status. Earlier specifications are archived
   under `old/`.
+- Loading-aware timeline: the reader publishes each segment's UTC metadata at `META_STOP`,
+  before parsing its state rows. The controller unions valid segment bounds with observed sample
+  bounds for the slider domain while keeping playback coverage sample-bounded. The parser's latest
+  committed timestamp marks progress; the unread suffix is amber and its hover text reports
+  unavailable time. During a loading-time handle drag, plot updates and redraw requests are
+  deferred and coalesced, then refreshed from the latest store snapshot when the drag ends or
+  capture is lost. Outside loading-time drags, existing redraw behavior is unchanged.
 - Footer time entry: a `wx.TextCtrl` accepts `1h30m` (elapsed) or a UTC epoch. Enter submits the
   value to `clock.seek`; invalid input is shown beside the entry without changing `t_now`. Its
   existing value is selected once when it gains focus, and later clicks place the caret normally.

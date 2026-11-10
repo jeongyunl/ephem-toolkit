@@ -101,6 +101,7 @@ def read_oem_into_store(
     batch_size: int,
     batch_interval_s: float = 0.1,
     on_append: Callable[[RawAppendNotice], None],
+    on_segment_metadata: Callable[[int, dict[str, Any]], None] | None = None,
     cancel_event: Event,
     expected_epoch: int | None = None,
 ) -> OemStreamComplete:
@@ -121,9 +122,24 @@ def read_oem_into_store(
     sink = _StoreRowSink(
         store, initial.epoch, batch_size, batch_interval_s, on_append, cancel_event
     )
+
+    def publish_segment_metadata(
+        segment_id: int, segment_meta: dict[str, Any]
+    ) -> None:
+        time_system = str(segment_meta.get("TIME_SYSTEM", "")).strip().upper()
+        if time_system != "UTC":
+            displayed_time_system = time_system or "unspecified"
+            raise ValueError(
+                "play-oem currently supports OEM TIME_SYSTEM = UTC only; "
+                f"found {displayed_time_system!r}."
+            )
+        if on_segment_metadata is not None:
+            on_segment_metadata(segment_id, segment_meta)
+
     try:
         header, meta, _, _, _ = ccsds_oem.CcsdsOem._read_oem_impl(
             source,
+            on_segment_metadata=publish_segment_metadata,
             state_row_sink=sink,
             retain_states=False,
             retain_comments=False,

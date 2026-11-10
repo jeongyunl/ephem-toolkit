@@ -6,6 +6,7 @@ import pytest
 
 from ephem_toolkit.play_oem.time_range import EndpointMode
 from ephem_toolkit.play_oem.workspace.time_range_slider import (
+    _SeekGrip,
     TimeRangeSlider,
     _plot_grip_y,
     _plot_handle_vertices,
@@ -113,6 +114,63 @@ def test_playable_track_segment_uses_metadata_bounds_as_slider_scale() -> None:
     slider._x_for = lambda value: TimeRangeSlider._x_for(slider, value)
 
     assert TimeRangeSlider._playable_segment_x(slider) == (20, 40)
+
+
+def test_unloaded_track_segment_uses_metadata_bounds_as_slider_scale() -> None:
+    slider = SimpleNamespace(
+        _slider_bounds=(0.0, 200.0),
+        _unloaded_from_s=100.0,
+        GetClientSize=lambda: SimpleNamespace(width=100),
+    )
+    slider._x_for = lambda value: TimeRangeSlider._x_for(slider, value)
+
+    assert TimeRangeSlider._unloaded_segment_x(slider) == (50, 90)
+
+
+def test_seek_grip_reports_drag_end_and_capture_loss() -> None:
+    dragging: list[bool] = []
+    slider = SimpleNamespace(
+        IsEnabled=lambda: True,
+        SetFocus=lambda: None,
+        _on_range_dragging=dragging.append,
+        _seek_from_grip=lambda _grip, _point: None,
+    )
+    grip = SimpleNamespace(
+        slider=slider,
+        _dragging=False,
+        HasCapture=lambda: False,
+        CaptureMouse=lambda: None,
+    )
+    event = SimpleNamespace(GetPosition=lambda: None, Skip=lambda: None)
+
+    _SeekGrip._down(grip, event)
+    _SeekGrip._up(grip, event)
+    _SeekGrip._down(grip, event)
+    _SeekGrip._capture_lost(grip, event)
+
+    assert dragging == [True, False, True, False]
+
+
+def test_track_scrubbing_reports_drag_end_and_capture_loss() -> None:
+    dragging: list[bool] = []
+    slider = SimpleNamespace(
+        IsEnabled=lambda: True,
+        SetFocus=lambda: None,
+        _on_range_dragging=dragging.append,
+        _value_at_x=lambda x: x,
+        _set_value_from_user=lambda _value: None,
+        _dragging=False,
+        HasCapture=lambda: False,
+        CaptureMouse=lambda: None,
+    )
+    event = SimpleNamespace(GetX=lambda: 50, Skip=lambda: None)
+
+    TimeRangeSlider._left_down(slider, event)
+    TimeRangeSlider._left_up(slider, event)
+    TimeRangeSlider._left_down(slider, event)
+    TimeRangeSlider._capture_lost(slider, event)
+
+    assert dragging == [True, False, True, False]
 
 
 def test_slider_seek_position_uses_metadata_domain() -> None:
