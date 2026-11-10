@@ -1,9 +1,13 @@
 # `play-oem` — Modular Ground Station Analysis GUI Design
 
+> **Archived proposal.** This document records the design baseline. See the
+> [implementation report](./PLAY_OEM_GROUND_STATION_ANALYSIS_2_IMPLEMENTATION_REPORT.md) for
+> shipped behavior and outstanding GUI acceptance checks.
+
 **Status: Design baseline; visual acceptance remains in progress.** This document describes eight
 focused panels that can be arranged in the existing three-pane analysis workspace. The technical
 contract is in the [modular software design](./PLAY_OEM_GROUND_STATION_ANALYSIS_2_SOFTWARE_DESIGN.md);
-the earlier composite design and implementation report are archived in [`old/`](./old/).
+the earlier composite design and implementation report are also archived in this directory.
 
 ## Design goals
 

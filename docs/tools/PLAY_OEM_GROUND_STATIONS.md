@@ -113,6 +113,6 @@ that reaches an OEM segment gap is labeled as gap-limited. Terrain, buildings, a
 refraction, antenna characteristics, link budgets, and station schedules are not modeled.
 
 For current technical and workspace details, see the
-[Ground Station software design](../architecture/play-oem/PLAY_OEM_GROUND_STATION_ANALYSIS_2_SOFTWARE_DESIGN.md),
-[GUI design](../architecture/play-oem/PLAY_OEM_GROUND_STATION_ANALYSIS_2_GUI_DESIGN.md), and
-[implementation plan](../architecture/play-oem/PLAY_OEM_GROUND_STATION_ANALYSIS_2_IMPLEMENTATION_PLAN.md).
+[implementation report](../architecture/play-oem/old/PLAY_OEM_GROUND_STATION_ANALYSIS_2_IMPLEMENTATION_REPORT.md)
+and archived [software design](../architecture/play-oem/old/PLAY_OEM_GROUND_STATION_ANALYSIS_2_SOFTWARE_DESIGN.md)
+and [GUI design](../architecture/play-oem/old/PLAY_OEM_GROUND_STATION_ANALYSIS_2_GUI_DESIGN.md).

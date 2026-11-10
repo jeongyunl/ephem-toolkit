@@ -1,10 +1,14 @@
 # `play-oem` — Modular Ground Station Analysis Software Design
 
+> **Archived proposal.** The modular Ground Station Analysis feature has been implemented.
+> See the [implementation report](./PLAY_OEM_GROUND_STATION_ANALYSIS_2_IMPLEMENTATION_REPORT.md)
+> for shipped behavior and remaining acceptance work.
+
 **Status: Proposed.** This design decomposes the existing Ground Station Access and Ground
 Station Passes composites into small graph-panel views that share one station-access data source.
 
 The previous implementation is recorded in the archived
-[implementation report](./old/PLAY_OEM_GROUND_STATION_ANALYSIS_IMPLEMENTATION_REPORT.md).
+[implementation report](./PLAY_OEM_GROUND_STATION_ANALYSIS_IMPLEMENTATION_REPORT.md).
 The interface and workspace configurations for this proposal are in the
 [GUI design](./PLAY_OEM_GROUND_STATION_ANALYSIS_2_GUI_DESIGN.md).
 
