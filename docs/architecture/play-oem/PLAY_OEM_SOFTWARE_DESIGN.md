@@ -23,14 +23,17 @@ archived [software design](./old/PLAY_OEM_GROUND_STATION_ANALYSIS_2_SOFTWARE_DES
 [implementation report](./old/PLAY_OEM_GROUND_STATION_ANALYSIS_IMPLEMENTATION_REPORT.md) and
 [mockup](./old/mockup-ground-station-visual-analysis.svg) remain archived for reference.
 
-## 1. Approach: copy and modify `plot-oem`
+## 1. Historical origin: copy and modify `plot-oem`
 
-`plot_oem.py` (~870 lines) mixes three things; we split them while copying:
+The initial prototype reused `plot_oem.py` (~870 lines), then split its plotting, data, and CLI
+responsibilities. This history does not describe the shipped loading or data-ownership path:
+the current direct-to-store architecture is documented in
+[PLAY_OEM_DATAFLOW.md](./PLAY_OEM_DATAFLOW.md).
 
 | `plot_oem.py` piece | Destination in `play_oem/` | Change |
 |---|---|---|
 | `TimeUnit` | `time_unit.py` | copy verbatim |
-| `read_oem_states` | `data.py` | copy verbatim; load the full OEM |
+| `read_oem_states` | `data.py` | initial prototype; current playback loading streams directly into `OemDataStore` |
 | `OrbitSeries`, `compute_orbit_series` | `series.py` | copy verbatim; add `t_s` array use for lookup |
 | `plot_*` functions (7) | `views/*.py` | split into *build* (draw static data, return artists) and *update(t)* (move cursor) |
 | `plot_oem_cli.py` | `play_oem_cli.py` | adapt file, display, and view-selection options |
@@ -40,64 +43,48 @@ Keep `plot-oem` as the separate static plotting command and `play-oem` as the in
 playback application. Shared numerical/data-processing code may be extracted later only after
 compatibility with both commands is verified.
 
-## 2. Package layout
+## 2. Current package layout
+
+Key current modules (the package contains additional focused modules):
 
 ```
 src/ephem_toolkit/play_oem/
-  __init__.py          # cli = main
-  __main__.py          # main(argv)
-  play_oem_cli.py      # PlayOemArgs, build_arg_parser
-  data.py  series.py  time_unit.py              # copied from plot_oem
-  clock.py             # PlaybackClock (pure Python, no GUI)
-  cursor.py            # CursorState lookup at t_now
-  ground_stations.py   # validated stations and WGS-84 topocentric geometry
-  station_access.py    # lazy access preparation and cache
+  __main__.py          # create workspace before loading; CLI entry point
+  play_oem_cli.py      # PlayOemArgs and command-line parsing
+  streaming_oem.py     # parse OEM rows directly into store reservations
+  incremental_loader.py # generation-scoped worker, cancellation, and load events
+  oem_data_store.py    # raw samples and lazily computed derived tiers
+  clock.py             # playback bounds, sample-time view, and clock logic
+  cursor.py            # OemCursor compatibility path and StoreCursor point queries
+  series.py time_unit.py time_range.py
   app/
-    __init__.py        # public PlayerApp export
-    controller.py      # frame lifecycle, OEM replacement and playback timer
-    panel_management.py # graph-panel creation and view resource lifecycle
-    playback_actions.py # seek and playback-rate actions
-    state.py           # shared structural contract for app behavior modules
-    support.py          # app constants and graph-view state models
-    view_factory.py     # registered graph-view constructors and backend selection
+    controller.py      # load generations, snapshots, playback, and panel lifecycle
+    view_factory.py    # registered store-backed views and backend selection
   workspace/
-    __init__.py        # public Workspace and layout constants
-    constants.py       # pane names, dimensions, redraw timing
-    core.py            # Workspace composition and main pane layout
-    features.py        # Controls & Info feature rail and OEM metadata page
-    ground_stations.py # expandable inline station manager
-    graph_stack.py     # graph panes, splitters, scrolling and redraw scheduling
-    timeline.py        # shared timeline playback and time-entry behavior
-  graph_panel.py       # embedded graph-panel host and redraw scheduling
-  control_window.py    # wx.Panel: playback controls and readouts
+    core.py features.py ground_stations.py graph_stack.py timeline.py
   views/
-    base.py            # View protocol
-    trajectory3d/      # mpl_backend.py; vtk_backend.py only if VTK-KEEP (see 4.3.1)
-    state_components.py speed_altitude.py rtn_deltas.py angular_velocity.py
-    direction_change.py geocentric_distance.py
-    ground_station_access.py # multi-station access timeline and readouts
-    registry.py        # view/group names -> factories
+    base.py registry.py
+    trajectory3d/       # Matplotlib and optional VTK backends
+    ground_track.py
+    ground_station_*.py # store-backed station views
+    state_components.py speed_altitude.py rtn.py angular_velocity.py
+    direction_change.py distance.py
 ```
 
-`pyproject.toml`: add `play-oem = "ephem_toolkit.play_oem:cli"` and an optional extra
-`playback = ["wxPython>=4.2.4", "matplotlib>=3.7"]`. The base install does not require wxPython.
-The wxPython minimum is 4.2.4 so the extra remains installable on Python 3.9. The optional VTK
-backend uses `vtk = ["vtk>=9.2,<9.7"]`; the upper bound retains Python 3.9 wheels. Install both
-optional backends with `pip install "ephem-toolkit[playback,vtk]"`.
+`pyproject.toml` registers `play-oem` and declares a `playback` extra containing wxPython,
+Matplotlib, and pyproj. VTK is a separate optional extra; install the GUI and VTK integrations
+with `pip install "ephem-toolkit[playback,vtk]"`. The base install does not require the GUI stack.
 
-Playback dependency validation was performed on macOS arm64 with Python 3.9. wxPython publishes
-wheels for macOS and Windows across the supported Python versions; it does not publish Linux
-wheels, so Linux installation requires a source build with wxGTK build dependencies. Linux and
-Windows installs and GUI rendering have not been exercised in this environment. The repository
-ignores `poetry.lock`, so local lock validation is not a committed exact dependency set; clean
-installs resolve from the optional-dependency constraints in `pyproject.toml`.
+Playback dependency validation was performed on macOS arm64 with Python 3.9; this is an install
+check, not cross-platform certification. Linux and Windows installs and GUI rendering have not
+been exercised in this environment. The repository ignores `poetry.lock`, so local lock validation
+is not a committed exact dependency set; clean installs resolve from the optional-dependency
+constraints in `pyproject.toml`.
 
-The Step 23 acceptance run passed all 105 focused playback tests on macOS arm64/Python 3.9.
-The real `play-oem` command loaded the repository ISS OEM (5,402 states), opened its default
-overview and exited cleanly on SIGINT. Playback controls, baseline data/labels, plot
-synchronization, click-to-seek and view lifecycle are covered by the focused tests. Desktop
-input automation was unavailable, so mouse/keyboard interaction was not manually exercised.
-Other Python versions and Linux/Windows GUI runs remain unverified.
+The wxPython migration acceptance and its 105-test run are historical. The current complete
+`play-oem` suite was run on 2026-11-09 with Python 3.9: 593 passed and 4 skipped. This automated
+result does not replace manual GUI input checks; Linux and Windows GUI installation/rendering
+remain unverified in this environment.
 
 `__main__.py` creates exactly one `wx.App`; `PlayerApp` owns its event-loop lifecycle, playback
 clock, timer and main workspace frame. The frame has a File menu with **Open File...**, a status
@@ -135,13 +122,20 @@ and one `MainLoop()`. Tk is removed from the runtime path (implementation plan s
 
 ### 4.1 `PlaybackClock` (pure logic)
 
-State: `t_start`, `t_end`, `t_now` (seconds from start), `rate` (signed float, `|rate|` in 1…9000), `playing`, `loop`.
+State: OEM coverage `t_start`/`t_end`, independent playback bounds, `t_now`, signed `rate`
+(`|rate|` in 1…9000), `playing`, and `loop`.
 Speed and direction are stored together as the signed `rate`; the UI shows `|rate|` plus a direction indicator.
 
-- `tick(wall_dt)`: if playing, `t_now += rate * wall_dt`; at `t_end` (forward) or `t_start` (reverse) pause, or wrap to the opposite end if `loop`.
-- `seek(t)`: clamps to `[t_start, t_end]`, sets `t_now`, keeps `rate` and `playing`; notifies observers. O(1), no replay of intermediate time.
+- `tick(wall_dt)`: advance within the configured playback bounds; at a playback endpoint pause,
+  or wrap to the opposite playback bound if `loop`.
+- `seek(t)`: clamps to the playback bounds, sets `t_now`, keeps `rate` and `playing`, and notifies
+  observers. O(1), with no replay of intermediate time.
 - `set_speed(x)` (`|x|` clamped to `[1, 9000]`, sign preserved), `set_direction(±1)` / `reverse()` (negates `rate`; `t_now` unchanged), `play()`, `pause()`, `toggle()`.
 - `step(n_samples | seconds)`: seek relative to `t_now`, used by step buttons/keys.
+- `extend_coverage(...)`: publishes appended sample-time coverage during incremental loading;
+  playback bounds that follow coverage grow without moving the current cursor or auto-resuming.
+- `set_playback_bounds(start, end)`: constrains playback independently inside observed OEM
+  coverage and clamps the current time once.
 - Observers: `subscribe(callback(t_now))`. The app timer counts complete frame periods from
   monotonic elapsed time. If drawing overruns, the clock advances across all elapsed periods in
   one update and intermediate redraws are dropped.
@@ -151,53 +145,54 @@ reverse mid-play without `t_now` jump, seek while playing/reversed/paused, end-o
 
 ### 4.2 Cursor lookup
 
-`CursorState` = `{t, r_km, v_kms, speed, altitude, distance, status, segment_id}` at `t_now`.
-The OEM loader assigns each metadata/data segment a zero-based ID in file order and exposes
-the ID aligned with each state as `CcsdsOem.segment_ids`; `segment_id` in the cursor identifies
-the segment containing the current valid state.
+`CursorState` contains the state vector, derived quantities, status, and segment identity at
+`t_now`. The default incremental path uses `StoreCursor` against a bound `OemDataStore` snapshot;
+`OemCursor` remains available for compatibility and non-store use. Each raw sample retains its
+OEM segment ID.
 `status` distinguishes an exact OEM sample, a valid interpolated state inside a segment, and a
 time gap/out-of-segment time. In a gap, do not bridge interpolation across the gap or fabricate
 a state: keep the timeline cursor at the requested time, mark the status, and show unavailable
 state readouts until it reaches valid data.
 
-Series arrays are sample-based, so the cursor is found with `np.searchsorted` on `series.t_s`,
-then linear interpolation for plotted scalars (cheap), restricted to the containing segment.
-For the 3D marker and readouts use the
-interpolators from `core/interpolator` (Lagrange/Hermite per OEM `INTERPOLATION`/degree) via
-`InterpolatorFactory`, falling back to linear. Keeps N4 (state depends only on `t_now`).
+`StoreCursor` delegates point lookup to the store's interpolation policy, which honors the
+configured or OEM-declared interpolation method and degree, with the documented fallback when
+metadata is absent. Range-derived plot columns and point-state queries share the store's raw
+snapshot and segment boundaries.
 
-Random seek and reverse require lookup to be **stateless and direction-independent**: every
-lookup does a fresh `searchsorted` (O(log n)) and never assumes monotonically increasing
-queries. The interpolators' sliding-window caches are only an optimization; the window is
-re-selected whenever the query leaves it, in either direction, so a backward or far jump costs
-one window rebuild. Tests assert `state(t)` is identical when reached forward, backward, or by seek.
+Random seek and reverse require lookup to be **stateless and direction-independent**: a query
+must not assume monotonically increasing times, and must never interpolate across a segment gap.
+Tests assert `state(t)` is identical when reached forward, backward, or by seek.
 
 ### 4.3 Views
 
 ```python
 class View(Protocol):
     name: str
-    def build(self, series: OrbitSeries, time_unit: TimeUnit) -> Figure: ...
-    def update(self, t_s: float) -> None: ...   # move cursor artists only
+    def build(self, series: OrbitSeries, time_unit: TimeUnit, /) -> Figure | wx.Window: ...
+    def update(self, t_s: float, /) -> None: ...
+    def set_time_range(self, bounds, coverage, /) -> None: ...
+    def close(self) -> None: ...
 ```
 
-- Static data drawn once in `build` (reuse existing `plot_*` drawing code).
-- `update` modifies artists: `Line2D.set_xdata` for vertical cursor (`axvline`), `set_data_3d`
-  for the satellite marker, optional trailing tail slice.
+- Views bind to a `StoreViewContext` containing a stable store snapshot, resolved plot range,
+  coverage, and time unit. They request only the named series, Earth-fixed, Ground Track, station,
+  or point-state data they use. Appends, range changes, and derived-tier notices refresh data;
+  playback-time updates move cursors, markers, and current-state metrics.
+- The store owns raw samples and lazily computed derived tiers. Views may create bounded display
+  paths or decimated indices, but do not retain independent full-history derived owners.
 - Plot each OEM segment separately; do not draw lines across gaps. Mark segment boundaries
   clearly, and update the cursor/readout style or status when `t_now` lies in a gap.
-- **WxAgg redraws**: use `canvas.draw_idle()` for cursor updates. Partial bitmap blitting left
-  duplicated and mispositioned plot content after click-to-seek in the reported macOS UI;
-  full redraws avoid that corruption. Re-measure performance with this redraw path before
-  considering another optimization.
+- **WxAgg redraws**: most updates schedule a full canvas draw; the state-components view uses a
+  guarded cursor-only blit when the plot range and axes are unchanged. Range/limit changes and
+  unsafe blits fall back to a full draw. 3D backends apply their own display-update throttles.
 - 2D histories use min/max bucket decimation to at most 2,000 display points per segment;
   Matplotlib 3D uses at most 500 points per segment and VTK uses the shared decimation helper.
-  The full series and cursor timestamps remain unmodified for lookup.
-- Registry maps individual views (`trajectory-3d`, `state-components`, `speed-altitude`,
-  `rtn`, `angular-velocity`, `direction-change`, `distance`) and view groups to factories.
-  `overview` = trajectory + speed/altitude; `state` = state components; `motion` = RTN,
-  angular velocity and direction change; `all` = every view. The same registry powers the
-  toolbar and `--plots`; opening a group raises existing windows rather than duplicating them.
+  Point-state lookup still uses full-resolution raw samples.
+- The registry includes orbit and diagnostic views, Ground Track, and the Ground Station panels.
+  `overview` opens trajectory and speed/altitude; `state` opens state components; `motion` opens
+  RTN, angular velocity, direction change, and distance; `access-overview` and `pass-study` are
+  optional station presets; `all` expands to every registered view. The registry powers
+  `--plots` and panel selection.
 
 ### 4.3.1 3D trajectory backends (Matplotlib/wx and VTK)
 
@@ -257,8 +252,10 @@ graph stack. Redraws are requested with `draw_idle()` and playback updates are t
   `vtkRenderingCore` alone can produce a wx window that initializes but remains visually blank.
   Factory registration does not prove native context support: Cocoa, GTK and Windows rendering
   must be visually smoke-tested independently before claiming support.
-- Orbit polyline: `vtkPoints` populated from the `series` position arrays via
-  `vtk.util.numpy_support`, one `vtkPolyLine` cell, `vtkPolyDataMapper` → `vtkActor`.
+- Orbit polyline: the default store-backed path selects and display-decimates positions from the
+  current raw snapshot, preserving segment boundaries and the selected time range; it then builds
+  `vtkPoints`, `vtkPolyLine` cells, and a `vtkPolyDataMapper` → `vtkActor` chain. The legacy
+  non-store backend path accepts orbit-series arrays.
 - Earth: semi-transparent WGS84 ellipsoid (`vtkSphereSource` scaled by the flattening).
   Inertial-frame view with a static Earth in v1; a rotating, textured Earth needs the ECI→ECEF rotation at
   `t_now` (via `core/frame_utils`) and is a follow-up.
@@ -309,29 +306,34 @@ contain an independently scrollable graph stack with per-panel lifecycle. Startu
 by default in Main Analysis: the 3D orbit and combined speed/altitude time-series view. `--plots`
 can replace that selection with individual views or named groups.
 
-The `ControlWindow` owns a playback `wx.Panel` embedded in Playback and a separate state-readout
-`wx.Panel` embedded in State. The shared timeline footer is owned by `Workspace`, outside the
-three-pane splitter:
+The Controls & Info pane uses a four-page feature rail: Settings, OEM file information,
+Ground Stations, and State. Settings contains the render-rate control; `Workspace` owns the shared
+playback timeline below the three-pane splitter. Main Analysis and Comparison own their graph
+stacks:
 
 ```
 [Settings page]
 Render rate: 30 FPS
 [FPS slider: 1–30]
-Toolbar: [3D Orbit] [State] [Speed/Altitude] [RTN] [Angular] [Direction] [Distance]
-Groups: [Overview] [State] [Motion diagnostics] [All]
 
 [Shared timeline footer]
 Start UTC … | Current UTC [editable time] | End UTC …
 [reverse speed presets] [reverse play] [forward play] [forward speed presets]
 ━━━━━━━━━━━━━━●━━━━━━━━━━━━━━
 
+[OEM file information page]
+object … | frame … | center … | epochs … | samples …
+Details ▸ (additional OEM metadata and diagnostics)
+
+[Ground Stations page]
+station list | Add | inline edit/save/cancel/remove
+
 [State page]
 r=(x,y,z) km   v=(vx,vy,vz) km/s   speed=… km/s   altitude=… km
 Cursor: interpolated / sample / gap / unavailable
 
-[OEM file information page]
-object … | frame … | center … | epochs … | samples …
-Details ▸ (additional OEM metadata and diagnostics)
+[Main Analysis / Comparison]
+graph stacks with per-panel view selector, actions, and close controls
 ```
 
 - Settings page: the `ControlWindow` provides only a render-rate slider from 1 to 30 FPS (default
@@ -344,7 +346,7 @@ Details ▸ (additional OEM metadata and diagnostics)
   those bounds and follows playback-bound edits; each plot endpoint can instead use a playback-
   time offset or a fixed UTC timepoint. Right-click a plot handle to choose its mode; drag Offset
   and Fixed handles to change their position. See
-  [PLAY_OEM_TIME_RANGE_IMPLEMENTATION_REPORT.md](./PLAY_OEM_TIME_RANGE_IMPLEMENTATION_REPORT.md)
+  [PLAY_OEM_TIME_RANGE_IMPLEMENTATION_REPORT.md](./old/PLAY_OEM_TIME_RANGE_IMPLEMENTATION_REPORT.md)
   for implemented behavior and current validation status. Earlier specifications are archived
   under `old/`.
 - Footer time entry: a `wx.TextCtrl` accepts `1h30m` (elapsed) or a UTC epoch. Enter submits the
@@ -358,8 +360,8 @@ Details ▸ (additional OEM metadata and diagnostics)
 - Native sizing and keyboard focus come from wx. The frame-level File menu provides **Open File...**;
   the status bar reports successful loads and errors.
 - Click-to-seek: each time-series view connects `button_press_event` (left click inside axes, toolbar zoom/pan mode inactive) → `clock.seek(x * unit_divisor)`.
-- Toolbar buttons open views/groups via `PlayerApp.open_view(name)` / `open_group(name)`; an
-  already-open default view is raised rather than duplicated. Closing one graph panel does not
+- The graph-panel selector opens individual registered views. Presets and `--plots` open named
+  groups; an already-open view is raised rather than duplicated. Closing one graph panel does not
   affect the clock or other panels. Closing the workspace frame destroys all panels and stops the
   single wx event loop.
 - Current-state readouts on State come from the same `CursorState` as the plots, including explicit
@@ -387,38 +389,41 @@ One `wx.Timer` (`wx.EVT_TIMER`) uses a millisecond interval approximating
 3. Update and redraw each open view once. Any intermediate display frames missed during a slow
    redraw are dropped rather than queued.
 
-Only the wx main loop exists (no threads). Heavy precomputation (`compute_orbit_series`) happens once
-before the window appears, with progress printed to stdout like `plot-oem`.
+The app has one wx main loop, plus a background load worker and store-managed derived-tier work.
+`__main__.main()` creates an empty startup model and the workspace; the controller starts a
+generation-scoped incremental load. The worker scans for capacity when needed and streams raw rows
+directly into the new `OemDataStore`. The wx thread drains generation-tagged events, installs
+snapshots, captures `StoreViewContext` values, and refreshes open panels. No whole-history
+`OrbitSeries` is prepared before the workspace appears.
 
 ## 5. CLI flow (`__main__.py`)
 
-1. Parse args (`PlayOemArgs`) for the optional OEM path, 3D backend, and plot selection.
-2. Read every state in the OEM, choose minutes for spans shorter than an hour and hours otherwise,
-   then compute the series; no duration filtering is applied.
-3. Select the `WXAgg` Matplotlib backend, create the `wx.App` and `PlayerApp`, and open the
-   requested `--plots` (default `overview`). Playback starts paused at the beginning; speed,
-   direction, seeking, and FPS are controlled in the GUI. Enter `wx.App.MainLoop()`.
-   Trailing tails in trajectory views are drawn on the side behind the direction of motion.
-4. SIGINT closes the workspace. The Python signal handler forwards the request with `wx.CallAfter` to a
-   close routine that closes hosted views and the workspace frame and ends the main loop.
+1. Parse the optional OEM path, `--plots`, `--3d-backend`, and `--config`.
+2. Load user configuration and saved workspace state, then construct the `wx.App` and workspace
+   with an empty startup model.
+3. Show the workspace and start the selected file's generation-scoped background load. The worker
+   commits parsed rows directly to the store; the wx thread installs usable snapshots and refreshes
+   the selected views as loading progresses. Completion publishes validated metadata.
+4. Playback, seeking, and render-rate controls operate in the GUI. `--plots` defaults to
+   `overview`; `auto` selects VTK only when its wx integration initializes successfully, otherwise
+   it uses Matplotlib with a notice. An explicit unavailable VTK request fails with an actionable
+   error.
+5. SIGINT is forwarded with `wx.CallAfter` to the close routine, which shuts down the worker,
+   hosted views, and workspace frame before ending the single wx main loop.
 
 ## 6. Testing
 
-- `clock.py`: pure unit tests (`tests/play_oem/test_clock.py`).
-- Cursor lookup vs. interpolator on `tests/data/ISS_2026-05-20.OEM` and `JPSS-1.oem`.
-- Data loading and series tests: compare behavior with `plot-oem` on representative OEM files.
-- Views: with a non-interactive Matplotlib backend, `build` + several `update` calls without exceptions; cursor artist
-  positions equal expected values.
-- CLI parse and input-loading tests for optional input, `--3d-backend`, and `--plots`; verify that
-  all OEM states are loaded and the time-axis unit is selected from the full OEM span.
-- Playback control tests cover the 1–30 FPS slider and timer frame-period accounting, including
-  dropped redraws after overruns.
-- Backend-neutral Matplotlib view tests use `MPLBACKEND=Agg`; tests that create a `wx.App` use the
-  wx backend and run under `xvfb-run` on Linux CI. Pure-Python tests run without a display.
-- Baseline: wx values for `tests/data/ISS_2026-05-20.OEM` must match
-  `tests/data/play_oem_tk_baseline.json`, captured before the migration.
-- Manual: GUI smoke tests on macOS, Linux, and Windows (step 23 checklist); high-speed playback
-  with all views on a large OEM, check responsiveness and dropped-frame behavior (step 27).
+- Playback/store tests live under `tests/ephem_toolkit/play_oem/` and cover clock behavior,
+  incremental parsing, store queries, segment/gap handling, and view refresh.
+- View tests cover store-bound range queries, plot updates, click-to-seek, station selection, and
+  explicit unavailable/partial-coverage states.
+- App and CLI tests cover wx lifecycle, `--plots`, config precedence, backend selection, and
+  incremental replacement. Matplotlib-only tests can run headlessly; tests creating `wx.App`
+  require a usable wx display environment.
+- Current complete package test check (2026-11-09): `PYTHONPATH=src python3 -m pytest -q
+  tests/ephem_toolkit/play_oem` — 593 passed, 4 skipped.
+- Manual visual/input checks and cross-platform GUI verification remain separate from this
+  automated test result.
 
 ## 7. Implementation plan
 
@@ -428,11 +433,10 @@ The dependency-ordered, demo-first implementation sequence is maintained separat
 ## 8. Risks
 
 - Blitting with 3D axes is unreliable → the Matplotlib 3D backend updates the marker and redraws at a reduced rate (e.g. 10 fps) without blitting; VTK avoids this.
-- VTK alongside wx: two GUI toolkits could compete for the event loop. Mitigated by a single wx main loop, with VTK either embedded or pumped from a `wx.Timer`; verify on macOS, Linux (X11/Wayland) and Windows in step 20.
+- Embedded VTK uses the wx interactor and shares the application's wx event loop; do not start or pump a separate VTK loop. Linux and Windows rendering remain unverified.
 - VTK wheels may lag new Python versions; hence optional extra and automatic Matplotlib fallback (only if `VTK-KEEP`).
-- wxPython 4.2.4 has PyPI wheels for macOS and Windows on Python 3.9–3.13, but no Linux wheels;
-  Linux must build from the source distribution and needs wxGTK build dependencies. Newer wxPython
-  releases may raise the Python minimum, so keep the 4.2.4 floor while Python 3.9 is supported.
+- GUI dependency availability is platform- and Python-version-specific; verify installation in
+  each target environment rather than inferring support from a successful local install.
 - `wx.Slider` is integer-only. The timeline and speed controls use explicit integer ranges with documented mappings (§4.4).
 - SIGINT may not be handled promptly inside the wx main loop; the `wx.CallAfter` forwarding in §5 handles it.
 - Multiple Matplotlib figures in one wx loop: use the `WXAgg` backend only and never mix backends.

@@ -8,7 +8,7 @@ open views. The controller binds those views to one snapshot and range through
 `StoreViewContext`; the diagram in [PLAY_OEM_DATAFLOW.mmd](./PLAY_OEM_DATAFLOW.mmd)
 describes this shipped path.
 
-The prepared-batch loader and its duplicate data owners were removed in Step 8. The default
+An earlier prepared-batch prototype and its duplicate data owners were removed. The default
 application has a single direct-to-store loading path.
 
 The default playback range is the first two days of the OEM, and the default plot range
@@ -71,7 +71,8 @@ and station views do not have non-store data fallbacks. Each load generation own
 - Range queries may include interpolation-support margins beyond the visible plot boundaries.
 - Rendering may create bounded display paths or downsampled indices; these are not additional
   full-history owners in the default store path.
-- The Step 7 automatic-capacity first-delivery performance gate remains deferred and unpassed.
+- The automatic-capacity first-delivery performance gate remains deferred and unpassed; see the
+  [implementation report](./old/PLAY_OEM_INCREMENTAL_LOADING_IMPLEMENTATION_REPORT.md).
 
 ## Related documents
 

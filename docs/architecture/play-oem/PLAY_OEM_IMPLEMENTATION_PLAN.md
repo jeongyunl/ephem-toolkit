@@ -71,42 +71,15 @@ For every step, keep the status and progress fields current:
 Progress is the number of checklist items completed. Update the step's status and count as work
 advances; do not mark a step done based only on code being written.
 
-## Current directive — complete migration to wxPython
+## Current status — wxPython migration complete
 
-The original Tk implementation in completed steps 6–14 is historical work, not completion of
-the current GUI requirement. Migrate the entire existing `play-oem` GUI to wxPython before
-adding the remaining views and dashboard features. Keep the playback clock, cursor lookup,
-OEM loading, computed series, CLI semantics, and view data contract toolkit-independent where
-possible. The finished application must have one wx event loop and no runtime Tk dependency,
-Tk-specific fallback, or Tk-only GUI path. Use Matplotlib's wx canvas for plots; retain VTK as
-an optional 3D backend only if its wx integration is validated.
-
-Migration guardrails:
-
-- Target GUI stack: `wx.App`, `wx.Frame`, `wx.Timer`, Matplotlib `FigureCanvasWxAgg`, and
-  wx-native controls (`Slider`, `TextCtrl`, `Button`, `Panel`, `Menu`) instead of Tk widgets.
-- Preserve all playback/data semantics in the model layer; only the UI and event plumbing move
-  to wxPython.
-- Keep the core CLI and data-processing code runnable in headless environments. Backend-neutral
-  Matplotlib tests use `MPLBACKEND=Agg`; tests that create `wx.App` use wx under a virtual display
-  on Linux (`xvfb-run`).
-- The migration is not complete until the proof gate passes: no `tkinter` imports remain in the
-  active `play-oem` implementation, no `TkAgg` or `PhotoImage`/PPM fallback code remains in the
-  supported path, and the runtime installed via the documented GUI extra launches in a real wx
-  session.
-- Installation: GUI dependencies are declared as a `playback` extra in `pyproject.toml`
-  (`pip install "ephem-toolkit[playback]"`). Step 15 resolves the extra with Poetry for
-  development. This repository ignores `poetry.lock`, so clean installs use the declared
-  dependency constraints rather than a committed lock. The base install must not require
-  wxPython. VTK remains a separate optional extra only if step 20 records `VTK-KEEP`.
-
-Steps 15–23 document the wxPython migration and its acceptance. The remaining dashboard and
-plot-set work follows in the active steps below. Update
-[PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md) in step 15 so the architecture agrees
-with this directive. Use [PLAY_OEM_GUI_DESIGN.md](./old/PLAY_OEM_GUI_DESIGN.md) for
-GUI-focused implementation and improvement guidance. The first Tk playback demo in step 10
-remains a historical milestone; a wxPython demo must pass the migration acceptance criteria in
-step 23.
+The Play-OEM GUI now runs on wxPython with one wx event loop, wx-native controls, and
+Matplotlib's `FigureCanvasWxAgg`. VTK remains an optional embedded wx backend for 3D views.
+The active runtime no longer has a Tk GUI path. Steps 15–23 record the completed migration and
+its acceptance history; they are not pending implementation work. See
+[PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md) for the as-built architecture and
+continue with the release-readiness work below. Historical migration constraints and GUI design
+notes remain archived in [old/](./old/).
 
 ## Milestone L — Release readiness
 
@@ -459,7 +432,8 @@ during this migration.
 committed, the `playback` extra resolves from the lock, and `import wx` succeeds on the
 development platform. No architecture decision remains open that would change steps 16–21.
 
-**Step 15 evidence and decisions:** wxPython 4.2.4 is the minimum: its PyPI release has wheels for
+**Historical Step 15 evidence (recorded at migration time):** wxPython 4.2.4 was the chosen
+minimum: its PyPI release had wheels for
 macOS x86_64/arm64 and Windows (win32/win_amd64) on each supported Python version 3.9–3.13. PyPI
 publishes no Linux wheels for this release, so Linux installs build from source and require wxGTK
 build dependencies. The newer 4.3.2 release requires Python 3.10+, so the 4.2.4 floor preserves

@@ -4,7 +4,7 @@
 > [configuration implementation report](./old/PLAY_OEM_CONFIG_REPORT.md) and the
 > [end-user guide](../../tools/PLAY_OEM_CONFIG.md). Software design:
 > [PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md). Time-range implementation:
-> [PLAY_OEM_TIME_RANGE_IMPLEMENTATION_REPORT.md](./PLAY_OEM_TIME_RANGE_IMPLEMENTATION_REPORT.md).
+> [PLAY_OEM_TIME_RANGE_IMPLEMENTATION_REPORT.md](./old/PLAY_OEM_TIME_RANGE_IMPLEMENTATION_REPORT.md).
 > Earlier time-range design specifications and diagrams are archived under `old/`.
 
 `play-oem` is the interactive, animated successor to [`plot-oem`](../../tools/PLOT_OEM.md). Where `plot-oem` renders
@@ -27,8 +27,8 @@ is the interactive playback application.
 | **Playback speed** | Ratio of simulated seconds to wall-clock seconds (`|rate|` 1x … 9000x); the sign indicates direction. |
 | **Cursor state** | The OEM state at `t_now`, interpolated from the OEM samples (using the OEM's `INTERPOLATION` metadata when present). |
 | **View** | A plot window that renders a series or trajectory and a cursor/marker at `t_now`. |
-| **View group** | A named collection of related views opened together (Overview, State, Motion diagnostics, All). |
-| **Control window** | The Controls & Info pane: a render-rate control on Playback, current-state readouts on State, and OEM context. Playback controls and navigation live in the shared timeline. Closing the app window quits the app. |
+| **View group** | A named collection of related views opened together (Overview, State, Motion, Access Overview, Pass Study, All). |
+| **Control window** | The Controls & Info pane: a render-rate control on Settings, current-state readouts on State, OEM context, and Ground Stations. Playback controls and navigation live in the shared timeline. Closing the app window quits the app. |
 
 Two kinds of views:
 
@@ -57,8 +57,8 @@ which views are open.
    - Step buttons/keys: ±1 sample, ±1 minute, jump to start/end.
    - Seeking works while playing, paused, or reversed, and never changes speed or direction.
 2. Play/Pause button (also `Space`). Playback starts paused at the first OEM state and pauses at either timeline boundary.
-3. Speed control from `1x` up to `9000x` (log-scale slider and preset buttons
-   1, 10, 60, 100, 300, 1000).
+3. Direction-specific speed preset buttons control playback from `1x` up to `9000x`; repeated
+   clicks on a selected preset increase its speed by decades as described below.
 4. **Reverse playback**: a direction control (button, and `R` key) plays the timeline
    backward at the selected speed (`-1x` … `-9000x`). Reversing mid-play is seamless
    (no jump in `t_now`). Reaching `t_start` while reversed pauses.
@@ -76,10 +76,11 @@ which views are open.
 6. **Data context**: show object name, reference frame, center, timeline, sample count and
    whether the cursor is in a gap or outside a valid interpolation segment. Clearly distinguish
    sample values from interpolated values.
-7. **View toolbar**: buttons open individual views and groups: `Overview` (default), `State`,
-   `Motion diagnostics`, and `All`. Opening an already open view raises it; closing a view does
-   not affect the clock. `All` includes the 3D orbit, state components, speed/altitude, RTN
-   deltas, angular velocity, direction change, and geocentric distance.
+7. **View selection**: the graph-panel selector opens individual views; workspace presets open
+   `Access Overview` and `Pass Study`. The `--plots` groups also include `Overview` (default),
+   `State`, `Motion`, and `All`. Opening an already open view raises it; closing a view does not
+   affect the clock. `All` opens every registered view, including the 3D orbit, state and motion
+   plots, Ground Track, and the Ground Station panels.
 8. **Render rate**: an FPS slider in the Settings pane selects 1–30 frames per second (default
    30). Playback advances by whole selected frame periods. When rendering overruns, consume all
    elapsed frame periods in one clock update and redraw once, dropping intermediate frames.
@@ -87,9 +88,10 @@ which views are open.
 **F2. Animated views**
 
 1. All open views are synchronized to the single clock (never drift relative to each other).
-2. Rendering must keep the UI responsive at speeds up to 9000x: the frame rate is capped at
-   30 render-rate FPS and overdue frames are dropped, not queued. The playback clock catches up by advancing
-   through all elapsed frame periods in one update.
+2. Rendering targets a responsive UI at speeds up to 9000x: the selected render-rate cap is
+   1–30 FPS and overdue frames are dropped, not queued. The playback clock catches up by advancing
+   through all elapsed frame periods in one update. The measured macOS rate remains below the N1
+   target; see the [performance report](./PLAY_OEM_PERFORMANCE_REPORT.md).
 3. Seeking works while paused or playing.
 
 **F3. CLI (very similar to `plot-oem`)**
@@ -101,8 +103,9 @@ play-oem [<input_oem>] [OPTIONS]
 | Option | Description |
 |--------|-------------|
 | `<input_oem>` | Input CCSDS OEM path (same as `plot-oem`). |
-| `--plots <list>` | Comma-separated view names or groups to open at launch (default: `overview`; groups: `overview`, `state`, `motion`, `all`). |
-| `--3d-backend {auto,vtk,matplotlib}` | Renderer for 3D views (default `auto`: VTK if available, else Matplotlib). Explicit `vtk` fails with an install hint if VTK is missing. |
+| `--plots <list>` | Comma-separated view names or groups to open at launch (default: `overview`; groups: `overview`, `state`, `motion`, `access-overview`, `pass-study`, `all`; compatibility alias: `state-vectors`). |
+| `--3d-backend {auto,vtk,matplotlib}` | Renderer for 3D views (default `auto`: VTK when its wx integration is available, otherwise Matplotlib). Explicit `vtk` reports an actionable error if unavailable. |
+| `--config <path>` | Load user defaults from the specified TOML file instead of the default configuration location. |
 | `-h`, `--help` | Help. |
 
 The CLI accepts an optional OEM path plus view-selection options. The window opens before parsing
@@ -117,25 +120,26 @@ for saved diagnostic plots; `play-oem` is the interactive playback command.
 
 **F4. Data and computation reuse**
 
-Data loading, series computation (RTN deltas, angular rates, distance,
-WGS84 altitude), and time-unit conversion utilities are reused from `plot-oem` (copied, then
-modified only where needed—see design). `play-oem` selects minutes or hours from observed OEM
-coverage; full-history ground-station analysis is enabled after EOF validation.
+The loader streams raw OEM rows into the application-owned `OemDataStore`. The store lazily
+computes requested range-limited series, Earth-fixed positions, Ground Track data, and station
+access tiers. Views query a shared snapshot/range context rather than retaining duplicate
+full-history data. Station-access queries may show partial coverage while loading; their coverage
+is complete only after EOF validation. The time-axis unit follows the loaded OEM span and settles
+to the full-file span when loading completes.
 
 ### Non-functional
 
-- **N1 Performance target**: at 1000x with all 7 views open, target an interactive UI
+- **N1 Performance target**: at 1000x with the seven core orbit/diagnostic views used in the original benchmark, target an interactive UI
   (at least 15 playback updates/s on a typical laptop with an OEM of at least 100k samples).
-  If a platform/backend benchmark falls below target, record the measured environment and
-  workload and obtain explicit acceptance before deferring further optimization. The current
-  macOS baseline is documented in the design; the user accepted it for now, with N1 retained
-  as a future optimization target.
-- **N2 Portability**: macOS, Linux, Windows; Python version per `pyproject.toml`.
-- **N3a 3D backends**: 3D views have two interchangeable implementations, Matplotlib/WxAgg (always available) and VTK
-  (optional extra `vtk`, GPU-accelerated). Behavior and controls are identical; VTK is preferred when installed
-  and selectable via `--3d-backend`.
-- **N3 Dependencies**: prefer the existing optional `plotting` extra (Matplotlib). The GUI toolkit
-  decision is in the design; any new dependency is added as an optional extra.
+  The current macOS benchmark is below this target and was accepted as a deferred optimization;
+  Ground Track and Ground Station views add workloads not covered by that benchmark.
+- **N2 Portability**: macOS, Linux, and Windows are targets; Linux/Windows GUI installations and
+  rendering remain unverified in the current repository environment.
+- **N3a 3D backends**: 3D views have interchangeable Matplotlib/WxAgg and optional VTK backends.
+  VTK uses OpenGL, but hardware acceleration depends on the platform and graphics context; it is
+  not guaranteed. `auto` selects VTK only when its wx integration initializes successfully.
+- **N3 Dependencies**: wxPython, Matplotlib, and pyproj are provided by the optional `playback`
+  extra; VTK is a separate optional `vtk` extra. The base install does not require the GUI stack.
 - **N4 Determinism**: the state at `t_now` depends only on `t_now`, not on how the clock got there.
 - **N4a Data honesty**: indicate OEM segment boundaries and gaps; never imply continuous data or valid interpolation across a gap. Label reference frames, units, altitude reference and interpolated cursor values clearly.
 - **N5 Quality**: follow [python_style_guide.md](../../development/python_style_guide.md); pure logic
@@ -143,10 +147,11 @@ coverage; full-history ground-station analysis is enabled after EOF validation.
 - **N6 Testability**: playback logic, data processing and tests run without a display. Running
   the interactive player requires its GUI toolkit and display environment.
 
-### Out of scope (initial version)
+### Out of scope
 
-- Editing/modifying OEMs, multiple-OEM overlay (`plot-oem-diff` successor), ground tracks/maps,
-  video export (possible follow-up: `--record movie.mp4`).
+- Editing/modifying OEMs, multiple-OEM overlay (`plot-oem-diff` successor), and video export
+  (possible follow-up: `--record movie.mp4`). Ground Track and Ground Station analysis are
+  implemented features, not current scope exclusions.
 
 ## Migration
 

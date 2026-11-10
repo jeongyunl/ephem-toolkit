@@ -3,12 +3,14 @@ flowchart TD
 
     subgraph WORKER["Default loader path"]
         direction TB
+        SESSION["IncrementalLoader session<br/>generation, cancellation, bounded events"]
         CAPACITY["Optional capacity scan"]
         PARSE["read_oem_into_store<br/>parse state rows"]
         COMMIT["Reserve, fill, validate,<br/>commit raw rows"]
         RAW_EVENT["Generation-tagged<br/>raw-append event"]
         COMPLETE["Validated completion<br/>and metadata"]
-        CAPACITY --> PARSE
+        SESSION --> CAPACITY
+        SESSION --> PARSE
         PARSE --> COMMIT
         COMMIT --> RAW_EVENT
         PARSE --> COMPLETE
@@ -30,7 +32,6 @@ flowchart TD
         EARTH_FIXED --> GROUND_TRACK
         POLICY --> ACCESS
         POLICY --> FOOTPRINT
-        EARTH_FIXED --> FOOTPRINT
         SCHEDULER --> SERIES
         SCHEDULER --> EARTH_FIXED
         SCHEDULER --> GROUND_TRACK
@@ -48,6 +49,7 @@ flowchart TD
         CONTROLLER --> CONTEXT
         CONTROLLER --> CLOCK
         CONTROLLER --> RANGE
+        CONTROLLER -->|"start/cancel generation"| SESSION
         RAW --> TIER_NOTICE
         SERIES --> TIER_NOTICE
         EARTH_FIXED --> TIER_NOTICE
@@ -93,5 +95,5 @@ flowchart TD
 
     classDef store fill:#e8f1ff,stroke:#2463a6,stroke-width:2px
     classDef view fill:#f4f4f4,stroke:#666
-    class RAW,POLICY,SERIES,EARTH_FIXED,GROUND_TRACK,ACCESS,FOOTPRINT store
+    class RAW,POLICY,SERIES,EARTH_FIXED,GROUND_TRACK,ACCESS,FOOTPRINT,SCHEDULER store
     class HISTORIES,TRAJECTORY,TRACK_VIEW,STATION_VIEWS,PASS_TRACK,CURRENT_METRICS view

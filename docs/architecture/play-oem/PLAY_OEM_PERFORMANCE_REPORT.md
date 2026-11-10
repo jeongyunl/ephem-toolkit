@@ -2,9 +2,16 @@
 
 ## Summary
 
-Playback render rate is limited by Matplotlib figure drawing on the GUI thread. The per-tick data work is small by comparison. Two changes to the data path (vectorized decimation and skipping unchanged updates) gave large microbenchmark gains but no significant live-app gain. A cursor-only blit for the state-components view cut the measured per-frame draw time from about 60 ms to about 17 ms in wx, about 3.5×, and was kept.
+The benchmark figures in this report are historical and have not been re-measured against the
+current build. In those runs, playback render rate was limited by Matplotlib figure drawing on the
+GUI thread; per-tick data work was small by comparison. Two changes to the data path (vectorized
+decimation and skipping unchanged updates) gave large microbenchmark gains but no significant
+live-app gain. A cursor-only blit for the state-components view cut the measured per-frame draw
+time from about 60 ms to about 17 ms in wx, about 3.5×, and was kept.
 
-The configured 30 fps is not reached with 2 or 8 panels open, and reloading an OEM file does not change the steady-state rate. The resource-hardening check (Phase 4) has not started.
+The historical live-app runs did not reach the configured 30 fps with 2 or 8 panels open, and
+reloading an OEM file did not change the steady-state rate. The resource-hardening check (Phase 4)
+has not started. Latest complete `play-oem` test run: 593 passed, 4 skipped, 18 warnings.
 
 | Phase | Change | Status | Outcome |
 |---|---|---|---|
@@ -123,20 +130,27 @@ Reload cost (load and replace, excluding the first file): ISS 1.0 s and JPSS 4.5
 - Agg pixel test: the blit output equals a fresh full draw; a limit change forces the fallback.
 - Flush-decision unit test: covers cursor-only, full-pending, scheduled-full, and blit-failure cases.
 - Range-change test: `consume_cursor_only_update()` is False after a range change and True after a cursor-only update.
-- Play-oem suite: 352 passed, 11 failed. The 11 failures are the pre-existing ones listed under Open items.
+- Latest complete `play-oem` suite: 593 passed, 4 skipped, 18 warnings. This supersedes older
+  suite counts and failure notes in earlier report revisions.
 
-**Measurement** (wx, `FigureCanvasWxAgg`, 6-axis state view, 2280×1776 px, 60 frames; temporary script outside the repo, since deleted):
+**Historical measurement** (wx, `FigureCanvasWxAgg`, 6-axis state view, 2280×1776 px, 60 frames; temporary script outside the repo, since deleted):
 
 | Path | Median | p90 |
 |---|---|---|
 | Full draw (`canvas.draw()`, includes bitmap conversion) | 59.9 ms | 61.0 ms |
 | Cursor-only blit (`_CursorBlitter.redraw()`) | 17.0 ms | 19.2 ms |
 
-The blit saves about 43 ms per frame, about 3.5×. Most of the remaining 17 ms is Matplotlib's Agg-to-wx bitmap conversion inside `FigureCanvasWxAgg.blit`, which converts the full RGBA buffer. That conversion sets the floor on this canvas size.
+The blit saved about 43 ms per frame, about 3.5×, in this historical run. Most of the remaining
+17 ms was Matplotlib's Agg-to-wx bitmap conversion inside `FigureCanvasWxAgg.blit`, which converts
+the full RGBA buffer. This conversion set the floor on that canvas size; the measurements are not
+a current live-app benchmark.
 
 **Decision:** kept.
 
-**Not yet measured.** The live app with the real timer and the 8-panel workspace, and the VTK 3D panels. The synthetic full-draw median (59.9 ms at this size) is lower than the live 107 ms for the 6-axis figure in Phase 3. The live figure size and DPI were not matched in the benchmark, so the absolute numbers should not be compared directly.
+**Not yet measured.** The live app with the real timer and the 8-panel workspace, and the VTK 3D
+panels. The synthetic full-draw median (59.9 ms at this size) is lower than the live 107 ms for
+the 6-axis figure in Phase 3. The live figure size and DPI were not matched in the benchmark, so
+the absolute numbers should not be compared directly.
 
 ## Phase 4: Resource hardening and leak check (not started)
 
@@ -148,10 +162,10 @@ The blit saves about 43 ms per frame, about 3.5×. Most of the remaining 17 ms i
 ## Ground Station Access preparation
 
 **Change.** Access preparation evaluates each valid OEM segment on a uniform grid with a maximum
-30-second step, rather than evaluating every source sample. The active `OemCursor` interpolates
-states at grid epochs; sampled local elevation maxima are refined and access crossings are bisected
-to within 0.5 seconds. This preserves the documented time tolerances while avoiding work that
-scales with dense source cadence.
+30-second step, rather than evaluating every source sample. The store's state evaluator
+interpolates states at grid epochs; sampled local elevation maxima are refined and access crossings
+are bisected to within 0.5 seconds. This preserves the documented time tolerances while avoiding
+work that scales with dense source cadence.
 
 **Synthetic benchmark** (Python 3.9, macOS; Earth-centered ITRF circular-orbit OEM; 200,000 samples
 over 48 hours; three stations):
@@ -169,9 +183,8 @@ retaining local-maximum refinement and 0.5-second crossing refinement. This synt
 not a guarantee for frame-conversion-heavy OEMs or unusually complex interpolation policies.
 
 **Validation.** Ground Station Access and interval tests pass, including sub-step maxima,
-crossings, source-gap limitations, and segment-boundary behavior. The latest complete `play-oem`
-suite passes: 385 passed, 3 skipped. The benchmark above predates retaining elevation-profile
-samples for the graph and is a pass-preparation baseline.
+crossings, source-gap limitations, and segment-boundary behavior. The benchmark above predates
+retaining elevation-profile samples for the graph and is a pass-preparation baseline.
 
 ## Out of scope
 
@@ -180,9 +193,7 @@ samples for the graph and is a pass-preparation baseline.
 
 ## Open items
 
-1. Approve Phase 3 live-app timing (done) and decide whether Phase 4 proceeds.
-2. Decide whether Phase 4's Ground Track cleanup belongs in this report's scope.
-3. Decide whether to fix the 11 pre-existing test failures:
-   - 10 tests in `test_play_oem_cli.py` fail. The earlier diagnosis was a stale `args.speed` expectation; each test was not re-checked individually.
-   - 1 test in `test_workspace.py` (`test_feature_rail_supports_click_and_vertical_keyboard_navigation`) expects a "Playback" title that is now "Settings".
-4. Measure the live app with the Phase 5 path enabled (real timer, 8-panel workspace) to confirm the wx gain outside the benchmark.
+1. Decide whether Phase 4 resource hardening proceeds and whether the Ground Track callback
+   cleanup belongs in this report's scope.
+2. Measure the live app with the Phase 5 path enabled (real timer, 8-panel workspace) and the VTK
+   3D panels to confirm performance outside the historical synthetic benchmarks.

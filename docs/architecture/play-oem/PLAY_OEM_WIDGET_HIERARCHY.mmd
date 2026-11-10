@@ -19,11 +19,12 @@ flowchart TB
     subgraph LEFT ["Controls and Info pane"]
         controls_pane["self.controls_pane<br/>wx.Panel, Controls &amp; Info"]
         controls_pane --> controls_title_label["self.controls_title_label<br/>wx.StaticText"]
-        controls_pane --> rail["feature_button_rail (sizer)<br/>self.feature_rail_buttons: 3 x wx.BitmapToggleButton<br/>Settings, OEM file information, State"]
+        controls_pane --> rail["feature_button_rail (sizer)<br/>self.feature_rail_buttons: 4 x wx.BitmapToggleButton<br/>Settings, OEM file information, Ground Stations, State"]
         controls_pane --> feature_book["self.feature_book<br/>wx.Simplebook, one page per feature"]
 
         feature_book -- "Settings" --> settings_page["self.settings_page<br/>wx.Panel"]
         feature_book -- "OEM file information" --> info_page["self.file_info_page<br/>wx.Panel"]
+        feature_book -- "Ground Stations" --> ground_stations_page["self.ground_stations_page<br/>wx.Panel"]
         feature_book -- "State" --> state_page["self.state_page<br/>wx.Panel"]
 
         settings_page --> settings_panel["ControlWindow.settings_scroller<br/>wx.ScrolledWindow, vertical scroll"]
@@ -31,6 +32,12 @@ flowchart TB
 
         info_page --> info_scroll["self.file_info_scroll<br/>wx.ScrolledWindow, vertical scroll"]
         info_scroll --> info_labels["OEM file context and metadata headings and labels"]
+
+        ground_stations_page --> station_manager["GroundStationsManager"]
+        station_manager --> station_scroll["wx.ScrolledWindow<br/>Ground Stations manager"]
+        station_scroll --> station_add["Add Ground Station button"]
+        station_scroll --> station_rows["Station rows<br/>expandable wx.ToggleButton"]
+        station_rows --> station_editor["Inline editor<br/>name, coordinates, altitude,<br/>elevation mask, validation, Save/Cancel/Remove"]
 
         state_page --> state_scroller["ControlWindow.state_scroller<br/>wx.ScrolledWindow, vertical scroll"]
         state_scroller --> state_labels["state_position_label, state_velocity_label,<br/>state_derived_label, state_cursor_status_label"]
@@ -64,7 +71,7 @@ flowchart TB
     end
 
     subgraph TIMELINE ["Bottom strip"]
-        timeline_panel["self.timeline_panel<br/>wx.Panel"]
+        timeline_panel["self.timeline_panel<br/>wx.ScrolledWindow"]
         timeline_panel --> timeline_separator["wx.StaticLine<br/>visual boundary above timeline"]
         timeline_panel --> time_row["self.timeline_start_label, self.timeline_current_prefix,<br/>self.timeline_time_entry, self.time_error_label,<br/>self.timeline_end_label"]
         timeline_panel --> playback_controls_row["playback_sizer<br/>reverse speed presets, reverse play, forward play,<br/>forward speed presets, focus sink"]

@@ -173,9 +173,11 @@ OEM metadata** uses the current file's interpolation metadata. Changes are saved
 application exits. The panel also displays the active method, degree, and source; if OEM
 interpolation metadata is absent, it reports the linear fallback.
 
-The input file is selected for an individual run. `play-oem` loads the full OEM file and chooses
-the time-axis unit automatically: minutes for OEM spans shorter than one hour, and hours for spans
-of one hour or more. Seek to a desired time in the GUI.
+The input file is selected for an individual run. `play-oem` opens its workspace first, then streams
+the OEM into its data store on a background worker. Playback and views can use committed samples
+while loading continues through EOF validation. The time-axis unit follows the loaded span:
+minutes for spans shorter than one hour and hours for spans of one hour or more. Seek to a loaded
+time in the GUI; the playable range grows as samples arrive.
 
 ## Command-line options
 

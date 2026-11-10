@@ -102,8 +102,9 @@ valid OEM segment is evaluated on a uniform grid no coarser than
 sub-step passes, and access crossings are refined to within 0.5 seconds of the selected cursor
 interpolation. These tolerances describe the numerical calculation, not physical accuracy.
 
-All panels share cached per-station histories and Earth-fixed sample positions; adding a panel or
-changing Plot Range does not repeat the historical calculation.
+Station panels share the store's lazy per-station profile and access-interval tiers; Ground Track
+panels share its separate Earth-fixed position tier. Adding a panel or changing Plot Range reuses
+cached range data instead of creating per-view full-history copies.
 
 The view reports pass predictions as unavailable when a segment contains a sample gap over five
 minutes, fewer than two samples, or would require over one million evaluation samples. Passes are
