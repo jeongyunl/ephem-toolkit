@@ -19,15 +19,16 @@ The proposed modular Ground Station Analysis redesign is described in the
 ## Current runtime behavior
 
 The completed steps below are an implementation history and may record behavior that has since
-changed. Current `play-oem` loads the full OEM file and selects the time-axis unit from its span
-(minutes below one hour, hours otherwise). Playback speed, direction, seeking, and render rate are
-controlled in the GUI. The Settings pane FPS slider ranges from 1 to 30 FPS (default 30). Its timer
-advances the clock across all complete elapsed frame periods, redraws once, and drops intermediate
-frames when rendering overruns.
+changed. Current `play-oem` streams the selected OEM into an `OemDataStore` on a background worker;
+playback and views use committed samples while loading continues through EOF validation. It selects
+the time-axis unit from the OEM span (minutes below one hour, hours otherwise). Playback speed,
+direction, seeking, and render rate are controlled in the GUI. The Settings pane FPS slider ranges
+from 1 to 30 FPS (default 30). Its timer advances the clock across all complete elapsed frame
+periods, redraws once, and drops intermediate frames when rendering overruns.
 
-The proposed large-file startup work has its own
-[incremental loading design](./PLAY_OEM_INCREMENTAL_LOADING.md) and
-[implementation plan](./PLAY_OEM_INCREMENTAL_LOADING_IMPLEMENTATION_PLAN.md).
+Incremental loading is implemented; see its
+[implementation report](./old/PLAY_OEM_INCREMENTAL_LOADING_IMPLEMENTATION_REPORT.md) and the
+[archived design](./old/PLAY_OEM_INCREMENTAL_LOADING.md).
 
 ## How to use this plan
 

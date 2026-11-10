@@ -75,8 +75,10 @@ and station views do not have non-store data fallbacks. Each load generation own
 
 ## Related documents
 
-- [PLAY_OEM_INCREMENTAL_LOADING.md](./PLAY_OEM_INCREMENTAL_LOADING.md): incremental loading
-  design
+- [PLAY_OEM_INCREMENTAL_LOADING.md](./old/PLAY_OEM_INCREMENTAL_LOADING.md): archived incremental
+  loading design
+- [PLAY_OEM_INCREMENTAL_LOADING_IMPLEMENTATION_REPORT.md](./old/PLAY_OEM_INCREMENTAL_LOADING_IMPLEMENTATION_REPORT.md):
+  shipped implementation and validation
 - [PLAY_OEM_DATA_STORE_SOFTWARE_DESIGN.md](./old/PLAY_OEM_DATA_STORE_SOFTWARE_DESIGN.md): archived
   unified-store architecture and performance evidence
 - [PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md): overall software design

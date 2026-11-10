@@ -8,8 +8,9 @@ Implementation outcome is recorded in the
 [Unified OEM Data Store Implementation Report](./PLAY_OEM_DATA_STORE_IMPLEMENTATION_REPORT.md).
 
 Current behavior is described in [PLAY_OEM_DATAFLOW.md](../PLAY_OEM_DATAFLOW.md) and its diagram
-[PLAY_OEM_DATAFLOW.mmd](../PLAY_OEM_DATAFLOW.mmd). Incremental loading semantics remain as
-specified in [PLAY_OEM_INCREMENTAL_LOADING.md](../PLAY_OEM_INCREMENTAL_LOADING.md).
+[PLAY_OEM_DATAFLOW.mmd](../PLAY_OEM_DATAFLOW.mmd). Incremental loading semantics are summarized
+in [PLAY_OEM_INCREMENTAL_LOADING_IMPLEMENTATION_REPORT.md](./PLAY_OEM_INCREMENTAL_LOADING_IMPLEMENTATION_REPORT.md);
+the original design is archived in [PLAY_OEM_INCREMENTAL_LOADING.md](./PLAY_OEM_INCREMENTAL_LOADING.md).
 
 ### Implementation status
 

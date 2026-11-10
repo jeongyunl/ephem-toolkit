@@ -1,5 +1,10 @@
 # `play-oem` — Incremental OEM Loading Design
 
+> **Archived design.** Incremental loading is implemented. This document preserves the
+> original design history; the shipped direct-to-store behavior is documented in the
+> [dataflow](../PLAY_OEM_DATAFLOW.md) and
+> [implementation report](./PLAY_OEM_INCREMENTAL_LOADING_IMPLEMENTATION_REPORT.md).
+
 ## Goal
 
 Show the `play-oem` workspace and useful orbit data before a large OEM has been fully parsed and
