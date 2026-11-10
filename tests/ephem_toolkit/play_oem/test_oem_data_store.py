@@ -842,6 +842,59 @@ def test_series_groups_are_lazy_chunked_views_matching_reference_computations() 
     assert _one_group(repeated, "kinematics").values.shape == (4, 4)
 
 
+def test_series_computes_only_rows_inside_requested_ranges(monkeypatch) -> None:
+    sample_count = 6000
+    indices = np.arange(sample_count, dtype=float)
+    times = indices
+    states = np.column_stack(
+        (
+            7_000_000.0 + indices,
+            indices**2,
+            50_000.0 + 2.0 * indices,
+            -indices,
+            7_500.0 - 0.1 * indices,
+            2.0 * indices,
+        )
+    )
+    store = _store_with_samples(
+        times, states, np.zeros(sample_count, dtype=np.int64)
+    )
+    snapshot = store.snapshot()
+    computed_spans = []
+    original_write = oem_data_store._write_series_chunk
+
+    def record_write(snapshot, group, start, stop, output) -> None:
+        computed_spans.append((start, stop))
+        original_write(snapshot, group, start, stop, output)
+
+    monkeypatch.setattr(oem_data_store, "_write_series_chunk", record_write)
+
+    first = store.series(
+        snapshot, (4500.0, 4501.0), groups=("kinematics",), wait=True
+    )
+    repeated = store.series(
+        snapshot, (4500.0, 4501.0), groups=("kinematics",), wait=True
+    )
+    second = store.series(
+        snapshot, (5000.0, 5001.0), groups=("kinematics",), wait=True
+    )
+
+    assert computed_spans == [(4500, 4502), (5000, 5002)]
+    np.testing.assert_array_equal(
+        _one_group(first, "kinematics").values[:, 0], [4500.0, 4501.0]
+    )
+    np.testing.assert_array_equal(
+        _one_group(repeated, "kinematics").values[:, 0], [4500.0, 4501.0]
+    )
+    np.testing.assert_array_equal(
+        _one_group(second, "kinematics").values[:, 0], [5000.0, 5001.0]
+    )
+    np.testing.assert_array_equal(
+        np.flatnonzero(store._series_ready["kinematics"]),
+        [4500, 4501, 5000, 5001],
+    )
+
+
 def test_series_queries_compute_only_requested_groups_and_stride_views() -> None:
     times, states, segments = _series_samples()
     store = _store_with_samples(times, states, segments)
@@ -1359,6 +1412,50 @@ def test_earth_fixed_positions_are_lazy_memoized_read_only_views() -> None:
     assert store.earth_fixed_chunk_counters.hits == 1
 
 
+def test_earth_fixed_computes_only_rows_inside_requested_range(monkeypatch) -> None:
+    sample_count = 6000
+    indices = np.arange(sample_count, dtype=float)
+    times = indices
+    states = np.column_stack(
+        (
+            7_000_000.0 + indices,
+            indices**2,
+            50_000.0 + 2.0 * indices,
+            -indices,
+            7_500.0 - 0.1 * indices,
+            2.0 * indices,
+        )
+    )
+    store = _store_with_samples(
+        times,
+        states,
+        np.zeros(sample_count, dtype=np.int64),
+        metadata=(("CENTER_NAME", "EARTH"), ("REF_FRAME", "ITRF")),
+    )
+    snapshot = store.snapshot()
+    computed_spans = []
+    original_write = oem_data_store._write_earth_fixed_chunk
+
+    def record_write(snapshot, frame_name, start, stop, output) -> None:
+        computed_spans.append((start, stop))
+        original_write(snapshot, frame_name, start, stop, output)
+
+    monkeypatch.setattr(
+        oem_data_store, "_write_earth_fixed_chunk", record_write
+    )
+
+    query = store.earth_fixed_positions(
+        snapshot, (4500.0, 4501.0), wait=True
+    )
+
+    assert computed_spans == [(4500, 4502)]
+    np.testing.assert_array_equal(query.value[0].values[:, 0], [4500.0, 4501.0])
+    assert store._earth_fixed_ready is not None
+    np.testing.assert_array_equal(
+        np.flatnonzero(store._earth_fixed_ready), [4500, 4501]
+    )
+
+
 def test_station_profiles_are_lazy_shared_and_threshold_independent() -> None:
     elevations = np.array([0.0, 60.0, 0.0])
     states = np.column_stack(
@@ -1446,6 +1543,18 @@ def test_station_access_recomputes_policy_dependent_support_margin() -> None:
 
     assert first_profile[0, 0] < bounds[0]
     assert first_profile[-1, 0] > bounds[1]
+    margin = max(
+        oem_data_store.ACCESS_WINDOW_MIN_MARGIN_S,
+        oem_data_store.ACCESS_WINDOW_MARGIN_FRACTION * (bounds[1] - bounds[0]),
+    )
+    expected_first, expected_stop = oem_data_store._station_profile_row_range(
+        first_tier.layouts[0],
+        (bounds[0] - margin, bounds[1] + margin),
+    )
+    np.testing.assert_array_equal(
+        np.flatnonzero(first_tier.ready),
+        np.arange(expected_first, expected_stop),
+    )
     np.testing.assert_array_equal(repeated_profile, first_profile)
     assert repeated_tier is not first_tier
     assert first_tier.memo.counters.chunks_computed == 1

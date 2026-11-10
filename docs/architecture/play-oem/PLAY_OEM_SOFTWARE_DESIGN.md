@@ -180,6 +180,11 @@ class View(Protocol):
   playback-time updates move cursors, markers, and current-state metrics.
 - The store owns raw samples and lazily computed derived tiers. Views may create bounded display
   paths or decimated indices, but do not retain independent full-history derived owners.
+- Derived calculations operate only on requested, not-yet-ready sample rows. Chunking is for cache
+  allocation, accounting, pinning, and eviction; touching a chunk does not calculate its other rows.
+  Calculations may read raw support samples needed to produce an in-range result. Station-access
+  analysis also expands the requested interval by its documented pass-boundary margin, so results
+  near either edge can include a complete access interval.
 - Plot each OEM segment separately; do not draw lines across gaps. Mark segment boundaries
   clearly, and update the cursor/readout style or status when `t_now` lies in a gap.
 - **WxAgg redraws**: most updates schedule a full canvas draw; the state-components view uses a

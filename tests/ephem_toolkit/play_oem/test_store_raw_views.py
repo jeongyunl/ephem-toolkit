@@ -106,3 +106,24 @@ def test_trajectory3d_store_paths_are_bounded_and_range_updates_keep_camera() ->
     assert not view._orbit_artists
     assert view._cursor_artist is not None and not view._cursor_artist.get_visible()
     view.close()
+
+
+def test_trajectory3d_store_autoscale_uses_only_the_plot_range() -> None:
+    context = _store_context().with_range(
+        ResolvedTimeRange(160.0, 220.0), (100.0, 280.0)
+    )
+    view = Trajectory3DView(None, "ISS", "EME2000 / Earth")
+    figure = view.build_from_store(context)
+    axes = figure.axes[0]
+
+    centers = np.array(
+        [
+            np.mean(axes.get_xlim()),
+            np.mean(axes.get_ylim()),
+            np.mean(axes.get_zlim()),
+        ]
+    )
+    np.testing.assert_allclose(centers, [-3_500_000.0, 3_500_000.0, 0.0])
+    assert view._start_artist is None
+    assert view._end_artist is None
+    view.close()

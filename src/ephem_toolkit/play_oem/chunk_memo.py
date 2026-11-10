@@ -163,6 +163,20 @@ class ChunkMemo(Generic[K, T]):
             self._remove_entry_locked(key, entry)
             return True
 
+    def discard(self, key: K) -> bool:
+        """Remove one entry without counting replacement as a memory eviction."""
+        with self._lock:
+            entry = self._entries.get(key)
+            if entry is None:
+                return False
+            self._remove_entry_locked(key, entry, count_eviction=False)
+            return True
+
+    def record_hit(self) -> None:
+        """Record reuse of data tracked outside this memo's cached value."""
+        with self._lock:
+            self._hits += 1
+
     def evict(
         self,
         key: K,
@@ -197,14 +211,16 @@ class ChunkMemo(Generic[K, T]):
                 else:
                     self._evictions += 1
 
-    def _remove_entry_locked(self, key: K, entry: _ChunkEntry[T]) -> None:
+    def _remove_entry_locked(
+        self, key: K, entry: _ChunkEntry[T], *, count_eviction: bool = True
+    ) -> None:
         if self._entries.get(key) is not entry:
             return
         del self._entries[key]
         if entry.state is ChunkState.COMPUTING:
             if entry.future is not None:
                 entry.future.cancel()
-        else:
+        elif count_eviction:
             self._evictions += 1
 
     @staticmethod

@@ -126,10 +126,12 @@ for saved diagnostic plots; `play-oem` is the interactive playback command.
 
 The loader streams raw OEM rows into the application-owned `OemDataStore`. The store lazily
 computes requested range-limited series, Earth-fixed positions, Ground Track data, and station
-access tiers. Views query a shared snapshot/range context rather than retaining duplicate
-full-history data. Station-access queries may show partial coverage while loading; their coverage
-is complete only after EOF validation. The time-axis unit follows the loaded OEM span and settles
-to the full-file span when loading completes.
+access tiers, calculating only missing rows within the queried interval rather than whole cache
+chunks. Necessary raw support samples and the station pass-boundary margin are the exceptions.
+Views query a shared snapshot/range context rather than retaining duplicate full-history data.
+Station-access queries may show partial coverage while loading; their coverage is complete only
+after EOF validation. The time-axis unit follows the loaded OEM span and settles to the full-file
+span when loading completes.
 
 ### Non-functional
 

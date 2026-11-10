@@ -510,6 +510,7 @@ class _StationProfileTier:
     memo: ChunkMemo[int, RowSpan]
     layouts: tuple[_StationSegmentLayout, ...] = ()
     row_count: int = 0
+    ready: np.ndarray | None = None
 
 
 class _StoreStationCursor:
@@ -737,6 +738,7 @@ class OemDataStore:
         ):
             raise ValueError("derived_memory_budget_bytes must be a positive integer")
         self._lock = RLock()
+        self._derived_compute_lock = RLock()
         self._derived_memory_budget_bytes = derived_memory_budget_bytes
         self._chunk_access_order: dict[tuple[int, int], int] = {}
         self._chunk_ranges: dict[tuple[int, int], tuple[TimeBounds, ...]] = {}
@@ -762,8 +764,10 @@ class OemDataStore:
         self._reservation: RawReservation | None = None
         self._validating = False
         self._series_buffers: dict[SeriesGroupName, np.ndarray] = {}
+        self._series_ready: dict[SeriesGroupName, np.ndarray] = {}
         self._series_memos: dict[SeriesGroupName, ChunkMemo[int, RowSpan]] = {}
         self._earth_fixed_buffer: np.ndarray | None = None
+        self._earth_fixed_ready: np.ndarray | None = None
         self._earth_fixed_memo: ChunkMemo[int, RowSpan] = ChunkMemo()
         self._ground_track_cache: OrderedDict[
             tuple[object, ...], StoreQuery[GroundTrackGroups]
@@ -1363,7 +1367,9 @@ class OemDataStore:
             memo.clear()
         self._earth_fixed_memo.clear()
         self._series_buffers.clear()
+        self._series_ready.clear()
         self._earth_fixed_buffer = None
+        self._earth_fixed_ready = None
         self._ground_track_cache.clear()
         self._clear_station_tiers_locked()
         self._footprint_cache.clear()
@@ -1763,7 +1769,7 @@ class OemDataStore:
                 ready_by_group.append(())
                 continue
             if wait:
-                buffer, memo = self._series_storage(snapshot, group)
+                buffer, memo, ready = self._series_storage(snapshot, group)
                 self._compute_series_range(
                     snapshot,
                     group,
@@ -1771,6 +1777,7 @@ class OemDataStore:
                     stop,
                     buffer,
                     memo,
+                    ready,
                     cancel_event=_cancel_event,
                     on_chunk=lambda span: self._publish_notice(
                         TierNotice(
@@ -1787,7 +1794,8 @@ class OemDataStore:
                 with self._lock:
                     buffer = self._series_buffers.get(group)
                     memo = self._series_memos.get(group)
-            if buffer is None or memo is None:
+                    ready = self._series_ready.get(group)
+            if buffer is None or memo is None or ready is None:
                 ready_spans = ()
                 group_views = ()
             else:
@@ -1795,15 +1803,10 @@ class OemDataStore:
                 row_count = stop - start
                 if max_samples is not None and row_count > max_samples:
                     stride = math.ceil(row_count / max_samples)
-                with self._lock:
+                with self._derived_compute_lock, self._lock:
                     self._touch_chunks_locked(buffer, start, stop, bounds)
-                    ready_spans = _memo_row_spans(
-                        memo,
-                        start,
-                        stop,
-                        snapshot.sample_count,
-                        snapshot.epoch,
-                        0,
+                    ready_spans = _row_spans(
+                        ready, start, stop, ready_value=True
                     )
                     group_views = tuple(
                         self._make_column_group_view(
@@ -1937,7 +1940,7 @@ class OemDataStore:
                 _time_coverage(snapshot, bounds),
             )
         if wait:
-            buffer, memo = self._earth_fixed_storage(snapshot)
+            buffer, memo, ready = self._earth_fixed_storage(snapshot)
             self._compute_earth_fixed_range(
                 snapshot,
                 frame_name,
@@ -1945,6 +1948,7 @@ class OemDataStore:
                 stop,
                 buffer,
                 memo,
+                ready,
                 cancel_event=_cancel_event,
                 on_chunk=lambda span: self._publish_notice(
                     TierNotice(
@@ -1961,24 +1965,20 @@ class OemDataStore:
             with self._lock:
                 buffer = self._earth_fixed_buffer
                 memo = self._earth_fixed_memo if buffer is not None else None
-        if buffer is None or memo is None:
+                ready = self._earth_fixed_ready
+        if buffer is None or memo is None or ready is None:
             ready_spans = ()
             groups = ()
         else:
-            with self._lock:
+            with self._derived_compute_lock, self._lock:
                 self._touch_chunks_locked(
                     buffer,
                     start,
                     stop,
                     expanded_bounds,
                 )
-                ready_spans = _memo_row_spans(
-                    memo,
-                    start,
-                    stop,
-                    snapshot.sample_count,
-                    snapshot.epoch,
-                    0,
+                ready_spans = _row_spans(
+                    ready, start, stop, ready_value=True
                 )
                 groups = tuple(
                     self._make_column_group_view(
@@ -2331,33 +2331,36 @@ class OemDataStore:
         ready_values: list[
             tuple[_StationSegmentLayout, int, int, np.ndarray]
         ] = []
-        for layout, first, stop in layout_ranges:
-            first_row = layout.base_index + first
-            stop_row = layout.base_index + stop
-            with self._lock:
-                ready = _memo_row_spans(
-                    tier.memo,
-                    first_row,
-                    stop_row,
-                    tier.row_count,
-                    snapshot.epoch,
-                    snapshot.policy_revision,
-                )
-                for span in ready:
-                    values = tier.buffer[span.first : span.stop]
-                    profile_views.append(
-                        LookAngleProfileView(
-                            self._make_column_group_view(
-                                values,
-                                STATION_PROFILE_COLUMNS,
-                                (RowSpan(0, len(values)),),
-                                tier.buffer,
-                                span.first,
-                                span.stop,
+        if tier.ready is not None:
+            with self._derived_compute_lock, self._lock:
+                for layout, first, stop in layout_ranges:
+                    first_row = layout.base_index + first
+                    stop_row = layout.base_index + stop
+                    ready_spans = _row_spans(
+                        tier.ready, first_row, stop_row, ready_value=True
+                    )
+                    for span in ready_spans:
+                        values = tier.buffer[span.first : span.stop]
+                        profile_views.append(
+                            LookAngleProfileView(
+                                self._make_column_group_view(
+                                    values,
+                                    STATION_PROFILE_COLUMNS,
+                                    (RowSpan(0, len(values)),),
+                                    tier.buffer,
+                                    span.first,
+                                    span.stop,
+                                )
                             )
                         )
-                    )
-                    ready_values.append((layout, first, stop, values))
+                        ready_values.append(
+                            (
+                                layout,
+                                span.first - layout.base_index,
+                                span.stop - layout.base_index,
+                                values,
+                            )
+                        )
 
         for layout, first, stop, values in ready_values:
             first_time = float(values[0, 0])
@@ -2391,18 +2394,23 @@ class OemDataStore:
             )
 
         base_coverage = _time_coverage(snapshot, bounds)
-        requested_rows_ready = all(
-            sum(span.stop - span.first for span in _memo_row_spans(
-                tier.memo,
-                layout.base_index + first,
-                layout.base_index + stop,
-                tier.row_count,
-                snapshot.epoch,
-                snapshot.policy_revision,
-            ))
-            == stop - first
-            for layout, first, stop in layout_ranges
-        )
+        if tier.ready is None:
+            requested_rows_ready = not layout_ranges
+        else:
+            with self._derived_compute_lock:
+                requested_rows_ready = all(
+                    sum(
+                        span.stop - span.first
+                        for span in _row_spans(
+                            tier.ready,
+                            layout.base_index + first,
+                            layout.base_index + stop,
+                            ready_value=True,
+                        )
+                    )
+                    == stop - first
+                    for layout, first, stop in layout_ranges
+                )
         coverage = TimeCoverage(
             bounds,
             tuple(coverage_spans),
@@ -2538,6 +2546,7 @@ class OemDataStore:
                 ChunkMemo(),
                 tuple(layouts),
                 base_index,
+                np.zeros(base_index, dtype=bool),
             )
             self._station_profiles[key] = tier
             return tier, None
@@ -2552,80 +2561,94 @@ class OemDataStore:
         *,
         cancel_event: Event | None,
     ) -> None:
-        chunks = sorted(
-            {
-                chunk_index
-                for layout, first, stop in ranges
-                for chunk_index in range(
-                    (layout.base_index + first) // DERIVED_CHUNK_SIZE,
-                    (layout.base_index + stop - 1) // DERIVED_CHUNK_SIZE + 1,
+        if tier.ready is None:
+            raise RuntimeError("station profile readiness was not initialized")
+        requested_by_chunk: dict[
+            int, list[tuple[_StationSegmentLayout, int, int]]
+        ] = {}
+        for layout, first, stop in ranges:
+            row_start = layout.base_index + first
+            row_stop = layout.base_index + stop
+            for chunk_index in range(
+                row_start // DERIVED_CHUNK_SIZE,
+                (row_stop - 1) // DERIVED_CHUNK_SIZE + 1,
+            ):
+                chunk_start = chunk_index * DERIVED_CHUNK_SIZE
+                chunk_stop = min(chunk_start + DERIVED_CHUNK_SIZE, tier.row_count)
+                requested_by_chunk.setdefault(chunk_index, []).append(
+                    (
+                        layout,
+                        max(row_start, chunk_start),
+                        min(row_stop, chunk_stop),
+                    )
                 )
-            }
-        )
-        for chunk_index in chunks:
-            if cancel_event is not None and cancel_event.is_set():
-                raise CancelledError()
-            chunk_start = chunk_index * DERIVED_CHUNK_SIZE
-            chunk_stop = min(chunk_start + DERIVED_CHUNK_SIZE, tier.row_count)
-            computed = False
 
-            def compute() -> RowSpan:
-                nonlocal computed
-                computed = True
-                for layout in tier.layouts:
-                    first = max(chunk_start, layout.base_index)
-                    stop = min(
-                        chunk_stop,
-                        layout.base_index + layout.row_count,
+        with self._derived_compute_lock:
+            for chunk_index, requested in sorted(requested_by_chunk.items()):
+                if cancel_event is not None and cancel_event.is_set():
+                    raise CancelledError()
+                chunk_start = chunk_index * DERIVED_CHUNK_SIZE
+                chunk_stop = min(chunk_start + DERIVED_CHUNK_SIZE, tier.row_count)
+                missing = [
+                    (layout, span)
+                    for layout, first, stop in requested
+                    for span in _row_spans(
+                        tier.ready, first, stop, ready_value=False
                     )
-                    if first >= stop:
-                        continue
-                    for row_index in range(first, stop):
-                        if cancel_event is not None and cancel_event.is_set():
-                            raise CancelledError()
-                        epoch_s = _station_profile_row_time(
-                            layout, row_index - layout.base_index
-                        )
-                        state = self.state_at(snapshot, epoch_s)
-                        row = tier.buffer[row_index]
-                        row[0] = epoch_s
-                        if state.state_m is None:
-                            row[1:] = np.nan
-                            continue
-                        metrics = station_metrics(
-                            station,
-                            state.state_m,
-                            frame_name,
-                            epoch_s,
-                        )
-                        row[1:] = (
-                            metrics.azimuth_deg,
-                            metrics.elevation_deg,
-                            metrics.slant_range_km,
-                        )
-                return RowSpan(chunk_start, chunk_stop)
+                ]
+                if not missing:
+                    tier.memo.record_hit()
+                    continue
+                tier.memo.discard(chunk_index)
 
-            tier.memo.get_or_compute(
-                chunk_index,
-                compute,
-                epoch=snapshot.epoch,
-                policy_revision=snapshot.policy_revision,
-                tentative=(
-                    snapshot.status is LoadStatus.LOADING
-                    and chunk_stop < chunk_start + DERIVED_CHUNK_SIZE
-                ),
-                cancel_event=cancel_event,
-            )
-            if computed:
-                self._publish_notice(
-                    TierNotice(
-                        snapshot.epoch,
-                        "station-access",
-                        None,
-                        station.station_id,
-                        chunk_start,
-                        chunk_stop,
-                    )
+                def compute() -> RowSpan:
+                    for layout, span in missing:
+                        for row_index in range(span.first, span.stop):
+                            if cancel_event is not None and cancel_event.is_set():
+                                raise CancelledError()
+                            epoch_s = _station_profile_row_time(
+                                layout, row_index - layout.base_index
+                            )
+                            state = self.state_at(snapshot, epoch_s)
+                            row = tier.buffer[row_index]
+                            row[0] = epoch_s
+                            if state.state_m is None:
+                                row[1:] = np.nan
+                            else:
+                                metrics = station_metrics(
+                                    station,
+                                    state.state_m,
+                                    frame_name,
+                                    epoch_s,
+                                )
+                                row[1:] = (
+                                    metrics.azimuth_deg,
+                                    metrics.elevation_deg,
+                                    metrics.slant_range_km,
+                                )
+                        tier.ready[span.first : span.stop] = True
+                        self._publish_notice(
+                            TierNotice(
+                                snapshot.epoch,
+                                "station-access",
+                                None,
+                                station.station_id,
+                                span.first,
+                                span.stop,
+                            )
+                        )
+                    return RowSpan(chunk_start, chunk_stop)
+
+                tier.memo.get_or_compute(
+                    chunk_index,
+                    compute,
+                    epoch=snapshot.epoch,
+                    policy_revision=snapshot.policy_revision,
+                    tentative=(
+                        snapshot.status is LoadStatus.LOADING
+                        and chunk_stop < chunk_start + DERIVED_CHUNK_SIZE
+                    ),
+                    cancel_event=cancel_event,
                 )
 
     def _validate_snapshot_epoch(self, snapshot: StoreSnapshot) -> None:
@@ -2648,7 +2671,7 @@ class OemDataStore:
 
     def _series_storage(
         self, snapshot: StoreSnapshot, group: SeriesGroupName
-    ) -> tuple[np.ndarray, ChunkMemo[int, RowSpan]]:
+    ) -> tuple[np.ndarray, ChunkMemo[int, RowSpan], np.ndarray]:
         with self._lock:
             if snapshot.epoch != self._epoch:
                 raise RuntimeError("store epoch has changed")
@@ -2660,11 +2683,12 @@ class OemDataStore:
                     (len(self._raw), len(_SERIES_COLUMNS[group])),
                 )
                 self._series_buffers[group] = buffer
+                self._series_ready[group] = np.zeros(len(self._raw), dtype=bool)
             memo = self._series_memos.get(group)
             if memo is None:
                 memo = ChunkMemo()
                 self._series_memos[group] = memo
-            return buffer, memo
+            return buffer, memo, self._series_ready[group]
 
     def _touch_chunks_locked(
         self,
@@ -2727,7 +2751,7 @@ class OemDataStore:
         return ColumnGroupView(values, columns, segment_bounds, lease)
 
     def _evict_derived_buffers(self) -> None:
-        with self._lock:
+        with self._derived_compute_lock, self._lock:
             candidates: list[
                 tuple[
                     int,
@@ -2736,6 +2760,7 @@ class OemDataStore:
                     int,
                     np.ndarray,
                     ChunkMemo[int, RowSpan],
+                    np.ndarray,
                     int,
                     int,
                     int,
@@ -2746,10 +2771,13 @@ class OemDataStore:
                 kind: Literal["series", "earth-fixed", "station-access"],
                 buffer: np.ndarray,
                 memo: ChunkMemo[int, RowSpan],
+                ready: np.ndarray | None,
                 row_count: int,
                 columns: int,
                 policy_revision: int,
             ) -> None:
+                if ready is None:
+                    return
                 buffer_id = _mapped_buffer_id(buffer)
                 for chunk_index in range(
                     math.ceil(row_count / DERIVED_CHUNK_SIZE)
@@ -2773,6 +2801,7 @@ class OemDataStore:
                             chunk_index,
                             buffer,
                             memo,
+                            ready,
                             row_count,
                             columns,
                             chunk_rows * columns * np.dtype(np.float64).itemsize,
@@ -2784,6 +2813,7 @@ class OemDataStore:
                     "series",
                     buffer,
                     self._series_memos[group],
+                    self._series_ready[group],
                     len(buffer),
                     len(_SERIES_COLUMNS[group]),
                     0,
@@ -2793,6 +2823,7 @@ class OemDataStore:
                     "earth-fixed",
                     self._earth_fixed_buffer,
                     self._earth_fixed_memo,
+                    self._earth_fixed_ready,
                     len(self._earth_fixed_buffer),
                     len(EARTH_FIXED_COLUMNS),
                     0,
@@ -2802,6 +2833,7 @@ class OemDataStore:
                     "station-access",
                     tier.buffer,
                     tier.memo,
+                    tier.ready,
                     tier.row_count,
                     len(STATION_PROFILE_COLUMNS),
                     self._policy_revision,
@@ -2837,6 +2869,7 @@ class OemDataStore:
                     chunk_index,
                     buffer,
                     memo,
+                    ready,
                     row_count,
                     columns,
                     chunk_bytes,
@@ -2850,15 +2883,22 @@ class OemDataStore:
                 ):
                     continue
 
-                if not memo.evict(
-                    chunk_index,
-                    lambda: _madvise_chunk(
+                chunk_start = chunk_index * DERIVED_CHUNK_SIZE
+                chunk_stop = min(chunk_start + DERIVED_CHUNK_SIZE, row_count)
+
+                def release_chunk() -> None:
+                    _madvise_chunk(
                         buffer,
                         chunk_index,
                         row_count,
                         columns,
                         advice,
-                    ),
+                    )
+                    ready[chunk_start:chunk_stop] = False
+
+                if not memo.evict(
+                    chunk_index,
+                    release_chunk,
                     epoch=self._epoch,
                     policy_revision=(
                         self._policy_revision
@@ -2875,7 +2915,7 @@ class OemDataStore:
 
     def _earth_fixed_storage(
         self, snapshot: StoreSnapshot
-    ) -> tuple[np.ndarray, ChunkMemo[int, RowSpan]]:
+    ) -> tuple[np.ndarray, ChunkMemo[int, RowSpan], np.ndarray]:
         with self._lock:
             if snapshot.epoch != self._epoch:
                 raise RuntimeError("store epoch has changed")
@@ -2885,7 +2925,13 @@ class OemDataStore:
                 self._earth_fixed_buffer = _mapped_float_array(
                     (len(self._raw), len(EARTH_FIXED_COLUMNS))
                 )
-            return self._earth_fixed_buffer, self._earth_fixed_memo
+                self._earth_fixed_ready = np.zeros(len(self._raw), dtype=bool)
+            assert self._earth_fixed_ready is not None
+            return (
+                self._earth_fixed_buffer,
+                self._earth_fixed_memo,
+                self._earth_fixed_ready,
+            )
 
     def _compute_series_range(
         self,
@@ -2895,43 +2941,48 @@ class OemDataStore:
         stop: int,
         buffer: np.ndarray,
         memo: ChunkMemo[int, RowSpan],
+        ready: np.ndarray,
         *,
         cancel_event: Event | None = None,
         on_chunk: Callable[[RowSpan], None] | None = None,
     ) -> None:
-        first_chunk = start // DERIVED_CHUNK_SIZE
-        last_chunk = (stop - 1) // DERIVED_CHUNK_SIZE
-        for chunk_index in range(first_chunk, last_chunk + 1):
-            if cancel_event is not None and cancel_event.is_set():
-                raise CancelledError()
-            chunk_start = chunk_index * DERIVED_CHUNK_SIZE
-            chunk_stop = min(chunk_start + DERIVED_CHUNK_SIZE, snapshot.sample_count)
-            tentative = (
-                snapshot.status is LoadStatus.LOADING
-                and chunk_stop < chunk_start + DERIVED_CHUNK_SIZE
-            )
-            computed = False
-
-            def compute() -> RowSpan:
-                nonlocal computed
+        with self._derived_compute_lock:
+            first_chunk = start // DERIVED_CHUNK_SIZE
+            last_chunk = (stop - 1) // DERIVED_CHUNK_SIZE
+            for chunk_index in range(first_chunk, last_chunk + 1):
                 if cancel_event is not None and cancel_event.is_set():
                     raise CancelledError()
-                _write_series_chunk(snapshot, group, chunk_start, chunk_stop, buffer)
-                computed = True
-                return RowSpan(chunk_start, chunk_stop)
+                chunk_start = chunk_index * DERIVED_CHUNK_SIZE
+                chunk_stop = min(
+                    chunk_start + DERIVED_CHUNK_SIZE, snapshot.sample_count
+                )
+                requested_start = max(start, chunk_start)
+                requested_stop = min(stop, chunk_stop)
+                missing_spans = _row_spans(
+                    ready, requested_start, requested_stop, ready_value=False
+                )
+                if not missing_spans:
+                    memo.record_hit()
+                    continue
+                memo.discard(chunk_index)
+                tentative = (
+                    snapshot.status is LoadStatus.LOADING
+                    and chunk_stop < chunk_start + DERIVED_CHUNK_SIZE
+                )
 
-            span = memo.get_or_compute(
-                chunk_index,
-                compute,
-                epoch=snapshot.epoch,
-                policy_revision=0,
-                tentative=tentative,
-                cancel_event=cancel_event,
-            )
-            if span.stop < chunk_stop:
-                memo.invalidate(chunk_index)
-                computed = False
-                span = memo.get_or_compute(
+                def compute() -> RowSpan:
+                    for span in missing_spans:
+                        if cancel_event is not None and cancel_event.is_set():
+                            raise CancelledError()
+                        _write_series_chunk(
+                            snapshot, group, span.first, span.stop, buffer
+                        )
+                        ready[span.first : span.stop] = True
+                        if on_chunk is not None:
+                            on_chunk(span)
+                    return RowSpan(requested_start, requested_stop)
+
+                memo.get_or_compute(
                     chunk_index,
                     compute,
                     epoch=snapshot.epoch,
@@ -2939,10 +2990,6 @@ class OemDataStore:
                     tentative=tentative,
                     cancel_event=cancel_event,
                 )
-                if span.stop < chunk_stop:
-                    raise RuntimeError("series chunk is not fully computed")
-            if computed and on_chunk is not None:
-                on_chunk(RowSpan(chunk_start, chunk_stop))
 
     def _compute_earth_fixed_range(
         self,
@@ -2952,45 +2999,48 @@ class OemDataStore:
         stop: int,
         buffer: np.ndarray,
         memo: ChunkMemo[int, RowSpan],
+        ready: np.ndarray,
         *,
         cancel_event: Event | None = None,
         on_chunk: Callable[[RowSpan], None] | None = None,
     ) -> None:
-        first_chunk = start // DERIVED_CHUNK_SIZE
-        last_chunk = (stop - 1) // DERIVED_CHUNK_SIZE
-        for chunk_index in range(first_chunk, last_chunk + 1):
-            if cancel_event is not None and cancel_event.is_set():
-                raise CancelledError()
-            chunk_start = chunk_index * DERIVED_CHUNK_SIZE
-            chunk_stop = min(chunk_start + DERIVED_CHUNK_SIZE, snapshot.sample_count)
-            tentative = (
-                snapshot.status is LoadStatus.LOADING
-                and chunk_stop < chunk_start + DERIVED_CHUNK_SIZE
-            )
-            computed = False
-
-            def compute() -> RowSpan:
-                nonlocal computed
+        with self._derived_compute_lock:
+            first_chunk = start // DERIVED_CHUNK_SIZE
+            last_chunk = (stop - 1) // DERIVED_CHUNK_SIZE
+            for chunk_index in range(first_chunk, last_chunk + 1):
                 if cancel_event is not None and cancel_event.is_set():
                     raise CancelledError()
-                _write_earth_fixed_chunk(
-                    snapshot, frame_name, chunk_start, chunk_stop, buffer
+                chunk_start = chunk_index * DERIVED_CHUNK_SIZE
+                chunk_stop = min(
+                    chunk_start + DERIVED_CHUNK_SIZE, snapshot.sample_count
                 )
-                computed = True
-                return RowSpan(chunk_start, chunk_stop)
+                requested_start = max(start, chunk_start)
+                requested_stop = min(stop, chunk_stop)
+                missing_spans = _row_spans(
+                    ready, requested_start, requested_stop, ready_value=False
+                )
+                if not missing_spans:
+                    memo.record_hit()
+                    continue
+                memo.discard(chunk_index)
+                tentative = (
+                    snapshot.status is LoadStatus.LOADING
+                    and chunk_stop < chunk_start + DERIVED_CHUNK_SIZE
+                )
 
-            span = memo.get_or_compute(
-                chunk_index,
-                compute,
-                epoch=snapshot.epoch,
-                policy_revision=0,
-                tentative=tentative,
-                cancel_event=cancel_event,
-            )
-            if span.stop < chunk_stop:
-                memo.invalidate(chunk_index)
-                computed = False
-                span = memo.get_or_compute(
+                def compute() -> RowSpan:
+                    for span in missing_spans:
+                        if cancel_event is not None and cancel_event.is_set():
+                            raise CancelledError()
+                        _write_earth_fixed_chunk(
+                            snapshot, frame_name, span.first, span.stop, buffer
+                        )
+                        ready[span.first : span.stop] = True
+                        if on_chunk is not None:
+                            on_chunk(span)
+                    return RowSpan(requested_start, requested_stop)
+
+                memo.get_or_compute(
                     chunk_index,
                     compute,
                     epoch=snapshot.epoch,
@@ -2998,10 +3048,6 @@ class OemDataStore:
                     tentative=tentative,
                     cancel_event=cancel_event,
                 )
-                if span.stop < chunk_stop:
-                    raise RuntimeError("Earth-fixed chunk is not fully computed")
-            if computed and on_chunk is not None:
-                on_chunk(RowSpan(chunk_start, chunk_stop))
 
 
 def _validate_time_bounds(bounds_s: TimeBounds) -> TimeBounds:
@@ -3245,39 +3291,23 @@ def _ranges_intersect(first: TimeBounds, second: TimeBounds) -> bool:
     return first[0] <= second[1] and second[0] <= first[1]
 
 
-def _memo_row_spans(
-    memo: ChunkMemo[int, RowSpan],
+def _row_spans(
+    ready: np.ndarray,
     start: int,
     stop: int,
-    sample_count: int,
-    epoch: int,
-    policy_revision: int,
+    *,
+    ready_value: bool,
 ) -> tuple[RowSpan, ...]:
     if start >= stop:
         return ()
-    spans: list[RowSpan] = []
-    first_chunk = start // DERIVED_CHUNK_SIZE
-    last_chunk = (stop - 1) // DERIVED_CHUNK_SIZE
-    for chunk_index in range(first_chunk, last_chunk + 1):
-        if memo.state(
-            chunk_index,
-            epoch=epoch,
-            policy_revision=policy_revision,
-        ) not in (ChunkState.COMPLETE, ChunkState.TENTATIVE):
-            continue
-        first = max(start, chunk_index * DERIVED_CHUNK_SIZE)
-        end = min(
-            stop,
-            sample_count,
-            (chunk_index + 1) * DERIVED_CHUNK_SIZE,
-        )
-        if first >= end:
-            continue
-        if spans and spans[-1].stop == first:
-            spans[-1] = RowSpan(spans[-1].first, end)
-        else:
-            spans.append(RowSpan(first, end))
-    return tuple(spans)
+    selected = ready[start:stop]
+    transitions = np.flatnonzero(selected[1:] != selected[:-1]) + 1
+    edges = np.concatenate(([0], transitions, [len(selected)]))
+    return tuple(
+        RowSpan(start + int(first), start + int(end))
+        for first, end in zip(edges, edges[1:])
+        if bool(selected[first]) is ready_value
+    )
 
 
 def _intersect_row_spans(

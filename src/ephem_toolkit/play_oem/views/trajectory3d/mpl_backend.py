@@ -466,6 +466,7 @@ class Trajectory3DView:
             artist.remove()
         self._orbit_artists.clear()
         snapshot = self._store_context.snapshot
+        range_extrema: list[np.ndarray] = []
         for segment_start, segment_stop in snapshot.segment_bounds:
             first = int(segment_start)
             stop = int(segment_stop)
@@ -495,6 +496,14 @@ class Trajectory3DView:
             if first >= stop:
                 continue
             count = stop - first
+            selected_positions_m = self._store_positions_m[first:stop]
+            if reset_limits:
+                range_extrema.extend(
+                    (
+                        np.min(selected_positions_m, axis=0),
+                        np.max(selected_positions_m, axis=0),
+                    )
+                )
             stride = max(
                 1,
                 int(np.ceil(count / MAX_MATPLOTLIB_3D_DISPLAY_POINTS)),
@@ -511,24 +520,27 @@ class Trajectory3DView:
             self._orbit_artists.append((segment_id, artist))
 
         if snapshot.sample_count:
-            first_position_m = self._store_positions_m[0]
-            last_position_m = self._store_positions_m[-1]
-            self._start_artist = self._set_endpoint_artist(
-                self._start_artist,
-                first_position_m,
-                START_MARKER_COLOR,
-                START_MARKER_SIZE,
-                "o",
-                "Start",
-            )
-            self._end_artist = self._set_endpoint_artist(
-                self._end_artist,
-                last_position_m,
-                END_MARKER_COLOR,
-                END_MARKER_SIZE,
-                "x",
-                "End",
-            )
+            if self._range_bounds is not None:
+                start_time_s = float(self._store_sample_times_s[0])
+                if self._range_bounds.start_s <= start_time_s <= self._range_bounds.end_s:
+                    self._start_artist = self._set_endpoint_artist(
+                        self._start_artist,
+                        self._store_positions_m[0],
+                        START_MARKER_COLOR,
+                        START_MARKER_SIZE,
+                        "o",
+                        "Start",
+                    )
+                end_time_s = float(self._store_sample_times_s[-1])
+                if self._range_bounds.start_s <= end_time_s <= self._range_bounds.end_s:
+                    self._end_artist = self._set_endpoint_artist(
+                        self._end_artist,
+                        self._store_positions_m[-1],
+                        END_MARKER_COLOR,
+                        END_MARKER_SIZE,
+                        "x",
+                        "End",
+                    )
         else:
             if self._start_artist is not None:
                 self._start_artist.remove()
@@ -537,9 +549,15 @@ class Trajectory3DView:
             self._start_artist = None
             self._end_artist = None
 
-        if snapshot.sample_count and reset_limits:
-            self._set_equal_limits(self._axes, self._store_positions_m)
+        if range_extrema and reset_limits:
+            self._set_equal_limits(
+                self._axes, np.asarray(range_extrema, dtype=np.float64)
+            )
         elif not snapshot.sample_count and reset_limits:
+            self._axes.set_xlim(-1.0, 1.0)
+            self._axes.set_ylim(-1.0, 1.0)
+            self._axes.set_zlim(-1.0, 1.0)
+        elif not range_extrema and reset_limits:
             self._axes.set_xlim(-1.0, 1.0)
             self._axes.set_ylim(-1.0, 1.0)
             self._axes.set_zlim(-1.0, 1.0)
