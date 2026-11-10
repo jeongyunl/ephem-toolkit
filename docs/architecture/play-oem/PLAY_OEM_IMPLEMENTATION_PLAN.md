@@ -78,12 +78,23 @@ Matplotlib's `FigureCanvasWxAgg`. VTK remains an optional embedded wx backend fo
 The active runtime no longer has a Tk GUI path. Steps 15–23 record the completed migration and
 its acceptance history; they are not pending implementation work. See
 [PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md) for the as-built architecture and
-continue with the release-readiness work below. Historical migration constraints and GUI design
+continue with the active implementation sequence below. Historical migration constraints and GUI design
 notes remain archived in [old/](./old/).
 
-## Milestone L — Release readiness
+## Milestone L — Loading-aware timeline and release readiness
 
-### 28. Cross-platform polish and publish documentation
+### 28. Make the timeline metadata-aware and defer redraws during loading drags
+
+Use OEM time metadata for the full timeline domain, distinguish committed from unread data,
+keep all handles aligned, and defer plot updates during handle drags while loading. See the
+[dedicated implementation plan](./PLAY_OEM_LOADING_AWARE_TIMELINE_IMPLEMENTATION_PLAN.md) for
+the current behavior, interaction rules, checklist, and completion criteria.
+
+- **Status:** Not started.
+- **Progress:** 0/9 checklist items.
+**Depends on:** Step 27.
+
+### 29. Cross-platform polish and publish documentation
 
 Run the application and test suite on supported platforms. Resolve lifecycle, error-message,
 dependency, and window-management issues without introducing silent fallbacks. Publish
@@ -103,7 +114,7 @@ and keep `plot-oem` as the separate static-plot command.
 
 **Done when:** supported workflows pass on target platforms or documented limitations are
 explicit and accepted, and user-facing documentation matches tested wxPython behavior.
-**Depends on:** Step 27.
+**Depends on:** Step 28.
 
 ## Completed steps
 
