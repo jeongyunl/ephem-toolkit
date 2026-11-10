@@ -126,6 +126,18 @@ def test_speed_altitude_store_view_shares_query_buffers_and_preserves_segments()
     assert "series" not in context.store._tier_interest
 
 
+def test_store_view_without_range_support_reports_full_redraw() -> None:
+    context = _store_context(complete=True)
+    view = SpeedAltitudeView(start_time_s=100.0)
+    view.build_from_store(context)
+    view.set_time_range(context.plot_range, context.coverage)
+    view.update(160.0)
+
+    assert view.consume_cursor_only_update() is False
+
+    view.close()
+
+
 def test_speed_altitude_store_view_handles_empty_and_partial_coverage() -> None:
     empty_store = OemDataStore()
     empty_store.begin(1)

@@ -609,6 +609,8 @@ class TimeRangeSupport:
         Callers pair this with a cursor ``update``; a True result means the only
         change was to animated cursors, so a cached background can be reused.
         """
+        if not hasattr(self, "_range_changed"):
+            return False
         range_changed = self._range_changed
         self._range_changed = False
         return self.animated_cursor_updates and not range_changed
