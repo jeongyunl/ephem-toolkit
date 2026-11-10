@@ -38,6 +38,7 @@ class TimeRangeActionsMixin:
         )
         self._begin_time_range_edit()
         self._pending_playback_bounds = None
+        self._loading_cursor_anchor_s = None
         self._playback_handle_bounds = (bounds.start_s, bounds.end_s)
         self._playback_handles_fixed_during_load = True
         self.clock.set_playback_bounds(bounds.start_s, bounds.end_s)

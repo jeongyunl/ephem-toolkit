@@ -2149,6 +2149,10 @@ def test_incremental_load_preserves_and_restores_saved_file_ranges(
 ) -> None:
     from ephem_toolkit.play_oem.saved_state import RecentFileSettings
 
+    second_row_started = Event()
+    release_second_row = Event()
+    third_row_started = Event()
+    release_third_row = Event()
     source = tmp_path / "range-restore.oem"
     source.write_text(
         "CCSDS_OEM_VERS = 2.0\n"
@@ -2165,6 +2169,22 @@ def test_incremental_load_preserves_and_restores_saved_file_ranges(
         "2026-01-01T00:00:20 7000 2 0 0 7.5 0\n",
         encoding="utf-8",
     )
+
+    original_validate = odm.validate_odm_line
+
+    def pause_later_rows(line: str, label: str) -> None:
+        if line.startswith("2026-01-01T00:00:10"):
+            second_row_started.set()
+            if not release_second_row.wait(3.0):
+                raise TimeoutError("test parser was not released")
+        elif line.startswith("2026-01-01T00:00:20"):
+            third_row_started.set()
+            if not release_third_row.wait(3.0):
+                raise TimeoutError("test parser was not released")
+        original_validate(line, label)
+
+    monkeypatch.setattr(odm, "validate_odm_line", pause_later_rows)
+
     start_s = datetime_to_tt_s(datetime(2026, 1, 1, tzinfo=timezone.utc))
     playback_range = (start_s + 5.0, start_s + 15.0)
     plot_range = time_range.PlotTimeRange(
@@ -2187,54 +2207,76 @@ def test_incremental_load_preserves_and_restores_saved_file_ranges(
         oem_loaded=False,
     )
     player._incremental_loader = app.IncrementalLoader(batch_size=1)
-    player._load_oem_file(str(source))
-    session = player._incremental_loader.session
-    assert session is not None
+    session = None
+    try:
+        player._load_oem_file(str(source))
+        session = player._incremental_loader.session
+        assert session is not None
 
-    deadline = time.monotonic() + 3.0
-    while not player._active_load_first_batch and time.monotonic() < deadline:
+        deadline = time.monotonic() + 3.0
+        while (
+            (not player._active_load_first_batch or not second_row_started.is_set())
+            and time.monotonic() < deadline
+        ):
+            player._poll_incremental_load()
+            time.sleep(0.005)
+        assert player._active_load_first_batch
+        assert second_row_started.is_set()
         player._poll_incremental_load()
-        time.sleep(0.005)
-    assert player._active_load_first_batch
-    assert player._playback_handle_bounds == playback_range
-    bounds_are_covered = playback_range[1] <= player.clock.t_end
-    applied_playback_range = (
-        player.clock.playback_start,
-        player.clock.playback_end,
-    )
-    if bounds_are_covered:
-        assert applied_playback_range == playback_range
-    else:
-        assert applied_playback_range != playback_range
-    assert player.workspace.time_range_controls[2] == plot_range
-    assert player.workspace.time_range_controls[-1] == playback_range
-    controls = player.workspace.time_range_controls
-    slider_state = SimpleNamespace(
-        _playback=controls[1],
-        _playback_handles=controls[-1],
-        _plot_rule=controls[2],
-        _now=controls[3],
-    )
-    assert TimeRangeSlider._time_for(slider_state, "plot_start") == playback_range[0]
-    assert TimeRangeSlider._time_for(slider_state, "plot_end") == playback_range[1]
-    player._save_current_playback_range()
-    assert saved_state.recent_file_settings[path].playback_range == playback_range
-    assert player.plot_time_range == plot_range
 
-    while time.monotonic() < deadline:
+        assert player._playback_handle_bounds == playback_range
+        assert player._loading_cursor_anchor_s == playback_range[0]
+        assert player.workspace.time_range_controls[3] == playback_range[0]
+        assert player._loading_progress_s == start_s
+        assert player.workspace.time_range_controls[2] == plot_range
+        assert player.workspace.time_range_controls[-1] == playback_range
+        controls = player.workspace.time_range_controls
+        slider_state = SimpleNamespace(
+            _playback=controls[1],
+            _playback_handles=controls[-1],
+            _plot_rule=controls[2],
+            _now=controls[3],
+        )
+        assert TimeRangeSlider._time_for(slider_state, "plot_start") == playback_range[0]
+        assert TimeRangeSlider._time_for(slider_state, "plot_end") == playback_range[1]
+        player._save_current_playback_range()
+        assert saved_state.recent_file_settings[path].playback_range == playback_range
+        assert player.plot_time_range == plot_range
+
+        release_second_row.set()
+        while not third_row_started.is_set() and time.monotonic() < deadline:
+            player._poll_incremental_load()
+            time.sleep(0.005)
+        assert third_row_started.is_set()
         player._poll_incremental_load()
-        if session.finished and not session._events.qsize():
-            break
-        time.sleep(0.005)
-    assert player._oem_coverage_complete
-    assert player._slider_bounds == (
-        datetime_to_tt_s(datetime(2025, 12, 31, 23, 59, tzinfo=timezone.utc)),
-        datetime_to_tt_s(datetime(2026, 1, 1, 0, 1, tzinfo=timezone.utc)),
-    )
-    assert (player.clock.playback_start, player.clock.playback_end) == playback_range
-    assert player._playback_handle_bounds == playback_range
-    assert player.plot_time_range == plot_range
-    player.close()
+        assert player._loading_progress_s == start_s + 10.0
+        assert player._loading_cursor_anchor_s is None
+        assert player.clock.t_now == playback_range[0]
+        assert player.workspace.time_range_controls[3] == playback_range[0]
+
+        release_third_row.set()
+        while time.monotonic() < deadline:
+            player._poll_incremental_load()
+            if session.finished and not session._events.qsize():
+                break
+            time.sleep(0.005)
+        assert player._oem_coverage_complete
+        assert player._slider_bounds == (
+            datetime_to_tt_s(datetime(2025, 12, 31, 23, 59, tzinfo=timezone.utc)),
+            datetime_to_tt_s(datetime(2026, 1, 1, 0, 1, tzinfo=timezone.utc)),
+        )
+        assert (player.clock.playback_start, player.clock.playback_end) == playback_range
+        assert player._playback_handle_bounds == playback_range
+        assert player.plot_time_range == plot_range
+    finally:
+        release_second_row.set()
+        release_third_row.set()
+        if session is not None:
+            deadline = time.monotonic() + 3.0
+            while not session.finished and time.monotonic() < deadline:
+                player._poll_incremental_load()
+                time.sleep(0.005)
+        player.close()
 
 
 def test_initial_recent_file_ranges_are_applied_and_saved(

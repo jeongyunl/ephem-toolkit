@@ -118,7 +118,8 @@ additional batches arrive. Loading status distinguishes partial coverage from EO
 When present and valid, the slider scale uses the OEM metadata start and stop times; seeking remains
 limited to samples already loaded. Saved playback and plot range handles appear at their saved
 positions as soon as the first batch is installed, even if those playback bounds are not playable
-yet.
+yet. The current-time thumb is anchored at the saved playback start throughout loading; it does not
+drift with coverage progress, and the clock takes over at that same time once the sample is loaded.
 Playback speed, direction, seeking, and frame rate are controlled in the GUI. Use `plot-oem`
 for saved diagnostic plots; `play-oem` is the interactive playback command.
 

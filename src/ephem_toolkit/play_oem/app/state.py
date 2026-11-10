@@ -68,6 +68,7 @@ class PlayerAppState(Protocol):
     _playback_handle_bounds: tuple[float, float]
     _playback_handles_fixed_during_load: bool
     _pending_playback_bounds: tuple[float, float] | None
+    _loading_cursor_anchor_s: float | None
     _pending_file_playback_bounds: tuple[float, float] | None
     _open_panels: dict[str, _OpenView]
     _open_views: dict[str, _OpenView]

@@ -358,7 +358,9 @@ graph stacks with per-panel view selector, actions, and close controls
   before parsing its state rows. The controller unions valid segment bounds with observed sample
   bounds for the slider domain while keeping playback coverage sample-bounded. The parser's latest
   committed timestamp marks progress; the unread suffix is amber and its hover text reports
-  unavailable time. During a loading-time handle drag, plot updates and redraw requests are
+  unavailable time. When a saved playback range is not yet fully loaded, the current-time thumb
+  stays anchored at its saved start and joins the loaded clock there without shifting as batches
+  arrive. During a loading-time handle drag, plot updates and redraw requests are
   deferred and coalesced, then refreshed from the latest store snapshot when the drag ends or
   capture is lost. Outside loading-time drags, existing redraw behavior is unchanged.
 - Footer time entry: a `wx.TextCtrl` accepts `1h30m` (elapsed) or a UTC epoch. Enter submits the

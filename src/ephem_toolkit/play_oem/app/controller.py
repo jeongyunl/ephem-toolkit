@@ -182,6 +182,7 @@ class PlayerApp(
         self._playback_handles_fixed_during_load = False
         self._pending_file_playback_bounds: tuple[float, float] | None = None
         self._pending_playback_bounds: tuple[float, float] | None = None
+        self._loading_cursor_anchor_s: float | None = None
         if display_time_zone not in DISPLAY_TIME_ZONES:
             raise ValueError("display_time_zone must be 'UTC' or 'local'")
         self.clock.set_playback_bounds(self.clock.t_start, self.clock.t_end)
@@ -525,6 +526,11 @@ class PlayerApp(
         """Resolve one shared interval before updating any live view cursors."""
         if self._closed:
             return
+        if (
+            self._loading_cursor_anchor_s is not None
+            and not self._installing_incremental_batch
+        ):
+            self._loading_cursor_anchor_s = None
         if (
             self._oem_store is None
             and self._active_load_first_batch
@@ -1180,6 +1186,7 @@ class PlayerApp(
         self._active_load_path = path
         self._active_load_first_batch = False
         self._active_load_failed = False
+        self._loading_cursor_anchor_s = None
         self._pending_oem_slider_bounds = None
         self._last_incremental_view_refresh_monotonic_s = None
         if (
@@ -1277,6 +1284,7 @@ class PlayerApp(
                     self._finish_incremental_metadata(event.completion)
                     self._oem_coverage_complete = True
                     self._loading_progress_s = None
+                    self._loading_cursor_anchor_s = None
                     self._active_load_failed = False
                     if not self._playback_handles_fixed_during_load:
                         self._playback_handle_bounds = (
@@ -1364,18 +1372,39 @@ class PlayerApp(
                 self._pending_playback_bounds
                 or (self.clock.playback_start, self.clock.playback_end)
             )
+            if (
+                self._pending_playback_bounds is not None
+                and self.clock.t_start
+                <= self._pending_playback_bounds[0]
+                and self._pending_playback_bounds[0] > self.clock.t_end
+            ):
+                self._loading_cursor_anchor_s = self._pending_playback_bounds[0]
             if self._pending_playback_bounds is not None and (
                 self.clock.t_start <= self._pending_playback_bounds[0]
                 and self._pending_playback_bounds[1] <= self.clock.t_end
             ):
                 bounds = self._pending_playback_bounds
                 self._pending_playback_bounds = None
+                self._loading_cursor_anchor_s = None
                 self._playback_handle_bounds = bounds
                 self._installing_incremental_batch = True
                 try:
                     self.clock.set_playback_bounds(*bounds)
                 finally:
                     self._installing_incremental_batch = False
+            elif (
+                self._pending_playback_bounds is not None
+                and self.clock.t_start
+                <= self._pending_playback_bounds[0]
+                <= self.clock.t_end
+                and self.clock.t_now != self._pending_playback_bounds[0]
+            ):
+                self._installing_incremental_batch = True
+                try:
+                    self.clock.seek(self._pending_playback_bounds[0])
+                finally:
+                    self._installing_incremental_batch = False
+                self._loading_cursor_anchor_s = None
             self._pending_file_playback_bounds = None
             self._slider_bounds = playback_data.oem_slider_bounds(
                 str(meta.get("START_TIME", "")),
@@ -1415,11 +1444,23 @@ class PlayerApp(
             ):
                 self._pending_playback_bounds = None
                 self._playback_handle_bounds = pending_bounds
+                self._loading_cursor_anchor_s = None
                 self._installing_incremental_batch = True
                 try:
                     self.clock.set_playback_bounds(*pending_bounds)
                 finally:
                     self._installing_incremental_batch = False
+            elif (
+                pending_bounds is not None
+                and self.clock.t_start <= pending_bounds[0] <= self.clock.t_end
+                and self.clock.t_now != pending_bounds[0]
+            ):
+                self._installing_incremental_batch = True
+                try:
+                    self.clock.seek(pending_bounds[0])
+                finally:
+                    self._installing_incremental_batch = False
+                self._loading_cursor_anchor_s = None
             elif (
                 pending_bounds is None
                 and not self._playback_handles_fixed_during_load
@@ -1836,11 +1877,20 @@ class PlayerApp(
     def _update_time_display(self) -> None:
         if not self._oem_loaded:
             return
-        timestamp = format_tt(self.clock.t_now, self._display_time_zone)
+        display_time_s = (
+            self._loading_cursor_anchor_s
+            if (
+                self._active_load_first_batch
+                and not self._oem_coverage_complete
+                and self._loading_cursor_anchor_s is not None
+            )
+            else self.clock.t_now
+        )
+        timestamp = format_tt(display_time_s, self._display_time_zone)
         slider_start, slider_end = self._slider_bounds
         span_s = slider_end - slider_start
         progress = (
-            0.0 if span_s == 0.0 else (self.clock.t_now - slider_start) / span_s
+            0.0 if span_s == 0.0 else (display_time_s - slider_start) / span_s
         )
         self.workspace.update_timeline(
             progress, timestamp, playing=self.clock.playing
@@ -1849,7 +1899,7 @@ class PlayerApp(
             (self.clock.t_start, self.clock.t_end),
             (self.clock.playback_start, self.clock.playback_end),
             self.plot_time_range,
-            self.clock.t_now,
+            display_time_s,
             self._slider_bounds,
             self._playback_handle_bounds,
             unloaded_from_s=(
@@ -1860,9 +1910,9 @@ class PlayerApp(
         )
         self.workspace.update_playback_state(self.clock.playing, self.clock.rate)
         current_state = (
-            self._store_view_context.state_at(self.clock.t_now)
+            self._store_view_context.state_at(display_time_s)
             if self._store_view_context is not None
-            else self.cursor.lookup(self.clock.t_now)
+            else self.cursor.lookup(display_time_s)
         )
         self.control_window.update_current_state(current_state)
 
