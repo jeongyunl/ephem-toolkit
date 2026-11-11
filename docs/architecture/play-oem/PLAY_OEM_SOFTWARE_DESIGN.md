@@ -1,27 +1,14 @@
 # `play-oem` — Software Design
 
-Requirements: [PLAY_OEM_CONCEPTS.md](./PLAY_OEM_CONCEPTS.md). Baseline code: `src/ephem_toolkit/plot_oem/`.
+Requirements and shipped behavior: [PLAY_OEM_CONCEPTS.md](./PLAY_OEM_CONCEPTS.md).
+Loading and ownership: [PLAY_OEM_DATAFLOW.md](./PLAY_OEM_DATAFLOW.md) and
+[PLAY_OEM_LOADING_AWARE_TIMELINE_IMPLEMENTATION_PLAN.md](./PLAY_OEM_LOADING_AWARE_TIMELINE_IMPLEMENTATION_PLAN.md).
+User guides:
+[configuration](../../tools/PLAY_OEM_CONFIG.md), [Ground Stations](../../tools/PLAY_OEM_GROUND_STATIONS.md),
+and [Ground Track](../../tools/PLAY_OEM_GROUND_TRACK.md).
 
-The shipped incremental loading path is summarized in the
-[implementation report](./old/PLAY_OEM_INCREMENTAL_LOADING_IMPLEMENTATION_REPORT.md); the original
-[design](./old/PLAY_OEM_INCREMENTAL_LOADING.md) is archived.
-
-GUI toolkit: **wxPython** is the sole GUI framework (§3). The earlier Tkinter design is superseded
-by the migration in [PLAY_OEM_IMPLEMENTATION_PLAN.md](./PLAY_OEM_IMPLEMENTATION_PLAN.md), steps 15–23.
-
-Implemented Ground Track view: see the [completion report](./old/PLAY_OEM_GROUND_TRACK_IMPLEMENTATION_PLAN.md) and [end-user guide](../../tools/PLAY_OEM_GROUND_TRACK.md).
-
-Implemented Ground Stations feature: see the
-[completion report](./old/PLAY_OEM_GROUND_STATIONS_IMPLEMENTATION_REPORT.md) and
-[user guide](../../tools/PLAY_OEM_GROUND_STATIONS.md). The original software/GUI designs and
-mockups are archived in [old/](./old/).
-
-Modular Ground Station Analysis is implemented; see its
-[implementation report](./old/PLAY_OEM_GROUND_STATION_ANALYSIS_2_IMPLEMENTATION_REPORT.md) and
-archived [software design](./old/PLAY_OEM_GROUND_STATION_ANALYSIS_2_SOFTWARE_DESIGN.md) and
-[GUI design](./old/PLAY_OEM_GROUND_STATION_ANALYSIS_2_GUI_DESIGN.md). The prior composite
-[implementation report](./old/PLAY_OEM_GROUND_STATION_ANALYSIS_IMPLEMENTATION_REPORT.md) and
-[mockup](./old/mockup-ground-station-visual-analysis.svg) remain archived for reference.
+GUI toolkit: **wxPython** is the sole GUI framework (§3). VTK is an optional embedded wx backend
+for the 3D Orbit view; Matplotlib/wx remains the fallback and the backend for 2D views.
 
 ## 1. Historical origin: copy and modify `plot-oem`
 
@@ -51,12 +38,16 @@ Key current modules (the package contains additional focused modules):
 src/ephem_toolkit/play_oem/
   __main__.py          # create workspace before loading; CLI entry point
   play_oem_cli.py      # PlayOemArgs and command-line parsing
+  config.py            # validated user defaults and persistence
+  saved_state.py       # application-maintained workspace state
+  display_time.py      # UTC/local timestamp formatting
   streaming_oem.py     # parse OEM rows directly into store reservations
   incremental_loader.py # generation-scoped worker, cancellation, and load events
   oem_data_store.py    # raw samples and lazily computed derived tiers
   clock.py             # playback bounds, sample-time view, and clock logic
   cursor.py            # StoreCursor point queries and inert empty startup state
   series.py time_unit.py time_range.py
+  ground_stations.py station_access.py station_analysis.py ground_track.py
   app/
     controller.py      # load generations, snapshots, playback, and panel lifecycle
     view_factory.py    # registered store-backed views and backend selection
@@ -246,9 +237,9 @@ a broad exception handler. Both backends implement the same interface, so the to
 
 **Matplotlib/wx backend.** The initial overview draws the static orbit path, start/end markers,
 labeled axes and object/frame context in `build`; `update` moves the satellite marker from the shared
-cursor state. The figure and navigation toolbar are hosted in a `GraphPanelHost` within either
-graph stack. Redraws are requested with `draw_idle()` and playback updates are throttled to at most
-10 Hz. Earth rendering and trajectory tails remain planned enhancements.
+cursor state. This backend does not currently draw an Earth model or a trajectory tail. The figure
+and navigation toolbar are hosted in a `GraphPanelHost` within either graph stack. Redraws are
+requested with `draw_idle()` and playback updates are throttled to at most 10 Hz.
 
 **VTK backend.** Scene built in `build`:
 
@@ -271,6 +262,9 @@ graph stack. Redraws are requested with `draw_idle()` and playback updates are t
 - Tail: a second direction-aware polyline over the recent samples, following the cursor in forward
   or reverse playback.
 - Camera/interaction: `vtkInteractorStyleTrackballCamera` (rotate/zoom/pan) with the camera left untouched by `update`, so you can orbit while it plays.
+
+Unlike the Matplotlib backend, VTK currently draws a WGS-84 Earth model and a direction-aware
+trajectory tail.
 
 **Step 20 outcome: `VTK-KEEP`; use the embedded wx interactor.** Host VTK through
 `vtkmodules.wx.wxVTKRenderWindowInteractor.wxVTKRenderWindowInteractor` inside the trajectory
@@ -305,24 +299,26 @@ VTK tests are skipped via `pytest.importorskip("vtk")`.
 The active workspace uses one `wx.Frame` with three named regions: **Controls & Info** at left,
 **Main Analysis** in the middle, and the optional **Comparison** pane at right. These names appear
 in visible pane headings and matching wx window names. Controls & Info contains the feature rail and
-`wx.Simplebook`; its Settings page embeds the render-rate control, while OEM metadata has
+`wx.Simplebook`; its Settings page embeds display time-zone, render-rate, and interpolation controls, while OEM metadata has
 its own page, and current-state readouts live on the State page. Main Analysis and Comparison each
 contain an independently scrollable graph stack with per-panel lifecycle. Startup opens `overview`
 by default in Main Analysis: the 3D orbit and combined speed/altitude time-series view. `--plots`
 can replace that selection with individual views or named groups.
 
 The Controls & Info pane uses a four-page feature rail: Settings, OEM file information,
-Ground Stations, and State. Settings contains the render-rate control; `Workspace` owns the shared
-playback timeline below the three-pane splitter. Main Analysis and Comparison own their graph
-stacks:
+Ground Stations, and State. Settings contains display time-zone, render-rate, and interpolation
+controls; `Workspace` owns the shared playback timeline below the three-pane splitter. Main
+Analysis and Comparison own their graph stacks:
 
 ```
 [Settings page]
+Display time zone: UTC | Local Time Zone
 Render rate: 30 FPS
 [FPS slider: 1–30]
+Interpolation: follow OEM metadata | configured method and degree
 
 [Shared timeline footer]
-Start UTC … | Current UTC [editable time] | End UTC …
+Start … | Current … [editable time] | End … (UTC by default)
 [reverse speed presets] [reverse play] [forward play] [forward speed presets]
 ━━━━━━━━━━━━━━●━━━━━━━━━━━━━━
 
@@ -341,19 +337,21 @@ Cursor: interpolated / sample / gap / unavailable
 graph stacks with per-panel view selector, actions, and close controls
 ```
 
-- Settings page: the `ControlWindow` provides only a render-rate slider from 1 to 30 FPS (default
-  30). Playback controls, navigation, and current UTC are available in the shared timeline footer.
-- Shared timeline footer: `Workspace` places a separator, start/current/end UTC row, playback
+- Settings page: the `ControlWindow` provides a UTC/local display time-zone selector, a render-rate
+  slider from 1 to 30 FPS (default 30), and interpolation source/method/degree controls. Playback
+  controls, navigation, and current time are available in the shared timeline footer.
+- Shared timeline footer: `Workspace` places a separator, start/current/end timestamps in the
+  selected display time zone (UTC by default), playback
   direction and speed controls, and the timeline slider below the pane splitter. The range-enabled
   slider uses a custom-painted track and thumb with the playable playback interval highlighted
   separately from seek progress; sibling grips display playback bounds and plot endpoints.
   Playback bounds constrain clock movement. By default plot filtering selects samples inside
   those bounds and follows playback-bound edits; each plot endpoint can instead use a playback-
-  time offset or a fixed UTC timepoint. Right-click a plot handle to choose its mode; drag Offset
+  time offset or a fixed timepoint. Right-click a plot handle to choose its mode; drag Offset
   and Fixed handles to change their position. See
-  [PLAY_OEM_TIME_RANGE_IMPLEMENTATION_REPORT.md](./old/PLAY_OEM_TIME_RANGE_IMPLEMENTATION_REPORT.md)
-  for implemented behavior and current validation status. Earlier specifications are archived
-  under `old/`.
+  [PLAY_OEM_CONCEPTS.md](./PLAY_OEM_CONCEPTS.md) and
+  [PLAY_OEM_LOADING_AWARE_TIMELINE_IMPLEMENTATION_PLAN.md](./PLAY_OEM_LOADING_AWARE_TIMELINE_IMPLEMENTATION_PLAN.md)
+  for current requirements and loading behavior.
 - Loading-aware timeline: the reader publishes each segment's UTC metadata at `META_STOP`,
   before parsing its state rows. The controller unions valid segment bounds with observed sample
   bounds for the slider domain while keeping playback coverage sample-bounded. The parser's latest
@@ -363,14 +361,17 @@ graph stacks with per-panel view selector, actions, and close controls
   arrive. During a loading-time handle drag, plot updates and redraw requests are
   deferred and coalesced, then refreshed from the latest store snapshot when the drag ends or
   capture is lost. Outside loading-time drags, existing redraw behavior is unchanged.
-- Footer time entry: a `wx.TextCtrl` accepts `1h30m` (elapsed) or a UTC epoch. Enter submits the
+- Footer time entry: a `wx.TextCtrl` accepts `1h30m` (elapsed) or an epoch in the selected display
+  time zone. Enter submits the
   value to `clock.seek`; invalid input is shown beside the entry without changing `t_now`. Its
   existing value is selected once when it gains focus, and later clicks place the caret normally.
 - Footer playback controls: signed speed presets select rates without starting or pausing. Separate reverse
   and forward buttons start or pause playback in that direction while retaining the speed magnitude.
   Direction-specific speed controls cover 1x, 10x, 100x and 1000x.
-- Settings page render-rate slider: selects the UI update limit from 1 through 30 frames per
-  second. Playback rate is controlled by the shared timeline footer.
+- Settings controls: select UTC or local timestamp display, a UI update limit from 1 through 30
+  frames per second, and the interpolation source/method/degree. Playback rate is controlled by
+  the shared timeline footer. Display-time-zone and interpolation changes are persisted in
+  `play-oem.toml`.
 - Native sizing and keyboard focus come from wx. The frame-level File menu provides **Open File...**;
   the status bar reports successful loads and errors.
 - Click-to-seek: each time-series view connects `button_press_event` (left click inside axes, toolbar zoom/pan mode inactive) → `clock.seek(x * unit_divisor)`.

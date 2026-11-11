@@ -1,11 +1,10 @@
 # `play-oem` — Concepts and Requirements
 
-> Status: **implemented**. Configuration behavior is documented in the
-> [configuration implementation report](./old/PLAY_OEM_CONFIG_REPORT.md) and the
-> [end-user guide](../../tools/PLAY_OEM_CONFIG.md). Software design:
-> [PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md). Time-range implementation:
-> [PLAY_OEM_TIME_RANGE_IMPLEMENTATION_REPORT.md](./old/PLAY_OEM_TIME_RANGE_IMPLEMENTATION_REPORT.md).
-> Earlier time-range design specifications and diagrams are archived under `old/`.
+> Status: **implemented**. This document describes the shipped user-facing behavior.
+> Configuration is documented in the [user guide](../../tools/PLAY_OEM_CONFIG.md);
+> architecture and loading behavior are documented in
+> [PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md) and
+> [PLAY_OEM_DATAFLOW.md](./PLAY_OEM_DATAFLOW.md).
 
 `play-oem` is the interactive, animated successor to [`plot-oem`](../../tools/PLOT_OEM.md). Where `plot-oem` renders
 static figures of a whole OEM history, `play-oem` replays the orbit through time: a
@@ -22,21 +21,18 @@ is the interactive playback application.
 
 | Concept | Meaning |
 |---------|---------|
-| **Timeline** | The slider domain is the union of valid UTC `START_TIME`/`STOP_TIME` metadata and observed state times. Playback coverage remains bounded by loaded states; during loading, the unread suffix is marked separately. All times are shown as UTC and as elapsed time from `t_start`. |
+| **Timeline** | The slider domain is the union of valid UTC `START_TIME`/`STOP_TIME` metadata and observed state times. Playback coverage remains bounded by loaded states; during loading, the unread suffix is marked separately. Epochs use the selected display time zone (UTC by default); elapsed time is measured from `t_start`. |
 | **Playback clock** | A single shared `t_now` in the timeline. Only the clock advances; views only read it. |
 | **Playback speed** | Ratio of simulated seconds to wall-clock seconds (`|rate|` 1x … 9000x); the sign indicates direction. |
 | **Cursor state** | The OEM state at `t_now`, interpolated from the OEM samples (using the OEM's `INTERPOLATION` metadata when present). |
 | **View** | A plot window that renders a series or trajectory and a cursor/marker at `t_now`. |
 | **View group** | A named collection of related views opened together (Overview, State, Motion, Access Overview, Pass Study, All). |
-| **Control window** | The Controls & Info pane: a render-rate control on Settings, current-state readouts on State, OEM context, and Ground Stations. Playback controls and navigation live in the shared timeline. Closing the app window quits the app. |
+| **Control window** | The Controls & Info pane: display-time-zone, render-rate, and interpolation controls on Settings; current-state readouts on State; OEM context; and Ground Stations. Playback controls and navigation live in the shared timeline. Closing the app window quits the app. |
 
-Two kinds of views:
-
-- **Time-series views** (velocity magnitude, altitude, RTN deltas, …): the full series is
-  drawn statically; a vertical cursor line moves with `t_now`. Optionally the visible x-window
-  follows the cursor.
-- **Trajectory views** (3D state vectors / orbit path): the full or trailing path is drawn;
-  a marker for the satellite moves with `t_now`, with optional trailing tail.
+Time-series views (velocity magnitude, altitude, RTN deltas, and station profiles) query the
+requested plot range from a shared store snapshot, render available samples, and move a cursor
+with `t_now`. Trajectory views render a range-bounded orbit path and move the satellite marker
+with `t_now`; the optional VTK backend also renders a direction-aware tail.
 
 The default experience is a compact **Overview** dashboard, not every plot at once: it opens
 the 3D orbit and speed/altitude view. Users can open individual views or a larger group from
@@ -55,7 +51,7 @@ which views are open.
      updates are coalesced until dragging stops. Hovering over unread time explains that it is not
      loaded yet; seeking there retains the clock's existing loaded-coverage clamping behavior.
      Clicking the trough jumps to that point.
-   - Direct entry: type an elapsed time (`1h30m`) or a UTC epoch into a time field.
+   - Direct entry: type an elapsed time (`1h30m`) or an epoch in the selected display time zone.
    - Click-to-seek: clicking on a time-series plot seeks to that time.
    - Step buttons/keys: ±1 sample, ±1 minute, jump to start/end.
    - Seeking works while playing, paused, or reversed, and never changes speed or direction.
@@ -73,13 +69,14 @@ which views are open.
    playback to its direction at 1x. A speed button selects its direction and base speed; clicking
    it again at exactly that speed advances by one decade up to 9000x, while clicking it at a
    higher same-direction speed resets to its base speed.
-5. **Dashboard readout**: current UTC epoch, elapsed time, signed speed/direction, position
+5. **Dashboard readout**: current epoch (UTC by default), elapsed time, signed speed/direction, position
    and velocity components, speed, and altitude when valid. Keep the default readout concise;
    expose less-used values in a details panel.
 6. **Data context**: show object name, reference frame, center, timeline, sample count and
    whether the cursor is in a gap or outside a valid interpolation segment. Clearly distinguish
    sample values from interpolated values. Play-OEM currently accepts `TIME_SYSTEM = UTC` only;
-   unsupported time systems are reported before their state rows are loaded.
+   unsupported time systems are reported before their state rows are loaded. The display time
+   zone is configurable independently of the OEM time system.
 7. **View selection**: the graph-panel selector opens individual views; workspace presets open
    `Access Overview` and `Pass Study`. The `--plots` groups also include `Overview` (default),
    `State`, `Motion`, and `All`. Opening an already open view raises it; closing a view does not

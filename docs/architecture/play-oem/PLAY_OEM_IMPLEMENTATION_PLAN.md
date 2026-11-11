@@ -1,21 +1,17 @@
 # `play-oem` — Implementation Plan
 
-Requirements: [PLAY_OEM_CONCEPTS.md](./PLAY_OEM_CONCEPTS.md). Software design:
-[PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md). GUI development:
-[PLAY_OEM_GUI_DESIGN.md](./old/PLAY_OEM_GUI_DESIGN.md). Completed selected-layout record:
-[PLAY_OEM_GUI_WX_MIGRATION.md](./old/PLAY_OEM_GUI_WX_MIGRATION.md).
+Requirements and current behavior: [PLAY_OEM_CONCEPTS.md](./PLAY_OEM_CONCEPTS.md).
+As-built architecture: [PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md) and
+[PLAY_OEM_DATAFLOW.md](./PLAY_OEM_DATAFLOW.md). The active loading interaction plan is
+[PLAY_OEM_LOADING_AWARE_TIMELINE_IMPLEMENTATION_PLAN.md](./PLAY_OEM_LOADING_AWARE_TIMELINE_IMPLEMENTATION_PLAN.md).
 
-Ground Stations is implemented. See its
-[completion report](./old/PLAY_OEM_GROUND_STATIONS_IMPLEMENTATION_REPORT.md) and
-[user guide](../../tools/PLAY_OEM_GROUND_STATIONS.md). The original software/GUI designs and
-mockups are archived in [old/](./old/).
+Ground Stations and station-access analysis are implemented. The current user workflows are in
+[PLAY_OEM_GROUND_STATIONS.md](../../tools/PLAY_OEM_GROUND_STATIONS.md); architecture and data
+ownership are in [PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md) and
+[PLAY_OEM_DATAFLOW.md](./PLAY_OEM_DATAFLOW.md).
 
-Modular Ground Station Analysis is implemented. See the
-[implementation report](./old/PLAY_OEM_GROUND_STATION_ANALYSIS_2_IMPLEMENTATION_REPORT.md) and
-the archived [software design](./old/PLAY_OEM_GROUND_STATION_ANALYSIS_2_SOFTWARE_DESIGN.md) and
-[GUI design](./old/PLAY_OEM_GROUND_STATION_ANALYSIS_2_GUI_DESIGN.md). The prior composite feature's
-[implementation report](./old/PLAY_OEM_GROUND_STATION_ANALYSIS_IMPLEMENTATION_REPORT.md) and
-[mockup](./old/mockup-ground-station-visual-analysis.svg) remain archived for reference.
+Ground Station panels are implemented as separate store-backed views; see the active
+[software design](./PLAY_OEM_SOFTWARE_DESIGN.md) and [dataflow](./PLAY_OEM_DATAFLOW.md).
 
 ## Current runtime behavior
 
@@ -23,13 +19,14 @@ The completed steps below are an implementation history and may record behavior 
 changed. Current `play-oem` streams the selected OEM into an `OemDataStore` on a background worker;
 playback and views use committed samples while loading continues through EOF validation. It selects
 the time-axis unit from the OEM span (minutes below one hour, hours otherwise). Playback speed,
-direction, seeking, and render rate are controlled in the GUI. The Settings pane FPS slider ranges
-from 1 to 30 FPS (default 30). Its timer advances the clock across all complete elapsed frame
+direction, seeking, display time zone, interpolation, and render rate are controlled in the GUI.
+The Settings pane selects UTC or local timestamp display, interpolation policy, and a 1–30 FPS
+render-rate limit (default 30). Its timer advances the clock across all complete elapsed frame
 periods, redraws once, and drops intermediate frames when rendering overruns.
 
-Incremental loading is implemented; see its
-[implementation report](./old/PLAY_OEM_INCREMENTAL_LOADING_IMPLEMENTATION_REPORT.md) and the
-[archived design](./old/PLAY_OEM_INCREMENTAL_LOADING.md).
+The active loading architecture is documented in
+[PLAY_OEM_DATAFLOW.md](./PLAY_OEM_DATAFLOW.md) and the
+[loading-aware timeline plan](./PLAY_OEM_LOADING_AWARE_TIMELINE_IMPLEMENTATION_PLAN.md).
 
 ## How to use this plan
 
@@ -97,24 +94,31 @@ the current behavior, interaction rules, checklist, and completion criteria.
 ### 29. Cross-platform polish and publish documentation
 
 Run the application and test suite on supported platforms. Resolve lifecycle, error-message,
-dependency, and window-management issues without introducing silent fallbacks. Publish
-`docs/tools/PLAY_OEM.md`, update README tool listings and [TODO.md](../../development/TODO.md),
-and keep `plot-oem` as the separate static-plot command.
+dependency, and window-management issues without introducing silent fallbacks. Keep the existing
+active concepts/design documents and user guides in sync with the code; update README tool listings
+and [TODO.md](../../development/TODO.md), and keep `plot-oem` as the separate static-plot command.
 
-- **Status:** Not started.
-- **Progress:** 0/8 checklist items.
+- **Status:** In progress.
+- **Progress:** 3/8 checklist items.
 - [ ] Verify clear errors for missing wxPython/Matplotlib and explicit-but-unavailable VTK.
 - [ ] Verify `--help`, invalid arguments, SIGINT, and clean wx window shutdown.
 - [ ] Smoke-test macOS, Linux, and Windows; record backend-specific limitations.
 - [ ] Run focused tests and the performance benchmark.
-- [ ] Document wxPython installation, CLI, controls, views, backends, and limitations.
-- [ ] Update README and TODO references and document `plot-oem` versus `play-oem`.
-- [ ] Review all cross-links and command examples against tested behavior.
+- [x] Keep the active concepts/design documents and user guides aligned with the implemented CLI,
+      controls, views, backends, configuration, and known platform limitations.
+- [x] Update README and TODO references and document `plot-oem` versus `play-oem`.
+- [x] Review the updated cross-links and command/group names against active files and the view
+      registry.
 - [ ] Resolve all failures found in release checks or record an explicit accepted limitation.
 
 **Done when:** supported workflows pass on target platforms or documented limitations are
 explicit and accepted, and user-facing documentation matches tested wxPython behavior.
 **Depends on:** Step 28.
+
+**Completed in this documentation update:** the README now lists `play-oem` and its optional
+dependencies; the active guides describe UTC/local display time, configuration persistence, and
+current Ground Station/Ground Track workflows; completed Ground Station work has been removed from
+the project TODO list.
 
 ## Completed steps
 

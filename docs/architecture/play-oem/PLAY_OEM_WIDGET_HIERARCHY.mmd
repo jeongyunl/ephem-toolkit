@@ -28,7 +28,9 @@ flowchart TB
         feature_book -- "State" --> state_page["self.state_page<br/>wx.Panel"]
 
         settings_page --> settings_panel["ControlWindow.settings_scroller<br/>wx.ScrolledWindow, vertical scroll"]
+        settings_panel --> time_zone["Display time zone<br/>UTC or Local Time Zone"]
         settings_panel --> render_rate["render_rate_label (1–30 FPS, default 30),<br/>render_rate_slider"]
+        settings_panel --> interpolation["Interpolation source, method,<br/>degree, and active-policy status"]
 
         info_page --> info_scroll["self.file_info_scroll<br/>wx.ScrolledWindow, vertical scroll"]
         info_scroll --> info_labels["OEM file context and metadata headings and labels"]
@@ -73,9 +75,10 @@ flowchart TB
     subgraph TIMELINE ["Bottom strip"]
         timeline_panel["self.timeline_panel<br/>wx.ScrolledWindow"]
         timeline_panel --> timeline_separator["wx.StaticLine<br/>visual boundary above timeline"]
-        timeline_panel --> time_row["self.timeline_start_label, self.timeline_current_prefix,<br/>self.timeline_time_entry, self.time_error_label,<br/>self.timeline_end_label"]
+        timeline_panel --> time_row["self.timeline_start_label, self.timeline_current_prefix,<br/>self.timeline_time_entry, self.time_error_label,<br/>self.timeline_end_label<br/>(timestamps in selected zone; UTC default)"]
         timeline_panel --> playback_controls_row["playback_sizer<br/>reverse speed presets, reverse play, forward play,<br/>forward speed presets, focus sink"]
-        timeline_panel --> timeline_slider["self.timeline_slider<br/>wx.Slider"]
+        timeline_panel --> timeline_slider["self.timeline_slider<br/>TimeRangeSlider (custom wx.Control)<br/>painted track and seek marker"]
+        timeline_panel --> timeline_grips["Sibling pointer/keyboard grips<br/>playback bounds, plot endpoints,<br/>current-time marker"]
     end
 
     classDef window fill:#dbeafe,stroke:#1e40af,color:#1e293b

@@ -57,6 +57,7 @@ render_rate_fps = 30
 [display]
 three_d_backend = "auto"
 plots = ["overview"]
+time_zone = "UTC"
 
 [interpolation]
 use_oem_metadata = false
@@ -102,6 +103,11 @@ open_plots = ["trajectory-3d", "speed-altitude"]
 
 [ground_track]
 minimum_elevation_deg = 10
+projection = "Robinson"
+background = "Shaded relief"
+center_longitude_deg = 0.0
+xlim = []
+ylim = []
 ```
 
 Ground station definitions are stored in the user config file, not the state file. Station
@@ -123,7 +129,9 @@ endpoint's mode and value. Follow endpoints track their corresponding playback b
 values are seconds from current playback time, and fixed values are absolute TT timestamps.
 This path-keyed table can hold additional per-file settings in future versions.
 
-The state file also remembers the graph views open when you exit. On the next launch, those
+The state file also remembers Ground Track settings, including projection, background, center
+longitude, map extent, and minimum elevation, and restores them on the next launch. It also
+remembers the graph views open when you exit. On the next launch, those
 views are restored unless you provide `--plots` or set `display.plots` in `play-oem.toml`.
 The saved values are view names such as `trajectory-3d` and `speed-altitude`; plot groups are
 expanded to their individual views when saved.
@@ -131,9 +139,10 @@ When you change the Settings pane's render rate, the selected render rate FPS is
 `playback.render_rate_fps` in `play-oem.toml` when the application exits. The app updates only
 that setting, preserving the other user-config values. The legacy `playback.fps` key is still
 accepted and is rewritten as `playback.render_rate_fps` when the selected rate is saved. Render
-rate is no longer stored in the state file. The Settings pane's interpolation source, method, and
-degree are also saved in `play-oem.toml` when the application exits. The Ground Track
-minimum-elevation setting is saved here too.
+rate is no longer stored in the state file. The Settings pane's display time zone, interpolation
+source, method, and degree are also saved in `play-oem.toml` when the application exits. Ground
+Track settings, including the minimum-elevation mask, are saved in the application-maintained
+state file.
 
 The window size is adjusted if it does not fit the current display. The saved window position is
 clamped to a connected display's work area if necessary, so a monitor change will not leave the
@@ -158,6 +167,7 @@ overrides into `play-oem.toml`.
 |---|---|
 | `three_d_backend` | 3D renderer: `"auto"`, `"vtk"`, or `"matplotlib"`. `"auto"` selects an available supported backend. |
 | `plots` | Views or view groups to open at launch. This uses the same names and groups as `--plots`; for example, `["overview"]` or `["state", "motion"]`. |
+| `time_zone` | Timestamp display zone: `"UTC"` (default) or `"local"` for the machine's local time zone. The Settings pane can change this value. |
 
 ### Interpolation
 
@@ -196,5 +206,5 @@ identifies the config file and setting where possible.
 
 ## Related documentation
 
-- [Configuration implementation report](../architecture/play-oem/old/PLAY_OEM_CONFIG_REPORT.md)
 - [`play-oem` concepts and command-line options](../architecture/play-oem/PLAY_OEM_CONCEPTS.md)
+- [`play-oem` software design](../architecture/play-oem/PLAY_OEM_SOFTWARE_DESIGN.md)

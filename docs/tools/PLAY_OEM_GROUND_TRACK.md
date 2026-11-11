@@ -37,7 +37,9 @@ panel and does not seek the playback timeline. The center control follows horizo
 navigation.
 
 The selected minimum elevation is shared by open Ground Track panels and saved in the application
-state file. Projection and center are per-panel session preferences and are not restored after
-restarting `play-oem`.
+state file. Projection, background, center longitude, and map extent are also saved and restored
+when `play-oem` restarts.
 
-See the [Ground Track implementation report](../architecture/play-oem/old/PLAY_OEM_GROUND_TRACK_IMPLEMENTATION_PLAN.md).
+For the current implementation architecture, see
+[PLAY_OEM_SOFTWARE_DESIGN.md](../architecture/play-oem/PLAY_OEM_SOFTWARE_DESIGN.md) and
+[PLAY_OEM_DATAFLOW.md](../architecture/play-oem/PLAY_OEM_DATAFLOW.md).

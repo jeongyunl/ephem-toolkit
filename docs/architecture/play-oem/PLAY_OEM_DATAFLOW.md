@@ -74,15 +74,14 @@ and station views do not have non-store data fallbacks. Each load generation own
 - Range queries may include interpolation-support margins beyond the visible plot boundaries.
 - Rendering may create bounded display paths or downsampled indices; these are not additional
   full-history owners in the default store path.
-- The automatic-capacity first-delivery performance gate remains deferred and unpassed; see the
-  [implementation report](./old/PLAY_OEM_INCREMENTAL_LOADING_IMPLEMENTATION_REPORT.md).
+- Automatic-capacity scanning adds a pre-load file pass when no safe capacity is supplied; first-
+  delivery latency for that path has not been established.
 
 ## Related documents
 
-- [PLAY_OEM_INCREMENTAL_LOADING.md](./old/PLAY_OEM_INCREMENTAL_LOADING.md): archived incremental
-  loading design
-- [PLAY_OEM_INCREMENTAL_LOADING_IMPLEMENTATION_REPORT.md](./old/PLAY_OEM_INCREMENTAL_LOADING_IMPLEMENTATION_REPORT.md):
-  shipped implementation and validation
-- [PLAY_OEM_DATA_STORE_SOFTWARE_DESIGN.md](./old/PLAY_OEM_DATA_STORE_SOFTWARE_DESIGN.md): archived
-  unified-store architecture and performance evidence
-- [PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md): overall software design
+- [PLAY_OEM_CONCEPTS.md](./PLAY_OEM_CONCEPTS.md): shipped behavior and requirements
+- [PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md): component and lifecycle design
+- [PLAY_OEM_LOADING_AWARE_TIMELINE_IMPLEMENTATION_PLAN.md](./PLAY_OEM_LOADING_AWARE_TIMELINE_IMPLEMENTATION_PLAN.md):
+  timeline loading and interaction behavior
+- [PLAY_OEM_PERFORMANCE_REPORT.md](./PLAY_OEM_PERFORMANCE_REPORT.md): measured performance and
+  deferred work

@@ -13,20 +13,18 @@ without updating or drawing plot views. Apply the latest state once the drag end
 
 ## Current implementation
 
-The incremental reader delivers raw append and completion events through
-[`incremental_loader.py`](../../../src/ephem_toolkit/play_oem/incremental_loader.py). The
-controller uses observed coverage during loading and applies parsed OEM `START_TIME` and
-`STOP_TIME` bounds when final metadata is received. The
-[`TimeRangeSlider`](../../../src/ephem_toolkit/play_oem/workspace/time_range_slider.py) already
-keeps the slider domain, playback interval, plot endpoints, and current time as separate values,
-but it does not draw the not-yet-loaded portion as a distinct region. Its `set_ranges()` call
-updates the slider and handle positions together.
+The incremental reader publishes generation-tagged segment metadata, raw appends, parser
+progress, and completion events. The controller combines valid UTC metadata bounds with observed
+sample bounds for the slider domain, while playback remains bounded by committed playable
+coverage. The `TimeRangeSlider` keeps the domain, loaded coverage, playback bounds, plot
+endpoints, and current time distinct; it marks the unread remainder and reports unloaded time in
+its hover text.
 
-Playback- and plot-range grips report drag state, which the controller publishes as a store
-`RangeHint`; that hint prioritizes derived work but does not suppress plot-view updates or redraw
-requests. The current-time seek grip does not report drag lifecycle. The controller's
-[`_dispatch_time_range`](../../../src/ephem_toolkit/play_oem/app/time_range_actions.py) path
-updates visible views and queues redraws as ranges change.
+The playback, plot-range, and current-time grips report drag lifecycle, including mouse-capture
+loss. While loading, the controller defers and coalesces plot-view updates and redraw requests
+during a drag, then refreshes from the latest range, cursor, and store snapshot when the drag
+ends. Seeking into unloaded time follows the clock's existing loaded-coverage clamping behavior;
+the timeline tooltip identifies the requested time as not loaded.
 
 ## Interaction and loading rules
 

@@ -4,7 +4,7 @@ Command-line tools for processing, converting, propagating, comparing, and visua
 
 ## Overview
 
-This project provides a practical toolkit for working with ephemerides and related astrodynamics data. Built on top of [TudatPy](https://docs.tudat.space/en/latest/) and [Tudat](https://docs.tudat.space/), it includes a focused set of command-line tools for ingesting, transforming, comparing, propagating, and plotting CCSDS OEM, OPM, OMM, and TLE data.
+This project provides a practical toolkit for working with ephemerides and related astrodynamics data. Built on top of [TudatPy](https://docs.tudat.space/en/latest/) and [Tudat](https://docs.tudat.space/), it includes command-line tools and an interactive OEM player for ingesting, transforming, comparing, propagating, and visualizing CCSDS OEM, OPM, OMM, and TLE data.
 
 The toolkit supports workflows for working with ephemeris products: parse OEM, OMM, and TLE inputs, fit or convert mean elements, propagate trajectories, compare results, and visualize dependent variables and orbit differences.
 
@@ -171,6 +171,7 @@ flowchart LR
 
 | Workflow | Command |
 | --- | --- |
+| Interactive OEM playback | [`play-oem`](docs/architecture/play-oem/PLAY_OEM_CONCEPTS.md) |
 | Orbit plotting | [`plot-oem`](docs/tools/PLOT_OEM.md) |
 | Orbit-delta plotting | [`plot-oem-diff`](docs/tools/PLOT_OEM_DIFF.md) |
 | Dependent-variable plotting | [`plot-dependent-variables`](docs/tools/PLOT_DEPENDENT_VARIABLES.md) |
@@ -217,6 +218,7 @@ Fits an OEM arc and writes an OPM using either a two-body osculating fit or a nu
 
 ### Visualization
 
+- [`play-oem`](docs/architecture/play-oem/PLAY_OEM_CONCEPTS.md) — interactively play an OEM with synchronized orbit, diagnostic, Ground Track, and station-access views
 - [`plot-oem`](docs/tools/PLOT_OEM.md) — visualize orbit trajectories and output state histories
 - [`plot-oem-diff`](docs/tools/PLOT_OEM_DIFF.md) — plot and compare multiple orbits
 - [`plot-dependent-variables`](docs/tools/PLOT_DEPENDENT_VARIABLES.md) — plot dependent variables from propagation output
@@ -261,6 +263,7 @@ src/
 │   ├── plot_dep_vars/        Dependent-variable plotting
 │   ├── plot_oem/             Orbit visualization
 │   ├── plot_oem_diff/        Orbit-difference plotting
+│   ├── play_oem/             Interactive OEM playback
 │   ├── propagate_kepler/     Two-body Kepler propagation
 │   ├── propagate_omm/        OMM and TLE propagation
 │   ├── propagate_orbit/      Numerical Cartesian propagation
@@ -293,6 +296,11 @@ pyproject.toml              Project configuration and dependencies
 - Install the optional `plotting` extra to use the plotting commands, which requires Matplotlib:
   ```bash
   pip install ".[plotting]"
+  ```
+- Install the optional `playback` extra to run `play-oem` (wxPython, Matplotlib, and pyproj). Add the separate `vtk` extra for the optional VTK 3D backend:
+  ```bash
+  pip install ".[playback]"
+  pip install ".[playback,vtk]"
   ```
 - Numerical propagation and some orbit-fitting workflows require [TudatPy](https://docs.tudat.space/en/latest/), which is not installed as a package dependency and must be installed separately using the TudatPy installation instructions.
 

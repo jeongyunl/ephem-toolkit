@@ -69,12 +69,13 @@ prepare access history. With no stations, the station controls are disabled and 
 usable.
 
 Open **Pass List** or **Sky View** independently, or choose **Pass Study** to open both. The
-chronological Pass List contains:
+chronological Pass List contains (timestamps are shown in the selected display time zone,
+UTC by default):
 
-- pass start and end in UTC;
+- pass start and end;
 - duration when both access crossings are known;
-- peak elevation and its UTC time;
-- minimum slant range and its UTC time; and
+- peak elevation and its time;
+- minimum slant range and its time; and
 - coverage status for complete, coverage-boundary, or gap-limited intervals.
 
 The table lists cached access intervals that overlap Plot Range, including a pass that starts
@@ -113,7 +114,6 @@ visually marked and described as in progress at the start or continuing beyond t
 that reaches an OEM segment gap is labeled as gap-limited. Terrain, buildings, atmospheric
 refraction, antenna characteristics, link budgets, and station schedules are not modeled.
 
-For current technical and workspace details, see the
-[implementation report](../architecture/play-oem/old/PLAY_OEM_GROUND_STATION_ANALYSIS_2_IMPLEMENTATION_REPORT.md)
-and archived [software design](../architecture/play-oem/old/PLAY_OEM_GROUND_STATION_ANALYSIS_2_SOFTWARE_DESIGN.md)
-and [GUI design](../architecture/play-oem/old/PLAY_OEM_GROUND_STATION_ANALYSIS_2_GUI_DESIGN.md).
+For current architecture and data ownership, see
+[PLAY_OEM_SOFTWARE_DESIGN.md](../architecture/play-oem/PLAY_OEM_SOFTWARE_DESIGN.md) and
+[PLAY_OEM_DATAFLOW.md](../architecture/play-oem/PLAY_OEM_DATAFLOW.md).
