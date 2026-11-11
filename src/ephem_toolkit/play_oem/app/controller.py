@@ -1385,95 +1385,13 @@ class PlayerApp(
     def _install_store_snapshot(
         self, store: OemDataStore, snapshot: StoreSnapshot, path: str
     ) -> None:
-        """Install one committed store prefix and refresh the playback epoch."""
+        """Route one committed prefix through install or append handling."""
         first_append = not self._active_load_first_batch
-        previous_store = self._oem_store if first_append else None
         meta = dict(snapshot.meta)
-        rate = self.clock.rate
         if first_append:
-            self._clock_unsubscribe()
-            self._store_notice_unsubscribe()
-            self.time_unit = snapshot.time_unit
-            self.clock = clock.PlaybackClock(
-                float(snapshot.raw[0, 0]),
-                float(snapshot.raw[-1, 0]),
-                sample_times=store.sample_times,
-            )
-            self.clock.set_playback_bounds(
-                self.clock.t_start,
-                self.clock.t_end,
-                follow_coverage=True,
-            )
-            self.clock.set_speed(abs(rate))
-            self.clock.set_direction(-1 if rate < 0.0 else 1)
-            if rate < 0.0:
-                self.clock.seek(self.clock.t_end)
-            self._clock_unsubscribe = self.clock.subscribe(
-                self._on_clock_time_changed
-            )
-            self._oem_store = store
-            self._subscribe_store_notices(store)
-            self._pending_oem_store = store
-            self._retired_oem_store = previous_store
-            self.series = playback_data.empty_playback_data().series
-            self._oem_loaded = True
-            self.workspace.set_oem_loaded(True)
-            self._current_oem_path = normalize_recent_path(path)
-            self.plot_time_range = playback_range_plot_rule()
-            self._restore_recent_file_plot_range(self._current_oem_path)
-            self._pending_playback_bounds = self._pending_file_playback_bounds
-            self._playback_handle_bounds = (
-                self._pending_playback_bounds
-                or (self.clock.playback_start, self.clock.playback_end)
-            )
-            if (
-                self._pending_playback_bounds is not None
-                and self.clock.t_start
-                <= self._pending_playback_bounds[0]
-                and self._pending_playback_bounds[0] > self.clock.t_end
-            ):
-                self._loading_cursor_anchor_s = self._pending_playback_bounds[0]
-            self._apply_pending_playback_bounds()
-            self._pending_file_playback_bounds = None
-            self._slider_bounds = playback_data.oem_slider_bounds(
-                str(meta.get("START_TIME", "")),
-                str(meta.get("STOP_TIME", "")),
-                (self.clock.t_start, self.clock.t_end),
-                time_system=str(meta.get("TIME_SYSTEM", "UTC")) or "UTC",
-            )
-            if self._pending_oem_slider_bounds is not None:
-                self._slider_bounds = (
-                    min(self._slider_bounds[0], self._pending_oem_slider_bounds[0]),
-                    max(self._slider_bounds[1], self._pending_oem_slider_bounds[1]),
-                )
-            self._pending_oem_slider_bounds = None
-            self._loaded_file_name = os.path.basename(path)
-            self.status_bar.set_file_name(self._loaded_file_name)
-            self._active_load_first_batch = True
-            self._oem_coverage_complete = False
-            self._last_frame_monotonic_s = time.monotonic()
+            self._install_first_store_snapshot(store, snapshot, path, meta)
         else:
-            if self._oem_store is not store:
-                raise RuntimeError("raw append belongs to a non-active store")
-            if not isinstance(self.cursor, cursor.StoreCursor):
-                raise RuntimeError("active store has no store-backed cursor")
-            if snapshot.sample_count > self.cursor.timestamps_s.size:
-                with self._installing_incremental_update():
-                    self.clock.extend_coverage(float(snapshot.raw[-1, 0]))
-                    self.cursor.refresh(snapshot)
-            else:
-                self.cursor.refresh(snapshot)
-            if self._pending_playback_bounds is None:
-                if not self._playback_handles_fixed_during_load:
-                    self._playback_handle_bounds = (
-                        self.clock.playback_start,
-                        self.clock.playback_end,
-                    )
-            else:
-                self._apply_pending_playback_bounds()
-
-        if first_append:
-            self.cursor = cursor.StoreCursor(store, snapshot)
+            self._advance_store_snapshot(store, snapshot)
         self.time_unit = snapshot.time_unit
         loaded_name = str(meta.get("OBJECT_NAME", "")).strip()
         if loaded_name:
@@ -1504,6 +1422,99 @@ class PlayerApp(
         )
         self._update_time_display()
         self._remember_recent_oem(path, save_file_ranges=False)
+
+    def _install_first_store_snapshot(
+        self,
+        store: OemDataStore,
+        snapshot: StoreSnapshot,
+        path: str,
+        meta: dict[str, object],
+    ) -> None:
+        """Replace the playback epoch when the first usable prefix arrives."""
+        previous_store = self._oem_store
+        rate = self.clock.rate
+        self._clock_unsubscribe()
+        self._store_notice_unsubscribe()
+        self.time_unit = snapshot.time_unit
+        self.clock = clock.PlaybackClock(
+            float(snapshot.raw[0, 0]),
+            float(snapshot.raw[-1, 0]),
+            sample_times=store.sample_times,
+        )
+        self.clock.set_playback_bounds(
+            self.clock.t_start,
+            self.clock.t_end,
+            follow_coverage=True,
+        )
+        self.clock.set_speed(abs(rate))
+        self.clock.set_direction(-1 if rate < 0.0 else 1)
+        if rate < 0.0:
+            self.clock.seek(self.clock.t_end)
+        self._clock_unsubscribe = self.clock.subscribe(self._on_clock_time_changed)
+        self._oem_store = store
+        self._subscribe_store_notices(store)
+        self._pending_oem_store = store
+        self._retired_oem_store = previous_store
+        self.series = playback_data.empty_playback_data().series
+        self._oem_loaded = True
+        self.workspace.set_oem_loaded(True)
+        self._current_oem_path = normalize_recent_path(path)
+        self.plot_time_range = playback_range_plot_rule()
+        self._restore_recent_file_plot_range(self._current_oem_path)
+        self._pending_playback_bounds = self._pending_file_playback_bounds
+        self._playback_handle_bounds = (
+            self._pending_playback_bounds
+            or (self.clock.playback_start, self.clock.playback_end)
+        )
+        if (
+            self._pending_playback_bounds is not None
+            and self.clock.t_start <= self._pending_playback_bounds[0]
+            and self._pending_playback_bounds[0] > self.clock.t_end
+        ):
+            self._loading_cursor_anchor_s = self._pending_playback_bounds[0]
+        self._apply_pending_playback_bounds()
+        self._pending_file_playback_bounds = None
+        self._slider_bounds = playback_data.oem_slider_bounds(
+            str(meta.get("START_TIME", "")),
+            str(meta.get("STOP_TIME", "")),
+            (self.clock.t_start, self.clock.t_end),
+            time_system=str(meta.get("TIME_SYSTEM", "UTC")) or "UTC",
+        )
+        if self._pending_oem_slider_bounds is not None:
+            self._slider_bounds = (
+                min(self._slider_bounds[0], self._pending_oem_slider_bounds[0]),
+                max(self._slider_bounds[1], self._pending_oem_slider_bounds[1]),
+            )
+        self._pending_oem_slider_bounds = None
+        self._loaded_file_name = os.path.basename(path)
+        self.status_bar.set_file_name(self._loaded_file_name)
+        self._active_load_first_batch = True
+        self._oem_coverage_complete = False
+        self._last_frame_monotonic_s = time.monotonic()
+        self.cursor = cursor.StoreCursor(store, snapshot)
+
+    def _advance_store_snapshot(
+        self, store: OemDataStore, snapshot: StoreSnapshot
+    ) -> None:
+        """Advance coverage and cursor state for the installed store."""
+        if self._oem_store is not store:
+            raise RuntimeError("raw append belongs to a non-active store")
+        if not isinstance(self.cursor, cursor.StoreCursor):
+            raise RuntimeError("active store has no store-backed cursor")
+        if snapshot.sample_count > self.cursor.timestamps_s.size:
+            with self._installing_incremental_update():
+                self.clock.extend_coverage(float(snapshot.raw[-1, 0]))
+                self.cursor.refresh(snapshot)
+        else:
+            self.cursor.refresh(snapshot)
+        if self._pending_playback_bounds is None:
+            if not self._playback_handles_fixed_during_load:
+                self._playback_handle_bounds = (
+                    self.clock.playback_start,
+                    self.clock.playback_end,
+                )
+        else:
+            self._apply_pending_playback_bounds()
 
     def _apply_pending_playback_bounds(self) -> None:
         bounds = self._pending_playback_bounds

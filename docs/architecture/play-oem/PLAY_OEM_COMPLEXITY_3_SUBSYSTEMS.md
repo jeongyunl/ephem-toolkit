@@ -243,6 +243,14 @@ obscuring the actual operations:
 The three manual set/try/finally/reset sequences now use
 `_installing_incremental_update`, which restores the prior state on exceptions.
 The app, clock, and time-range suites passed (163 passed) on macOS.
+The next code-directed experiment is to test whether first-append replacement
+setup and subsequent-append advancement within `_install_store_snapshot` form
+clear, cohesive phases distinct from their shared metadata/view-context tail.
+Plan 25 rejects code movement without a measurable reduction in reasoning:
+[plan 25](./PLAY_OEM_COMPLEXITY_25_SNAPSHOT_INSTALLATION_PHASES_PLAN.md).
+The snapshot installer now dispatches to `_install_first_store_snapshot` or
+`_advance_store_snapshot`, then applies shared metadata and view-context
+updates once. The app/loader/clock/range suites passed (173 passed) on macOS.
 
 ## Scope and follow-up
 

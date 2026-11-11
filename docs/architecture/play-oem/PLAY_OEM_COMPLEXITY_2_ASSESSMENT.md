@@ -798,6 +798,25 @@ time-range suites passed (163 passed) on macOS. Direct flag writes are now
 limited to initialization and the scope helper; no cross-platform claim is
 made.
 
+## Snapshot phase-boundary selection — 2026-11-11
+
+The next experiment targets the remaining large local coordination point in
+`_install_store_snapshot`: first append installs a replacement clock/store
+and initializes progressive-load state, while later append validates the
+active store and advances coverage/cursor state; both share a metadata and
+view-context tail. Plan 25 will determine whether these are cohesive phases
+that can be made clearer without moving code into broad helpers or duplicating
+updates. The goal is an actual reduction in local reasoning, not a smaller
+method:
+[PLAY_OEM_COMPLEXITY_25_SNAPSHOT_INSTALLATION_PHASES_PLAN.md](./PLAY_OEM_COMPLEXITY_25_SNAPSHOT_INSTALLATION_PHASES_PLAN.md).
+
+Plan 25 made the first-append and later-append phases explicit as
+`_install_first_store_snapshot` and `_advance_store_snapshot`. The shared
+metadata/view-context tail remains in one place. This gives the dispatcher a
+small lifecycle decision while keeping phase-specific invariants together,
+without a new state owner or broad forwarding interface. The app, loader,
+clock, and time-range suites passed (173 passed) on macOS.
+
 Plan 22 is complete. The ranked candidates have been investigated, and the
 remaining leads lack either a concrete complexity defect/change hypothesis or
 an available validation path. No new implementation plan is selected. Reopen
