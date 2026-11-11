@@ -1875,12 +1875,39 @@ def test_controller_ignores_stale_incremental_events() -> None:
         LoadEvent(1, LoadEventKind.FAILED, 100),
     ]
     controller = SimpleNamespace(
-        _incremental_loader=SimpleNamespace(drain=lambda: events),
+        _incremental_loader=SimpleNamespace(drain=lambda limit=None: events[:limit]),
         _active_load_generation=2,
         _incremental_view_refresh_pending=False,
     )
     app.PlayerApp._poll_incremental_load(controller)
     assert not controller._incremental_view_refresh_pending
+
+
+def test_controller_bounds_incremental_load_events_per_tick() -> None:
+    events = [
+        LoadEvent(1, LoadEventKind.RAW_APPEND, index)
+        for index in range(app.MAX_INCREMENTAL_LOAD_EVENTS_PER_TICK + 1)
+    ]
+    drain_limits = []
+
+    def drain(limit=None):
+        drain_limits.append(limit)
+        batch = events[:limit]
+        del events[:limit]
+        return batch
+
+    controller = SimpleNamespace(
+        _incremental_loader=SimpleNamespace(drain=drain),
+        _active_load_generation=2,
+        _incremental_view_refresh_pending=False,
+    )
+
+    app.PlayerApp._poll_incremental_load(controller)
+
+    assert drain_limits == [app.MAX_INCREMENTAL_LOAD_EVENTS_PER_TICK]
+    assert len(events) == 1
+    app.PlayerApp._poll_incremental_load(controller)
+    assert not events
 
 
 def test_incremental_store_appends_extend_clock_and_complete_full_history(
@@ -2462,6 +2489,60 @@ def test_closing_primary_frame_stops_timer_and_closes_all_views(
     assert all(frame.destroyed for frame in frames)
     assert all(view.updated_times == [100.0] for view in views)
     player.close()
+
+
+def test_closing_while_oem_parse_is_blocked_cancels_without_waiting(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    source = tmp_path / "closing-load.oem"
+    source.write_text(
+        "CCSDS_OEM_VERS = 2.0\n"
+        "META_START\n"
+        "OBJECT_NAME = CLOSING LOAD\n"
+        "CENTER_NAME = EARTH\n"
+        "REF_FRAME = GCRF\n"
+        "TIME_SYSTEM = UTC\n"
+        "META_STOP\n"
+        "2026-01-01T00:00:00 7000 0 0 0 7.5 0\n",
+        encoding="utf-8",
+    )
+    parsing_started = Event()
+    release_parser = Event()
+    original_validate = odm.validate_odm_line
+
+    def block_parser(line: str, label: str) -> None:
+        if line.startswith("2026-01-01T00:00:00"):
+            parsing_started.set()
+            if not release_parser.wait(3.0):
+                raise TimeoutError("test parser was not released")
+        original_validate(line, label)
+
+    monkeypatch.setattr(odm, "validate_odm_line", block_parser)
+    player, _views, _canvases, _frames = make_app(
+        monkeypatch, plots=("speed-altitude",), oem_loaded=False
+    )
+    session = None
+    store = None
+    try:
+        player._load_oem_file(str(source))
+        session = player._incremental_loader.session
+        assert session is not None
+        assert parsing_started.wait(3.0)
+        store = player._pending_oem_store
+        assert store is not None
+
+        player.close()
+
+        assert player._closed
+        assert session.cancelled
+        assert store.status is LoadStatus.CANCELLED
+        assert store._scheduler_closed
+    finally:
+        release_parser.set()
+    assert session is not None
+    assert store is not None
+    assert session._finished.wait(3.0)
+    assert store.snapshot().sample_count == 0
 
 
 def test_sigint_is_forwarded_with_call_after_and_previous_handler_restored(

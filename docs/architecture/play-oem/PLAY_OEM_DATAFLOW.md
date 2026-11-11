@@ -22,12 +22,15 @@ follows playback. Saved settings override those defaults.
    the file for a safe capacity before allocating. Raw-append events identify committed
    prefixes without constructing prepared orbit-series batches.
 
-2. **Install snapshots (wx thread).** The controller drains generation-tagged load events.
-   On the first usable append, it installs a `StoreCursor`, connects the playback clock to the
-   store's live sample-time view, and captures a `StoreViewContext`. Each append refreshes the
-   context to the latest committed snapshot. Completion publishes validated metadata to the
-   store and refreshes the context; replacement, cancellation, and failure remain scoped to
-   their load generation.
+2. **Install snapshots (wx thread).** The controller drains at most 64
+   generation-tagged load events per timer tick, keeping a continuously
+   refilled queue from monopolizing one GUI tick. Remaining events are handled
+   on subsequent ticks. On the first usable append, it installs a `StoreCursor`,
+   connects the playback clock to the store's live sample-time view, and captures a
+   `StoreViewContext`. Each append refreshes the context to the latest committed
+   snapshot. Completion publishes validated metadata to the store and refreshes
+   the context; replacement, cancellation, and failure remain scoped to their
+   load generation.
 
 3. **Query only data needed by open views.** `StoreViewContext` binds a stable snapshot,
    resolved plot range, coverage, and time unit. Views request:

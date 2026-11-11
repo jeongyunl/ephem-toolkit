@@ -326,3 +326,26 @@ applicable. Accept a change when it makes the relevant responsibilities and
 invariants easier to understand and verify without moving equal or greater
 complexity into another layer or changing required behavior. Reassess the
 priority order after the first lifecycle trace and caller inventory.
+
+## Lifecycle work-item update — 2026-11-10
+
+The detailed trace, transition table, responsibility matrix, and test mapping
+are recorded in
+[PLAY_OEM_COMPLEXITY_4_LOAD_LIFECYCLE_PLAN.md](./PLAY_OEM_COMPLEXITY_4_LOAD_LIFECYCLE_PLAN.md).
+At commit `629cb280b3f31bca3979aa8d79a96d82e6ae97f6`, the worktree was clean
+before implementation changes. Focused loader, stream, controller, cache,
+store, clock, range, and point-query validation passed (267 tests). Deterministic
+controller tests now cover closing during a blocked parse and the exact
+per-tick event-drain limit.
+
+The lifecycle remains the first investigation priority because mistakes can
+discard valid data or cross generation/epoch boundaries; however, no duplicated
+event consumer or row-sink protocol was found, and a single enum would conflate
+the current load with the installed store's completeness. A production
+abstraction was therefore not justified by this evidence. The controller's
+unbounded event drain was a separate, concrete responsiveness risk; it now
+handles at most 64 events per timer tick and leaves the rest for later ticks.
+The test verifies this work bound. Change frequency, defect history, and native
+GUI latency remain unknown. Continue with priority 2, store
+scheduling/query/eviction invariants, unless operational evidence changes the
+ranking.

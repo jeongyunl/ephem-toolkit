@@ -92,6 +92,9 @@ FRAME_COUNT_EPSILON: float = 1e-9
 INCREMENTAL_VIEW_REFRESH_INTERVAL_S: float = 5.0
 """Maximum rate for rebuilding plots while incremental OEM data is arriving."""
 
+MAX_INCREMENTAL_LOAD_EVENTS_PER_TICK: int = 64
+"""Bound load-event handling so a refilled queue cannot monopolize the wx thread."""
+
 class PlayerApp(
     ViewFactoryMixin,
     PlaybackActionsMixin,
@@ -1205,7 +1208,9 @@ class PlayerApp(
         """Install parser events on the wx thread and accumulate progressive data."""
         data_changed = False
         load_completed = False
-        for event in self._incremental_loader.drain():
+        for event in self._incremental_loader.drain(
+            limit=MAX_INCREMENTAL_LOAD_EVENTS_PER_TICK
+        ):
             if event.generation != self._active_load_generation:
                 continue
             path = self._active_load_path
