@@ -9,6 +9,7 @@ import pytest
 from ephem_toolkit.play_oem.saved_state import (
     RecentFileSettings,
     SavedAppState,
+    STATE_VERSION,
     load_saved_state,
     serialize_saved_state,
 )
@@ -35,6 +36,66 @@ def test_window_position_round_trips(tmp_path) -> None:
     state = load_saved_state(path)
 
     assert state.position == (-640, 120)
+
+
+def test_missing_saved_state_returns_defaults_without_warning(tmp_path) -> None:
+    path = tmp_path / "missing-state.toml"
+
+    with warnings.catch_warnings(record=True) as observed:
+        warnings.simplefilter("always")
+        state = load_saved_state(path)
+
+    assert state == SavedAppState()
+    assert not observed
+
+
+@pytest.mark.parametrize(
+    ("contents", "expected_error"),
+    [
+        (
+            f"state_version = {STATE_VERSION + 1}\n",
+            f"state_version must be from 1 through {STATE_VERSION}",
+        ),
+        (
+            f"state_version = {STATE_VERSION}\nunknown = true\n",
+            "unknown key 'unknown'",
+        ),
+        (
+            f"state_version = {STATE_VERSION}\n[workspace]\nunknown = true\n",
+            "unknown key workspace.unknown",
+        ),
+    ],
+)
+def test_invalid_state_schema_warns_and_returns_defaults(
+    tmp_path, contents: str, expected_error: str
+) -> None:
+    path = tmp_path / "play-oem-state.toml"
+    path.write_text(contents)
+
+    with warnings.catch_warnings(record=True) as observed:
+        warnings.simplefilter("always")
+        state = load_saved_state(path)
+
+    assert state == SavedAppState()
+    assert len(observed) == 1
+    warning = str(observed[0].message)
+    assert warning.startswith(f"Ignoring invalid play-oem state file {path}:")
+    assert expected_error in warning
+
+
+def test_malformed_toml_warns_and_returns_defaults(tmp_path) -> None:
+    path = tmp_path / "play-oem-state.toml"
+    path.write_text("state_version = [\n")
+
+    with warnings.catch_warnings(record=True) as observed:
+        warnings.simplefilter("always")
+        state = load_saved_state(path)
+
+    assert state == SavedAppState()
+    assert len(observed) == 1
+    assert str(observed[0].message).startswith(
+        f"Ignoring invalid play-oem state file {path}:"
+    )
 
 
 def test_invalid_window_position_falls_back(tmp_path) -> None:
@@ -106,13 +167,17 @@ def test_state_version_one_migrates_with_ground_track_default(tmp_path) -> None:
 
 def test_invalid_ground_track_preference_falls_back(tmp_path) -> None:
     path = tmp_path / "play-oem-state.toml"
-    path.write_text("state_version = 2\n[ground_track]\nminimum_elevation_deg = 91\n")
+    path.write_text(
+        "state_version = 2\n[window]\nwidth = 1200\n"
+        "[ground_track]\nminimum_elevation_deg = 91\n"
+    )
 
     with warnings.catch_warnings(record=True) as observed:
         warnings.simplefilter("always")
         state = load_saved_state(path)
 
     assert state.minimum_elevation_deg == 10
+    assert state.width == SavedAppState().width
     assert observed
 
 

@@ -308,7 +308,8 @@ frequency. Each item requires an evidence review before production refactoring.
    error handling. Try section-level parsing only if it makes the validation
    contract clearer. Preserve version migrations, rejection behavior, error
    messages where relied upon, and fallback-to-default startup; use the existing
-   saved-state tests to assess compatibility.
+   saved-state tests to assess compatibility. Detailed investigation plan:
+   [PLAY_OEM_COMPLEXITY_8_SAVED_STATE_PARSING_VALIDATION_PLAN.md](./PLAY_OEM_COMPLEXITY_8_SAVED_STATE_PARSING_VALIDATION_PLAN.md).
 6. **Investigate domain and performance hotspots separately.** Examine
    `_intervals_for_segment`, `_capacity_for_ascii_file`, and the large workspace
    constructor for distinct opportunities. Their high scores may represent
@@ -422,3 +423,25 @@ No dataflow or store-design document change is warranted because runtime
 ownership and behavior are unchanged. Priority 4 is complete. The next
 authoritative work item is priority 5, saved-state parsing and validation
 (`saved_state.load_saved_state`).
+
+## Saved-state parsing and validation update — 2026-11-10
+
+The verified section/version behavior, fallback contract, tests, and decision
+are recorded in
+[PLAY_OEM_COMPLEXITY_8_SAVED_STATE_PARSING_VALIDATION_PLAN.md](./PLAY_OEM_COMPLEXITY_8_SAVED_STATE_PARSING_VALIDATION_PLAN.md).
+The saved-state and CLI regression suite passed (48 passed). Tests now cover
+missing-file defaults, malformed TOML, unsupported versions, unknown root and
+nested keys, one-warning fallback, and document-wide fallback after a later
+section is invalid.
+
+No production parser refactor was justified: the existing code is already
+organized into contiguous sections, reuses shared domain validators, and
+enforces one consistent first-error/default policy. Extracting those blocks
+would add indirection without reducing validation rules or changing recovery
+behavior. Statement coverage in the targeted run increased from 74% to 76%;
+remaining uncovered paths are not treated as proof of defects.
+
+The persisted format, serializer, and startup ownership are unchanged, so no
+dataflow or format documentation update is warranted. Priority 5 is complete.
+The next authoritative work item is priority 6, investigating domain and
+performance hotspots separately.
