@@ -182,12 +182,11 @@ The current candidates and holds are:
   methods plus helper from 124 to 115 lines and their combined AST decision
   score from 42 to 36; all 27 focused tests passed, with one display-gated
   skip. Profile-coverage and interpolation rules remain at their callers.
-- The next bounded review is
-  [Plan 42](./PLAY_OEM_COMPLEXITY_42_SKY_PLOT_EMPTY_STATE_RENDERING_PLAN.md):
-  assess whether repeated centered sky-plot status-message rendering can be
-  consolidated without changing message precedence or adding complexity. This
-  does not propose a view split or reopen Plan 38's completed panel lifecycle
-  decision.
+- [Plan 42](./PLAY_OEM_COMPLEXITY_42_SKY_PLOT_EMPTY_STATE_RENDERING_PLAN.md)
+  completed the local sky-plot status-message review. Reusing the centered
+  text options shortened `_draw_sky_plot` by 15 lines while its AST decision
+  score remained 27; the five message cases and their precedence remain
+  unchanged. All 28 focused tests passed, with one display-gated skip.
 - The hosted native wx pilot in
   [Plan 19](./PLAY_OEM_COMPLEXITY_19_HOSTED_WX_TEST_PILOT_PLAN.md) is deferred
   indefinitely. Do not resume it without explicit reprioritization, even if
@@ -243,10 +242,10 @@ Do not repeat the map or begin a broad refactor without new evidence:
    [Plan 41](./PLAY_OEM_COMPLEXITY_41_PASS_ENDPOINT_LOOK_ANGLE_POLICY_PLAN.md):
    retain its local resolver and keep profile-coverage and interpolation rules
    in their respective callers.
-7. Evaluate the repeated sky-plot status-message rendering under
+7. Keep the local status-text options from
    [Plan 42](./PLAY_OEM_COMPLEXITY_42_SKY_PLOT_EMPTY_STATE_RENDERING_PLAN.md).
-   Preserve message precedence and reject any consolidation that adds
-   complexity without a measurable reduction in repeated presentation code.
+   Preserve the message-selection branches and precedence; do not extract a
+   broader empty-state abstraction.
 8. Keep the hosted wx pilot in
    [Plan 19](./PLAY_OEM_COMPLEXITY_19_HOSTED_WX_TEST_PILOT_PLAN.md) deferred
    indefinitely unless it is explicitly reprioritized. Retain the platform

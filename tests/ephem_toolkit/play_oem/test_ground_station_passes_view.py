@@ -612,7 +612,47 @@ def test_sky_plot_uses_clockwise_azimuth_and_cached_pass_profile() -> None:
     view.update(25.0)
     assert len(view._playback_marker.get_xdata()) == 0
     assert "Playhead outside selected pass" in view._sky_summary_text
+    assert not view._axes.texts
     view.close()
+
+
+def test_sky_plot_empty_state_messages_keep_their_precedence_and_style(
+    monkeypatch,
+) -> None:
+    def message_for(view: GroundStationPassesView) -> str:
+        figure = Figure()
+        view._figure = figure
+        view._axes = figure.add_subplot(111, projection="polar")
+        view._refresh_rows()
+        view._draw_sky_plot()
+        assert len(view._axes.texts) == 1
+        message = view._axes.texts[0]
+        assert message.get_horizontalalignment() == "center"
+        assert message.get_verticalalignment() == "center"
+        assert message.get_transform() is view._axes.transAxes
+        return message.get_text()
+
+    no_station, _cache = _make_view(
+        (), oem_loaded=False, limitation="Unsupported Earth-centered frame."
+    )
+    monkeypatch.setattr(no_station, "_selected_station", lambda: None)
+    assert message_for(no_station) == "Add or select a ground station to inspect passes."
+
+    not_loaded, _cache = _make_view(
+        (), oem_loaded=False, limitation="Unsupported Earth-centered frame."
+    )
+    assert message_for(not_loaded) == "Load an Earth-centered OEM to view the sky plot."
+
+    limited, _cache = _make_view(
+        (), limitation="Unsupported Earth-centered frame."
+    )
+    assert message_for(limited) == "Unsupported Earth-centered frame."
+
+    no_selection, _cache = _make_view(())
+    assert message_for(no_selection) == "Select a pass to view its sky path."
+
+    unavailable, _cache = _make_view((_interval(0.0, 20.0),))
+    assert message_for(unavailable) == "Selected pass sky path unavailable"
 
 
 def test_sky_plot_draws_at_minimum_size_without_layout_warning() -> None:

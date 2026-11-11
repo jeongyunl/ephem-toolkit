@@ -76,4 +76,22 @@ The centered message rendering is consolidated with state precedence and plot
 behavior preserved, or the repeated calls are retained because a candidate
 adds complexity or obscures the distinct states.
 
-**Status:** Planned; implementation is gated on the comparison.
+## Execution result
+
+The five message cases and their precedence were retained inline. A single
+local `status_text_kwargs` mapping now supplies the shared centered alignment
+and axes transform to each call; no helper or new decision branch was added.
+The selected-path-unavailable case remains nested in the selected-pass branch,
+and the message-selection `if`/`elif` chain is unchanged.
+
+The test characterization pins the exact message for each case, verifies that
+no status message is drawn for a valid path, and checks centered alignment and
+axes-relative positioning. The method decreased from 172 to 157 source lines;
+its AST decision score remained 27.
+
+```text
+python3 -m pytest tests/ephem_toolkit/play_oem/test_ground_station_passes_view.py
+28 passed, 1 skipped
+```
+
+**Status:** Complete; retain the shared local text options.

@@ -176,8 +176,12 @@ timing checks. It did not resume the deferred workload study. Plan 41 completed
 the local pass-endpoint policy review: its resolver reduced the combined
 implementation from 124 to 115 lines and the AST decision score from 42 to 36,
 while keeping profile-coverage and interpolation rules distinct. Its focused
-suite passed (27, with one display-gated skip). Plan 42 is the next bounded
-review of repeated centered status-message rendering in the sky plot.
+suite passed (27, with one display-gated skip). Plan 42 completed the bounded
+review of repeated centered status-message rendering in the sky plot by
+reusing the shared text options without moving the message
+conditions: `_draw_sky_plot` decreased from 172 to 157 lines and retained its
+AST decision score of 27. All 28 focused tests passed, with one display-gated
+skip.
 
 ## Current evidence priorities
 
@@ -195,7 +199,7 @@ do not revive completed refactors based on old baseline scores.
 | 5 — complete | [Terminal load-event cleanup](./PLAY_OEM_COMPLEXITY_39_TERMINAL_LOAD_CLEANUP_PLAN.md) | Moved the identical drag reset to one explicit `COMPLETE`/`FAILED` condition after their distinct transitions; preserved Plan 26's single event loop. App and incremental-loader suites passed (113). |
 | 6 — complete | [Capacity scanner simplification](./PLAY_OEM_COMPLEXITY_40_CAPACITY_SCANNER_SIMPLIFICATION_PLAN.md) | Replaced the separate ASCII mmap and UTF-8 paths with one bounded scanner: 177 fewer helper lines and score reduced from 68 to 24. All 88 focused tests passed; all measured medians remained within twice the Plan 9 baselines. |
 | 7 — complete | [Pass endpoint look-angle policy](./PLAY_OEM_COMPLEXITY_41_PASS_ENDPOINT_LOOK_ANGLE_POLICY_PLAN.md) | Shared endpoint metadata and mask policy locally; reduced the two methods plus helper from 124 to 115 lines and score from 42 to 36. Focused suite passed (27, 1 skipped). |
-| 8 — planned | [Sky-plot empty-state rendering](./PLAY_OEM_COMPLEXITY_42_SKY_PLOT_EMPTY_STATE_RENDERING_PLAN.md) | Assess consolidation of repeated centered status-message rendering while preserving state precedence and avoiding a view split. |
+| 8 — complete | [Sky-plot empty-state rendering](./PLAY_OEM_COMPLEXITY_42_SKY_PLOT_EMPTY_STATE_RENDERING_PLAN.md) | Reused centered text options across five message cases, reducing `_draw_sky_plot` from 172 to 157 lines with score unchanged at 27. Focused suite passed (28, 1 skipped); message precedence stayed inline. |
 | 9 — deferred indefinitely | [Hosted wx test pilot](./PLAY_OEM_COMPLEXITY_19_HOSTED_WX_TEST_PILOT_PLAN.md) | Real wx cleanup was verified on macOS Cocoa; GTK/MSW and native VTK widget lifecycle remain unverified. Do not resume without explicit reprioritization. |
 | 10 — deferred indefinitely | [Representative runtime and memory](./PLAY_OEM_COMPLEXITY_32_REPRESENTATIVE_LOAD_MEASUREMENT_PLAN.md) | No execution is scheduled. Resume only after explicit reprioritization; if reinstated, use measurements as operating constraints, not optimization targets. |
 | 11 — deferred | Longer-term maintenance trends | Play-OEM source history begins 2026-10-15. Revisit change frequency after several months of ordinary maintenance; the current feature and migration bursts are not representative. |
@@ -210,9 +214,10 @@ extraction remains rejected. Plan 40 replaced the two capacity scanners with
 one bounded implementation; its focused tests and synthetic timing guardrails
 passed. Plan 41 then shared endpoint normalization locally without combining
 profile-coverage and interpolation rules; it did not split the view or reopen
-Plan 38. Plan 42 is the next bounded review of repeated sky-plot
-status-message rendering. Plans 19 and 32 remain deferred indefinitely by
-maintainer direction.
+Plan 38. Plan 42 reduced repeated sky-plot status-text options while retaining
+all five message cases and their precedence. No view split or further
+production refactor is selected. Plans 19 and 32 remain deferred indefinitely
+by maintainer direction.
 Compatibility evidence is not a gate; longer-term maintenance review remains
 deferred.
 

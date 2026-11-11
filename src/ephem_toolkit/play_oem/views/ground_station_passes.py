@@ -790,6 +790,11 @@ class GroundStationPassesView:
         axes.set_yticklabels(("90°", "60°", "30°", "0°"))
         axes.set_thetagrids((0, 90, 180, 270), ("N", "E", "S", "W"))
         axes.grid(True, alpha=0.45)
+        status_text_kwargs: dict[str, Any] = {
+            "ha": "center",
+            "va": "center",
+            "transform": axes.transAxes,
+        }
         station = self._selected_station()
         result = self._result_for(station.station_id) if station is not None else None
         interval = self._selected_interval()
@@ -882,48 +887,28 @@ class GroundStationPassesView:
             )
             if not plotted:
                 axes.text(
-                    0.5,
-                    0.5,
-                    "Selected pass sky path unavailable",
-                    ha="center",
-                    va="center",
-                    transform=axes.transAxes,
+                    0.5, 0.5, "Selected pass sky path unavailable",
+                    **status_text_kwargs,
                 )
         elif station is None:
             axes.text(
-                0.5,
-                0.5,
-                "Add or select a ground station to inspect passes.",
-                ha="center",
-                va="center",
-                transform=axes.transAxes,
+                0.5, 0.5, "Add or select a ground station to inspect passes.",
+                **status_text_kwargs,
             )
         elif not self._oem_loaded:
             axes.text(
-                0.5,
-                0.5,
-                "Load an Earth-centered OEM to view the sky plot.",
-                ha="center",
-                va="center",
-                transform=axes.transAxes,
+                0.5, 0.5, "Load an Earth-centered OEM to view the sky plot.",
+                **status_text_kwargs,
             )
         elif result is not None and result.limitation:
             axes.text(
-                0.5,
-                0.5,
-                result.limitation,
-                ha="center",
-                va="center",
-                transform=axes.transAxes,
+                0.5, 0.5, result.limitation,
+                **status_text_kwargs,
             )
         elif interval is None:
             axes.text(
-                0.5,
-                0.5,
-                "Select a pass to view its sky path.",
-                ha="center",
-                va="center",
-                transform=axes.transAxes,
+                0.5, 0.5, "Select a pass to view its sky path.",
+                **status_text_kwargs,
             )
         if axes.get_legend_handles_labels()[0]:
             legend = axes.legend(
