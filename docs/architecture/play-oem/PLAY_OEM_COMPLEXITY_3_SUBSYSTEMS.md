@@ -1,0 +1,185 @@
+# play-oem complexity: subsystem research
+
+This research examines behavior that is difficult to reason about because of
+interacting states, ordering, concurrency, or numerical boundaries. It is based
+on static inspection of the source and named tests at commit `cf93496`; the tests
+were not run for this research. The [complexity assessment](./PLAY_OEM_COMPLEXITY_2_ASSESSMENT.md)
+contains the separate size and decision-count baseline. Rankings below are
+qualitative judgments about reasoning and consequences, not defect findings.
+
+## Investigation overview
+
+| Order | Subsystem | Main source of logical complexity | Recommended investigation |
+| --- | --- | --- | --- |
+| 1 | Incremental load and replacement | Concurrent generation, store epoch, partial installation, and failure state | Model transitions and ownership across worker and UI. |
+| 2 | Derived-data scheduling and cache lifetime | In-flight work, invalidation, tentative results, pinned views, eviction | Map validity keys, locks, and ownership for each tier. |
+| 3 | Station access and pass boundaries | Discontinuous samples, refined crossings, clipped intervals, extrema | Specify the interval state machine and boundary cases. |
+| 4 | Playback and time ranges | Independent coverage, playback bounds, moving plot rules, ongoing loading | Trace range resolution and changes under append and seek. |
+| 5 | Snapshot-based point interpolation | Segment gaps, policy revisions, support points, exact versus interpolated state | Document snapshot and interpolation contracts across consumers. |
+| 6 | Panel construction and teardown | Partial resource acquisition, rollback, replacement, native GUI lifetime | Map ownership and failure paths. |
+
+This order reflects the focus of the subsystem research. The assessment owns
+the overall work-item priorities. They do not imply that
+domain rules, asynchronous loading, or caching should be removed. In particular,
+some complexity is inherent in the required behavior; potential reduction lies
+in clarifying and containing it.
+
+## 1. Incremental load and replacement
+
+**Where:** [`incremental_loader.py`](../../../src/ephem_toolkit/play_oem/incremental_loader.py),
+[`streaming_oem.py`](../../../src/ephem_toolkit/play_oem/streaming_oem.py),
+`OemDataStore` lifecycle methods, and
+[`PlayerApp._poll_incremental_load`](../../../src/ephem_toolkit/play_oem/app/controller.py).
+
+The worker scans capacity when necessary, streams rows into an epoch-scoped
+store, and publishes generation-tagged events. The wx-thread controller drains
+five event kinds, validates append notices against snapshots, and installs the
+first usable data before the load completes. A replacement can start while old
+data or work still exists. Generation identifies the load session; epoch
+protects store operations. They are related but not interchangeable.
+
+**Reasoning challenge:** a failure before the first batch and a failure after
+the first batch have different visible outcomes. For example, a failed
+replacement can retain the previously installed OEM before first append, while
+a later failure can leave a valid prefix of the new one. A late event must not
+install data from an obsolete generation. Cancellation, queue backpressure,
+store invalidation, and GUI shutdown add ordering constraints. Tests named
+`test_incremental_replacement_keeps_old_oem_until_first_batch`,
+`test_failed_incremental_replacement_leaves_current_oem_installed`, and
+`test_controller_ignores_stale_incremental_events` cover parts of this behavior;
+loader tests cover cancellation and stale appends.
+
+**Next:** construct an event/transition table showing the current and pending
+store, generation, epoch, installed prefix, and thread at each transition.
+Cross-reference each transition with tests, including close and cancellation
+under backpressure. Investigate grouping lifecycle state only after establishing
+which combinations are valid. A reduction must retain partial loading and the
+old-data/valid-prefix behavior.
+
+## 2. Derived-data scheduling and cache lifetime
+
+**Where:** [`oem_data_store.py`](../../../src/ephem_toolkit/play_oem/oem_data_store.py),
+[`chunk_memo.py`](../../../src/ephem_toolkit/play_oem/chunk_memo.py), and
+[`views/base.py`](../../../src/ephem_toolkit/play_oem/views/base.py).
+
+Queries can return partial coverage while missing data is computed. The store
+schedules and prioritizes work, memoizes derived chunks, and may evict them;
+views can hold references to data backed by those chunks. `ChunkMemo` shares an
+in-flight computation among callers and checks epoch and policy revision. It
+distinguishes absent, computing, tentative, and complete entries; a tentative
+entry is recomputed on the next request.
+
+**Reasoning challenge:** a computation can finish after a range, epoch, policy,
+or subscription changes, and invalidated work must not publish as current.
+Memory reclamation must also respect active views. These rules interact with
+which derived tier actually depends on interpolation policy; one global
+invalidation rule could recompute unnecessarily or reuse invalid data. Existing
+tests cover in-flight deduplication and invalidation in `test_chunk_memo.py`,
+and policy-dependent prefetch keys, partial coverage, and pinned views in
+`test_oem_data_store.py`.
+
+**Next:** document, per tier, its key, input revisions, work cancellation,
+publication condition, and pin/eviction lifetime. Draw the lock and ownership
+boundaries, then examine whether the caller protocol or shared policy can be
+simplified without sacrificing range-limited computation or memory behavior.
+Measure peak memory and relevant load/query performance for any experiment.
+
+## 3. Station access and pass boundaries
+
+**Where:** [`station_access._intervals_for_segment`](../../../src/ephem_toolkit/play_oem/station_access.py),
+the store's `station_access` query, and station views.
+
+The interval computation tracks whether access is active, refines entry and
+exit crossings, records peak elevation and minimum range, and handles missing
+metrics, coverage edges, and segment gaps. A store query additionally deals with
+range-limited profiles and partial results. The local interval function has a
+decision score of 42 in the assessment, but the key issue is the relationship
+among these states and boundaries, rather than the score itself.
+
+**Reasoning challenge:** a pass beginning at coverage is different from a
+refined entry within valid data; missing metrics interrupt continuity; a
+segment gap must not be mistaken for a continuous interval. Clipping and
+extrema must remain consistent with the actual interval. Existing station
+analysis tests cover partial coverage and multi-segment profiles, while store
+tests cover station profiles and interpolation-dependent support margins.
+
+**Next:** enumerate entry, exit, missing-data, gap, and coverage-edge cases in
+a small transition table, including extrema initialization and reset. Map each
+case to the lower-level access tests as well as store/view tests; identify
+uncovered combinations before considering a cohesive active-pass state object
+or other simplification. Preserve crossing refinement and clipping semantics.
+
+## 4. Playback, coverage, and time ranges
+
+**Where:** [`clock.py`](../../../src/ephem_toolkit/play_oem/clock.py),
+[`time_range.py`](../../../src/ephem_toolkit/play_oem/time_range.py), and
+[`app/time_range_actions.py`](../../../src/ephem_toolkit/play_oem/app/time_range_actions.py).
+
+The clock tracks current time, signed rate, play/loop state, coverage, and
+independent playback bounds. Plot endpoints can independently follow playback
+bounds, use an offset from current time, or be fixed. Resolution clips to OEM
+coverage; crossed or disjoint endpoints yield an empty effective range. During
+incremental loading coverage can grow while explicit playback bounds or saved
+range choices remain meaningful.
+
+**Reasoning challenge:** a seek can change a relative plot range without
+changing the plot rule; an append can extend coverage without moving the cursor
+or resuming playback. Reverse and loop behavior add endpoint cases. Existing
+clock tests cover both directions, looping, and coverage extension; time-range
+tests cover endpoint combinations, clipping, and empty ranges.
+
+**Next:** trace one fixed/follow combination and one moving-offset combination
+through seek, append, and a range drag, including UI refresh. Identify which
+layer owns rules versus resolved bounds and whether there is repeated
+coordination. Preserve the distinction between empty plot range and unloaded or
+partial coverage; do not collapse playback and plot bounds for convenience.
+
+## 5. Snapshot-based point interpolation
+
+**Where:** `OemDataStore.state_at` in
+[`oem_data_store.py`](../../../src/ephem_toolkit/play_oem/oem_data_store.py)
+and [`cursor.py`](../../../src/ephem_toolkit/play_oem/cursor.py).
+
+A point query checks the store epoch and interpolation policy revision, then
+distinguishes empty data, out-of-range time, exact samples, segment gaps, and
+interpolated samples. Interpolation needs support samples and must not bridge a
+gap. The result also includes derived values. Querying at the same time after
+forward playback, reverse playback, or seek should not depend on traversal
+history.
+
+**Reasoning challenge:** a snapshot and an interpolation policy jointly define
+validity, while partial loads may change available support at a boundary. The
+compatibility and store-backed cursor paths must be compared before assuming
+they can share or discard behavior. Tests cover snapshot policy changes and
+point-query behavior in `test_oem_data_store.py`, and stateless samples, edges,
+and gaps in `test_stateless_interpolation.py`.
+
+**Next:** map which consumers use each cursor, their status and unit contracts,
+and how changes to raw samples or policy affect a result. Compare behavior at
+exact samples, near segment edges, and during incremental append. Simplify only
+where the same numerical and compatibility guarantees can be demonstrated.
+
+## 6. Panel lifecycle and GUI resources
+
+**Where:** [`PanelManagementMixin._open_view`](../../../src/ephem_toolkit/play_oem/app/panel_management.py)
+and view-specific `close` methods.
+
+Opening a panel acquires a host, view, content, callbacks, and possibly a
+Matplotlib canvas or native backend resources. Replacement must keep or restore
+the old panel if construction fails. Different resources become available at
+different points, so rollback depends on how far construction progressed.
+
+**Next:** make a resource-acquisition and cleanup table for successful open,
+failed construction, replacement, and application close. Start with
+`test_failed_view_change_restores_the_original_panel` and inspect coverage of
+failure at intermediate stages. Evaluate a scoped lifecycle only if it makes
+ownership and rollback clearer without hiding native backend cleanup.
+
+## Scope and follow-up
+
+This review identifies the main logical interactions visible in the inspected
+paths; it is not an exhaustive proof of all states or test coverage. The first
+deliverable should be the load transition table, followed by the cache validity
+and lifetime matrix. Use concrete traces and existing tests to refine the
+ranking; treat any proposed reduction as an experiment with explicit invariants
+and before/after evidence.
