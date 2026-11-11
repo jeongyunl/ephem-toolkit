@@ -655,6 +655,22 @@ def test_sky_plot_empty_state_messages_keep_their_precedence_and_style(
     assert message_for(unavailable) == "Selected pass sky path unavailable"
 
 
+def test_sky_plot_without_legend_uses_compact_bottom_margin(monkeypatch) -> None:
+    view, _cache = _make_view(())
+    monkeypatch.setattr(view, "_selected_station", lambda: None)
+    figure = Figure()
+    view._figure = figure
+    view._axes = figure.add_subplot(111, projection="polar")
+
+    view._draw_sky_plot()
+
+    assert view._axes.get_legend() is None
+    assert figure.subplotpars.left == 0.08
+    assert figure.subplotpars.right == 0.92
+    assert figure.subplotpars.bottom == 0.08
+    assert figure.subplotpars.top == 0.92
+
+
 def test_sky_plot_draws_at_minimum_size_without_layout_warning() -> None:
     station = GroundStation("site", "Site", 0.0, 0.0, 0.0, 10)
     interval = AccessInterval(

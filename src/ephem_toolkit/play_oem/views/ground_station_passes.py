@@ -910,6 +910,7 @@ class GroundStationPassesView:
                 0.5, 0.5, "Select a pass to view its sky path.",
                 **status_text_kwargs,
             )
+        bottom_margin = 0.08
         if axes.get_legend_handles_labels()[0]:
             legend = axes.legend(
                 loc="upper center",
@@ -918,19 +919,13 @@ class GroundStationPassesView:
                 fontsize="small",
             )
             legend.set_in_layout(False)
-            figure.subplots_adjust(
-                left=0.08,
-                right=0.92,
-                bottom=0.28,
-                top=0.92,
-            )
-        else:
-            figure.subplots_adjust(
-                left=0.08,
-                right=0.92,
-                bottom=0.08,
-                top=0.92,
-            )
+            bottom_margin = 0.28
+        figure.subplots_adjust(
+            left=0.08,
+            right=0.92,
+            bottom=bottom_margin,
+            top=0.92,
+        )
         self._update_playback_marker()
         if self._canvas is not None:
             self._canvas.draw_idle()

@@ -187,6 +187,11 @@ The current candidates and holds are:
   text options shortened `_draw_sky_plot` by 15 lines while its AST decision
   score remained 27; the five message cases and their precedence remain
   unchanged. All 28 focused tests passed, with one display-gated skip.
+- [Plan 43](./PLAY_OEM_COMPLEXITY_43_SKY_PLOT_LAYOUT_PADDING_PLAN.md)
+  completed the local layout-padding review. Sharing one subplot adjustment
+  reduced `_draw_sky_plot` from 157 to 152 lines while keeping its AST decision
+  score at 27. The legend/no-legend bottom margins and legend ordering remain
+  unchanged; all 29 focused tests passed, with one display-gated skip.
 - The hosted native wx pilot in
   [Plan 19](./PLAY_OEM_COMPLEXITY_19_HOSTED_WX_TEST_PILOT_PLAN.md) is deferred
   indefinitely. Do not resume it without explicit reprioritization, even if
@@ -246,11 +251,14 @@ Do not repeat the map or begin a broad refactor without new evidence:
    [Plan 42](./PLAY_OEM_COMPLEXITY_42_SKY_PLOT_EMPTY_STATE_RENDERING_PLAN.md).
    Preserve the message-selection branches and precedence; do not extract a
    broader empty-state abstraction.
-8. Keep the hosted wx pilot in
+8. Keep the shared subplot adjustment from
+   [Plan 43](./PLAY_OEM_COMPLEXITY_43_SKY_PLOT_LAYOUT_PADDING_PLAN.md).
+   Preserve the legend ordering and the exact `0.28`/`0.08` bottom margins.
+9. Keep the hosted wx pilot in
    [Plan 19](./PLAY_OEM_COMPLEXITY_19_HOSTED_WX_TEST_PILOT_PLAN.md) deferred
    indefinitely unless it is explicitly reprioritized. Retain the platform
    limitation and select no production refactor.
-9. Revisit maintenance trends after several months of ordinary maintenance.
+10. Revisit maintenance trends after several months of ordinary maintenance.
 
 The [assessment's current evidence priorities](./PLAY_OEM_COMPLEXITY_2_ASSESSMENT.md#current-evidence-priorities)
 owns the detailed limits and next observations. Do not select a production
