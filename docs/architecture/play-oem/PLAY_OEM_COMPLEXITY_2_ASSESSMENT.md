@@ -155,7 +155,9 @@ tests before changing an interface or removing a path.
    invalidation handling for repeated policy, then test a small shared internal
    operation only where invariants truly match. Preserve partial coverage,
    interpolation support, station-specific behavior, and cache semantics.
-4. **View refresh coordination.** `PlayerApp._drain_store_notices`,
+4. **View refresh coordination.** Detailed investigation plan:
+   [PLAY_OEM_COMPLEXITY_7_VIEW_REFRESH_COORDINATION_PLAN.md](./PLAY_OEM_COMPLEXITY_7_VIEW_REFRESH_COORDINATION_PLAN.md).
+   `PlayerApp._drain_store_notices`,
    `_views_for_tier_notice`, `_refresh_store_views`, and
    `_refresh_incremental_views` route and defer updates; range actions and views
    also participate. Trace which event refreshes which panels and consider a
@@ -291,7 +293,10 @@ frequency. Each item requires an evidence review before production refactoring.
    common operation only if it simplifies those relationships. Success: fewer
    responsibilities or repeated rules per caller without a second raw-data
    owner, numerical changes, weaker memory bounds, or a performance regression.
-4. **Reduce repeated view protocol where equivalent.** Compare the ten binding
+4. **Reduce repeated view protocol where equivalent.** Detailed investigation
+   plan:
+   [PLAY_OEM_COMPLEXITY_7_VIEW_REFRESH_COORDINATION_PLAN.md](./PLAY_OEM_COMPLEXITY_7_VIEW_REFRESH_COORDINATION_PLAN.md).
+   Compare the ten binding
    users, including history, Ground Track, and station views, and enumerate
    bind/query/refresh/close obligations and coverage behavior. Test a small
    helper only for truly shared policy. Success: fewer repeated lifecycle rules
@@ -391,4 +396,29 @@ and error messages. The source module fell from 3,536 to 3,505 physical lines;
 focused store/view validation passed (155 passed, 3 skipped). This is local
 deduplication, not evidence of lower whole-store coupling or improved runtime.
 Dataflow and store design did not change. Priority 3 is complete; the next
-authoritative work item is priority 4, view refresh coordination.
+authoritative work item was priority 4, view refresh coordination.
+
+## View refresh coordination update — 2026-11-10
+
+The verified event-to-view routing, binding inventory, benchmark limits,
+test results, and decision are recorded in
+[PLAY_OEM_COMPLEXITY_7_VIEW_REFRESH_COORDINATION_PLAN.md](./PLAY_OEM_COMPLEXITY_7_VIEW_REFRESH_COORDINATION_PLAN.md).
+The focused controller/binding/range/history/Ground Track/station/graph-panel
+suite passed (217 passed, 3 skipped). Eight deterministic routing cases were
+added, including duplicate-notice coalescing and stale-epoch rejection
+coverage. No production refresh or binding code changed.
+
+The current map is explicit and station-status demonstrates why scheduler
+binding interest and stale-view routing are not interchangeable. The synthetic
+notice-drain stress test scaled linearly, but did not establish realistic
+backlog frequency or rendering impact; a queue cap could break coalescing or
+starve refreshes. Retain the current architecture and revisit batching only if
+representative queue-depth or timer-latency evidence justifies it. The status
+bar reports panel update failures, but pending IDs are cleared and there is no
+automatic retry; this remains an unresolved recovery-policy question, not a
+verified defect.
+
+No dataflow or store-design document change is warranted because runtime
+ownership and behavior are unchanged. Priority 4 is complete. The next
+authoritative work item is priority 5, saved-state parsing and validation
+(`saved_state.load_saved_state`).

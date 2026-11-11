@@ -1910,6 +1910,42 @@ def test_controller_bounds_incremental_load_events_per_tick() -> None:
     assert not events
 
 
+@pytest.mark.parametrize(
+    ("tier", "group", "expected_view_ids"),
+    [
+        ("series", "kinematics", {"speed-altitude", "distance"}),
+        ("series", "rtn", {"rtn"}),
+        ("series", "direction-rates", {"angular-velocity", "direction-change"}),
+        ("series", "distance-delta", {"distance"}),
+        ("earth-fixed", None, {"ground-track", "pass-ground-track"}),
+        ("ground-track", None, {"ground-track", "pass-ground-track"}),
+        ("footprints", None, {"ground-track", "pass-ground-track"}),
+        (
+            "station-access",
+            None,
+            {
+                "station-status",
+                "pass-strip",
+                "elevation-profile",
+                "azimuth-profile",
+                "range-profile",
+                "pass-list",
+                "sky-view",
+                "pass-ground-track",
+            },
+        ),
+    ],
+)
+def test_tier_notices_target_only_dependent_views(
+    tier: str,
+    group: str | None,
+    expected_view_ids: set[str],
+) -> None:
+    notice = TierNotice(1, tier, group, None, 0, 1)
+
+    assert app.PlayerApp._views_for_tier_notice(notice) == expected_view_ids
+
+
 def test_incremental_store_appends_extend_clock_and_complete_full_history(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
@@ -1976,6 +2012,10 @@ def test_incremental_store_appends_extend_clock_and_complete_full_history(
         store.snapshot().epoch, "series", "kinematics", None, 0, 1
     )
     player._store_notice_queue.put((store, notice))
+    player._store_notice_queue.put((store, notice))
+    player._store_notice_queue.put(
+        (store, TierNotice(notice.epoch - 1, "series", "kinematics", None, 0, 1))
+    )
     player._drain_store_notices()
     assert len(updated_contexts) == 1
     assert updated_contexts[0].snapshot is player._store_view_context.snapshot
