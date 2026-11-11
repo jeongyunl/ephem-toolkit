@@ -251,6 +251,15 @@ Plan 25 rejects code movement without a measurable reduction in reasoning:
 The snapshot installer now dispatches to `_install_first_store_snapshot` or
 `_advance_store_snapshot`, then applies shared metadata and view-context
 updates once. The app/loader/clock/range suites passed (173 passed) on macOS.
+The next code-directed experiment is to review `_poll_incremental_load` for a
+clear boundary between per-event transitions and once-per-tick UI aggregation,
+without introducing a shared lifecycle abstraction or unnecessary result
+plumbing:
+[plan 26](./PLAY_OEM_COMPLEXITY_26_INCREMENTAL_EVENT_ROUTING_PLAN.md).
+Plan 26 found that per-event helpers would add result plumbing or hide state
+mutation without reducing policy duplication. The existing loop keeps FIFO
+transitions and once-per-tick aggregation together; app/loader tests passed
+(109 passed) on macOS, with no production change.
 
 ## Scope and follow-up
 

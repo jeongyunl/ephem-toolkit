@@ -817,6 +817,23 @@ small lifecycle decision while keeping phase-specific invariants together,
 without a new state owner or broad forwarding interface. The app, loader,
 clock, and time-range suites passed (173 passed) on macOS.
 
+## Incremental event routing reduction selection — 2026-11-11
+
+The next code-directed experiment is a local review of
+`PlayerApp._poll_incremental_load`, which still handles five event kinds and
+then aggregates once-per-tick UI refresh work. Plan 4 rejected a shared
+lifecycle abstraction because there is one consumer; that decision stands.
+Plan 26 instead tests whether event transitions and shared post-drain work can
+be separated without result tuples, broad callbacks, or per-event indirection.
+The bounded drain and FIFO/generation semantics must remain unchanged:
+[PLAY_OEM_COMPLEXITY_26_INCREMENTAL_EVENT_ROUTING_PLAN.md](./PLAY_OEM_COMPLEXITY_26_INCREMENTAL_EVENT_ROUTING_PLAN.md).
+
+Plan 26 rejected per-event extraction: it would require outcome plumbing or
+hidden state mutation while the existing loop already makes FIFO ordering,
+event transitions, and once-per-tick aggregation visible together. The app and
+loader suites passed (109 passed) on macOS; the bounded drain is unchanged.
+No new event-policy abstraction or production change was warranted.
+
 Plan 22 is complete. The ranked candidates have been investigated, and the
 remaining leads lack either a concrete complexity defect/change hypothesis or
 an available validation path. No new implementation plan is selected. Reopen
