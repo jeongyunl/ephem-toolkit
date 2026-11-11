@@ -72,7 +72,7 @@ pilot, not further local analysis or production-code changes.
 
 ## Implementation checklist
 
-- **Status:** Deferred — non-macOS runners are unavailable.
+- **Status:** Deferred indefinitely per maintainer direction.
 - **Progress:** Deferred before execution; no non-macOS runners are available.
 - [x] Confirm current access constraint: work is limited to macOS, with no
       Ubuntu or Windows runner access; defer hosted execution.
@@ -95,6 +95,7 @@ backend.
 ## Execution record — 2026-11-11
 
 The user confirmed the available environment is macOS only and that Ubuntu and
-Windows are inaccessible, and requested deferral. No workflow was added or
-triggered. Keep the GTK and MSW results blocked; resume this plan only if
+Windows are inaccessible, and requested that this work be deferred
+indefinitely. No workflow was added or triggered. Keep the GTK and MSW results
+blocked; do not resume this plan without explicit reprioritization, even if
 non-macOS runner access becomes available.

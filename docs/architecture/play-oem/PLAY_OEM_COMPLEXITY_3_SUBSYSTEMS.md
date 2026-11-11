@@ -28,7 +28,7 @@ decision criteria.
 | 2 — deferred indefinitely | [Measure representative load, derived-query, and range-change behavior](./PLAY_OEM_COMPLEXITY_32_REPRESENTATIVE_LOAD_MEASUREMENT_PLAN.md). | [Load/replacement](#1-incremental-load-and-replacement), [derived cache](#2-derived-data-scheduling-and-cache-lifetime), and [playback/ranges](#4-playback-coverage-and-time-ranges). | No execution is scheduled. Resume only after explicit reprioritization. If reinstated, use measurements as operating constraints, not optimization targets; time/space complexity optimization remains out of scope. |
 | 3 — complete | [Verify the runtime cursor type contract](./PLAY_OEM_COMPLEXITY_35_CURSOR_TYPE_CONTRACT_PLAN.md). | [Snapshot-based interpolation and cursors](#5-snapshot-based-point-interpolation), app state, and incremental loading. | Added a `PlaybackCursor` union to switched app state and direct view consumers; preserved initial `OemCursor` inputs and `StoreCursor` refresh narrowing. Focused tests passed; post-change Pylance requests timed out. |
 | 4 — complete | [Retire `OemCursor`](./PLAY_OEM_COMPLEXITY_36_OEM_CURSOR_RETIREMENT_FEASIBILITY_PLAN.md). | [Snapshot-based interpolation and cursors](#5-snapshot-based-point-interpolation), app startup, and incremental loading. | `StoreCursor.empty()` provides pre-load startup without store lifecycle costs; the trajectory view now uses committed store samples. Focused migration suites passed (266 tests). |
-| 5 — conditional | Verify native cross-platform GUI behavior. | [Load shutdown](#1-incremental-load-and-replacement) and [panel/native lifecycle](#6-panel-lifecycle-and-gui-resources). | GTK/MSW and native VTK evidence requires suitable runners; do not infer native behavior from fake widgets or add speculative CI. |
+| 5 — deferred indefinitely | [Hosted wx test pilot](./PLAY_OEM_COMPLEXITY_19_HOSTED_WX_TEST_PILOT_PLAN.md). | [Load shutdown](#1-incremental-load-and-replacement) and [panel/native lifecycle](#6-panel-lifecycle-and-gui-resources). | GTK/MSW and native VTK behavior remains unverified. Do not resume without explicit reprioritization, even if suitable runners become available. |
 | 6 — deferred | Reassess maintenance trends. | See the [assessment](./PLAY_OEM_COMPLEXITY_2_ASSESSMENT.md) for history findings. | Available source history spans only 27 days; revisit after several months of ordinary maintenance. |
 
 These are evidence-collection priorities, not proposals to remove domain rules,
@@ -226,9 +226,8 @@ from the [assessment](./PLAY_OEM_COMPLEXITY_2_ASSESSMENT.md).
 
 **Remaining evaluation:** GTK/MSW teardown and native VTK widget lifecycle are
 unverified. Fake-widget tests do not establish native event or resource
-behavior. This is conditional on suitable runners or a concrete lifecycle
-failure. Plan 32's workload study is deferred indefinitely and is not
-scheduled.
+behavior. Plan 19 is deferred indefinitely and will not resume without explicit
+reprioritization. Plan 32's workload study is also deferred indefinitely.
 
 ## Cross-cutting evidence gaps
 
@@ -241,7 +240,7 @@ deferred indefinitely. Plan 35 completed a minimal typing clarification; Plan
 the only playback cursor, with an inert empty state for startup and a
 snapshot-backed state for loaded data.
 
-Platform availability and longer-term maintenance trends remain conditional or
-deferred as ranked in the assessment. Promote a code change only when evidence
-identifies a specific repeated rule or costly ownership interaction and a
-bounded change can be validated without weakening behavior.
+Plan 19's platform validation and longer-term maintenance trends are deferred
+indefinitely as ranked in the assessment. Promote a code change only when
+evidence identifies a specific repeated rule or costly ownership interaction
+and a bounded change can be validated without weakening behavior.

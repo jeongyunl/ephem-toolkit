@@ -159,12 +159,15 @@ The current candidates and holds are:
 - Keep Plan 32 deferred indefinitely. Do not execute its representative
   incremental-load and range-change workflow unless it is explicitly
   reprioritized.
-- Investigate the cursor runtime/type contract under
-  [Plan 35](./PLAY_OEM_COMPLEXITY_35_CURSOR_TYPE_CONTRACT_PLAN.md). Treat the
-  apparent annotation mismatch as a hypothesis until diagnostics and actual
-  consumers confirm it; make no runtime change as part of this step.
-- Verify GTK/MSW and native VTK behavior when suitable runners are available;
-  do not infer native behavior from fake widgets or add speculative CI.
+- Treat the cursor type-contract work in
+  [Plan 35](./PLAY_OEM_COMPLEXITY_35_CURSOR_TYPE_CONTRACT_PLAN.md) as historical;
+  [Plan 36](./PLAY_OEM_COMPLEXITY_36_OEM_CURSOR_RETIREMENT_FEASIBILITY_PLAN.md)
+  records the completed single-`StoreCursor` design. Reopen it only for a
+  concrete cursor correctness or lifecycle regression.
+- The hosted native wx pilot in
+  [Plan 19](./PLAY_OEM_COMPLEXITY_19_HOSTED_WX_TEST_PILOT_PLAN.md) is deferred
+  indefinitely. Do not resume it without explicit reprioritization, even if
+  non-macOS runner access becomes available.
 
 The project maintainer has stated that there are not yet external users and
 compatibility is not a concern. Plan 34 is closed before its evidence matrix
@@ -199,13 +202,14 @@ Do not repeat the map or begin a broad refactor without new evidence:
    under [Plan 32](./PLAY_OEM_COMPLEXITY_32_REPRESENTATIVE_LOAD_MEASUREMENT_PLAN.md)
    deferred indefinitely. Do not resume or schedule them without explicit
    reprioritization.
-3. Verify the cursor runtime/type contract under
-   [Plan 35](./PLAY_OEM_COMPLEXITY_35_CURSOR_TYPE_CONTRACT_PLAN.md). If a
-   diagnostic or misrepresented shared contract is confirmed, make only the
-   smallest type clarification and validate it; otherwise leave the code
-   unchanged.
-4. Validate GTK/MSW and native VTK only when suitable runners exist; revisit
-   maintenance trends after several months of ordinary maintenance.
+3. Keep the completed cursor retirement under
+   [Plan 36](./PLAY_OEM_COMPLEXITY_36_OEM_CURSOR_RETIREMENT_FEASIBILITY_PLAN.md)
+   as the current design; reopen only for a concrete regression.
+4. Keep the hosted wx pilot in
+   [Plan 19](./PLAY_OEM_COMPLEXITY_19_HOSTED_WX_TEST_PILOT_PLAN.md) deferred
+   indefinitely unless it is explicitly reprioritized. Retain the platform
+   limitation and select no production refactor. Revisit maintenance trends
+   after several months of ordinary maintenance.
 
 The [assessment's current evidence priorities](./PLAY_OEM_COMPLEXITY_2_ASSESSMENT.md#current-evidence-priorities)
 owns the detailed limits and next observations. Do not select a production

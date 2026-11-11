@@ -185,7 +185,7 @@ do not revive completed refactors based on old baseline scores.
 | 2 — deferred indefinitely | [Representative runtime and memory](./PLAY_OEM_COMPLEXITY_32_REPRESENTATIVE_LOAD_MEASUREMENT_PLAN.md) | No execution is scheduled. Resume only after explicit reprioritization. If reinstated, measure the combined workload as written and treat latency, queue depth, and memory as operating constraints—not optimization targets. |
 | 3 — complete | [Cursor runtime/type contract](./PLAY_OEM_COMPLEXITY_35_CURSOR_TYPE_CONTRACT_PLAN.md) | Added a `PlaybackCursor` union for the app's switched state and direct consumers; retained the initial `OemCursor` input and concrete refresh narrowing. Five focused suites passed (130 tests); post-change Pylance requests timed out. |
 | 4 — complete | [Retire `OemCursor`](./PLAY_OEM_COMPLEXITY_36_OEM_CURSOR_RETIREMENT_FEASIBILITY_PLAN.md) | Replaced the initial owned-history cursor with one `StoreCursor` type that supports inert empty startup and store-backed playback. Migrated trajectory updates and test fixtures to store commits; 266 focused tests passed. |
-| 5 — conditional | Native cross-platform GUI behavior | Real wx cleanup was verified on macOS Cocoa; GTK/MSW and native VTK widget lifecycle remain unverified. Resume when suitable Linux/Windows runners are available; do not infer native behavior from fake widgets or add speculative CI. |
+| 5 — deferred indefinitely | [Hosted wx test pilot](./PLAY_OEM_COMPLEXITY_19_HOSTED_WX_TEST_PILOT_PLAN.md) | Real wx cleanup was verified on macOS Cocoa; GTK/MSW and native VTK widget lifecycle remain unverified. Do not resume without explicit reprioritization, even if suitable runners become available. |
 | 6 — deferred | Longer-term maintenance trends | Play-OEM source history begins 2026-10-15. Revisit change frequency after several months of ordinary maintenance; the current feature and migration bursts are not representative. |
 
 Plan 33 is complete; it did not identify a boundary change to implement. The
@@ -208,9 +208,9 @@ representative runtime, peak memory, sustained GUI latency, external API use,
 or long-term maintenance patterns. Plan 33 records a package-local dependency
 and responsibility map and selected callback paths, but it is not an
 exhaustive runtime call graph or external-caller audit. GTK/MSW native behavior
-is blocked by runner availability. Existing tests and traces cover many
-lifecycle cases, but they do not substitute for production-like workload
-measurements.
+is unverified, and Plan 19 is deferred indefinitely. Existing tests and traces
+cover many lifecycle cases, but they do not substitute for production-like
+workload measurements.
 
 Accept a future change only when it reduces the rules, caller obligations, or
 interactions needed to understand a concrete behavior without moving equal or
@@ -239,11 +239,12 @@ repeating the chronological selection notes.
 
 Plan 33's dependency and responsibility map is complete and supports retaining
 the current boundaries. Plan 32's representative load/query/range-change
-measurement is deferred indefinitely. Plans 35 and 36 completed the cursor type-contract and retirement-feasibility
-investigations: both cursor implementations remain, with no runtime migration
-justified. Compatibility evidence is not a current gate by maintainer
-direction. Platform and longer-term maintenance questions remain conditional
-or deferred as ranked above.
+measurement is deferred indefinitely. Plan 36 superseded Plan 35's transitional
+two-cursor typing with a single `StoreCursor`; the focused retirement suites
+passed. The hosted wx pilot in Plan 19 is deferred indefinitely by maintainer
+direction. No production refactor is currently selected. Compatibility
+evidence is not a gate by maintainer direction; longer-term maintenance review
+remains deferred.
 
 ## Current baseline refresh — 2026-11-11
 
