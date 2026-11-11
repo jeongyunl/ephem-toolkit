@@ -25,7 +25,7 @@ decision criteria.
 | Priority | Evidence task | Relevant subsystem findings | Timing and boundary |
 | --- | --- | --- | --- |
 | 1 — complete | [Map internal dependencies and responsibility ownership](./PLAY_OEM_COMPLEXITY_33_INTERNAL_DEPENDENCY_RESPONSIBILITY_MAP_PLAN.md). | All six subsystem sections, especially load/controller, store/cache, view, and backend interactions. | The first-pass map found no eager import cycle or avoidable boundary cost. Retain current boundaries; revisit explicit coordination points only if future changes demonstrate repeated cost. |
-| 2 — deferred | [Measure representative load, derived-query, and range-change behavior](./PLAY_OEM_COMPLEXITY_32_REPRESENTATIVE_LOAD_MEASUREMENT_PLAN.md). | [Load/replacement](#1-incremental-load-and-replacement), [derived cache](#2-derived-data-scheduling-and-cache-lifetime), and [playback/ranges](#4-playback-coverage-and-time-ranges). | When resumed, exercise incremental append with derived work pending while changing a plot range. Record first-data and query/load latency, GUI tick delay, queue depth, peak RSS, and memory held by pinned views as operating constraints, not optimization targets. Propose a store/controller change only for a material implementation-complexity finding; time/space complexity optimization is out of scope. |
+| 2 — deferred indefinitely | [Measure representative load, derived-query, and range-change behavior](./PLAY_OEM_COMPLEXITY_32_REPRESENTATIVE_LOAD_MEASUREMENT_PLAN.md). | [Load/replacement](#1-incremental-load-and-replacement), [derived cache](#2-derived-data-scheduling-and-cache-lifetime), and [playback/ranges](#4-playback-coverage-and-time-ranges). | No execution is scheduled. Resume only after explicit reprioritization. If reinstated, use measurements as operating constraints, not optimization targets; time/space complexity optimization remains out of scope. |
 | 3 — conditional | Verify native cross-platform GUI behavior. | [Load shutdown](#1-incremental-load-and-replacement) and [panel/native lifecycle](#6-panel-lifecycle-and-gui-resources). | GTK/MSW and native VTK evidence requires suitable runners; do not infer native behavior from fake widgets or add speculative CI. |
 | 4 — conditional | Establish external compatibility use. | [Point interpolation and cursors](#5-snapshot-based-point-interpolation). | Seek package/release or consumer evidence before changing cursor, store, or saved-state compatibility paths. |
 | 5 — deferred | Reassess maintenance trends. | See the [assessment](./PLAY_OEM_COMPLEXITY_2_ASSESSMENT.md) for history findings. | Available source history spans only 27 days; revisit after several months of ordinary maintenance. |
@@ -54,9 +54,8 @@ Adding a view or derived-tier consumer requires coordinated edits to distinct
 registry, factory, panel-dispatch, subscription, and refresh-routing contracts.
 Those are the clearest maintenance hotspots, but the inspected paths and tests
 did not establish duplicated policy or recurring failures that justify
-consolidation. No production refactor is proposed. Plan 32 remains deferred;
-runtime and memory observations, if later collected, are guardrails rather than
-optimization targets.
+consolidation. No production refactor is proposed. Plan 32 is deferred
+indefinitely and will not be resumed without explicit reprioritization.
 
 ## 1. Incremental load and replacement
 
@@ -87,11 +86,10 @@ loader tests cover cancellation and stale appends.
 and bounded event-drain change; Plans 20–21 verify close during blocked parsing,
 including real wx resources on macOS Cocoa. Plan 33 maps the session/loader,
 store, and controller ownership and finds no boundary change to make. Plan 32's
-combined measurement is deferred for later; if resumed, use first-data latency,
-queue depth, and GUI tick delay as operating constraints, not optimization
-targets. GTK/MSW behavior is a separate conditional check when runners are
-available. Do not reopen event-policy work without a concrete platform or
-responsiveness finding.
+combined measurement is deferred indefinitely and is not scheduled. GTK/MSW
+behavior is a separate conditional check when runners are available. Do not
+reopen event-policy work without a concrete platform or responsiveness
+finding.
 
 ## 2. Derived-data scheduling and cache lifetime
 
@@ -119,10 +117,9 @@ and policy-dependent prefetch keys, partial coverage, and pinned views in
 shared query rules; Plan 30 clarified the eviction-candidate representation.
 Plan 33 confirms the store owns scheduler/cache policy while view bindings own
 tier-interest subscriptions. Broader scheduler/query extraction was rejected.
-Plan 32's representative peak RSS and query/load latency study remains
-deferred; if resumed, treat measurements as operating constraints, not as an
-eviction redesign or memory-optimization effort. Reducing runtime or memory
-complexity is out of scope.
+Plan 32's representative peak RSS and query/load latency study is deferred
+indefinitely and will not be resumed without explicit reprioritization.
+Reducing runtime or memory complexity is out of scope.
 
 ## 3. Station access and pass boundaries
 
@@ -235,9 +232,8 @@ failure; it is not a reason to block the representative workload study.
 
 The internal dependency and responsibility map is complete; its coverage and
 limits are recorded in Plan 33. The representative runtime and memory
-measurement is deferred for later; if resumed, its metrics are operating
-constraints rather than optimization targets. Neither phase presumes a
-refactor.
+measurement is deferred indefinitely and is not an active task. Neither phase
+presumes a refactor.
 
 Platform availability, external compatibility evidence, and longer-term
 maintenance trends remain conditional or deferred as ranked in the assessment.

@@ -30,7 +30,7 @@ where shared policy or a useful boundary was not established. The strategy
 identifies an internal dependency and responsibility map as the next
 architectural evidence gap.
 
-The representative runtime and memory study in Plan 32 is deferred for later.
+The representative runtime and memory study in Plan 32 is deferred indefinitely.
 This plan does not depend on its latency or memory measurements. It should
 reuse existing traces and plan evidence rather than repeat completed lifecycle
 reviews.
@@ -154,7 +154,7 @@ than relying on module names alone.
   focused inspection of app, store, view, workspace, and 3D backend paths.
 - Methods: ad hoc Python AST import scan, source searches and reads, Pylance
   symbol usages, and review of existing focused tests. No runtime or performance
-  measurements were performed; Plan 32 remains deferred.
+  measurements were performed; Plan 32 remains deferred indefinitely.
 
 ### Dependency map
 
@@ -254,8 +254,8 @@ a repeated rule whose extraction is supported by evidence. Explicit view
 registration and tier-to-view refresh mappings are the clearest coordination
 points, but their responsibilities differ and no recurring avoidable cost was
 demonstrated. Retain the current boundaries; do not create a production
-refactor plan from this map alone. Plan 32 remains deferred, and algorithmic
-time/space or performance/memory optimization remains out of scope.
+refactor plan from this map alone. Plan 32 remains deferred indefinitely, and
+algorithmic time/space or performance/memory optimization remains out of scope.
 
 ## Implementation checklist
 

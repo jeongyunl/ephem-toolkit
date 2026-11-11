@@ -97,14 +97,14 @@ The replacement-during-load trace is complete; see the
 transition and test map rather than repeating that investigation. The combined
 range/derived-work measurement is documented in
 [Plan 32](./PLAY_OEM_COMPLEXITY_32_REPRESENTATIVE_LOAD_MEASUREMENT_PLAN.md) and
-is deferred for later. Resume that trace only when it is needed to answer a
-concrete maintainability question; its runtime and memory measurements are
-constraints, not optimization targets.
+is deferred indefinitely, with no scheduled resumption. Do not resume it
+without explicit reprioritization. Its runtime and memory measurements remain
+constraints, not optimization targets, if it is ever reinstated.
 
 Existing tests and investigations already cover first usable data, playback
-across gaps and in reverse, range rules, and shutdown with work pending. Extend
-those traces only when needed to interpret the representative-workload
-measurements or investigate an observed behavior.
+across gaps and in reverse, range rules, and shutdown with work pending. These
+remain reference evidence; no representative-workload measurement or trace
+extension is currently scheduled under Plan 32.
 
 For each trace, count components crossed, asynchronous handoffs, and distinct
 state transitions as aids to discussion. Record the assumptions needed to
@@ -151,16 +151,14 @@ inherent domain and performance complexity from complexity caused by the
 current design.
 
 Choose a bounded evidence-gathering experiment before proposing a code change.
-The current candidates are:
+The current candidates and holds are:
 
 - Extend the completed Plan 33 map only to investigate a new, concrete
   dependency or responsibility concern. Do not split a module based on size or
   the map alone.
-- Resume the representative incremental-load and range-change workflow in
-  Plan 32 when needed to answer a concrete maintainability question. Treat
-  latency, queue depth, and memory as operating constraints, not optimization
-  targets, and stop if results do not identify an implementation-complexity
-  cost.
+- Keep Plan 32 deferred indefinitely. Do not execute its representative
+  incremental-load and range-change workflow unless it is explicitly
+  reprioritized.
 - Verify GTK/MSW and native VTK behavior when suitable runners are available;
   do not infer native behavior from fake widgets or add speculative CI.
 
@@ -192,11 +190,10 @@ Do not repeat the map or begin a broad refactor without new evidence:
    tier-to-view refresh coordination only if ordinary changes expose repeated
    missed updates or unnecessary cross-component knowledge. The map and its
    limits are recorded in [Plan 33](./PLAY_OEM_COMPLEXITY_33_INTERNAL_DEPENDENCY_RESPONSIBILITY_MAP_PLAN.md).
-2. Keep representative OEM load, derived-query, and range-change
-   measurements under [Plan 32](./PLAY_OEM_COMPLEXITY_32_REPRESENTATIVE_LOAD_MEASUREMENT_PLAN.md)
-   deferred for later; resume only if needed to answer a maintainability
-   question. Use first-data latency, GUI responsiveness, queue depth, peak RSS,
-   and pinned-view memory as constraints, not optimization targets.
+2. Keep representative OEM load, derived-query, and range-change measurements
+   under [Plan 32](./PLAY_OEM_COMPLEXITY_32_REPRESENTATIVE_LOAD_MEASUREMENT_PLAN.md)
+   deferred indefinitely. Do not resume or schedule them without explicit
+   reprioritization.
 3. Use platform, compatibility, and maintenance evidence conditionally:
    validate GTK/MSW and native VTK when runners exist; seek external consumer
    evidence before changing compatibility paths; revisit history after several

@@ -174,17 +174,17 @@ do not revive completed refactors based on old baseline scores.
 | Priority | Evidence task | Scope and decision rule |
 | --- | --- | --- |
 | 1 — complete | [Internal dependency and responsibility map](./PLAY_OEM_COMPLEXITY_33_INTERNAL_DEPENDENCY_RESPONSIBILITY_MAP_PLAN.md) | Completed the first-pass import, ownership, callback, dynamic-registration, and representative change-path map. No eager import cycle or avoidable boundary cost was established. Retain current boundaries; revisit view registration or tier-to-view refresh only if future changes demonstrate repeated coordination failures. |
-| 2 — deferred | [Representative runtime and memory](./PLAY_OEM_COMPLEXITY_32_REPRESENTATIVE_LOAD_MEASUREMENT_PLAN.md) | When resumed, trace incremental load through first usable data, then run derived work while appending and changing a plot range. Record first-data and query/load latency, GUI tick delay, queue depth, peak RSS, and memory held by pinned views as operating constraints, not optimization targets. Synthetic capacity-scan and queue tests are not substitutes. Propose a store/controller change only if measurements expose a material implementation-complexity cost; performance or memory optimization is out of scope. |
+| 2 — deferred indefinitely | [Representative runtime and memory](./PLAY_OEM_COMPLEXITY_32_REPRESENTATIVE_LOAD_MEASUREMENT_PLAN.md) | No execution is scheduled. Resume only after explicit reprioritization. If reinstated, measure the combined workload as written and treat latency, queue depth, and memory as operating constraints—not optimization targets. |
 | 3 — conditional | Native cross-platform GUI behavior | Real wx cleanup was verified on macOS Cocoa; GTK/MSW and native VTK widget lifecycle remain unverified. Resume when suitable Linux/Windows runners are available; do not infer native behavior from fake widgets or add speculative CI. |
 | 4 — conditional | External compatibility surface | Internal searches do not establish external use of cursors, store APIs, or saved-state formats. Seek package/release or consumer evidence before retiring or changing a compatibility path. |
 | 5 — deferred | Longer-term maintenance trends | Play-OEM source history begins 2026-10-15. Revisit change frequency after several months of ordinary maintenance; the current feature and migration bursts are not representative. |
 
 Plan 33 is complete; it did not identify a boundary change to implement. The
-representative runtime and memory study remains deferred for later. Priorities
-3–5 depend on runner availability, external consumer evidence, or additional
-ordinary maintenance history. Every follow-up should state its scope, evidence
-sources, and decision criteria, and stop if the evidence does not expose a
-concrete implementation-complexity cost.
+representative runtime and memory study is deferred indefinitely and is not an
+active task. Priorities 3–5 depend on runner availability, external consumer
+evidence, or additional ordinary maintenance history. Every follow-up should
+state its scope, evidence sources, and decision criteria, and stop if the
+evidence does not expose a concrete implementation-complexity cost.
 
 ## Evidence gaps and completion criteria
 
@@ -224,7 +224,7 @@ repeating the chronological selection notes.
 
 Plan 33's dependency and responsibility map is complete and supports retaining
 the current boundaries. Plan 32's representative load/query/range-change
-measurement remains deferred for later, not an active task. Platform,
+measurement is deferred indefinitely and is not an active task. Platform,
 compatibility, and maintenance questions remain conditional or deferred as
 ranked above.
 
