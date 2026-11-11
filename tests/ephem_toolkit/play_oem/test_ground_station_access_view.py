@@ -56,6 +56,21 @@ def _profile_access(station: GroundStation) -> StationAccess:
     return StationAccess(station, (interval,), elevation_profiles=(profile,))
 
 
+def _pass_summary_view(
+    station: GroundStation,
+    intervals: tuple[AccessInterval, ...] = (),
+    *,
+    current_time_s: float = 0.0,
+    limitation: str | None = None,
+) -> GroundStationAccessView:
+    view = _access_view([station])
+    view._current_time_s = current_time_s
+    view._access_results = (
+        StationAccess(station, intervals, limitation=limitation),
+    )
+    return view
+
+
 def test_elevation_graph_draws_profile_updates_cursor_and_seeks() -> None:
     station = GroundStation("station", "Site", 0.0, 0.0, 0.0, 0)
     view = _access_view([station])
@@ -256,4 +271,103 @@ def test_elevation_plot_status_messages_preserve_precedence_and_styling() -> Non
         assert text.get_va() == "center"
         assert text.get_transform() is view._axes.transAxes
         assert view._axes.axison is axes_on
+        view.close()
+
+
+def test_pass_summary_handles_missing_results_limitations_and_no_intervals() -> None:
+    station = GroundStation("station", "Site", 0.0, 0.0, 0.0, 0)
+    view = _access_view([station])
+
+    assert view._pass_summary(station) == ""
+    view.close()
+
+    limitation = "Unsupported Earth-centered frame."
+    interval = AccessInterval(10.0, 20.0, 45.0, 15.0, 500.0, 18.0)
+    view = _pass_summary_view(
+        station,
+        (interval,),
+        limitation=limitation,
+    )
+    assert view._pass_summary(station) == limitation
+    view.close()
+
+    view = _pass_summary_view(station)
+    assert view._pass_summary(station) == (
+        "Previous pass: none in OEM coverage\n"
+        "Next pass: none in OEM coverage"
+    )
+    view.close()
+
+
+def test_pass_summary_selects_latest_previous_and_first_upcoming() -> None:
+    station = GroundStation("station", "Site", 0.0, 0.0, 0.0, 0)
+    earlier = AccessInterval(5.0, 15.0, 50.0, 10.0, 600.0, 8.0)
+    previous = AccessInterval(
+        20.0,
+        30.0,
+        66.5,
+        26.0,
+        450.2,
+        24.0,
+        clipped_at_start=True,
+        clipped_at_end=True,
+    )
+    upcoming = AccessInterval(
+        70.0,
+        100.0,
+        72.5,
+        88.0,
+        321.6,
+        75.0,
+        clipped_at_start=True,
+        clipped_at_end=True,
+    )
+    later = AccessInterval(110.0, 130.0, 60.0, 120.0, 520.0, 115.0)
+    view = _pass_summary_view(
+        station,
+        (earlier, previous, upcoming, later),
+        current_time_s=60.0,
+    )
+
+    expected_previous = (
+        f"Previous/active: {view._time_label(20.0)} – {view._time_label(30.0)} "
+        f"(0.2 min, peak 66.5° at {view._time_label(26.0)}, "
+        "minimum range 450.2 km)"
+        " · in progress at coverage start · continues beyond coverage"
+    )
+    expected_next = (
+        f"Next: {view._time_label(70.0)} – {view._time_label(100.0)} "
+        f"(0.5 min, peak 72.5° at {view._time_label(88.0)}, "
+        "minimum range 321.6 km)"
+        " · in progress at coverage start · continues beyond coverage"
+    )
+    assert view._pass_summary(station) == f"{expected_previous}\n{expected_next}"
+    view.close()
+
+
+def test_pass_summary_treats_both_active_interval_endpoints_as_inclusive() -> None:
+    station = GroundStation("station", "Site", 0.0, 0.0, 0.0, 0)
+    previous = AccessInterval(10.0, 20.0, 40.0, 15.0, 500.0, 18.0)
+    active_intervals = (
+        AccessInterval(60.0, 90.0, 75.0, 70.0, 300.0, 65.0),
+        AccessInterval(30.0, 60.0, 65.0, 50.0, 350.0, 45.0),
+    )
+
+    for active in active_intervals:
+        view = _pass_summary_view(
+            station,
+            (previous, active),
+            current_time_s=60.0,
+        )
+        expected_active = (
+            f"Previous/active: {view._time_label(active.start_s)} – "
+            f"{view._time_label(active.end_s)} "
+            f"({(active.end_s - active.start_s) / 60.0:.1f} min, "
+            f"peak {active.peak_elevation_deg:.1f}° at "
+            f"{view._time_label(active.peak_time_s)}, "
+            f"minimum range {active.minimum_range_km:.1f} km)"
+        )
+        assert view._pass_summary(station) == (
+            f"{expected_active}\nNext pass: none in OEM coverage"
+        )
         view.close()

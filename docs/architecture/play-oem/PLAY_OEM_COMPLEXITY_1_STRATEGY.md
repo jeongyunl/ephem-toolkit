@@ -202,6 +202,11 @@ The current candidates and holds are:
   `_draw_elevation_plot`, reducing it from 82 to 77 lines with its AST decision
   score unchanged at 15. The focused suite passed (5); message precedence,
   axes-on/off behavior, and axes-relative styling are characterized.
+- [Plan 46](./PLAY_OEM_COMPLEXITY_46_ACCESS_PASS_SUMMARY_FORMATTING_PLAN.md)
+  reused a nested formatter for repeated interval details and coverage notes
+  in `_pass_summary`, reducing it from 63 to 54 lines and its AST decision score
+  from 15 to 13. The focused suite passed (8); result handling, interval
+  selection, labels, and timezone formatting were preserved.
 - The hosted native wx pilot in
   [Plan 19](./PLAY_OEM_COMPLEXITY_19_HOSTED_WX_TEST_PILOT_PLAN.md) is deferred
   indefinitely. Do not resume it without explicit reprioritization, even if

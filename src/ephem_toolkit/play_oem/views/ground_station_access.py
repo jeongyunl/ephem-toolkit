@@ -18,7 +18,7 @@ from .. import cursor as playback_cursor
 from ..ground_stations import GroundStation
 from ..oem_data_store import StationAccessView, StoreQuery
 from ..series import OrbitSeries
-from ..station_access import StationAccess
+from ..station_access import AccessInterval, StationAccess
 from ..station_analysis import StationAnalysisContext, StationAnalysisSelection
 from ..time_range import ResolvedTimeRange
 from ..time_unit import TimeUnit
@@ -648,42 +648,33 @@ class GroundStationAccessView:
         )
         previous_interval = active or (previous[-1] if previous else None)
         next_interval = upcoming[0] if upcoming else None
-        previous_label = "Previous pass: none in OEM coverage"
-        if previous_interval is not None:
+
+        def format_interval_summary(label: str, interval: AccessInterval) -> str:
             coverage_note = (
                 " · in progress at coverage start"
-                if previous_interval.clipped_at_start
+                if interval.clipped_at_start
                 else ""
             )
-            if previous_interval.clipped_at_end:
+            if interval.clipped_at_end:
                 coverage_note += " · continues beyond coverage"
-            previous_label = (
-                f"Previous/active: {self._time_label(previous_interval.start_s)} – "
-                f"{self._time_label(previous_interval.end_s)} "
-                f"({(previous_interval.end_s - previous_interval.start_s) / 60.0:.1f} min, "
-                f"peak {previous_interval.peak_elevation_deg:.1f}° at "
-                f"{self._time_label(previous_interval.peak_time_s)}, "
-                f"minimum range {previous_interval.minimum_range_km:.1f} km)"
+            return (
+                f"{label}: {self._time_label(interval.start_s)} – "
+                f"{self._time_label(interval.end_s)} "
+                f"({(interval.end_s - interval.start_s) / 60.0:.1f} min, "
+                f"peak {interval.peak_elevation_deg:.1f}° at "
+                f"{self._time_label(interval.peak_time_s)}, "
+                f"minimum range {interval.minimum_range_km:.1f} km)"
                 f"{coverage_note}"
+            )
+
+        previous_label = "Previous pass: none in OEM coverage"
+        if previous_interval is not None:
+            previous_label = format_interval_summary(
+                "Previous/active", previous_interval
             )
         next_label = "Next pass: none in OEM coverage"
         if next_interval is not None:
-            coverage_note = (
-                " · in progress at coverage start"
-                if next_interval.clipped_at_start
-                else ""
-            )
-            if next_interval.clipped_at_end:
-                coverage_note += " · continues beyond coverage"
-            next_label = (
-                f"Next: {self._time_label(next_interval.start_s)} – "
-                f"{self._time_label(next_interval.end_s)} "
-                f"({(next_interval.end_s - next_interval.start_s) / 60.0:.1f} min, "
-                f"peak {next_interval.peak_elevation_deg:.1f}° at "
-                f"{self._time_label(next_interval.peak_time_s)}, "
-                f"minimum range {next_interval.minimum_range_km:.1f} km)"
-                f"{coverage_note}"
-            )
+            next_label = format_interval_summary("Next", next_interval)
         return f"{previous_label}\n{next_label}"
 
     def _set_labels(self, status: str, metrics: str, passes: str) -> None:
