@@ -708,3 +708,12 @@ runner policy, Linux wxGTK installation, or Windows desktop availability from
 this session. It added no speculative infrastructure; GTK and MSW remain
 blocked and unverified. Continuing requires authorization and a mechanism to
 run a minimal hosted workflow, or independently provided platform runners.
+
+## Hosted wx test pilot selection — 2026-11-11
+
+Plan 19 proposed a manually triggered GitHub Actions run on one Ubuntu and one
+Windows hosted runner. Execution is deferred: the available environment is
+macOS only, with no access to Ubuntu or Windows. No workflow was added or
+triggered; GTK and MSW remain blocked until non-macOS runner access becomes
+available. See
+[PLAY_OEM_COMPLEXITY_19_HOSTED_WX_TEST_PILOT_PLAN.md](./PLAY_OEM_COMPLEXITY_19_HOSTED_WX_TEST_PILOT_PLAN.md).

@@ -200,6 +200,10 @@ Plan 18 found zero configured GitHub Actions workflows and no way in this
 session to validate hosted policy or actual non-macOS execution. It added no
 workflow; GTK/MSW remain blocked until hosted workflow execution is authorized
 or platform runners are provided.
+Plan 19's hosted runner pilot is deferred: the available environment is
+macOS-only and Ubuntu/Windows access is unavailable. No workflow was added or
+triggered. Resume the pilot only when non-macOS runner access is available:
+[plan 19](./PLAY_OEM_COMPLEXITY_19_HOSTED_WX_TEST_PILOT_PLAN.md).
 
 ## Scope and follow-up
 
