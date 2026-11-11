@@ -1423,32 +1423,7 @@ class PlayerApp(
                 and self._pending_playback_bounds[0] > self.clock.t_end
             ):
                 self._loading_cursor_anchor_s = self._pending_playback_bounds[0]
-            if self._pending_playback_bounds is not None and (
-                self.clock.t_start <= self._pending_playback_bounds[0]
-                and self._pending_playback_bounds[1] <= self.clock.t_end
-            ):
-                bounds = self._pending_playback_bounds
-                self._pending_playback_bounds = None
-                self._loading_cursor_anchor_s = None
-                self._playback_handle_bounds = bounds
-                self._installing_incremental_batch = True
-                try:
-                    self.clock.set_playback_bounds(*bounds)
-                finally:
-                    self._installing_incremental_batch = False
-            elif (
-                self._pending_playback_bounds is not None
-                and self.clock.t_start
-                <= self._pending_playback_bounds[0]
-                <= self.clock.t_end
-                and self.clock.t_now != self._pending_playback_bounds[0]
-            ):
-                self._installing_incremental_batch = True
-                try:
-                    self.clock.seek(self._pending_playback_bounds[0])
-                finally:
-                    self._installing_incremental_batch = False
-                self._loading_cursor_anchor_s = None
+            self._apply_pending_playback_bounds()
             self._pending_file_playback_bounds = None
             self._slider_bounds = playback_data.oem_slider_bounds(
                 str(meta.get("START_TIME", "")),
@@ -1481,38 +1456,14 @@ class PlayerApp(
                     self._installing_incremental_batch = False
             else:
                 self.cursor.refresh(snapshot)
-            pending_bounds = self._pending_playback_bounds
-            if pending_bounds is not None and (
-                self.clock.t_start <= pending_bounds[0]
-                and pending_bounds[1] <= self.clock.t_end
-            ):
-                self._pending_playback_bounds = None
-                self._playback_handle_bounds = pending_bounds
-                self._loading_cursor_anchor_s = None
-                self._installing_incremental_batch = True
-                try:
-                    self.clock.set_playback_bounds(*pending_bounds)
-                finally:
-                    self._installing_incremental_batch = False
-            elif (
-                pending_bounds is not None
-                and self.clock.t_start <= pending_bounds[0] <= self.clock.t_end
-                and self.clock.t_now != pending_bounds[0]
-            ):
-                self._installing_incremental_batch = True
-                try:
-                    self.clock.seek(pending_bounds[0])
-                finally:
-                    self._installing_incremental_batch = False
-                self._loading_cursor_anchor_s = None
-            elif (
-                pending_bounds is None
-                and not self._playback_handles_fixed_during_load
-            ):
-                self._playback_handle_bounds = (
-                    self.clock.playback_start,
-                    self.clock.playback_end,
-                )
+            if self._pending_playback_bounds is None:
+                if not self._playback_handles_fixed_during_load:
+                    self._playback_handle_bounds = (
+                        self.clock.playback_start,
+                        self.clock.playback_end,
+                    )
+            else:
+                self._apply_pending_playback_bounds()
 
         if first_append:
             self.cursor = cursor.StoreCursor(store, snapshot)
@@ -1546,6 +1497,33 @@ class PlayerApp(
         )
         self._update_time_display()
         self._remember_recent_oem(path, save_file_ranges=False)
+
+    def _apply_pending_playback_bounds(self) -> None:
+        bounds = self._pending_playback_bounds
+        if bounds is None:
+            return
+        if (
+            self.clock.t_start <= bounds[0]
+            and bounds[1] <= self.clock.t_end
+        ):
+            self._pending_playback_bounds = None
+            self._loading_cursor_anchor_s = None
+            self._playback_handle_bounds = bounds
+            self._installing_incremental_batch = True
+            try:
+                self.clock.set_playback_bounds(*bounds)
+            finally:
+                self._installing_incremental_batch = False
+        elif (
+            self.clock.t_start <= bounds[0] <= self.clock.t_end
+            and self.clock.t_now != bounds[0]
+        ):
+            self._installing_incremental_batch = True
+            try:
+                self.clock.seek(bounds[0])
+            finally:
+                self._installing_incremental_batch = False
+            self._loading_cursor_anchor_s = None
 
     def _close_pending_oem_store(self) -> None:
         store = self._pending_oem_store

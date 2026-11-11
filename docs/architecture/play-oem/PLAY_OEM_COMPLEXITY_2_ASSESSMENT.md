@@ -762,6 +762,25 @@ evidence or platform access becomes available. Plan 22 records this bounded
 re-ranking procedure:
 [PLAY_OEM_COMPLEXITY_22_CANDIDATE_RERANKING_PLAN.md](./PLAY_OEM_COMPLEXITY_22_CANDIDATE_RERANKING_PLAN.md).
 
+## Snapshot-installation reduction selection — 2026-11-11
+
+The reranking conclusion is reopened by a focused source comparison of
+`PlayerApp._install_store_snapshot`: first and later appends contain the same
+pending-playback-bounds decision, while later append has a separate
+follow-coverage case. Plan 23 tests whether consolidating only the duplicated
+decision reduces local complexity without flags or indirection. This is the
+next code-directed experiment; retain the change only if the behavior remains
+clearer and the relevant tests pass:
+[PLAY_OEM_COMPLEXITY_23_SNAPSHOT_INSTALLATION_DEDUPLICATION_PLAN.md](./PLAY_OEM_COMPLEXITY_23_SNAPSHOT_INSTALLATION_DEDUPLICATION_PLAN.md).
+
+Plan 23 completed the experiment. `_apply_pending_playback_bounds` now owns
+the duplicated pending-range application decision; first-append cursor
+anchoring and later-append follow-coverage behavior remain separate. Existing
+pending-range tests cover initial and subsequent append behavior, so no test
+was added. The app, clock, and time-range suites passed (162 passed) on macOS.
+This is a bounded local reduction in duplicated policy, not a broader
+controller or load-lifecycle redesign.
+
 Plan 22 is complete. The ranked candidates have been investigated, and the
 remaining leads lack either a concrete complexity defect/change hypothesis or
 an available validation path. No new implementation plan is selected. Reopen

@@ -8,6 +8,12 @@ The aim is to identify where a change requires understanding too many
 interacting concepts, and then evaluate whether a proposed change makes
 the application easier to understand, modify, and verify.
 
+The ultimate goal is to reduce Play-OEM's implementation complexity while
+preserving required behavior. Plans, measurements, documentation, and tests are
+means to find, evaluate, and safely validate that reduction; producing those
+artifacts without a plausible simplification is not itself progress toward the
+goal.
+
 The assessment and subsystem research draw on a limited inspection of the package
 and its existing design documentation. Their leads do not establish that the code
 is defective or should be split. The

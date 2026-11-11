@@ -226,6 +226,15 @@ sequence:
 Plan 22 found no remaining candidate meeting the evidence, complexity-benefit,
 and validation criteria. The current sequence is paused; reopen it only when
 new evidence or non-macOS runner access becomes available.
+On closer source comparison, `_install_store_snapshot` has the same pending
+playback-bounds decision in its first-append and later-append paths, with a
+distinct later-only follow-coverage case. Plan 23 evaluates a narrow
+deduplication as an actual complexity-reduction experiment:
+[plan 23](./PLAY_OEM_COMPLEXITY_23_SNAPSHOT_INSTALLATION_DEDUPLICATION_PLAN.md).
+The duplicated pending-bounds decision was consolidated in
+`_apply_pending_playback_bounds`; first-append anchoring and later-append
+follow-coverage logic remain distinct. The focused app, clock, and time-range
+suites passed (162 passed) on macOS.
 
 ## Scope and follow-up
 
