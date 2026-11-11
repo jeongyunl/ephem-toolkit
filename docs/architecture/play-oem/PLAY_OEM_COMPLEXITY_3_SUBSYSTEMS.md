@@ -260,11 +260,18 @@ Plan 26 found that per-event helpers would add result plumbing or hide state
 mutation without reducing policy duplication. The existing loop keeps FIFO
 transitions and once-per-tick aggregation together; app/loader tests passed
 (109 passed) on macOS, with no production change.
-The next complexity-reduction candidate is the parallel active-interval state
-in station access. Plan 27 evaluates a cohesive state representation against
-the current locals and reset guards, preserving the existing domain
-transitions:
+The active start/extrema/end metrics are now held by `_ActiveAccessInterval`;
+the loop uses a single optional state and clears it on gap/exit. Store and
+station suites passed (113 passed, 1 display-dependent skip) on macOS.
 [plan 27](./PLAY_OEM_COMPLEXITY_27_STATION_INTERVAL_STATE_PLAN.md).
+The next targeted candidate is repeated interpretation of the same
+interpolation metadata fields in snapshot and completion phases; plan 28 keeps
+those phases distinct:
+[plan 28](./PLAY_OEM_COMPLEXITY_28_INTERPOLATION_METADATA_PLAN.md).
+Plan 28 rejected extraction because the repeated normalization is trivial and
+an abstraction would obscure when provisional versus validated metadata is
+applied. The app/loader/store/interpolation suites passed (206 passed) on
+macOS, with no source change.
 The active start/extrema/end metrics are now held by `_ActiveAccessInterval`;
 the loop uses a single optional state and clears it on gap/exit. Store and
 station suites passed (113 passed, 1 display-dependent skip) on macOS.

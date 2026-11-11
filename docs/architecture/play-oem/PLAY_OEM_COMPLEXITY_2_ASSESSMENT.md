@@ -851,6 +851,22 @@ completeness guards while retaining crossing and coverage/gap logic in place.
 The relevant store/station suites passed (113 passed, 1 display-dependent
 skip) on macOS. No interval semantics or tolerances changed.
 
+## Interpolation metadata policy selection — 2026-11-11
+
+The next bounded reduction candidate is the identical interpretation of
+`INTERPOLATION` and `INTERPOLATION_DEGREE` in snapshot installation and
+validated load completion. Plan 28 evaluates whether sharing just this
+conversion policy prevents drift while keeping the provisional and final
+metadata phases distinct. Retain the helper only if it is clearer than the
+repeated assignments:
+[PLAY_OEM_COMPLEXITY_28_INTERPOLATION_METADATA_PLAN.md](./PLAY_OEM_COMPLEXITY_28_INTERPOLATION_METADATA_PLAN.md).
+
+Plan 28 rejected a helper: the repeated logic is only two explicit
+conversions at two intentionally distinct lifecycle points; extracting it
+would add a call and tuple or mutable-state indirection without reducing
+reasoning. The app, loader, store, and stateless-interpolation suites passed
+(206 passed) on macOS. No source change was warranted.
+
 Plan 22 is complete. The ranked candidates have been investigated, and the
 remaining leads lack either a concrete complexity defect/change hypothesis or
 an available validation path. No new implementation plan is selected. Reopen
