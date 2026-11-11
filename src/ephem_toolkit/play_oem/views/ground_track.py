@@ -54,6 +54,37 @@ BACKGROUND_FILES = {
     "Political map": "earth_map.jpg",
 }
 BACKGROUND_RENDER_SIZE = (1080, 540)
+_SCROLLBAR_RANGE = 1000
+_SCROLLBAR_THUMB_SIZE = 80
+_SCROLLBAR_TRAVEL = _SCROLLBAR_RANGE - _SCROLLBAR_THUMB_SIZE
+
+
+def _scrollbar_metrics(
+    low: float,
+    high: float,
+    world_half_extent: float,
+    *,
+    reverse: bool = False,
+) -> tuple[int, float]:
+    span = high - low
+    overflow = max(0.0, 2 * world_half_extent - span)
+    if overflow == 0.0:
+        return 0, overflow
+    offset = world_half_extent - high if reverse else low + world_half_extent
+    position = round(offset / overflow * _SCROLLBAR_TRAVEL)
+    return max(0, min(_SCROLLBAR_TRAVEL, position)), overflow
+
+
+def _scrollbar_center(
+    position: int,
+    span: float,
+    world_half_extent: float,
+    *,
+    reverse: bool = False,
+) -> float:
+    overflow = max(0.0, 2 * world_half_extent - span)
+    travel = _SCROLLBAR_TRAVEL - position if reverse else position
+    return -world_half_extent + overflow * travel / _SCROLLBAR_TRAVEL + span * 0.5
 
 
 class GroundTrackToolbar(NavigationToolbar2WxAgg):
@@ -1085,12 +1116,14 @@ class GroundTrackView:
         x0, x1 = sorted(self._axes.get_xlim())
         y0, y1 = sorted(self._axes.get_ylim())
         xspan, yspan = x1 - x0, y1 - y0
-        xoverflow = max(0.0, 2 * world_x - xspan)
-        yoverflow = max(0.0, 2 * world_y - yspan)
-        xpos = 0 if xoverflow == 0 else round((x0 + world_x) / xoverflow * 920)
-        ypos = 0 if yoverflow == 0 else round((world_y - y1) / yoverflow * 920)
-        self._horizontal_scroll.SetScrollbar(max(0, min(920, xpos)), 80, 1000, 80)
-        self._vertical_scroll.SetScrollbar(max(0, min(920, ypos)), 80, 1000, 80)
+        xpos, xoverflow = _scrollbar_metrics(x0, x1, world_x)
+        ypos, yoverflow = _scrollbar_metrics(y0, y1, world_y, reverse=True)
+        self._horizontal_scroll.SetScrollbar(
+            xpos, _SCROLLBAR_THUMB_SIZE, _SCROLLBAR_RANGE, _SCROLLBAR_THUMB_SIZE
+        )
+        self._vertical_scroll.SetScrollbar(
+            ypos, _SCROLLBAR_THUMB_SIZE, _SCROLLBAR_RANGE, _SCROLLBAR_THUMB_SIZE
+        )
         self._horizontal_scroll.Enable(xoverflow > 0)
         self._vertical_scroll.Enable(yoverflow > 0)
 
@@ -1100,8 +1133,7 @@ class GroundTrackView:
         low, high = sorted(self._axes.get_xlim())
         span = high - low
         world_x = abs(float(self._projection(180.0, 0.0)[0]))
-        overflow = max(0.0, 2 * world_x - span)
-        center = -world_x + overflow * event.GetPosition() / 920 + span * 0.5
+        center = _scrollbar_center(event.GetPosition(), span, world_x)
         self._axes.set_xlim(center - span * 0.5, center + span * 0.5)
         if self._canvas is not None:
             self._canvas.draw_idle()
@@ -1112,8 +1144,9 @@ class GroundTrackView:
         low, high = sorted(self._axes.get_ylim())
         span = high - low
         world_y = abs(float(self._projection(0.0, 90.0)[1]))
-        overflow = max(0.0, 2 * world_y - span)
-        center = -world_y + overflow * (920 - event.GetPosition()) / 920 + span * 0.5
+        center = _scrollbar_center(
+            event.GetPosition(), span, world_y, reverse=True
+        )
         self._axes.set_ylim(center - span * 0.5, center + span * 0.5)
         if self._canvas is not None:
             self._canvas.draw_idle()

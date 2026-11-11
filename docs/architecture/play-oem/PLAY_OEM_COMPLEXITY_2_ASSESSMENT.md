@@ -185,6 +185,8 @@ tests before changing an interface or removing a path.
    behavior. Identify a concrete change that crosses these concerns and test a
    cohesive boundary, such as navigation state or artist management. Preserve
    selection, map limits, event behavior, and rendering performance.
+   Detailed investigation plan:
+   [PLAY_OEM_COMPLEXITY_11_LARGE_GUI_VIEW_RESPONSIBILITIES_PLAN.md](./PLAY_OEM_COMPLEXITY_11_LARGE_GUI_VIEW_RESPONSIBILITIES_PLAN.md).
 8. **Parallel paths and variants.**
    [`cursor.py`](../../../src/ephem_toolkit/play_oem/cursor.py) contains
    `OemCursor` and `StoreCursor`; the 3D view has Matplotlib and VTK backends.
@@ -494,5 +496,29 @@ timed out, so this is recorded as an unverified typing question rather than a
 confirmed type error. VTK unit tests use a fake widget for render-context
 behavior, so native desktop integration remains unverified. External consumer
 usage is unknown. Priority 7 is complete; the remaining assessment candidate
-is large GUI view responsibilities, which should be ranked against the other
-candidates before selecting a concrete boundary.
+is large GUI view responsibilities; see
+[PLAY_OEM_COMPLEXITY_11_LARGE_GUI_VIEW_RESPONSIBILITIES_PLAN.md](./PLAY_OEM_COMPLEXITY_11_LARGE_GUI_VIEW_RESPONSIBILITIES_PLAN.md)
+for the bounded investigation and candidate-ranking procedure.
+
+## Large GUI view responsibilities update — 2026-11-10
+
+The state/resource maps, candidate comparison, bounded change, and test
+results are recorded in
+[PLAY_OEM_COMPLEXITY_11_LARGE_GUI_VIEW_RESPONSIBILITIES_PLAN.md](./PLAY_OEM_COMPLEXITY_11_LARGE_GUI_VIEW_RESPONSIBILITIES_PLAN.md).
+The Ground Track and pass-view suites passed (41 passed, 3 display-gated
+skips); selected app lifecycle tests passed (9); store-backed view tests
+passed (3).
+
+No whole-view extraction was justified. The Ground Station Passes view already
+uses `StationAnalysisContext` for shared station/interval selection, and its
+responsive presentation and lifecycle have focused tests. Ground Track
+navigation remains tied to projection and axes operations, but its horizontal
+and vertical scrollbar conversions duplicated a small inverse-mapping policy
+with no direct headless coverage. That mapping is now centralized in private
+pure helpers and tested for direction, quantization, clamping, full-world
+disablement, and both-axis integration. The wx view retains ownership of
+controls, projection, axes, and redraw.
+
+Native wx layout tests were skipped without a display; no subsystem or
+dataflow ownership changed. This candidate is complete. Re-rank the remaining
+assessment candidates before defining the next authoritative work item.

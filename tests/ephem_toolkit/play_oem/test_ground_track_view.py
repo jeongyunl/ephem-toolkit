@@ -44,6 +44,116 @@ def test_projection_covers_poles_and_center_seam(name: str, center: float) -> No
     assert np.isfinite(y).all()
 
 
+@pytest.mark.parametrize("reverse", [False, True])
+def test_scrollbar_mapping_round_trips_viewport_center(reverse: bool) -> None:
+    low, high, world_half_extent = -90.0, 10.0, 100.0
+    position, overflow = ground_track._scrollbar_metrics(
+        low, high, world_half_extent, reverse=reverse
+    )
+
+    center = ground_track._scrollbar_center(
+        position,
+        high - low,
+        world_half_extent,
+        reverse=reverse,
+    )
+
+    assert 0 <= position <= ground_track._SCROLLBAR_TRAVEL
+    assert center == pytest.approx(
+        (low + high) * 0.5,
+        abs=overflow / (2 * ground_track._SCROLLBAR_TRAVEL) + 1e-12,
+    )
+    first_center = ground_track._scrollbar_center(
+        0, high - low, world_half_extent, reverse=reverse
+    )
+    last_center = ground_track._scrollbar_center(
+        ground_track._SCROLLBAR_TRAVEL,
+        high - low,
+        world_half_extent,
+        reverse=reverse,
+    )
+    if reverse:
+        assert first_center > last_center
+    else:
+        assert first_center < last_center
+
+
+def test_scrollbar_mapping_disables_full_world_and_clamps_positions() -> None:
+    position, overflow = ground_track._scrollbar_metrics(-100.0, 100.0, 100.0)
+    assert position == 0
+    assert overflow == 0.0
+
+    left_position, _ = ground_track._scrollbar_metrics(-200.0, -100.0, 100.0)
+    right_position, _ = ground_track._scrollbar_metrics(100.0, 200.0, 100.0)
+    assert left_position == 0
+    assert right_position == ground_track._SCROLLBAR_TRAVEL
+
+
+def test_ground_track_scrollbars_apply_shared_mapping_to_both_axes() -> None:
+    from matplotlib.figure import Figure
+
+    class ScrollBar:
+        def __init__(self) -> None:
+            self.values: tuple[int, int, int, int] | None = None
+            self.enabled = False
+
+        def SetScrollbar(
+            self, position: int, thumb: int, range_: int, thumb_size: int
+        ) -> None:
+            self.values = (position, thumb, range_, thumb_size)
+
+        def Enable(self, enabled: bool) -> None:
+            self.enabled = enabled
+
+    class ScrollEvent:
+        def __init__(self, position: int) -> None:
+            self.position = position
+
+        def GetPosition(self) -> int:
+            return self.position
+
+    view = ground_track.GroundTrackView(cast(Any, None), "Test object")
+    figure = Figure()
+    view._figure = figure
+    view._axes = figure.add_subplot(111)
+    view._projection = ground_track._make_projection("Equirectangular", 0.0)
+    view._horizontal_scroll = ScrollBar()
+    view._vertical_scroll = ScrollBar()
+    world_x = abs(float(view._projection(180.0, 0.0)[0]))
+    world_y = abs(float(view._projection(0.0, 90.0)[1]))
+    view._axes.set_xlim(-world_x * 0.5, world_x * 0.5)
+    view._axes.set_ylim(-world_y * 0.5, world_y * 0.5)
+
+    view._update_scrollbars()
+
+    assert view._horizontal_scroll.values == (
+        ground_track._SCROLLBAR_TRAVEL // 2,
+        ground_track._SCROLLBAR_THUMB_SIZE,
+        ground_track._SCROLLBAR_RANGE,
+        ground_track._SCROLLBAR_THUMB_SIZE,
+    )
+    assert view._vertical_scroll.values == view._horizontal_scroll.values
+    assert view._horizontal_scroll.enabled
+    assert view._vertical_scroll.enabled
+
+    view._on_horizontal_scroll(ScrollEvent(0))
+    view._on_vertical_scroll(ScrollEvent(0))
+    assert view._axes.get_xlim() == pytest.approx((-world_x, 0.0))
+    assert view._axes.get_ylim() == pytest.approx((0.0, world_y))
+    view._update_scrollbars()
+    assert view._horizontal_scroll.values is not None
+    assert view._horizontal_scroll.values[0] == 0
+    assert view._vertical_scroll.values is not None
+    assert view._vertical_scroll.values[0] == 0
+
+    view._axes.set_xlim(-world_x, world_x)
+    view._axes.set_ylim(-world_y, world_y)
+    view._update_scrollbars()
+    assert not view._horizontal_scroll.enabled
+    assert not view._vertical_scroll.enabled
+    view.close()
+
+
 @pytest.mark.parametrize("name", ground_track.PROJECTION_NAMES)
 @pytest.mark.parametrize("background_style", ground_track.BACKGROUND_CHOICES)
 def test_pan_rotates_map_without_horizontal_viewport_drift(
