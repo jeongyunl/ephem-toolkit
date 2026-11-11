@@ -191,6 +191,15 @@ execution is blocked. The macOS result must not be generalized; continuing
 requires access to GTK/Linux and MSW/Windows runners. Evidence and limitations
 are recorded in
 [plan 17](./PLAY_OEM_COMPLEXITY_17_CROSS_PLATFORM_WX_CLEANUP_PLAN.md).
+The next step is the separately scoped runner-enablement investigation in
+[plan 18](./PLAY_OEM_COMPLEXITY_18_WX_CI_RUNNER_ENABLEMENT_PLAN.md), which first
+proves hosted wxGTK/Xvfb and wxMSW desktop feasibility before proposing minimal
+CI jobs. Self-hosted infrastructure and broader compatibility matrices remain
+out of scope.
+Plan 18 found zero configured GitHub Actions workflows and no way in this
+session to validate hosted policy or actual non-macOS execution. It added no
+workflow; GTK/MSW remain blocked until hosted workflow execution is authorized
+or platform runners are provided.
 
 ## Scope and follow-up
 

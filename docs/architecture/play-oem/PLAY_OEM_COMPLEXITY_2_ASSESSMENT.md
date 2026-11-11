@@ -690,3 +690,21 @@ next actionable step requires access to a Linux runner with wxGTK and Xvfb and
 a desktop-capable Windows runner. The feasibility evidence and explicit
 limitations are recorded in
 [PLAY_OEM_COMPLEXITY_17_CROSS_PLATFORM_WX_CLEANUP_PLAN.md](./PLAY_OEM_COMPLEXITY_17_CROSS_PLATFORM_WX_CLEANUP_PLAN.md).
+
+## Native wx runner enablement selection — 2026-11-11
+
+Because plan 17 could not execute outside macOS, the next step is a separate,
+bounded feasibility and implementation plan for hosted Ubuntu/wxGTK and
+Windows/wxMSW test jobs. The work must first prove Linux dependency installation
+and virtual-display behavior, and Windows native GUI availability; it must not
+assume those capabilities or introduce self-hosted runners. If both hosted
+paths are viable, add only the narrow CI coverage needed for the real cleanup
+test and focused app lifecycle suite. If not, record the blocker and stop
+before adding infrastructure. Scope and gates are in
+[PLAY_OEM_COMPLEXITY_18_WX_CI_RUNNER_ENABLEMENT_PLAN.md](./PLAY_OEM_COMPLEXITY_18_WX_CI_RUNNER_ENABLEMENT_PLAN.md).
+
+Plan 18 found no configured GitHub Actions workflows and could not test hosted
+runner policy, Linux wxGTK installation, or Windows desktop availability from
+this session. It added no speculative infrastructure; GTK and MSW remain
+blocked and unverified. Continuing requires authorization and a mechanism to
+run a minimal hosted workflow, or independently provided platform runners.
