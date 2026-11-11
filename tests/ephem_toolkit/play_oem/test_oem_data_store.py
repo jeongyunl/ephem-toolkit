@@ -18,6 +18,7 @@ from ephem_toolkit.play_oem.ground_footprints import compute_ground_footprints
 from ephem_toolkit.play_oem.ground_stations import GroundStation, station_metrics
 
 import ephem_toolkit.play_oem.oem_data_store as oem_data_store
+import ephem_toolkit.play_oem.ground_track as ground_track
 from ephem_toolkit.play_oem.oem_data_store import (
     ColumnGroupView,
     InterpolationPolicy,
@@ -528,11 +529,11 @@ def test_state_at_matches_cursor_without_copying_sample_history(
     times, states, segments = _series_samples()
     store = _store_with_samples(times, states, segments)
     cursor = OemCursor(
-        times,
-        states,
+        times.tolist(),
+        list(states),
         interpolation=method,
         interpolation_degree=degree,
-        segment_ids=segments,
+        segment_ids=segments.tolist(),
     )
     if method is not None:
         store.set_interpolation(InterpolationPolicy(method, degree))
@@ -755,7 +756,7 @@ def test_series_groups_are_lazy_chunked_views_matching_reference_computations() 
         snapshot, (60.0, 360.0), groups=("kinematics",), wait=True
     )
 
-    expected_groups = {
+    expected_groups: set[oem_data_store.SeriesGroupName] = {
         "kinematics",
         "rtn",
         "direction-rates",
@@ -1412,6 +1413,50 @@ def test_earth_fixed_positions_are_lazy_memoized_read_only_views() -> None:
     assert store.earth_fixed_chunk_counters.hits == 1
 
 
+@pytest.mark.parametrize(
+    ("source_frame", "conversion_frame"),
+    [(" gcrf ", "J2000"), ("TEME", "TEME"), ("itrf93", None)],
+)
+def test_earth_fixed_chunk_normalizes_frame_once(
+    monkeypatch, source_frame: str, conversion_frame: str | None
+) -> None:
+    times, states, segments = _series_samples()
+    store = _store_with_samples(
+        times,
+        states,
+        segments,
+        metadata=(("CENTER_NAME", "EARTH"), ("REF_FRAME", source_frame)),
+    )
+    normalized_names: list[str] = []
+    converted_epochs: list[float] = []
+    normalize = ground_track.normalize_frame_name
+
+    def record_normalization(frame_name: str) -> str:
+        normalized_names.append(frame_name)
+        return normalize(frame_name)
+
+    def convert(frame_name: str, epoch: float, state: np.ndarray) -> np.ndarray:
+        assert frame_name == conversion_frame
+        converted_epochs.append(epoch)
+        result = state.copy()
+        result[:3] += epoch
+        return result
+
+    monkeypatch.setattr(ground_track, "normalize_frame_name", record_normalization)
+    monkeypatch.setattr(ground_track, "_convert_inertial_state_to_itrf", convert)
+
+    query = store.earth_fixed_positions(store.snapshot(), (times[0], times[-1]), wait=True)
+
+    assert normalized_names == [source_frame]
+    if conversion_frame is None:
+        assert not converted_epochs
+        expected_positions = states[:, :3]
+    else:
+        assert converted_epochs == times.tolist()
+        expected_positions = states[:, :3] + times[:, None]
+    np.testing.assert_allclose(query.value[0].values[:, 1:], expected_positions)
+
+
 def test_earth_fixed_computes_only_rows_inside_requested_range(monkeypatch) -> None:
     sample_count = 6000
     indices = np.arange(sample_count, dtype=float)
@@ -1551,6 +1596,7 @@ def test_station_access_recomputes_policy_dependent_support_margin() -> None:
         first_tier.layouts[0],
         (bounds[0] - margin, bounds[1] + margin),
     )
+    assert first_tier.ready is not None
     np.testing.assert_array_equal(
         np.flatnonzero(first_tier.ready),
         np.arange(expected_first, expected_stop),

@@ -30,7 +30,19 @@ def test_state_position_to_itrf_normalizes_earth_fixed_alias() -> None:
     assert not np.shares_memory(position, state)
 
 
-def test_state_position_to_itrf_converts_inertial_state_at_epoch(monkeypatch) -> None:
+@pytest.mark.parametrize(
+    ("source_frame", "conversion_frame"),
+    [
+        ("J2000", "J2000"),
+        (" eme2000 ", "J2000"),
+        ("ICRF", "J2000"),
+        ("GCRF", "J2000"),
+        ("TEME", "TEME"),
+    ],
+)
+def test_state_position_to_itrf_converts_inertial_state_at_epoch(
+    monkeypatch, source_frame: str, conversion_frame: str
+) -> None:
     calls: list[tuple[str, float]] = []
     state = np.array([6_878_137.0, 0.0, 0.0, 0.0, 7_500.0, 0.0])
 
@@ -41,9 +53,9 @@ def test_state_position_to_itrf_converts_inertial_state_at_epoch(monkeypatch) ->
     monkeypatch.setattr(ground_track, "_convert_inertial_state_to_itrf", convert)
 
     np.testing.assert_array_equal(
-        ground_track.state_position_to_itrf_m(state, "GCRF", 42.0), state[:3]
+        ground_track.state_position_to_itrf_m(state, source_frame, 42.0), state[:3]
     )
-    assert calls == [("GCRF", 42.0)]
+    assert calls == [(conversion_frame, 42.0)]
 
 
 @pytest.mark.parametrize(

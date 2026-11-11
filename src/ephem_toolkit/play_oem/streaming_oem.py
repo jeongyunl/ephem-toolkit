@@ -13,6 +13,7 @@ import ephem_toolkit.core.ccsds.oem as ccsds_oem
 import ephem_toolkit.core.ccsds.odm as odm
 import numpy as np
 
+from .ground_track import normalize_frame_name
 from .oem_data_store import OemDataStore, RawAppendNotice, RawReservation
 
 
@@ -126,6 +127,9 @@ def read_oem_into_store(
     def publish_segment_metadata(
         segment_id: int, segment_meta: dict[str, Any]
     ) -> None:
+        ref_frame = segment_meta.get("REF_FRAME")
+        if isinstance(ref_frame, str):
+            segment_meta["REF_FRAME"] = normalize_frame_name(ref_frame)
         time_system = str(segment_meta.get("TIME_SYSTEM", "")).strip().upper()
         if time_system != "UTC":
             displayed_time_system = time_system or "unspecified"
@@ -137,15 +141,21 @@ def read_oem_into_store(
             on_segment_metadata(segment_id, segment_meta)
 
     try:
-        header, meta, _, _, _ = ccsds_oem.CcsdsOem._read_oem_impl(
-            source,
-            on_segment_metadata=publish_segment_metadata,
-            state_row_sink=sink,
-            retain_states=False,
-            retain_comments=False,
-            retain_covariances=False,
-        )
+        with Path(source).open("r", encoding="utf-8") as source_file:
+            parsed = ccsds_oem.CcsdsOem._read_oem_impl(
+                source_file,
+                include_segment_ids=True,
+                on_segment_metadata=publish_segment_metadata,
+                state_row_sink=sink,
+                retain_states=False,
+                retain_comments=False,
+                retain_covariances=False,
+            )
+        header, meta = parsed[0], parsed[1]
         sink.flush()
+        ref_frame = meta.get("REF_FRAME")
+        if isinstance(ref_frame, str):
+            meta["REF_FRAME"] = normalize_frame_name(ref_frame)
         odm.validate_odm_context(
             str(meta.get("CENTER_NAME", "")),
             str(meta.get("REF_FRAME", "")),

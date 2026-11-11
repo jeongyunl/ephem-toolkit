@@ -5,10 +5,11 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass
 import math
+from typing import Protocol
 
 import numpy as np
 
-from .cursor import OemCursor
+from .cursor import CursorState
 from .ground_stations import (
     GroundStation,
     StationMetrics,
@@ -20,6 +21,12 @@ MAX_ACCESS_SAMPLE_STEP_S = 30.0
 MAX_SOURCE_SAMPLE_GAP_S = 300.0
 CROSSING_TIME_TOLERANCE_S = 0.5
 MAX_ACCESS_SAMPLES = 1_000_000
+
+
+class StateCursor(Protocol):
+    """Cursor interface needed by access-boundary refinement."""
+
+    def lookup(self, t: float, /) -> CursorState: ...
 
 
 @dataclass(frozen=True)
@@ -73,7 +80,7 @@ class StationAccess:
 
 def _refine_peak(
     station: GroundStation,
-    cursor: OemCursor,
+    cursor: StateCursor,
     frame_name: str,
     low_s: float,
     high_s: float,
@@ -122,7 +129,7 @@ ACCESS_WINDOW_MIN_MARGIN_S = 3_600.0
 
 def _intervals_for_segment(
     station: GroundStation,
-    cursor: OemCursor,
+    cursor: StateCursor,
     frame_name: str,
     sample_times: Iterable[float],
     metrics: Iterable[StationMetrics | None],
@@ -154,7 +161,10 @@ def _intervals_for_segment(
                 previous_access
                 and previous_time is not None
                 and active_start is not None
+                and active_start_metrics is not None
+                and peak_time is not None
                 and peak_metrics is not None
+                and range_time is not None
                 and range_metrics is not None
                 and last_access_metrics is not None
             ):
@@ -287,7 +297,7 @@ def _intervals_for_segment(
 
 def _refine_crossing(
     station: GroundStation,
-    cursor: OemCursor,
+    cursor: StateCursor,
     frame_name: str,
     low_s: float,
     high_s: float,

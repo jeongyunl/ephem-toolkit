@@ -17,7 +17,7 @@ import weakref
 from pathlib import Path
 from threading import Event, RLock
 from types import MappingProxyType
-from typing import Generic, Literal, TypeVar, Union
+from typing import Generic, Literal, TypeVar, Union, cast
 
 import numpy as np
 
@@ -43,6 +43,8 @@ from .ground_track import (
     GroundTrackCoordinates,
     GroundTrackPreparationError,
     _ecef_to_wgs84_geodetic,
+    _state_position_to_itrf_m_normalized,
+    normalize_conversion_frame_name,
     split_ground_track_runs,
     state_position_to_itrf_m,
 )
@@ -1719,7 +1721,9 @@ class OemDataStore:
         """Return available group slices and queue missing chunks unless ``wait``."""
         bounds = _validate_time_bounds(bounds_s)
         self._validate_snapshot_epoch(snapshot)
-        selected_groups = SERIES_GROUPS if groups is None else tuple(dict.fromkeys(groups))
+        selected_groups: tuple[SeriesGroupName, ...] = (
+            SERIES_GROUPS if groups is None else tuple(dict.fromkeys(groups))
+        )
         unknown_groups = set(selected_groups).difference(SERIES_GROUPS)
         if unknown_groups:
             raise ValueError(f"unsupported series groups: {sorted(unknown_groups)}")
@@ -1783,7 +1787,7 @@ class OemDataStore:
                         TierNotice(
                             snapshot.epoch,
                             "series",
-                            group,
+                            cast(SeriesGroupName, group),
                             None,
                             span.first,
                             span.stop,
@@ -1853,11 +1857,12 @@ class OemDataStore:
             )
         else:
             coverage = base_coverage
-        query = StoreQuery(
+        series_groups: SeriesGroups = MappingProxyType(result)
+        query = StoreQuery[SeriesGroups](
             snapshot.epoch,
             snapshot.revision,
             snapshot.policy_revision,
-            MappingProxyType(result),
+            series_groups,
             coverage,
         )
         self._evict_derived_buffers()
@@ -2112,9 +2117,6 @@ class OemDataStore:
             _cancel_event=_cancel_event,
         )
         groups: list[ColumnGroupView] = []
-        normalized_frame = frame_name.strip().upper()
-        if normalized_frame == "ITRF93":
-            normalized_frame = "ITRF1993"
         for earth_group in earth_fixed.value:
             ecef_values = earth_group.values
             geodetic = _ecef_to_wgs84_geodetic(ecef_values[:, 1:4])
@@ -2136,7 +2138,7 @@ class OemDataStore:
                     latitude_rad=segment_geodetic[:, 0],
                     longitude_rad=segment_geodetic[:, 1],
                     segment_ids=np.zeros(len(segment_values), dtype=np.int64),
-                    source_frame=normalized_frame,
+                    source_frame=frame_name,
                 )
                 for run in split_ground_track_runs(coordinates, center):
                     run_values = np.column_stack(
@@ -2211,7 +2213,7 @@ class OemDataStore:
         snapshot: StoreSnapshot,
         station: GroundStation,
         bounds_s: TimeBounds,
-        minimum_elevation_deg: int | None = None,
+        minimum_elevation_deg: float | None = None,
         *,
         wait: bool = False,
         _cancel_event: Event | None = None,
@@ -2561,7 +2563,8 @@ class OemDataStore:
         *,
         cancel_event: Event | None,
     ) -> None:
-        if tier.ready is None:
+        ready = tier.ready
+        if ready is None:
             raise RuntimeError("station profile readiness was not initialized")
         requested_by_chunk: dict[
             int, list[tuple[_StationSegmentLayout, int, int]]
@@ -2593,7 +2596,7 @@ class OemDataStore:
                     (layout, span)
                     for layout, first, stop in requested
                     for span in _row_spans(
-                        tier.ready, first, stop, ready_value=False
+                        ready, first, stop, ready_value=False
                     )
                 ]
                 if not missing:
@@ -2626,7 +2629,7 @@ class OemDataStore:
                                     metrics.elevation_deg,
                                     metrics.slant_range_km,
                                 )
-                        tier.ready[span.first : span.stop] = True
+                        ready[span.first : span.stop] = True
                         self._publish_notice(
                             TierNotice(
                                 snapshot.epoch,
@@ -3531,10 +3534,12 @@ def _write_earth_fixed_chunk(
     stop: int,
     output: np.ndarray,
 ) -> None:
+    normalized_frame = normalize_conversion_frame_name(frame_name)
     for row in range(start, stop):
         output[row, 0] = snapshot.raw[row, 0]
-        output[row, 1:4] = state_position_to_itrf_m(
+        output[row, 1:4] = _state_position_to_itrf_m_normalized(
             snapshot.raw[row, 1:7],
-            frame_name,
+            normalized_frame,
             float(snapshot.raw[row, 0]),
+            source_frame_name=frame_name,
         )

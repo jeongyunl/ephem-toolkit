@@ -9,9 +9,29 @@ from typing import Any
 import numpy as np
 
 EARTH_CENTERS = frozenset({"EARTH", "399"})
-DIRECT_EARTH_FIXED_FRAMES = frozenset({"ITRF", "ITRF1993", "ITRF93"})
-INERTIAL_FRAMES = frozenset({"J2000", "EME2000", "ICRF", "GCRF", "TEME"})
+DIRECT_EARTH_FIXED_FRAMES = frozenset({"ITRF93"})
+J2000_EQUIVALENT_FRAMES = frozenset({"J2000", "EME2000", "ICRF", "GCRF"})
+INERTIAL_FRAMES = frozenset({"J2000", "TEME"})
 EARTH_RADIUS_AUTHALIC_M = 6_371_007.1809
+
+
+def normalize_frame_name(frame_name: str) -> str:
+    """Return the canonical spelling used by play-oem for an OEM frame.
+
+    The viewer treats ITRF and ITRF1993 labels as the ITRF93 realization.
+    """
+    normalized_frame = frame_name.strip().upper()
+    if normalized_frame in {"ITRF", "ITRF1993", "ITRF93"}:
+        return "ITRF93"
+    return normalized_frame
+
+
+def normalize_conversion_frame_name(frame_name: str) -> str:
+    """Return the frame name used for Earth-fixed conversion dispatch."""
+    normalized_frame = normalize_frame_name(frame_name)
+    if normalized_frame in J2000_EQUIVALENT_FRAMES:
+        return "J2000"
+    return normalized_frame
 
 
 class GroundTrackPreparationError(ValueError):
@@ -76,24 +96,19 @@ def _convert_inertial_state_to_itrf(
     """Load the frame-conversion stack only when an inertial OEM needs it."""
     from ephem_toolkit.core import frame_utils
 
-    source_frame_name = "J2000" if frame_name == "J2000" else frame_name
-    if source_frame_name == "ITRF93":
-        source_frame_name = "ITRF1993"
     try:
-        source_frame = frame_utils.Frame[source_frame_name]
-        # Construct from the enum value because the existing Frame member
-        # annotations make Pylance infer ``Frame.ITRF`` as ``str``.
-        target_frame = frame_utils.Frame("ITRF")
+        source_frame = frame_utils.Frame[frame_name]
+        target_frame = frame_utils.Frame("ITRF1993")
         converted = frame_utils.convert_frame(
             source_frame, target_frame, epoch_tt_s, state_m
         )
     except (KeyError, ValueError, RuntimeError) as error:
         raise GroundTrackPreparationError(
-            f"Cannot convert OEM frame {frame_name!r} to ITRF: {error}"
+            f"Cannot convert OEM frame {frame_name!r} to ITRF93: {error}"
         ) from error
     if converted is None:
         raise GroundTrackPreparationError(
-            f"Conversion from OEM frame {frame_name!r} to ITRF is unavailable"
+            f"Conversion from OEM frame {frame_name!r} to ITRF93 is unavailable"
         )
     return np.asarray(converted, dtype=float)
 
@@ -101,10 +116,23 @@ def _convert_inertial_state_to_itrf(
 def state_position_to_itrf_m(
     state_m: np.ndarray, frame_name: str, epoch_tt_s: float
 ) -> np.ndarray:
-    """Return a supported OEM position in ITRF meters at one TT epoch."""
-    normalized_frame = frame_name.strip().upper()
-    if normalized_frame == "ITRF93":
-        normalized_frame = "ITRF1993"
+    """Return a supported OEM position in ITRF93 meters at one TT epoch."""
+    return _state_position_to_itrf_m_normalized(
+        state_m,
+        normalize_conversion_frame_name(frame_name),
+        epoch_tt_s,
+        source_frame_name=frame_name,
+    )
+
+
+def _state_position_to_itrf_m_normalized(
+    state_m: np.ndarray,
+    normalized_frame: str,
+    epoch_tt_s: float,
+    *,
+    source_frame_name: str,
+) -> np.ndarray:
+    """Convert one state using an already-normalized source frame name."""
     state_m = np.asarray(state_m, dtype=float)
     if state_m.shape != (6,) or not np.isfinite(state_m).all():
         raise GroundTrackPreparationError("OEM cursor state is invalid")
@@ -112,7 +140,7 @@ def state_position_to_itrf_m(
         return state_m[:3].copy()
     if normalized_frame not in INERTIAL_FRAMES:
         raise GroundTrackPreparationError(
-            f"OEM frame {frame_name!r} is not supported for Ground Track"
+            f"OEM frame {source_frame_name!r} is not supported for Ground Track"
         )
     converted = _convert_inertial_state_to_itrf(normalized_frame, epoch_tt_s, state_m)
     if converted.shape != (6,) or not np.isfinite(converted).all():
