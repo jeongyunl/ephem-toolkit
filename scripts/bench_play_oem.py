@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+import math
 import platform
 import statistics
 import sys
@@ -16,14 +17,18 @@ try:
 except ImportError:
     resource = None
 
+from ephem_toolkit.play_oem import time_range
+from ephem_toolkit.play_oem.chunk_memo import ChunkMemo, ChunkState
 from ephem_toolkit.play_oem.ground_stations import GroundStation
 from ephem_toolkit.play_oem.incremental_loader import (
     IncrementalLoader,
     LoadEventKind,
 )
 from ephem_toolkit.play_oem.oem_data_store import (
+    DERIVED_CHUNK_SIZE,
     OemDataStore,
     RawAppendNotice,
+    RowSpan,
     StoreSnapshot,
 )
 from ephem_toolkit.play_oem.streaming_oem import read_oem_into_store
@@ -214,6 +219,93 @@ def _print_peak_rss(label: str) -> None:
         print(f"{label}: unavailable on this platform")
 
 
+def _memo_accounted_bytes(
+    memo: ChunkMemo[int, RowSpan],
+    row_count: int,
+    columns: int,
+    epoch: int,
+    policy_revision: int,
+) -> int:
+    accounted_bytes = 0
+    chunk_count = math.ceil(row_count / DERIVED_CHUNK_SIZE)
+    for chunk_index in range(chunk_count):
+        state = memo.state(
+            chunk_index, epoch=epoch, policy_revision=policy_revision
+        )
+        if state not in (ChunkState.COMPLETE, ChunkState.TENTATIVE):
+            continue
+        chunk_rows = min(
+            DERIVED_CHUNK_SIZE,
+            row_count - chunk_index * DERIVED_CHUNK_SIZE,
+        )
+        accounted_bytes += chunk_rows * columns * 8
+    return accounted_bytes
+
+
+def _store_memory_diagnostics(store: OemDataStore) -> dict[str, int]:
+    """Report derived-cache bytes using the store's eviction-budget accounting."""
+    with store._lock:
+        resident_bytes = 0
+        for group, buffer in store._series_buffers.items():
+            resident_bytes += _memo_accounted_bytes(
+                store._series_memos[group],
+                len(buffer),
+                buffer.shape[1],
+                store._epoch,
+                0,
+            )
+        if store._earth_fixed_buffer is not None:
+            resident_bytes += _memo_accounted_bytes(
+                store._earth_fixed_memo,
+                len(store._earth_fixed_buffer),
+                store._earth_fixed_buffer.shape[1],
+                store._epoch,
+                0,
+            )
+        for tier in store._station_profiles.values():
+            resident_bytes += _memo_accounted_bytes(
+                tier.memo,
+                tier.row_count,
+                tier.buffer.shape[1],
+                store._epoch,
+                store._policy_revision,
+            )
+        ground_track_bytes = sum(
+            sum(group.values.nbytes for group in query.value)
+            for query in store._ground_track_cache.values()
+        )
+        resident_bytes += ground_track_bytes
+        pinned_chunks = len(store._pinned_chunks)
+        pinned_references = sum(store._pinned_chunks.values())
+        budget_bytes = store._derived_memory_budget_bytes
+    return {
+        "budget_accounted_derived_bytes": resident_bytes,
+        "ground_track_cache_bytes": ground_track_bytes,
+        "pinned_chunk_keys": pinned_chunks,
+        "pinned_chunk_references": pinned_references,
+        "derived_memory_budget_bytes": budget_bytes,
+    }
+
+
+def _store_scheduler_backlog(store: OemDataStore) -> tuple[int, bool]:
+    with store._scheduler_lock:
+        return len(store._work_queue), store._active_work is not None
+
+
+def _plot_range_for_coverage(
+    coverage: tuple[float, float],
+) -> time_range.PlotTimeRange | None:
+    start_s, end_s = coverage
+    if end_s <= start_s:
+        return None
+    range_start_s = max(start_s, end_s - 86_400.0)
+    return time_range.PlotTimeRange(
+        enabled=True,
+        start=time_range.TimeRangeEndpoint("fixed", range_start_s),
+        end=time_range.TimeRangeEndpoint("fixed", end_s),
+    )
+
+
 def run_parser_benchmarks(source: Path, repeats: int) -> None:
     """Measure direct parsing and raw-store ingestion without GUI handoff."""
     def parse() -> None:
@@ -317,8 +409,10 @@ def run_data_benchmarks(source: Path, repeats: int, range_days: float) -> None:
         )
 
 
-def run_gui_stall_probe(source: Path) -> None:
-    """Measure wx timer delays while the real play-oem app incrementally loads a file."""
+def run_gui_stall_probe(
+    source: Path, *, range_probe: bool = False, drive_ranges: bool = True
+) -> None:
+    """Measure wx load responsiveness, optionally changing Ground Track ranges."""
     import wx
 
     from ephem_toolkit.play_oem import playback_data
@@ -366,6 +460,187 @@ def run_gui_stall_probe(source: Path) -> None:
     initial_install_s: list[float] = []
     initial_open_view_s: dict[str, list[float]] = {}
     inside_initial_install = [False]
+    range_view_opened = [False]
+    range_probe_replaced_view: list[Optional[str]] = [None]
+    probe_views_closed = [False]
+    range_milestones = (0.25, 0.5, 0.75)
+    next_range_milestone = [0]
+    range_requests: list[tuple[float, int, int, bool]] = []
+    range_render_observations: list[tuple[str, float]] = []
+    pending_range_render_at: list[Optional[float]] = [None]
+    memory_samples: list[tuple[str, dict[str, int]]] = []
+    queue_maxima = {
+        "loader_events": 0,
+        "store_notices": 0,
+        "store_work": 0,
+        "store_active_work": 0,
+    }
+    queue_sample_count = [0]
+    last_queue_sample_at = [0.0]
+    retained_memory_sampled = [False]
+    post_close_memory_sampled = [False]
+    view_closed_at: list[Optional[float]] = [None]
+
+    def current_store() -> Optional[OemDataStore]:
+        context = player._store_view_context
+        if context is not None:
+            return context.store
+        return player._oem_store
+
+    def record_memory_sample(label: str) -> None:
+        store = current_store()
+        if store is not None:
+            metrics = _store_memory_diagnostics(store)
+            queued_work, active_work = _store_scheduler_backlog(store)
+            metrics["derived_queued_work"] = queued_work
+            metrics["derived_active_work"] = int(active_work)
+            memory_samples.append((label, metrics))
+
+    def sample_queues(now: float) -> None:
+        if not range_probe or now - last_queue_sample_at[0] < 0.1:
+            return
+        last_queue_sample_at[0] = now
+        session = player._incremental_loader.session
+        loader_events = 0 if session is None else session._events.qsize()
+        store_notices = player._store_notice_queue.qsize()
+        store = current_store()
+        store_work = 0
+        store_active_work = False
+        if store is not None:
+            store_work, store_active_work = _store_scheduler_backlog(store)
+        queue_maxima["loader_events"] = max(
+            queue_maxima["loader_events"], loader_events
+        )
+        queue_maxima["store_notices"] = max(
+            queue_maxima["store_notices"], store_notices
+        )
+        queue_maxima["store_work"] = max(queue_maxima["store_work"], store_work)
+        queue_maxima["store_active_work"] = max(
+            queue_maxima["store_active_work"], int(store_active_work)
+        )
+        queue_sample_count[0] += 1
+
+    def observe_panel_draw(name: str, panel_id: str, opened) -> None:
+        canvas = getattr(opened, "canvas", None)
+        if canvas is None and range_probe and name == "ground-track":
+            canvas = getattr(opened.view, "_canvas", None)
+        if canvas is None:
+            return
+
+        def observe_draw(_event: object) -> None:
+            if (
+                request_at[0] is not None
+                and first_plot[0] is None
+                and opened.panel.IsShownOnScreen()
+            ):
+                first_plot[0] = (time.perf_counter(), name)
+            if (
+                range_probe
+                and name == "ground-track"
+                and pending_range_render_at[0] is not None
+                and opened.panel.IsShownOnScreen()
+            ):
+                range_render_observations.append(
+                    (name, time.perf_counter() - pending_range_render_at[0])
+                )
+                pending_range_render_at[0] = None
+
+        connection = canvas.mpl_connect("draw_event", observe_draw)
+        draw_connections.append((canvas, connection, panel_id))
+
+    def drive_range_probe() -> None:
+        if (
+            not range_probe
+            or not player._active_load_first_batch
+            or player._oem_coverage_complete
+        ):
+            return
+        if not range_view_opened[0]:
+            record_memory_sample("before-ground-track-open")
+            visible_panel = next(
+                (
+                    opened
+                    for opened in player._open_panels.values()
+                    if opened.view_name == "speed-altitude"
+                    and opened.panel.IsShownOnScreen()
+                ),
+                None,
+            )
+            if visible_panel is None:
+                visible_panel = next(
+                    (
+                        opened
+                        for opened in player._open_panels.values()
+                        if opened.panel.IsShownOnScreen()
+                    ),
+                    None,
+                )
+            if visible_panel is None:
+                raise RuntimeError(
+                    "no visible graph panel is available for the Ground Track probe"
+                )
+            range_panel_id = visible_panel.panel_id
+            range_probe_replaced_view[0] = visible_panel.view_name
+            player.open_ground_track_view(
+                panel_id=range_panel_id,
+                stack=visible_panel.stack,
+                force_replace=True,
+            )
+            range_view_opened[0] = True
+            opened = player._open_panels.get(range_panel_id)
+            if opened is None or opened.view_name != "ground-track":
+                raise RuntimeError("Ground Track probe view was not installed")
+            observe_panel_draw("ground-track", range_panel_id, opened)
+            record_memory_sample("after-ground-track-open")
+        if not drive_ranges:
+            return
+        if pending_range_render_at[0] is not None:
+            return
+        store = current_store()
+        if store is None or next_range_milestone[0] >= len(range_milestones):
+            return
+        capacity = store.capacity
+        if capacity <= 0:
+            return
+        sample_count = store.snapshot().sample_count
+        fraction = range_milestones[next_range_milestone[0]]
+        if sample_count < int(capacity * fraction):
+            return
+        coverage = (player.clock.t_start, player.clock.t_end)
+        rule = _plot_range_for_coverage(coverage)
+        next_range_milestone[0] += 1
+        if rule is None:
+            return
+        request_time = time.perf_counter()
+        pending_range_render_at[0] = request_time
+        player._apply_plot_time_range(rule)
+        work_count, work_active = _store_scheduler_backlog(store)
+        range_requests.append((fraction, sample_count, work_count, work_active))
+        record_memory_sample(f"range-{int(fraction * 100)}%-requested")
+        if work_count or work_active:
+            queue_maxima["store_work"] = max(
+                queue_maxima["store_work"], work_count
+            )
+            queue_maxima["store_active_work"] = max(
+                queue_maxima["store_active_work"], int(work_active)
+            )
+
+    def close_probe_views() -> None:
+        if not range_view_opened[0] or probe_views_closed[0]:
+            return
+        record_memory_sample("before-closing-views")
+        for panel_id, opened in tuple(player._open_panels.items()):
+            view_name = opened.view_name
+            player.close_panel(panel_id)
+            for canvas, connection, connected_panel_id in tuple(draw_connections):
+                if connected_panel_id == panel_id:
+                    canvas.mpl_disconnect(connection)
+                    draw_connections.remove(
+                        (canvas, connection, connected_panel_id)
+                    )
+            record_memory_sample(f"after-close-{view_name}")
+        probe_views_closed[0] = True
+        view_closed_at[0] = time.perf_counter()
 
     def observe_start_load(path: str) -> None:
         request_at[0] = time.perf_counter()
@@ -398,17 +673,8 @@ def run_gui_stall_probe(source: Path) -> None:
             name, panel_id, stack, force_replace=force_replace
         )
         opened = player._open_panels.get(panel_id)
-        if opened is not None and opened.canvas is not None and player._oem_loaded:
-            def observe_draw(_event: object) -> None:
-                if (
-                    request_at[0] is not None
-                    and first_plot[0] is None
-                    and opened.panel.IsShownOnScreen()
-                ):
-                    first_plot[0] = (time.perf_counter(), name)
-
-            connection = opened.canvas.mpl_connect("draw_event", observe_draw)
-            draw_connections.append((opened.canvas, connection))
+        if opened is not None and (player._oem_loaded or range_probe):
+            observe_panel_draw(name, panel_id, opened)
         if inside_refresh[0]:
             open_view_durations.setdefault(name, []).append(
                 time.perf_counter() - started
@@ -462,6 +728,7 @@ def run_gui_stall_probe(source: Path) -> None:
     def on_probe_tick(_event: wx.TimerEvent) -> None:
         del _event
         now = time.perf_counter()
+        sample_queues(now)
         previous = last_tick[0]
         if (
             previous is not None
@@ -484,9 +751,43 @@ def run_gui_stall_probe(source: Path) -> None:
             result["timed_out"] = True
             load_finished_at[0] = now
 
-        if load_finished_at[0] is not None and now - load_finished_at[0] >= 2.0:
+        if (
+            range_probe
+            and load_finished_at[0] is None
+            and not result["failed"]
+            and not result["timed_out"]
+        ):
+            drive_range_probe()
+
+        if range_probe and load_finished_at[0] is not None:
+            elapsed_since_finish = now - load_finished_at[0]
+            if elapsed_since_finish >= 0.5 and not retained_memory_sampled[0]:
+                record_memory_sample("load-complete-view-retained")
+                retained_memory_sampled[0] = True
+                close_probe_views()
+            if view_closed_at[0] is not None and not post_close_memory_sampled[0]:
+                store = current_store()
+                queued_work, active_work = (
+                    (0, False)
+                    if store is None
+                    else _store_scheduler_backlog(store)
+                )
+                elapsed_since_close = now - view_closed_at[0]
+                if (
+                    (elapsed_since_close >= 0.5 and queued_work == 0 and not active_work)
+                    or elapsed_since_close >= 5.0
+                ):
+                    record_memory_sample("after-close-settle")
+                    post_close_memory_sampled[0] = True
+
+        shutdown_delay_s = 6.0 if range_probe else 2.0
+        if (
+            load_finished_at[0] is not None
+            and now - load_finished_at[0] >= shutdown_delay_s
+        ):
+            close_probe_views()
             timer.Stop()
-            for canvas, connection in draw_connections:
+            for canvas, connection, _panel_id in draw_connections:
                 canvas.mpl_disconnect(connection)
             draw_connections.clear()
             del player._refresh_incremental_views
@@ -570,6 +871,58 @@ def run_gui_stall_probe(source: Path) -> None:
         f"slowest panel construction during refresh: {slowest_open[1]} "
         f"{slowest_open[0] * 1000.0:.1f}ms"
     )
+    if range_probe:
+        if drive_ranges:
+            print(
+                f"overlap range requests: {len(range_requests)}/{len(range_milestones)}"
+            )
+        else:
+            print("Ground Track range baseline: range changes not driven")
+        if range_probe_replaced_view[0] is not None:
+            print(
+                "Ground Track probe replaced visible panel: "
+                f"{range_probe_replaced_view[0]}"
+            )
+        for fraction, sample_count, work_count, work_active in range_requests:
+            print(
+                f"range request at {fraction:.0%} load progress: "
+                f"samples={sample_count}, queued_work={work_count}, "
+                f"active_work={work_active}"
+            )
+        if range_render_observations:
+            print(
+                "Ground Track range request-to-visible-render: "
+                f"samples={len(range_render_observations)}, "
+                f"median={statistics.median(latency for _, latency in range_render_observations) * 1000.0:.1f}ms, "
+                f"max={max(latency for _, latency in range_render_observations) * 1000.0:.1f}ms, "
+                "panels="
+                + ",".join(name for name, _ in range_render_observations)
+            )
+        else:
+            print("Ground Track range request-to-visible-render: not observed")
+        print(
+            "approximate maximum queue depth: "
+            f"load events={queue_maxima['loader_events']}, "
+            f"store notices={queue_maxima['store_notices']}, "
+            f"derived queued={queue_maxima['store_work']}, "
+            f"derived active={queue_maxima['store_active_work']} "
+            f"(samples={queue_sample_count[0]})"
+        )
+        for label, metrics in memory_samples:
+            print(
+                f"store derived memory ({label}): "
+                f"accounted={metrics['budget_accounted_derived_bytes'] / 1048576:.1f}MiB, "
+                f"ground_track={metrics['ground_track_cache_bytes'] / 1048576:.1f}MiB, "
+                f"store_pinned_chunks={metrics['pinned_chunk_keys']} "
+                f"({metrics['pinned_chunk_references']} references), "
+                f"budget={metrics['derived_memory_budget_bytes'] / 1048576:.1f}MiB, "
+                f"queued_work={metrics['derived_queued_work']}, "
+                f"active_work={bool(metrics['derived_active_work'])}"
+            )
+        print(
+            "Store pin counts are aggregate and not attributable to a specific "
+            "view; derived bytes follow eviction-budget accounting, not RSS."
+        )
     if result["timed_out"]:
         raise TimeoutError("incremental GUI load did not finish within 300 seconds")
     if result["failed"]:
@@ -603,6 +956,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="open play-oem and measure wx timer delays during incremental loading",
     )
     parser.add_argument(
+        "--gui-overlap-probe",
+        action="store_true",
+        help="drive Ground Track range changes during incremental loading",
+    )
+    parser.add_argument(
+        "--gui-range-baseline-probe",
+        action="store_true",
+        help="load with a Ground Track view open but do not change its range",
+    )
+    parser.add_argument(
         "--store-ingest-bench",
         type=int,
         metavar="CAPACITY",
@@ -625,6 +988,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="skip one-shot data benchmarks (requires another probe)",
     )
     args = parser.parse_args(argv)
+    gui_probe_count = sum(
+        (
+            args.gui_stall_probe,
+            args.gui_overlap_probe,
+            args.gui_range_baseline_probe,
+        )
+    )
+    if gui_probe_count > 1:
+        parser.error("select only one GUI probe mode")
     store_session_requested = args.store_session_bench is not None
     store_session_capacity = None
     if store_session_requested:
@@ -652,12 +1024,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         run_store_session_benchmarks(args.oem, store_session_capacity, args.repeats)
     if args.parser_bench:
         run_parser_benchmarks(args.oem, args.repeats)
-    if args.gui_stall_probe:
+    if args.gui_overlap_probe:
+        run_gui_stall_probe(args.oem, range_probe=True)
+    elif args.gui_range_baseline_probe:
+        run_gui_stall_probe(args.oem, range_probe=True, drive_ranges=False)
+    elif args.gui_stall_probe:
         run_gui_stall_probe(args.oem)
     elif args.skip_data_benchmarks and not (
         args.store_ingest_bench is not None
         or store_session_requested
         or args.parser_bench
+        or args.gui_stall_probe
+        or args.gui_overlap_probe
+        or args.gui_range_baseline_probe
     ):
         parser.error("--skip-data-benchmarks requires another probe")
     return 0
