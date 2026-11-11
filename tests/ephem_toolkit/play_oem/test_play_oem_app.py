@@ -151,11 +151,18 @@ class FakeEvent:
 
 
 class FakeWxApp:
+    instances: list[FakeWxApp] = []
+
     def __init__(self, _redirect: bool) -> None:
         self.main_loop_calls = 0
+        self.destroyed = False
+        self.__class__.instances.append(self)
 
     def MainLoop(self) -> None:
         self.main_loop_calls += 1
+
+    def Destroy(self) -> None:
+        self.destroyed = True
 
 
 class FakePlaybackStatusBar:
@@ -296,6 +303,7 @@ class FakeTimer:
     def __init__(self, _owner) -> None:
         self.interval: int | None = None
         self.running = False
+        self.stop_calls = 0
 
     def Start(self, interval: int) -> bool:
         self.interval = interval
@@ -303,6 +311,7 @@ class FakeTimer:
         return True
 
     def Stop(self) -> None:
+        self.stop_calls += 1
         self.running = False
 
 
@@ -639,6 +648,7 @@ def make_app(
     *,
     plots: tuple[str, ...] = ("overview",),
     three_d_backend: str = "matplotlib",
+    existing_wx_app: FakeWxApp | None = None,
     clock: PlaybackClock | None = None,
     tick_interval_ms: int = 33,
     render_rate_fps: int | None = None,
@@ -651,7 +661,7 @@ def make_app(
     views: list[FakeView] = []
     canvases: list[FakeCanvas] = []
     FakeGraphPanelHost.instances = []
-    monkeypatch.setattr(app.wx, "GetApp", lambda: None)
+    monkeypatch.setattr(app.wx, "GetApp", lambda: existing_wx_app)
     monkeypatch.setattr(app.wx, "App", FakeWxApp)
     monkeypatch.setattr(
         app.wx, "Frame", lambda *args, **kwargs: _frame(*args, **kwargs)
@@ -1113,6 +1123,186 @@ def test_failed_final_workspace_setup_does_not_subscribe_clock(
         make_app(monkeypatch, clock=clock)
 
     assert subscriptions == []
+
+
+@pytest.mark.parametrize("reuse_wx_app", [False, True])
+def test_workspace_initialization_failure_destroys_created_frame_and_preserves_wx_app(
+    monkeypatch: pytest.MonkeyPatch,
+    reuse_wx_app: bool,
+) -> None:
+    destroyed_frames: list[FakeFrame] = []
+    original_destroy = FakeFrame.Destroy
+    existing_wx_app = FakeWxApp(False) if reuse_wx_app else None
+    app_count_before_construction = len(FakeWxApp.instances)
+
+    def track_destroy(frame: FakeFrame) -> None:
+        destroyed_frames.append(frame)
+        original_destroy(frame)
+
+    def fail_workspace_init(
+        _workspace: FakeWorkspace, *_args, **_kwargs
+    ) -> None:
+        raise RuntimeError("workspace initialization failed")
+
+    monkeypatch.setattr(FakeFrame, "Destroy", track_destroy)
+    monkeypatch.setattr(FakeWorkspace, "__init__", fail_workspace_init)
+
+    with pytest.raises(RuntimeError, match="workspace initialization failed"):
+        make_app(monkeypatch, existing_wx_app=existing_wx_app)
+
+    assert len(destroyed_frames) == 1
+    assert destroyed_frames[0].destroyed
+    if existing_wx_app is None:
+        assert len(FakeWxApp.instances) == app_count_before_construction + 1
+        wx_app = FakeWxApp.instances[-1]
+    else:
+        assert len(FakeWxApp.instances) == app_count_before_construction
+        wx_app = existing_wx_app
+    assert not wx_app.destroyed
+
+
+def test_control_window_initialization_failure_closes_workspace_and_frame(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    destroyed_frames: list[FakeFrame] = []
+    closed_workspaces: list[FakeWorkspace] = []
+    original_destroy = FakeFrame.Destroy
+
+    def track_destroy(frame: FakeFrame) -> None:
+        destroyed_frames.append(frame)
+        original_destroy(frame)
+
+    def track_workspace_close(workspace: FakeWorkspace) -> None:
+        closed_workspaces.append(workspace)
+
+    def fail_control_window_init(
+        _control_window: FakeControlWindow, *_args, **_kwargs
+    ) -> None:
+        raise RuntimeError("control window initialization failed")
+
+    monkeypatch.setattr(FakeFrame, "Destroy", track_destroy)
+    monkeypatch.setattr(FakeWorkspace, "close", track_workspace_close)
+    monkeypatch.setattr(FakeControlWindow, "__init__", fail_control_window_init)
+
+    with pytest.raises(RuntimeError, match="control window initialization failed"):
+        make_app(monkeypatch)
+
+    assert len(destroyed_frames) == 1
+    assert destroyed_frames[0].destroyed
+    assert len(closed_workspaces) == 1
+
+
+def test_control_content_attachment_failure_closes_workspace_and_frame(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    destroyed_frames: list[FakeFrame] = []
+    closed_workspaces: list[FakeWorkspace] = []
+    original_destroy = FakeFrame.Destroy
+
+    def track_destroy(frame: FakeFrame) -> None:
+        destroyed_frames.append(frame)
+        original_destroy(frame)
+
+    def track_workspace_close(workspace: FakeWorkspace) -> None:
+        closed_workspaces.append(workspace)
+
+    def fail_set_settings_content(
+        _workspace: FakeWorkspace, _panel
+    ) -> None:
+        raise RuntimeError("control content attachment failed")
+
+    monkeypatch.setattr(FakeFrame, "Destroy", track_destroy)
+    monkeypatch.setattr(FakeWorkspace, "close", track_workspace_close)
+    monkeypatch.setattr(FakeWorkspace, "set_settings_content", fail_set_settings_content)
+
+    with pytest.raises(RuntimeError, match="control content attachment failed"):
+        make_app(monkeypatch)
+
+    assert len(destroyed_frames) == 1
+    assert destroyed_frames[0].destroyed
+    assert len(closed_workspaces) == 1
+
+
+def test_final_setup_failure_cleans_timer_workspace_frame_and_clock_observer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = make_clock()
+    subscriptions: list[Callable[[float], None]] = []
+    subscribe = clock.subscribe
+    timers: list[FakeTimer] = []
+    destroyed_frames: list[FakeFrame] = []
+    closed_workspaces: list[FakeWorkspace] = []
+    original_timer_init = FakeTimer.__init__
+    original_destroy = FakeFrame.Destroy
+
+    def track_subscription(observer: Callable[[float], None]) -> Callable[[], None]:
+        subscriptions.append(observer)
+        return subscribe(observer)
+
+    def track_timer_init(timer: FakeTimer, owner) -> None:
+        original_timer_init(timer, owner)
+        timers.append(timer)
+
+    def track_destroy(frame: FakeFrame) -> None:
+        destroyed_frames.append(frame)
+        original_destroy(frame)
+
+    def track_workspace_close(workspace: FakeWorkspace) -> None:
+        closed_workspaces.append(workspace)
+
+    def fail_set_oem_loaded(_workspace: FakeWorkspace, _loaded: bool) -> None:
+        raise RuntimeError("workspace setup failed")
+
+    monkeypatch.setattr(clock, "subscribe", track_subscription)
+    monkeypatch.setattr(FakeTimer, "__init__", track_timer_init)
+    monkeypatch.setattr(FakeFrame, "Destroy", track_destroy)
+    monkeypatch.setattr(FakeWorkspace, "close", track_workspace_close)
+    monkeypatch.setattr(FakeWorkspace, "set_oem_loaded", fail_set_oem_loaded)
+
+    with pytest.raises(RuntimeError, match="workspace setup failed"):
+        make_app(monkeypatch, clock=clock)
+
+    assert subscriptions == []
+    assert len(timers) == 1
+    assert not timers[0].running
+    assert timers[0].stop_calls == 1
+    assert len(closed_workspaces) == 1
+    assert len(destroyed_frames) == 1
+    assert destroyed_frames[0].destroyed
+
+
+def test_cleanup_failure_is_logged_without_masking_initialization_error(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    destroyed_frames: list[FakeFrame] = []
+    original_destroy = FakeFrame.Destroy
+
+    def track_destroy(frame: FakeFrame) -> None:
+        destroyed_frames.append(frame)
+        original_destroy(frame)
+
+    def fail_set_oem_loaded(_workspace: FakeWorkspace, _loaded: bool) -> None:
+        raise RuntimeError("workspace setup failed")
+
+    def fail_workspace_close(_workspace: FakeWorkspace) -> None:
+        raise RuntimeError("workspace cleanup failed")
+
+    monkeypatch.setattr(FakeFrame, "Destroy", track_destroy)
+    monkeypatch.setattr(FakeWorkspace, "close", fail_workspace_close)
+    monkeypatch.setattr(FakeWorkspace, "set_oem_loaded", fail_set_oem_loaded)
+
+    with caplog.at_level("ERROR"):
+        with pytest.raises(RuntimeError, match="workspace setup failed"):
+            make_app(monkeypatch)
+
+    assert len(destroyed_frames) == 1
+    assert destroyed_frames[0].destroyed
+    assert any(
+        "Failed to clean up workspace after PlayerApp initialization failed"
+        in record.message
+        for record in caplog.records
+    )
 
 
 def test_playback_pause_state_updates_when_playback_reaches_an_endpoint(

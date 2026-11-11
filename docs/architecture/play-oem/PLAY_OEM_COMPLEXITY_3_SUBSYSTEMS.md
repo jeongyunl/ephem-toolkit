@@ -169,6 +169,12 @@ Matplotlib canvas or native backend resources. Replacement must keep or restore
 the old panel if construction fails. Different resources become available at
 different points, so rollback depends on how far construction progressed.
 
+Application startup has a separate rollback boundary: if `PlayerApp` GUI
+construction fails, it releases the clock observer, timer, completed
+workspace, and frame acquired so far, while preserving the process-level
+`wx.App`. The failure-injection evidence and native-wx limitation are recorded
+in [plan 14](./PLAY_OEM_COMPLEXITY_14_PARTIAL_GUI_STARTUP_CLEANUP_PLAN.md).
+
 **Next:** make a resource-acquisition and cleanup table for successful open,
 failed construction, replacement, and application close. Start with
 `test_failed_view_change_restores_the_original_panel` and inspect coverage of

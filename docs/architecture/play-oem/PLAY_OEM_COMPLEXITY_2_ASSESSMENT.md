@@ -574,5 +574,34 @@ control-window tests passed (119 passed).
 No subsystem or dataflow ownership changed. Native wx event dispatch and
 cleanup after failure during frame/workspace/control-window construction
 remain unverified. Priority 9, controller initialization and shared state, is
-complete. No next implementation candidate is selected; re-rank the remaining
-unprioritized leads before starting another plan.
+complete.
+
+## Partial GUI startup cleanup selection — 2026-11-11
+
+Re-ranking the remaining leads selects cleanup after partial GUI construction
+as the next investigation. It is the clearest unverified failure boundary from
+the controller initialization trace: a frame, workspace, control window, or
+timer may already exist when a later constructor step fails, but normal cleanup
+requires a successfully constructed `PlayerApp`. The bounded investigation is
+planned in
+[PLAY_OEM_COMPLEXITY_14_PARTIAL_GUI_STARTUP_CLEANUP_PLAN.md](./PLAY_OEM_COMPLEXITY_14_PARTIAL_GUI_STARTUP_CLEANUP_PLAN.md).
+
+The raw-ingestion reservation lead remains deferred because the lifecycle
+investigation found one production sink and no repeated independent protocol.
+Load-event consumption also remains deferred: the event consumer was traced,
+no duplicate consumer was found, and its per-tick drain is already bounded.
+
+## Partial GUI startup cleanup findings — 2026-11-11
+
+Failure injection confirmed that frame/workspace/control-window construction
+could fail after acquiring GUI resources without running normal close cleanup.
+`PlayerApp` now rolls back acquired resources independently and preserves the
+original construction exception. It keeps both newly created and reused
+`wx.App` instances intact; cleanup failures are logged and do not prevent
+remaining releases. The implementation and evidence are recorded in
+[PLAY_OEM_COMPLEXITY_14_PARTIAL_GUI_STARTUP_CLEANUP_PLAN.md](./PLAY_OEM_COMPLEXITY_14_PARTIAL_GUI_STARTUP_CLEANUP_PLAN.md).
+
+The app, CLI, and control-window regression suites passed (**125 passed**).
+These tests use fakes and do not verify native wx teardown. No dataflow
+ownership changed. Re-rank remaining candidates before selecting the next
+investigation; no next implementation item is preselected.

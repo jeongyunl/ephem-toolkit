@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from queue import Empty, SimpleQueue
 import gc
+import logging
 import math
 import os
 from pathlib import Path
@@ -94,6 +95,9 @@ INCREMENTAL_VIEW_REFRESH_INTERVAL_S: float = 5.0
 
 MAX_INCREMENTAL_LOAD_EVENTS_PER_TICK: int = 64
 """Bound load-event handling so a refilled queue cannot monopolize the wx thread."""
+
+_LOGGER = logging.getLogger(__name__)
+
 
 class PlayerApp(
     ViewFactoryMixin,
@@ -363,6 +367,18 @@ class PlayerApp(
             for name in self._view_registry.registered_views
         )
 
+        try:
+            self._initialize_wx_ui(three_d_backend, loaded_file_name, oem_loaded)
+        except BaseException:
+            self._rollback_partial_wx_initialization()
+            raise
+
+    def _initialize_wx_ui(
+        self,
+        three_d_backend: str,
+        loaded_file_name: str | None,
+        oem_loaded: bool,
+    ) -> None:
         _configure_settings_backend_without_session_bus()
         self.wx_app: wx.App = cast(wx.App, wx.GetApp())
         if self.wx_app is None:
@@ -398,7 +414,7 @@ class PlayerApp(
             on_play_forward=self._play_forward_at_current_speed,
             on_set_playback_rate=self._set_playback_rate,
             on_step_samples=self._step_samples,
-            timeline_enabled=clock.t_start < clock.t_end,
+            timeline_enabled=self.clock.t_start < self.clock.t_end,
             on_seek_to_time=self._seek_to_time,
             timeline_tooltip_at=self._timeline_tooltip_at,
             context=self._formatted_dashboard_context(),
@@ -408,8 +424,8 @@ class PlayerApp(
             on_open_preset=self._open_station_preset,
             on_follow_selection=self._set_follow_station_selection,
             status_bar=self.status_bar,
-            playback_bounds=(clock.playback_start, clock.playback_end),
-            oem_coverage=(clock.t_start, clock.t_end),
+            playback_bounds=(self.clock.playback_start, self.clock.playback_end),
+            oem_coverage=(self.clock.t_start, self.clock.t_end),
             slider_bounds=self._slider_bounds,
             playback_handle_bounds=self._playback_handle_bounds,
             plot_time_range=self.plot_time_range,
@@ -471,6 +487,29 @@ class PlayerApp(
         if not oem_loaded:
             self.status_bar.set_message("Open an OEM file to begin playback.")
         self._clock_unsubscribe = self.clock.subscribe(self._on_clock_time_changed)
+
+    def _rollback_partial_wx_initialization(self) -> None:
+        def release(name: str, action: Callable[[], object]) -> None:
+            try:
+                action()
+            except Exception:
+                _LOGGER.exception(
+                    "Failed to clean up %s after PlayerApp initialization failed",
+                    name,
+                )
+
+        clock_unsubscribe = getattr(self, "_clock_unsubscribe", None)
+        if clock_unsubscribe is not None:
+            release("clock observer", clock_unsubscribe)
+        timer = getattr(self, "_timer", None)
+        if timer is not None:
+            release("playback timer", timer.Stop)
+        workspace_instance = getattr(self, "workspace", None)
+        if workspace_instance is not None:
+            release("workspace", workspace_instance.close)
+        frame = getattr(self, "frame", None)
+        if frame is not None:
+            release("frame", frame.Destroy)
 
     def run(self) -> None:
         """Run the wx event loop and restore the prior SIGINT handler on exit."""
