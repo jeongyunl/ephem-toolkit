@@ -834,6 +834,23 @@ event transitions, and once-per-tick aggregation visible together. The app and
 loader suites passed (109 passed) on macOS; the bounded drain is unchanged.
 No new event-policy abstraction or production change was warranted.
 
+## Station interval state reduction selection — 2026-11-11
+
+The next candidate revisits `_intervals_for_segment` from plan 9 as a
+complexity experiment, not a bug fix. Its parallel optional locals are reset
+in multiple transition branches and revalidated before interval construction.
+Plan 27 evaluates whether one in-progress interval state can make those
+invariants clearer without obscuring domain transitions or adding excessive
+indirection. Existing numerical and boundary behavior must remain unchanged:
+[PLAY_OEM_COMPLEXITY_27_STATION_INTERVAL_STATE_PLAN.md](./PLAY_OEM_COMPLEXITY_27_STATION_INTERVAL_STATE_PLAN.md).
+
+Plan 27 consolidated active-pass fields in `_ActiveAccessInterval`; the loop
+now owns one optional state reference, and the state object owns extrema and
+endpoint metrics. This removed parallel field synchronization and repeated
+completeness guards while retaining crossing and coverage/gap logic in place.
+The relevant store/station suites passed (113 passed, 1 display-dependent
+skip) on macOS. No interval semantics or tolerances changed.
+
 Plan 22 is complete. The ranked candidates have been investigated, and the
 remaining leads lack either a concrete complexity defect/change hypothesis or
 an available validation path. No new implementation plan is selected. Reopen

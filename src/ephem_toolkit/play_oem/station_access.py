@@ -49,6 +49,51 @@ class AccessInterval:
     end_elevation_deg: float | None = None
 
 
+@dataclass
+class _ActiveAccessInterval:
+    start_s: float
+    clipped_at_start: bool
+    start_metrics: StationMetrics
+    peak_time_s: float
+    peak_metrics: StationMetrics
+    minimum_range_time_s: float
+    minimum_range_metrics: StationMetrics
+    last_access_metrics: StationMetrics
+
+    def observe(self, epoch: float, metrics: StationMetrics) -> None:
+        if metrics.elevation_deg > self.peak_metrics.elevation_deg:
+            self.peak_time_s = epoch
+            self.peak_metrics = metrics
+        if metrics.slant_range_km < self.minimum_range_metrics.slant_range_km:
+            self.minimum_range_time_s = epoch
+            self.minimum_range_metrics = metrics
+        self.last_access_metrics = metrics
+
+    def finish(
+        self,
+        end_s: float,
+        *,
+        clipped_at_end: bool,
+        limited_by_gap_at_start: bool,
+        limited_by_gap_at_end: bool,
+        end_metrics: StationMetrics | None = None,
+    ) -> AccessInterval:
+        return _make_interval(
+            self.start_s,
+            end_s,
+            self.peak_time_s,
+            self.peak_metrics,
+            self.minimum_range_time_s,
+            self.minimum_range_metrics,
+            self.clipped_at_start,
+            clipped_at_end,
+            limited_by_gap_at_start,
+            limited_by_gap_at_end,
+            self.start_metrics,
+            self.last_access_metrics if end_metrics is None else end_metrics,
+        )
+
+
 @dataclass(frozen=True)
 class ElevationProfile:
     """Sampled station elevation over one contiguous OEM segment."""
@@ -140,14 +185,7 @@ def _intervals_for_segment(
     ends_before_gap: bool,
 ) -> list[AccessInterval]:
     intervals: list[AccessInterval] = []
-    active_start: float | None = None
-    active_start_clipped = False
-    active_start_metrics: StationMetrics | None = None
-    peak_time: float | None = None
-    peak_metrics: StationMetrics | None = None
-    range_time: float | None = None
-    range_metrics: StationMetrics | None = None
-    last_access_metrics: StationMetrics | None = None
+    active_interval: _ActiveAccessInterval | None = None
     first_time: float | None = None
     last_time: float | None = None
     previous_time: float | None = None
@@ -160,70 +198,49 @@ def _intervals_for_segment(
             if (
                 previous_access
                 and previous_time is not None
-                and active_start is not None
-                and active_start_metrics is not None
-                and peak_time is not None
-                and peak_metrics is not None
-                and range_time is not None
-                and range_metrics is not None
-                and last_access_metrics is not None
+                and active_interval is not None
             ):
                 intervals.append(
-                    _make_interval(
-                        active_start,
+                    active_interval.finish(
                         previous_time,
-                        peak_time,
-                        peak_metrics,
-                        range_time,
-                        range_metrics,
-                        active_start_clipped,
-                        True,
-                        False,
-                        False,
-                        active_start_metrics,
-                        last_access_metrics,
+                        clipped_at_end=True,
+                        limited_by_gap_at_start=False,
+                        limited_by_gap_at_end=False,
                     )
                 )
-            active_start = None
-            active_start_metrics = None
-            peak_time = None
-            peak_metrics = None
-            range_time = None
-            range_metrics = None
-            last_access_metrics = None
+            active_interval = None
             previous_time = None
             previous_access = False
             continue
-        access = current_metrics is not None and current_metrics.access
-        if access and not previous_access:
-            if previous_time is None:
-                active_start = epoch
-                active_start_clipped = starts_at_coverage
-                active_start_metrics = current_metrics
-            else:
-                active_start, active_start_metrics = _refine_crossing(
-                    station,
-                    cursor,
-                    frame_name,
-                    previous_time,
+        access = current_metrics.access
+        if access:
+            if active_interval is None:
+                if not previous_access and previous_time is not None:
+                    active_start, active_start_metrics = _refine_crossing(
+                        station,
+                        cursor,
+                        frame_name,
+                        previous_time,
+                        epoch,
+                        entering=True,
+                    )
+                    active_start_clipped = False
+                else:
+                    active_start = epoch
+                    active_start_metrics = current_metrics
+                    active_start_clipped = starts_at_coverage
+                active_interval = _ActiveAccessInterval(
+                    active_start,
+                    active_start_clipped,
+                    active_start_metrics,
                     epoch,
-                    entering=True,
+                    current_metrics,
+                    epoch,
+                    current_metrics,
+                    current_metrics,
                 )
-                active_start_clipped = False
-        if access and current_metrics is not None:
-            if active_start is None:
-                active_start = epoch
-                active_start_clipped = starts_at_coverage
-                active_start_metrics = current_metrics
-            if peak_metrics is None or (
-                current_metrics.elevation_deg > peak_metrics.elevation_deg
-            ):
-                peak_time, peak_metrics = epoch, current_metrics
-            if range_metrics is None or (
-                current_metrics.slant_range_km < range_metrics.slant_range_km
-            ):
-                range_time, range_metrics = epoch, current_metrics
-            last_access_metrics = current_metrics
+            else:
+                active_interval.observe(epoch, current_metrics)
         if previous_access and not access and previous_time is not None:
             end_time, end_metrics = _refine_crossing(
                 station,
@@ -233,63 +250,28 @@ def _intervals_for_segment(
                 epoch,
                 entering=False,
             )
-            if (
-                active_start is not None
-                and peak_metrics is not None
-                and peak_time is not None
-                and range_metrics is not None
-                and range_time is not None
-                and active_start_metrics is not None
-            ):
+            if active_interval is not None:
                 intervals.append(
-                    _make_interval(
-                        active_start,
+                    active_interval.finish(
                         end_time,
-                        peak_time,
-                        peak_metrics,
-                        range_time,
-                        range_metrics,
-                        active_start_clipped,
-                        False,
-                        False,
-                        False,
-                        active_start_metrics,
-                        end_metrics,
+                        clipped_at_end=False,
+                        limited_by_gap_at_start=False,
+                        limited_by_gap_at_end=False,
+                        end_metrics=end_metrics,
                     )
                 )
-            active_start = None
-            active_start_metrics = None
-            peak_time = None
-            peak_metrics = None
-            range_time = None
-            range_metrics = None
-            last_access_metrics = None
+            active_interval = None
         previous_time = epoch
         previous_access = access
-    if (
-        active_start is not None
-        and last_time is not None
-        and peak_time is not None
-        and peak_metrics is not None
-        and range_time is not None
-        and range_metrics is not None
-        and last_access_metrics is not None
-        and active_start_metrics is not None
-    ):
+    if active_interval is not None and last_time is not None:
         intervals.append(
-            _make_interval(
-                active_start,
+            active_interval.finish(
                 last_time,
-                peak_time,
-                peak_metrics,
-                range_time,
-                range_metrics,
-                active_start_clipped,
-                ends_at_coverage,
-                starts_after_gap and active_start == first_time,
-                ends_before_gap,
-                active_start_metrics,
-                last_access_metrics,
+                clipped_at_end=ends_at_coverage,
+                limited_by_gap_at_start=(
+                    starts_after_gap and active_interval.start_s == first_time
+                ),
+                limited_by_gap_at_end=ends_before_gap,
             )
         )
     return intervals
