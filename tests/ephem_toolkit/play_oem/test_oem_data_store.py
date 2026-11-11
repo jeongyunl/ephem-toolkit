@@ -13,7 +13,7 @@ import pytest
 from ephem_toolkit.core import misc
 from ephem_toolkit.core.ccsds.oem import CcsdsOem
 from ephem_toolkit.play_oem.chunk_memo import ChunkState
-from ephem_toolkit.play_oem.cursor import CursorStatus, OemCursor
+from ephem_toolkit.play_oem.cursor import StoreCursor
 from ephem_toolkit.play_oem.ground_footprints import compute_ground_footprints
 from ephem_toolkit.play_oem.ground_stations import GroundStation, station_metrics
 
@@ -609,21 +609,15 @@ def test_store_sample_times_share_raw_timestamp_column_and_follow_commits() -> N
     ("method", "degree"),
     [(None, None), ("hermite", 3), ("lagrange", 3), ("chebyshev", 3)],
 )
-def test_state_at_matches_cursor_without_copying_sample_history(
+def test_store_cursor_queries_do_not_materialize_sample_history(
     method: str | None, degree: int | None
 ) -> None:
     times, states, segments = _series_samples()
     store = _store_with_samples(times, states, segments)
-    cursor = OemCursor(
-        times.tolist(),
-        list(states),
-        interpolation=method,
-        interpolation_degree=degree,
-        segment_ids=segments.tolist(),
-    )
     if method is not None:
         store.set_interpolation(InterpolationPolicy(method, degree))
     snapshot = store.snapshot()
+    cursor = StoreCursor(store, snapshot)
     assert store._series_buffers == {}
     assert store._earth_fixed_buffer is None
 

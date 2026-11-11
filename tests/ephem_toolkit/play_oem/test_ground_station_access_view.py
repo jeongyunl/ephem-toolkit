@@ -10,7 +10,6 @@ from matplotlib.backend_bases import MouseButton
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
 
-from ephem_toolkit.play_oem.cursor import OemCursor
 from ephem_toolkit.play_oem.ground_stations import GroundStation
 from ephem_toolkit.play_oem.station_access import (
     AccessInterval,
@@ -22,10 +21,11 @@ from ephem_toolkit.play_oem.time_unit import TimeUnit
 from ephem_toolkit.play_oem.views.ground_station_access import (
     GroundStationAccessView,
 )
+from tests.ephem_toolkit.play_oem.cursor_helpers import make_store_cursor
 
 
 def _access_view(stations: list[GroundStation]) -> GroundStationAccessView:
-    cursor = OemCursor([0.0, 120.0], np.zeros((2, 6)))
+    _, cursor = make_store_cursor([0.0, 120.0], np.zeros((2, 6)))
     return GroundStationAccessView(
         cast(Any, None),
         cursor,

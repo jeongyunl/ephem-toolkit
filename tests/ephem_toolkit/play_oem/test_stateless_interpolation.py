@@ -14,7 +14,7 @@ from ephem_toolkit.core.interpolator.interpolation_spec import (
     InterpolationSpec,
     InterpolationType,
 )
-from ephem_toolkit.play_oem.cursor import OemCursor
+from tests.ephem_toolkit.play_oem.cursor_helpers import make_store_cursor
 
 
 def _sample_data() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -63,7 +63,7 @@ def test_stateless_evaluator_matches_cursor_at_samples_edges_and_gaps(
     method: str, degree: int | None
 ) -> None:
     timestamps_s, states_m, segment_ids = _sample_data()
-    cursor = OemCursor(
+    _, cursor = make_store_cursor(
         timestamps_s,
         states_m,
         interpolation=method,
@@ -98,7 +98,9 @@ def test_stateless_evaluator_matches_cursor_at_samples_edges_and_gaps(
 
 def test_policy_changes_select_new_stateless_interpolation_strategy() -> None:
     timestamps_s, states_m, segment_ids = _sample_data()
-    cursor = OemCursor(timestamps_s, states_m, segment_ids=segment_ids)
+    _, cursor = make_store_cursor(
+        timestamps_s, states_m, segment_ids=segment_ids
+    )
     query_time_s = 5.25
 
     for method, degree in (("linear", None), ("hermite", 5), ("lagrange", 3)):

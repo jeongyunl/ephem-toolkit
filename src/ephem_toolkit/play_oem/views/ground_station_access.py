@@ -42,7 +42,7 @@ class GroundStationAccessView:
     def __init__(
         self,
         parent: wx.Window,
-        cursor: playback_cursor.PlaybackCursor,
+        cursor: playback_cursor.StoreCursor,
         stations: Sequence[GroundStation],
         time_unit: TimeUnit,
         object_name: str,

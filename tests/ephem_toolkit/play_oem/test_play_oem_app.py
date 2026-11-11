@@ -23,13 +23,14 @@ from ephem_toolkit.play_oem.app import panel_management
 from ephem_toolkit.play_oem.app import support as app_support
 from ephem_toolkit.play_oem.app import view_factory
 from ephem_toolkit.play_oem.clock import PlaybackClock
-from ephem_toolkit.play_oem.cursor import OemCursor
+from ephem_toolkit.play_oem.cursor import StoreCursor
 from ephem_toolkit.play_oem.ground_stations import GroundStation
 from ephem_toolkit.play_oem.incremental_loader import (
     IncrementalLoader,
     LoadEvent,
     LoadEventKind,
 )
+from tests.ephem_toolkit.play_oem.cursor_helpers import make_store_cursor
 from ephem_toolkit.play_oem.oem_data_store import LoadStatus, TierNotice
 from ephem_toolkit.play_oem import time_range
 from ephem_toolkit.play_oem.play_oem_cli import build_arg_parser, parse_arguments
@@ -723,7 +724,7 @@ def make_app(
         make_clock() if clock is None else clock,
         series,
         TimeUnit.MINUTES,
-        OemCursor(timestamps, make_states()),
+        make_store_cursor(timestamps, make_states())[1],
         "TEST",
         "GCRF / Earth",
         plots=plots,
@@ -1025,11 +1026,23 @@ def test_interpolation_settings_update_cursor_and_save_to_config(
 ) -> None:
     config_path = tmp_path / "play-oem.toml"
     player, _views, _canvases, _frames = make_app(monkeypatch, config_path=config_path)
+    interpolation_calls: list[tuple[str | None, int | None]] = []
+    set_interpolation = StoreCursor.set_interpolation
+
+    def track_set_interpolation(
+        cursor: StoreCursor,
+        interpolation: str | None,
+        interpolation_degree: int | None,
+    ) -> None:
+        interpolation_calls.append((interpolation, interpolation_degree))
+        set_interpolation(cursor, interpolation, interpolation_degree)
+
+    monkeypatch.setattr(StoreCursor, "set_interpolation", track_set_interpolation)
 
     player.control_window.callbacks["interpolation"](False, "lagrange", 3)
 
     assert player._interpolation_config_dirty
-    assert player.cursor._interpolators
+    assert interpolation_calls == [("lagrange", 3)]
     assert player.control_window.active_interpolation == "Lagrange, degree 3 (Settings)"
     player.close()
 
@@ -1078,7 +1091,7 @@ def test_invalid_render_rate_does_not_mutate_supplied_playback_state(
     clock.set_playback_bounds(120.0, 180.0)
     notifications: list[float] = []
     clock.subscribe(notifications.append)
-    cursor = OemCursor([100.0, 200.0], make_states())
+    cursor = make_store_cursor([100.0, 200.0], make_states())[1]
     interpolation_calls: list[tuple[str | None, int | None]] = []
     monkeypatch.setattr(
         cursor,
@@ -1359,7 +1372,7 @@ def test_native_partial_startup_cleanup_destroys_real_wx_frame(
                     [100.0, 200.0], make_states(), TimeUnit.MINUTES
                 ),
                 TimeUnit.MINUTES,
-                OemCursor([100.0, 200.0], make_states()),
+                StoreCursor.empty(),
                 "TEST",
                 "GCRF / Earth",
                 plots=("overview",),
@@ -2990,7 +3003,7 @@ def test_native_wx_close_during_oem_parse_cancels_and_destroys_resources(
                 [100.0, 200.0], make_states(), TimeUnit.MINUTES
             ),
             TimeUnit.MINUTES,
-            OemCursor([100.0, 200.0], make_states()),
+            StoreCursor.empty(),
             "TEST",
             "GCRF / Earth",
             plots=("overview",),
@@ -3123,7 +3136,7 @@ def test_existing_wx_app_is_reused_instead_of_created_twice(
         make_clock(),
         series,
         TimeUnit.MINUTES,
-        OemCursor([100.0, 200.0], make_states()),
+        make_store_cursor([100.0, 200.0], make_states())[1],
         "TEST",
         "GCRF / Earth",
         plots=("state-components",),
@@ -3141,7 +3154,7 @@ def test_tick_interval_must_be_positive(monkeypatch: pytest.MonkeyPatch) -> None
             make_clock(),
             compute_orbit_series([100.0, 200.0], make_states(), TimeUnit.MINUTES),
             TimeUnit.MINUTES,
-            OemCursor([100.0, 200.0], make_states()),
+            make_store_cursor([100.0, 200.0], make_states())[1],
             "TEST",
             "GCRF / Earth",
             tick_interval_ms=0,

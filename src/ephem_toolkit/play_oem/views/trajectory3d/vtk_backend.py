@@ -65,7 +65,7 @@ class VTKTrajectory3DView:
     def __init__(
         self,
         parent: wx.Window,
-        oem_cursor: cursor.PlaybackCursor | None,
+        oem_cursor: cursor.StoreCursor | None,
         object_name: str,
         frame_context: str,
         playback_rate: Callable[[], float],
@@ -76,7 +76,7 @@ class VTKTrajectory3DView:
         ----------
         parent : wx.Window
             Graph-panel content scroller that owns the render-window widget.
-        oem_cursor : cursor.PlaybackCursor
+        oem_cursor : cursor.StoreCursor
             State lookup used to position the satellite marker.
         object_name : str
             Object name included in the window title.

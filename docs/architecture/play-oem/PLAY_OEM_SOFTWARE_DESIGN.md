@@ -55,7 +55,7 @@ src/ephem_toolkit/play_oem/
   incremental_loader.py # generation-scoped worker, cancellation, and load events
   oem_data_store.py    # raw samples and lazily computed derived tiers
   clock.py             # playback bounds, sample-time view, and clock logic
-  cursor.py            # OemCursor compatibility path and StoreCursor point queries
+  cursor.py            # StoreCursor point queries and inert empty startup state
   series.py time_unit.py time_range.py
   app/
     controller.py      # load generations, snapshots, playback, and panel lifecycle
@@ -146,9 +146,9 @@ reverse mid-play without `t_now` jump, seek while playing/reversed/paused, end-o
 ### 4.2 Cursor lookup
 
 `CursorState` contains the state vector, derived quantities, status, and segment identity at
-`t_now`. The default incremental path uses `StoreCursor` against a bound `OemDataStore` snapshot;
-`OemCursor` remains available for compatibility and non-store use. Each raw sample retains its
-OEM segment ID.
+`t_now`. `StoreCursor` is the sole cursor type: before loading it can represent an inert empty
+state, and during playback it resolves queries against a bound `OemDataStore` snapshot. Each raw
+sample retains its OEM segment ID.
 `status` distinguishes an exact OEM sample, a valid interpolated state inside a segment, and a
 time gap/out-of-segment time. In a gap, do not bridge interpolation across the gap or fabricate
 a state: keep the timeline cursor at the requested time, mark the status, and show unavailable

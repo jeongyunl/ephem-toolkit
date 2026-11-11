@@ -27,8 +27,9 @@ decision criteria.
 | 1 — complete | [Map internal dependencies and responsibility ownership](./PLAY_OEM_COMPLEXITY_33_INTERNAL_DEPENDENCY_RESPONSIBILITY_MAP_PLAN.md). | All six subsystem sections, especially load/controller, store/cache, view, and backend interactions. | The first-pass map found no eager import cycle or avoidable boundary cost. Retain current boundaries; revisit explicit coordination points only if future changes demonstrate repeated cost. |
 | 2 — deferred indefinitely | [Measure representative load, derived-query, and range-change behavior](./PLAY_OEM_COMPLEXITY_32_REPRESENTATIVE_LOAD_MEASUREMENT_PLAN.md). | [Load/replacement](#1-incremental-load-and-replacement), [derived cache](#2-derived-data-scheduling-and-cache-lifetime), and [playback/ranges](#4-playback-coverage-and-time-ranges). | No execution is scheduled. Resume only after explicit reprioritization. If reinstated, use measurements as operating constraints, not optimization targets; time/space complexity optimization remains out of scope. |
 | 3 — complete | [Verify the runtime cursor type contract](./PLAY_OEM_COMPLEXITY_35_CURSOR_TYPE_CONTRACT_PLAN.md). | [Snapshot-based interpolation and cursors](#5-snapshot-based-point-interpolation), app state, and incremental loading. | Added a `PlaybackCursor` union to switched app state and direct view consumers; preserved initial `OemCursor` inputs and `StoreCursor` refresh narrowing. Focused tests passed; post-change Pylance requests timed out. |
-| 4 — conditional | Verify native cross-platform GUI behavior. | [Load shutdown](#1-incremental-load-and-replacement) and [panel/native lifecycle](#6-panel-lifecycle-and-gui-resources). | GTK/MSW and native VTK evidence requires suitable runners; do not infer native behavior from fake widgets or add speculative CI. |
-| 5 — deferred | Reassess maintenance trends. | See the [assessment](./PLAY_OEM_COMPLEXITY_2_ASSESSMENT.md) for history findings. | Available source history spans only 27 days; revisit after several months of ordinary maintenance. |
+| 4 — complete | [Retire `OemCursor`](./PLAY_OEM_COMPLEXITY_36_OEM_CURSOR_RETIREMENT_FEASIBILITY_PLAN.md). | [Snapshot-based interpolation and cursors](#5-snapshot-based-point-interpolation), app startup, and incremental loading. | `StoreCursor.empty()` provides pre-load startup without store lifecycle costs; the trajectory view now uses committed store samples. Focused migration suites passed (266 tests). |
+| 5 — conditional | Verify native cross-platform GUI behavior. | [Load shutdown](#1-incremental-load-and-replacement) and [panel/native lifecycle](#6-panel-lifecycle-and-gui-resources). | GTK/MSW and native VTK evidence requires suitable runners; do not infer native behavior from fake widgets or add speculative CI. |
+| 6 — deferred | Reassess maintenance trends. | See the [assessment](./PLAY_OEM_COMPLEXITY_2_ASSESSMENT.md) for history findings. | Available source history spans only 27 days; revisit after several months of ordinary maintenance. |
 
 These are evidence-collection priorities, not proposals to remove domain rules,
 asynchronous loading, caching, or backend variants. Potential simplification
@@ -196,13 +197,13 @@ and gaps in `test_stateless_interpolation.py`.
 
 **Current status and remaining evidence:** Plan 10 compared both cursor paths
 across exact, interpolated, gap, and out-of-range results; Plan 28 retained the
-two metadata phases because their validation contracts differ. Plan 35 traced
-the app's `OemCursor` initialization, first-snapshot `StoreCursor` installation,
-guarded refresh, and direct view-factory consumers. It added a `PlaybackCursor`
-union where either runtime type can flow, leaving initial-only declarations
-unchanged. Pre-change diagnostics had no cursor-related issue; post-change
-Pylance requests timed out. Five focused suites passed (130 tests). External
-compatibility is not a gate by maintainer direction.
+two metadata phases because their validation contracts differ. Plan 35 first
+clarified the app's switched cursor typing. Plan 36 subsequently retired
+`OemCursor`: the app and views now use `StoreCursor`, whose inert empty state
+covers pre-load startup and whose bound state queries the active store
+snapshot. The trajectory view's append/update test commits to the store and
+refreshes the cursor. The migration's focused suites passed (266 tests).
+External compatibility is not a gate by maintainer direction.
 
 ## 6. Panel lifecycle and GUI resources
 
@@ -235,8 +236,10 @@ The internal dependency and responsibility map is complete; its coverage and
 limits are recorded in Plan 33. The project maintainer has said that there are
 not yet external users and compatibility is not a concern, so Plan 34 is closed
 without execution. The representative runtime and memory measurement is
-deferred indefinitely. Plan 35 completed a minimal typing-only clarification;
-no runtime change was made.
+deferred indefinitely. Plan 35 completed a minimal typing clarification; Plan
+36 superseded its two-cursor model by retiring `OemCursor`. `StoreCursor` is now
+the only playback cursor, with an inert empty state for startup and a
+snapshot-backed state for loaded data.
 
 Platform availability and longer-term maintenance trends remain conditional or
 deferred as ranked in the assessment. Promote a code change only when evidence

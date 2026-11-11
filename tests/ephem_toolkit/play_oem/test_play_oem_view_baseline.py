@@ -8,7 +8,6 @@ from pathlib import Path
 import numpy as np
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 
-from ephem_toolkit.play_oem.cursor import OemCursor
 from ephem_toolkit.play_oem.data import read_oem_states
 from ephem_toolkit.play_oem.series import compute_orbit_series
 from ephem_toolkit.play_oem.time_unit import TimeUnit
@@ -19,6 +18,7 @@ from ephem_toolkit.play_oem.views.state_components import (
 )
 from ephem_toolkit.play_oem.views.trajectory3d import Trajectory3DView
 from ephem_toolkit.play_oem.views.plotting import MAX_DISPLAY_POINTS_PER_SEGMENT
+from tests.ephem_toolkit.play_oem.cursor_helpers import make_store_cursor
 
 TEST_DATA_DIRECTORY = Path(__file__).resolve().parents[2] / "data"
 BASELINE_PATH = TEST_DATA_DIRECTORY / "play_oem_tk_baseline.json"
@@ -31,7 +31,7 @@ def test_migrated_views_preserve_baseline_data_labels_and_cursor_locations() -> 
     assert len(timestamps_s) == baseline["oem"]["sample_count"]
     time_unit = TimeUnit.from_string(baseline["oem"]["time_unit"])
     orbit_series = compute_orbit_series(timestamps_s, states_m, time_unit)
-    cursor = OemCursor(timestamps_s, states_m)
+    _, cursor = make_store_cursor(timestamps_s, states_m)
     speed_view = SpeedAltitudeView(timestamps_s[0])
     components_view = StateComponentsView(
         timestamps_s[0],

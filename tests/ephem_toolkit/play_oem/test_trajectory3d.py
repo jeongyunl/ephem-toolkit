@@ -6,12 +6,15 @@ import numpy as np
 import pytest
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 
-from ephem_toolkit.play_oem.cursor import OemCursor
 from ephem_toolkit.play_oem.series import compute_orbit_series
 from ephem_toolkit.play_oem.time_range import ResolvedTimeRange
 from ephem_toolkit.play_oem.time_unit import TimeUnit
 from ephem_toolkit.play_oem.views.trajectory3d import Trajectory3DView
 from ephem_toolkit.play_oem.views.trajectory3d.selection import select_segmented_positions
+from tests.ephem_toolkit.play_oem.cursor_helpers import (
+    append_store_samples,
+    make_store_cursor,
+)
 
 
 def make_orbit():
@@ -21,14 +24,12 @@ def make_orbit():
         np.array([0.0, 7_000_000.0, 0.0, -7_500.0, 0.0, 0.0]),
         np.array([-7_000_000.0, 0.0, 0.0, 0.0, -7_500.0, 0.0]),
     ]
-    return (
-        compute_orbit_series(times_s, states_m, TimeUnit.MINUTES),
-        OemCursor(times_s, states_m),
-    )
+    store, cursor = make_store_cursor(times_s, states_m)
+    return compute_orbit_series(times_s, states_m, TimeUnit.MINUTES), store, cursor
 
 
 def test_trajectory_view_builds_contextual_3d_orbit_and_updates_marker() -> None:
-    series, cursor = make_orbit()
+    series, _store, cursor = make_orbit()
     view = Trajectory3DView(cursor, "ISS", "EME2000 / Earth")
 
     figure = view.build(series, TimeUnit.MINUTES)
@@ -63,7 +64,7 @@ def test_trajectory_view_builds_contextual_3d_orbit_and_updates_marker() -> None
 
 
 def test_trajectory_range_filters_before_decimation_and_gates_markers() -> None:
-    series, cursor = make_orbit()
+    series, _store, cursor = make_orbit()
     view = Trajectory3DView(cursor, "ISS", "EME2000 / Earth")
     figure = view.build(series, TimeUnit.MINUTES)
     try:
@@ -88,13 +89,13 @@ def test_trajectory_range_filters_before_decimation_and_gates_markers() -> None:
 
 
 def test_trajectory_data_update_preserves_figure_and_orbit_artist() -> None:
-    orbit, cursor = make_orbit()
+    orbit, store, cursor = make_orbit()
     view = Trajectory3DView(cursor, "ISS", "EME2000 / Earth")
     figure = view.build(orbit, TimeUnit.MINUTES)
     axes = figure.axes[0]
     orbit_artist = axes.lines[0]
     appended_state = np.array([0.0, -7_000_000.0, 0.0, 7_500.0, 0.0, 0.0])
-    cursor.append([280.0], [appended_state], [0])
+    append_store_samples(store, cursor, [280.0], [appended_state], [0])
     updated = compute_orbit_series(
         [100.0, 160.0, 220.0, 280.0],
         [

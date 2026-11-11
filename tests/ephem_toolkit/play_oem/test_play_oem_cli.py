@@ -10,7 +10,7 @@ from typing import Any
 import pytest
 
 from ephem_toolkit.play_oem import cli, main
-from ephem_toolkit.play_oem.cursor import OemCursor
+from ephem_toolkit.play_oem.cursor import StoreCursor
 from ephem_toolkit.play_oem.play_oem_cli import build_arg_parser, parse_arguments
 
 
@@ -333,7 +333,7 @@ def test_cli_loads_oem_and_launches_player(
     assert launched["run"] is True
     assert launched["clock"].t_start == launched["clock"].t_end
     assert launched["series"].elapsed_time.size == 1
-    assert isinstance(launched["cursor"], OemCursor)
+    assert isinstance(launched["cursor"], StoreCursor)
     assert launched["object_name"] == "No OEM loaded"
     assert launched["oem_loaded"] is False
     assert launched["on_open_file"] is None

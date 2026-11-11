@@ -184,18 +184,22 @@ do not revive completed refactors based on old baseline scores.
 | 1 — complete | [Internal dependency and responsibility map](./PLAY_OEM_COMPLEXITY_33_INTERNAL_DEPENDENCY_RESPONSIBILITY_MAP_PLAN.md) | Completed the first-pass import, ownership, callback, dynamic-registration, and representative change-path map. No eager import cycle or avoidable boundary cost was established. Retain current boundaries; revisit view registration or tier-to-view refresh only if future changes demonstrate repeated coordination failures. |
 | 2 — deferred indefinitely | [Representative runtime and memory](./PLAY_OEM_COMPLEXITY_32_REPRESENTATIVE_LOAD_MEASUREMENT_PLAN.md) | No execution is scheduled. Resume only after explicit reprioritization. If reinstated, measure the combined workload as written and treat latency, queue depth, and memory as operating constraints—not optimization targets. |
 | 3 — complete | [Cursor runtime/type contract](./PLAY_OEM_COMPLEXITY_35_CURSOR_TYPE_CONTRACT_PLAN.md) | Added a `PlaybackCursor` union for the app's switched state and direct consumers; retained the initial `OemCursor` input and concrete refresh narrowing. Five focused suites passed (130 tests); post-change Pylance requests timed out. |
-| 4 — conditional | Native cross-platform GUI behavior | Real wx cleanup was verified on macOS Cocoa; GTK/MSW and native VTK widget lifecycle remain unverified. Resume when suitable Linux/Windows runners are available; do not infer native behavior from fake widgets or add speculative CI. |
-| 5 — deferred | Longer-term maintenance trends | Play-OEM source history begins 2026-10-15. Revisit change frequency after several months of ordinary maintenance; the current feature and migration bursts are not representative. |
+| 4 — complete | [Retire `OemCursor`](./PLAY_OEM_COMPLEXITY_36_OEM_CURSOR_RETIREMENT_FEASIBILITY_PLAN.md) | Replaced the initial owned-history cursor with one `StoreCursor` type that supports inert empty startup and store-backed playback. Migrated trajectory updates and test fixtures to store commits; 266 focused tests passed. |
+| 5 — conditional | Native cross-platform GUI behavior | Real wx cleanup was verified on macOS Cocoa; GTK/MSW and native VTK widget lifecycle remain unverified. Resume when suitable Linux/Windows runners are available; do not infer native behavior from fake widgets or add speculative CI. |
+| 6 — deferred | Longer-term maintenance trends | Play-OEM source history begins 2026-10-15. Revisit change frequency after several months of ordinary maintenance; the current feature and migration bursts are not representative. |
 
 Plan 33 is complete; it did not identify a boundary change to implement. The
 representative runtime and memory study is deferred indefinitely and is not an
 active task. The project maintainer has said that there are not yet external
 users and compatibility is not a concern; Plan 34 was closed before its
 evidence matrix was completed and compatibility evidence is not a gate for
-current changes. Native GUI work depends on runner availability, and
-longer-term maintenance review depends on additional ordinary history. Plan 35
-is complete with a bounded annotation-only clarification and no runtime
-refactor.
+current changes. Plan 35 clarified the runtime cursor annotations without a
+runtime refactor. Plan 36 first concluded that both cursors should remain, then
+recorded the maintainer-directed retirement: empty startup now uses an inert
+`StoreCursor`, while trajectory updates use committed store samples. The
+focused migration suites passed (266 tests). Native GUI work depends on runner
+availability, and longer-term maintenance review depends on additional
+ordinary history.
 
 ## Evidence gaps and completion criteria
 
@@ -235,10 +239,11 @@ repeating the chronological selection notes.
 
 Plan 33's dependency and responsibility map is complete and supports retaining
 the current boundaries. Plan 32's representative load/query/range-change
-measurement is deferred indefinitely. Plan 35 completed the cursor type
-contract clarification; compatibility evidence is not a current gate by
-maintainer direction. Platform and longer-term maintenance questions remain
-conditional or deferred as ranked above.
+measurement is deferred indefinitely. Plans 35 and 36 completed the cursor type-contract and retirement-feasibility
+investigations: both cursor implementations remain, with no runtime migration
+justified. Compatibility evidence is not a current gate by maintainer
+direction. Platform and longer-term maintenance questions remain conditional
+or deferred as ranked above.
 
 ## Current baseline refresh — 2026-11-11
 

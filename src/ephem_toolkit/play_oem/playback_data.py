@@ -17,7 +17,7 @@ class PlaybackData:
     clock: playback_clock.PlaybackClock
     series: series.OrbitSeries
     time_unit: time_unit.TimeUnit
-    cursor: cursor.OemCursor
+    cursor: cursor.StoreCursor
     object_name: str
     frame_context: str
     dashboard_context: dict[str, str]
@@ -82,7 +82,7 @@ def empty_playback_data() -> PlaybackData:
     empty_clock = playback_clock.PlaybackClock(
         timestamp, timestamp, sample_times=[timestamp]
     )
-    empty_cursor = cursor.OemCursor([timestamp], [state])
+    empty_cursor = cursor.StoreCursor.empty()
     return PlaybackData(
         empty_clock,
         orbit_series,

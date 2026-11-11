@@ -113,7 +113,7 @@ class PlayerApp(
         clock: clock.PlaybackClock,
         series: series.OrbitSeries,
         time_unit: time_unit.TimeUnit,
-        cursor: cursor.OemCursor,
+        cursor: cursor.StoreCursor,
         object_name: str,
         frame_context: str,
         *,
@@ -146,7 +146,7 @@ class PlayerApp(
             Computed OEM data shared by plot views.
         time_unit : time_unit.TimeUnit
             Display unit for plotted values.
-        cursor : cursor.OemCursor
+        cursor : cursor.StoreCursor
             OEM state lookup used by the 3D orbit view.
         object_name : str
             Object name used in plot titles and labels.
@@ -208,7 +208,7 @@ class PlayerApp(
         self.clock.set_playback_bounds(self.clock.t_start, self.clock.t_end)
         self.series = series
         self.time_unit = time_unit
-        self.cursor: cursor.PlaybackCursor = cursor
+        self.cursor: cursor.StoreCursor = cursor
         self.object_name = object_name
         self.object_id = dict(metadata_details).get("Object ID", "").strip()
         self._loaded_file_name = loaded_file_name
@@ -1499,7 +1499,7 @@ class PlayerApp(
         """Advance coverage and cursor state for the installed store."""
         if self._oem_store is not store:
             raise RuntimeError("raw append belongs to a non-active store")
-        if not isinstance(self.cursor, cursor.StoreCursor):
+        if not self.cursor.is_bound_to(store):
             raise RuntimeError("active store has no store-backed cursor")
         if snapshot.sample_count > self.cursor.timestamps_s.size:
             with self._installing_incremental_update():

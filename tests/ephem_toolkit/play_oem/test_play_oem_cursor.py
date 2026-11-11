@@ -10,8 +10,9 @@ from ephem_toolkit.core.interpolator.interpolation_spec import (
     InterpolationSpec,
     InterpolationType,
 )
-from ephem_toolkit.play_oem.cursor import CursorStatus, OemCursor, StoreCursor
+from ephem_toolkit.play_oem.cursor import CursorStatus, StoreCursor
 from ephem_toolkit.play_oem.oem_data_store import OemDataStore
+from tests.ephem_toolkit.play_oem.cursor_helpers import make_store_cursor
 
 
 @pytest.fixture
@@ -37,7 +38,7 @@ def test_lookup_returns_exact_sample_and_derived_values(
     sample_states: tuple[list[float], list[np.ndarray]],
 ) -> None:
     times_s, states_m = sample_states
-    cursor = OemCursor(times_s, states_m)
+    _, cursor = make_store_cursor(times_s, states_m)
 
     result = cursor.lookup(1.0)
 
@@ -102,7 +103,7 @@ def test_lookup_linearly_interpolates_state_when_metadata_is_absent(
     sample_states: tuple[list[float], list[np.ndarray]],
 ) -> None:
     times_s, states_m = sample_states
-    cursor = OemCursor(times_s, states_m)
+    _, cursor = make_store_cursor(times_s, states_m)
 
     result = cursor.lookup(1.5)
 
@@ -121,11 +122,8 @@ def test_lookup_uses_core_interpolator_when_oem_metadata_is_present(
         is_cartesian_state=True,
         data=list(zip(times_s, states_m)),
     )
-    cursor = OemCursor(
-        times_s,
-        states_m,
-        interpolation="LAGRANGE",
-        interpolation_degree=2,
+    _, cursor = make_store_cursor(
+        times_s, states_m, interpolation="LAGRANGE", interpolation_degree=2
     )
 
     result = cursor.lookup(1.5)
@@ -149,11 +147,8 @@ def test_lookup_is_identical_when_time_is_reached_in_any_order() -> None:
         )
         for time in times_s
     ]
-    cursor = OemCursor(
-        times_s,
-        states_m,
-        interpolation="LAGRANGE",
-        interpolation_degree=2,
+    _, cursor = make_store_cursor(
+        times_s, states_m, interpolation="LAGRANGE", interpolation_degree=2
     )
     query_times = [0.5, 1.5, 2.5, 3.5, 4.5]
 
@@ -170,13 +165,13 @@ def test_lookup_marks_out_of_range_times_unavailable(
     sample_states: tuple[list[float], list[np.ndarray]],
 ) -> None:
     times_s, states_m = sample_states
-    cursor = OemCursor(times_s, states_m)
+    _, cursor = make_store_cursor(times_s, states_m)
     out_of_range = cursor.lookup(-1.0)
     assert out_of_range.status is CursorStatus.OUT_OF_RANGE
     assert out_of_range.state_m is None
     assert out_of_range.r_km is None
 
-    single_sample_cursor = OemCursor([1.0], [states_m[1]])
+    _, single_sample_cursor = make_store_cursor([1.0], [states_m[1]])
     unavailable = single_sample_cursor.lookup(1.5)
     assert unavailable.status is CursorStatus.OUT_OF_RANGE
     assert unavailable.state_m is None
@@ -188,7 +183,7 @@ def test_lookup_reports_gap_and_never_interpolates_between_oem_segments(
     sample_states: tuple[list[float], list[np.ndarray]],
 ) -> None:
     _, states_m = sample_states
-    cursor = OemCursor(
+    _, cursor = make_store_cursor(
         [0.0, 10.0, 100.0, 110.0],
         states_m,
         segment_ids=[0, 0, 1, 1],
@@ -207,10 +202,31 @@ def test_lookup_rejects_invalid_input_data_and_query(
 ) -> None:
     times_s, states_m = sample_states
     with pytest.raises(ValueError, match="strictly increasing"):
-        OemCursor([0.0, 0.0], states_m[:2])
-    with pytest.raises(ValueError, match="Unsupported OEM interpolation"):
-        OemCursor(times_s, states_m, interpolation="UNKNOWN")
+        make_store_cursor([0.0, 0.0], states_m[:2])
 
-    cursor = OemCursor(times_s, states_m)
+    _, cursor = make_store_cursor(times_s, states_m)
     with pytest.raises(ValueError, match="query time"):
         cursor.lookup(float("nan"))
+
+
+def test_empty_store_cursor_is_inert_until_replaced() -> None:
+    cursor = StoreCursor.empty()
+    store = OemDataStore()
+    store.begin(1)
+
+    try:
+        assert cursor.t_start == 0.0
+        assert cursor.t_end == 0.0
+        assert cursor.timestamps_s.shape == (0,)
+        assert cursor.states_m.shape == (0, 6)
+        assert cursor.segment_ids.shape == (0,)
+        assert not cursor.timestamps_s.flags.writeable
+        assert not cursor.states_m.flags.writeable
+        assert not cursor.segment_ids.flags.writeable
+        assert cursor.lookup(12.0).status is CursorStatus.UNAVAILABLE
+        with pytest.raises(RuntimeError, match="empty cursor must be replaced"):
+            cursor.refresh(store.snapshot())
+        with pytest.raises(RuntimeError, match="cannot set interpolation"):
+            cursor.set_interpolation("linear", None)
+    finally:
+        store.close()

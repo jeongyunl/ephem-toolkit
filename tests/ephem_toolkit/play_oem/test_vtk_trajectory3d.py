@@ -7,12 +7,15 @@ from importlib import import_module
 import numpy as np
 import pytest
 
-from ephem_toolkit.play_oem.cursor import OemCursor
 from ephem_toolkit.play_oem.oem_data_store import OemDataStore
 from ephem_toolkit.play_oem.series import compute_orbit_series
 from ephem_toolkit.play_oem.time_range import ResolvedTimeRange
 from ephem_toolkit.play_oem.time_unit import TimeUnit
 from ephem_toolkit.play_oem.views.base import StoreViewContext
+from tests.ephem_toolkit.play_oem.cursor_helpers import (
+    append_store_samples,
+    make_store_cursor,
+)
 
 
 def test_vtk_backend_registers_an_opengl_render_window_factory() -> None:
@@ -117,10 +120,8 @@ def make_orbit():
         np.array([0.0, 7_000_000.0, 0.0, -7_500.0, 0.0, 0.0]),
         np.array([-7_000_000.0, 0.0, 0.0, 0.0, -7_500.0, 0.0]),
     ]
-    return (
-        compute_orbit_series(timestamps_s, states_m, TimeUnit.MINUTES),
-        OemCursor(timestamps_s, states_m),
-    )
+    store, cursor = make_store_cursor(timestamps_s, states_m)
+    return compute_orbit_series(timestamps_s, states_m, TimeUnit.MINUTES), store, cursor
 
 
 def make_store_context() -> StoreViewContext:
@@ -157,7 +158,7 @@ def test_vtk_view_builds_wgs84_scene_and_direction_aware_cursor_tail(
     from ephem_toolkit.play_oem.views.trajectory3d import vtk_backend
 
     monkeypatch.setattr(vtk_backend, "wxVTKRenderWindowInteractor", FakeWidget)
-    series, cursor = make_orbit()
+    series, _store, cursor = make_orbit()
     playback_state = {"rate": 1.0}
     view = vtk_backend.VTKTrajectory3DView(
         object(),
@@ -223,13 +224,13 @@ def test_vtk_data_update_preserves_widget_and_updates_orbit_polyline(
     from ephem_toolkit.play_oem.views.trajectory3d import vtk_backend
 
     monkeypatch.setattr(vtk_backend, "wxVTKRenderWindowInteractor", FakeWidget)
-    orbit, cursor = make_orbit()
+    orbit, store, cursor = make_orbit()
     view = vtk_backend.VTKTrajectory3DView(
         object(), cursor, "ISS", "EME2000 / Earth", lambda: 1.0
     )
     widget = view.build(orbit, TimeUnit.MINUTES)
     appended_state = np.array([0.0, -7_000_000.0, 0.0, 7_500.0, 0.0, 0.0])
-    cursor.append([280.0], [appended_state], [0])
+    append_store_samples(store, cursor, [280.0], [appended_state], [0])
     updated = compute_orbit_series(
         [100.0, 160.0, 220.0, 280.0],
         [
@@ -270,7 +271,7 @@ def test_vtk_view_reports_a_failed_initial_render(
 
     monkeypatch.setattr(vtk_backend, "wxVTKRenderWindowInteractor", FakeWidget)
     monkeypatch.setattr(vtk_backend.wx, "YieldIfNeeded", lambda: None)
-    series, cursor = make_orbit()
+    series, _store, cursor = make_orbit()
     view = vtk_backend.VTKTrajectory3DView(
         object(),
         cursor,
@@ -295,7 +296,7 @@ def test_vtk_range_replaces_source_path_and_gates_cursor_and_tail(
     from ephem_toolkit.play_oem.views.trajectory3d import vtk_backend
 
     monkeypatch.setattr(vtk_backend, "wxVTKRenderWindowInteractor", FakeWidget)
-    series, cursor = make_orbit()
+    series, _store, cursor = make_orbit()
     view = vtk_backend.VTKTrajectory3DView(
         object(), cursor, "ISS", "EME2000 / Earth", lambda: 1.0
     )
@@ -331,7 +332,7 @@ def test_vtk_view_rejects_a_missing_opengl_window_implementation(
     from ephem_toolkit.play_oem.views.trajectory3d import vtk_backend
 
     monkeypatch.setattr(vtk_backend, "wxVTKRenderWindowInteractor", FakeWidget)
-    series, cursor = make_orbit()
+    series, _store, cursor = make_orbit()
     view = vtk_backend.VTKTrajectory3DView(
         object(),
         cursor,

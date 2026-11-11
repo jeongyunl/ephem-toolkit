@@ -35,7 +35,7 @@ class PlayerAppState(Protocol):
 
     clock: clock.PlaybackClock
     control_window: control_window.ControlWindow
-    cursor: cursor.PlaybackCursor
+    cursor: cursor.StoreCursor
     frame: wx.Frame
     frame_context: str
     _oem_store: OemDataStore | None

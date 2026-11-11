@@ -75,7 +75,7 @@ class GroundStationPassesView:
     def __init__(
         self,
         parent: wx.Window,
-        cursor: playback_cursor.PlaybackCursor,
+        cursor: playback_cursor.StoreCursor,
         stations: Sequence[GroundStation],
         object_name: str,
         *,
@@ -1049,7 +1049,7 @@ class GroundStationPassesView:
 
     def set_oem(
         self,
-        cursor: playback_cursor.PlaybackCursor,
+        cursor: playback_cursor.StoreCursor,
         object_name: str,
         *,
         oem_loaded: bool,

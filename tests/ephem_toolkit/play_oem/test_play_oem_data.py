@@ -10,8 +10,12 @@ import numpy as np
 import pytest
 
 from ephem_toolkit.core.ccsds.oem import CcsdsOem
+from ephem_toolkit.core.interpolator.factory import InterpolatorFactory
+from ephem_toolkit.core.interpolator.interpolation_spec import (
+    InterpolationSpec,
+    InterpolationType,
+)
 from ephem_toolkit.core.time_utils import datetime_to_tt_s, iso8601_to_datetime
-from ephem_toolkit.play_oem.cursor import OemCursor
 from ephem_toolkit.play_oem.data import filter_states_by_duration, read_oem_states
 from ephem_toolkit.play_oem.oem_data_store import InterpolationPolicy, OemDataStore
 from ephem_toolkit.play_oem.playback_data import (
@@ -27,6 +31,7 @@ from ephem_toolkit.plot_oem.plot_oem import (
     filter_states_by_duration as filter_plot_states_by_duration,
     read_oem_states as read_plot_oem_states,
 )
+from tests.ephem_toolkit.play_oem.cursor_helpers import make_store_cursor
 
 
 @pytest.fixture
@@ -177,37 +182,34 @@ def test_store_interpolation_policy_can_use_or_override_oem_metadata() -> None:
             oem_data.meta.interpolation_degree,
         )
     )
-    metadata_snapshot = store.snapshot()
-    metadata_cursor = OemCursor(
-        timestamps_s,
-        states_m,
-        interpolation=oem_data.meta.interpolation,
-        interpolation_degree=oem_data.meta.interpolation_degree,
-        segment_ids=oem_data.segment_ids[: len(timestamps_s)],
+    metadata_interpolator = InterpolatorFactory.create(
+        InterpolationSpec(
+            InterpolationType(oem_data.meta.interpolation.lower()),
+            degree=oem_data.meta.interpolation_degree,
+        ),
+        dimension=6,
+        data=list(zip(timestamps_s, states_m)),
     )
     store_policy_state = store.state_at(
-        metadata_snapshot, (timestamps_s[0] + timestamps_s[1]) / 2.0
+        store.snapshot(), (timestamps_s[0] + timestamps_s[1]) / 2.0
     ).state_m
     assert store_policy_state is not None
-    reference_cursor = OemCursor(
-        timestamps_s,
-        states_m,
-        interpolation="hermite",
-        interpolation_degree=5,
-        segment_ids=oem_data.segment_ids[: len(timestamps_s)],
-    )
     midpoint = (timestamps_s[0] + timestamps_s[1]) / 2.0
     store.set_interpolation(InterpolationPolicy("hermite", 5))
     default_policy_state = store.state_at(store.snapshot(), midpoint).state_m
     assert default_policy_state is not None
+    reference_interpolator = InterpolatorFactory.create(
+        InterpolationSpec(InterpolationType.HERMITE, degree=5),
+        dimension=6,
+        is_cartesian_state=True,
+        data=list(zip(timestamps_s, states_m)),
+    )
 
     np.testing.assert_allclose(
-        store_policy_state,
-        metadata_cursor.lookup(midpoint).state_m,
+        store_policy_state, metadata_interpolator.interpolate(midpoint)
     )
     np.testing.assert_allclose(
-        default_policy_state,
-        reference_cursor.lookup(midpoint).state_m,
+        default_policy_state, reference_interpolator.interpolate(midpoint)
     )
 
 

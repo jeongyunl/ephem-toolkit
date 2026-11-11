@@ -42,7 +42,7 @@ class GroundStationAnalysisView:
         self,
         parent: wx.Window,
         panel_type: str,
-        cursor: playback_cursor.PlaybackCursor,
+        cursor: playback_cursor.StoreCursor,
         stations: Sequence[GroundStation],
         time_unit: TimeUnit,
         object_name: str,
