@@ -717,3 +717,20 @@ macOS only, with no access to Ubuntu or Windows. No workflow was added or
 triggered; GTK and MSW remain blocked until non-macOS runner access becomes
 available. See
 [PLAY_OEM_COMPLEXITY_19_HOSTED_WX_TEST_PILOT_PLAN.md](./PLAY_OEM_COMPLEXITY_19_HOSTED_WX_TEST_PILOT_PLAN.md).
+
+## Active-load shutdown investigation selection — 2026-11-11
+
+With cross-platform execution deferred, the next locally executable step is
+to verify app shutdown while an incremental OEM load is active. Shutdown is a
+stated invariant of the load lifecycle, but the available findings do not
+establish that a focused test covers late loader events after teardown. Plan 20
+will first check existing tests and add coverage only if a real gap remains;
+it will not presume a production defect.
+[PLAY_OEM_COMPLEXITY_20_ACTIVE_LOAD_SHUTDOWN_PLAN.md](./PLAY_OEM_COMPLEXITY_20_ACTIVE_LOAD_SHUTDOWN_PLAN.md)
+records the bounded procedure.
+
+Plan 20 found existing deterministic coverage for closing during a blocked
+parse: cancellation and store closure are asserted, and releasing the parser
+does not append a sample. The loader suite plus this focused app test passed
+(11 passed) on macOS; no duplicate test or production change was needed.
+GTK/MSW remain deferred.

@@ -204,6 +204,13 @@ Plan 19's hosted runner pilot is deferred: the available environment is
 macOS-only and Ubuntu/Windows access is unavailable. No workflow was added or
 triggered. Resume the pilot only when non-macOS runner access is available:
 [plan 19](./PLAY_OEM_COMPLEXITY_19_HOSTED_WX_TEST_PILOT_PLAN.md).
+The next local investigation is active incremental-load shutdown on macOS,
+checking cancellation, timer/observer cleanup, and rejection of late events
+without changing cross-platform status:
+[plan 20](./PLAY_OEM_COMPLEXITY_20_ACTIVE_LOAD_SHUTDOWN_PLAN.md).
+Plan 20 confirmed the existing blocked-parser close test covers cancellation,
+store closure, and absence of post-close appends; the focused loader/app tests
+passed (11 passed) on macOS, with no production change.
 
 ## Scope and follow-up
 
