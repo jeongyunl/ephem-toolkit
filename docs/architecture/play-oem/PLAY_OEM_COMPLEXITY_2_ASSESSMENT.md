@@ -1,10 +1,11 @@
 # play-oem complexity assessment
 
-This is a first, static assessment and work-item inventory. It applies the
-framework in [PLAY_OEM_COMPLEXITY_1_STRATEGY.md](./PLAY_OEM_COMPLEXITY_1_STRATEGY.md).
-Priorities are preliminary judgments, not measured defect rates or commitments
-to implement a particular design. Update this document as traces, experiments,
-and measurements provide better evidence.
+This assessment records the initial static baseline, completed targeted
+investigations, and current evidence priorities. It applies the framework in
+[PLAY_OEM_COMPLEXITY_1_STRATEGY.md](./PLAY_OEM_COMPLEXITY_1_STRATEGY.md).
+The current ranking is a judgment about what evidence to collect next, not a
+measured defect rate or commitment to implement a particular design. Update it
+when traces, experiments, and measurements provide better evidence.
 
 For an analysis of state, concurrency, and domain interactions, see
 [logically complex subsystems](./PLAY_OEM_COMPLEXITY_3_SUBSYSTEMS.md).
@@ -88,123 +89,35 @@ PY
 
 ## Cross-component and caller-side findings
 
-- **Loading:** the event enum defines five kinds. The controller polls them,
-  rejects stale generations, verifies append notices against a snapshot, and
-  coordinates first installation, completion, failure, and view refresh.
-  Replacement, cancellation, and valid-prefix behavior are separate cases.
-  Tests explicitly cover stale events, replacement, and failed replacement in
-  `test_play_oem_app.py`, and cancellation and generation behavior in
-  `test_incremental_loader.py`. A full transition count and thread audit remain
-  open; five event kinds are not five independent states.
-- **Queries and view lifecycle:** ten view files instantiate `StoreViewBinding`.
-  The binding already centralizes subscription switching and cleanup. Callers
-  still bind contexts, query data, update view-specific output, and close the
-  binding. Some views interpret partial coverage. The amount of genuinely
-  repeated policy has not been measured, and rendering work is not automatically
-  duplication.
-- **Panel construction:** `_open_view` has 177 lines and score 43, including
-  creation, range setup, Matplotlib/native content, replacement, and exception
-  rollback. This is one orchestration site; complexity here does not establish
-  repeated independent callers. `test_play_oem_app.py` includes a failed view
-  change that restores the original panel.
-- **Store ownership:** one module combines raw storage, derived queries,
-  scheduling, and eviction. Its size and individual scores show concentrated
-  code, while the existing single-owner design also limits overall complexity.
-  Lock, epoch, and cache dependencies have not yet been mapped, so the cost of
-  separating responsibilities is unknown.
+- **Loading:** Plan 4 mapped generation, epoch, replacement, valid-prefix, and
+  thread ownership; Plans 20–21 verified active-load shutdown on macOS. No
+  lifecycle enum was justified. Cross-platform event-loop behavior and
+  sustained-load responsiveness remain open.
+- **Queries and view lifecycle:** Plans 5–7, 12, and 15 mapped tier/query
+  validity, refresh routing, binding ownership, and presentation differences.
+  `StoreViewBinding` centralizes subscription switching; no common result or
+  rendering policy was found.
+- **Panel construction:** `_open_view` is 172 lines with score 39 in the current
+  baseline. Plan 12 centralized low-level release while preserving
+  transaction-specific rollback. GTK/MSW and native VTK lifecycle remain
+  unverified.
+- **Store ownership:** Plans 5–6 mapped locks, epochs, tier validity, and shared
+  query policy; Plan 30 clarified the eviction-candidate record. Broad module
+  separation remains unjustified without representative memory, latency, or
+  dependency evidence.
 
-## Candidate inventory
+## Historical code-directed candidates
 
-A line count at the initial assessment baseline gave 25,577 lines, including
-3,545 in
-[`oem_data_store.py`](../../../src/ephem_toolkit/play_oem/oem_data_store.py)
-and 1,920 in
-[`app/controller.py`](../../../src/ephem_toolkit/play_oem/app/controller.py).
-These counts include comments and blank lines and will change as the code
-changes. The current measurement is recorded below. These counts identify
-places to inspect; they do not measure complexity or establish that a file
-should be divided.
+The original hotspot list was a discovery backlog, not an implementation plan.
+Plans 4–30 have investigated its load lifecycle, store scheduling and queries,
+view refresh and lifecycle, controller state, saved-state parsing, domain
+performance, cursor/backend variants, station access, interpolation metadata,
+and snapshot installation. The detailed decisions and links are retained in
+the compressed execution record below. No broad extraction or split was
+justified by those reviews. Do not revive the old candidates from their
+baseline scores; current work is limited to the evidence priorities below.
 
-The following inventory contains *candidates*, not a claim that each has
-avoidable complexity. The work-item order below is the priority order. Validate
-the relevant callers, invariants, and
-tests before changing an interface or removing a path.
-
-1. **Load lifecycle and replacement.**
-   [`IncrementalLoader`](../../../src/ephem_toolkit/play_oem/incremental_loader.py)
-   owns generation-scoped sessions, while `PlayerApp._start_incremental_load`,
-   `_poll_incremental_load`, `_install_store_snapshot`, and
-   `_finish_incremental_metadata` coordinate generation, installation, and
-   UI state. Trace the state and event transitions and try grouping related
-   lifecycle state behind an explicit contract. The opportunity is to reduce
-   cross-method reasoning; preserve late-event rejection, valid-prefix behavior,
-   replacement, cancellation, and shutdown. Incremental loading is the normal
-   application path, not a CLI-selectable mode to remove as an unused variant.
-2. **Store scheduling and cache lifecycle.** Detailed investigation plan:
-   [PLAY_OEM_COMPLEXITY_5_STORE_SCHEDULING_CACHE_PLAN.md](./PLAY_OEM_COMPLEXITY_5_STORE_SCHEDULING_CACHE_PLAN.md).
-   `OemDataStore.prefetch`,
-   `_drain_scheduler_queue`, `_run_prefetch`, and `_evict_derived_buffers`
-   coexist with raw storage and query methods in
-   [`oem_data_store.py`](../../../src/ephem_toolkit/play_oem/oem_data_store.py).
-   Map shared locks, epochs, pinning, and ownership, then investigate whether
-   scheduling or eviction can have a narrower internal interface. Preserve one
-   raw-data owner, snapshot validity, bounded memory, cancellation, and query
-   performance; moving methods alone is not a reduction in coupling.
-3. **Derived store queries.** Detailed investigation plan:
-   [PLAY_OEM_COMPLEXITY_6_DERIVED_STORE_QUERIES_PLAN.md](./PLAY_OEM_COMPLEXITY_6_DERIVED_STORE_QUERIES_PLAN.md).
-   The store's `series`,
-   `earth_fixed_positions`, `ground_track`, and `station_access` methods each
-   manage range-oriented derived data. Compare their coverage, chunk, and
-   invalidation handling for repeated policy, then test a small shared internal
-   operation only where invariants truly match. Preserve partial coverage,
-   interpolation support, station-specific behavior, and cache semantics.
-4. **View refresh coordination.** Detailed investigation plan:
-   [PLAY_OEM_COMPLEXITY_7_VIEW_REFRESH_COORDINATION_PLAN.md](./PLAY_OEM_COMPLEXITY_7_VIEW_REFRESH_COORDINATION_PLAN.md).
-   `PlayerApp._drain_store_notices`,
-   `_views_for_tier_notice`, `_refresh_store_views`, and
-   `_refresh_incremental_views` route and defer updates; range actions and views
-   also participate. Trace which event refreshes which panels and consider a
-   single explicit refresh policy if rules overlap. Preserve targeted updates,
-   refresh throttling, dragging behavior, and wx-thread ownership.
-5. **Controller initialization and shared state.**
-   `PlayerApp.__init__` initializes loading, playback, configuration, and GUI
-   state, while its panel, playback, and range mixins use shared app state.
-   Inventory attributes and dependencies by responsibility; prototype a
-   cohesive state owner or setup boundary where it reduces the knowledge
-   required for a change. Do not simply move initialization or add another
-   forwarding layer. Preserve initialization order and cleanup.
-6. **Panel and view lifecycle.**
-   [`PanelManagementMixin._open_view`](../../../src/ephem_toolkit/play_oem/app/panel_management.py)
-   and its disposal methods coordinate view creation and resources;
-   [`StoreViewBinding`](../../../src/ephem_toolkit/play_oem/views/base.py)
-   already centralizes tier subscription lifetime. Compare a history view,
-   Ground Track, a station view, and a 3D backend for duplicated lifecycle
-   policy before extending shared machinery. Preserve panel identity, observer
-   cleanup, and backend-specific native resource release.
-   Detailed investigation plan:
-   [PLAY_OEM_COMPLEXITY_12_PANEL_VIEW_LIFECYCLE_PLAN.md](./PLAY_OEM_COMPLEXITY_12_PANEL_VIEW_LIFECYCLE_PLAN.md).
-7. **Large GUI view responsibilities.**
-   [`GroundTrackView`](../../../src/ephem_toolkit/play_oem/views/ground_track.py)
-   combines panel construction, map drawing and navigation, station controls,
-   and playback updates; `GroundStationPassesView` combines table and sky-view
-   behavior. Identify a concrete change that crosses these concerns and test a
-   cohesive boundary, such as navigation state or artist management. Preserve
-   selection, map limits, event behavior, and rendering performance.
-   Detailed investigation plan:
-   [PLAY_OEM_COMPLEXITY_11_LARGE_GUI_VIEW_RESPONSIBILITIES_PLAN.md](./PLAY_OEM_COMPLEXITY_11_LARGE_GUI_VIEW_RESPONSIBILITIES_PLAN.md).
-8. **Parallel paths and variants.**
-   [`cursor.py`](../../../src/ephem_toolkit/play_oem/cursor.py) contains
-   `OemCursor` and `StoreCursor`; the 3D view has Matplotlib and VTK backends.
-   Inventory production, test, documented, and potential external callers and
-   measure the maintenance cost of each path. Consolidate or retire a path only
-   if its support obligations and behavioral differences permit it; backend
-   differences and compatibility may justify the code volume.
-
-These targets include local control flow, overall coordination, and potential
-volume reduction. Their value depends on evidence from the planned investigations;
-none should be implemented solely to reduce a line count.
-
-## Caller-side protocol complexity
+## Caller-side protocol complexity — investigated leads
 
 Use **caller-side protocol complexity** for the effort an API imposes on its
 callers to prepare inputs, follow operations in the right order, interpret
@@ -212,700 +125,86 @@ results, and perform cleanup. When the same sequence is repeated, it is also
 **duplicated orchestration** or **caller boilerplate**. The required ordering
 is often called **temporal coupling**; when implementation details escape the
 interface, **leaky abstraction** may also apply. These terms describe different
-aspects, not proof that a particular API is poorly designed.
+aspects, not proof that a particular API is poorly designed. The initial leads
+below have been investigated; detailed outcomes are summarized in the execution
+record and documented in their individual plans.
 
 The distinction matters: some preparation and cleanup enforce real resource,
 concurrency, or rendering requirements. The opportunity is to make a common
 safe operation easier for its callers without hiding decisions they need or
-weakening the underlying guarantees. Initial examples to investigate:
+weakening the underlying guarantees. Reviewed leads and remaining evaluation:
 
-1. **Store-backed view binding and refresh.**
-   [`SpeedAltitudeView`](../../../src/ephem_toolkit/play_oem/views/speed_altitude.py),
-   [`RtnView`](../../../src/ephem_toolkit/play_oem/views/rtn.py),
-   [`GroundTrackView`](../../../src/ephem_toolkit/play_oem/views/ground_track.py),
-   and `GroundStationPassesView` use `StoreViewBinding` around context changes
-   and close it during teardown. Callers also retain or update context, perform
-   queries, and update artists or controls. `StoreViewBinding` already handles
-   subscription switching; compare the remaining sequences and their differences
-   before considering a common lifecycle helper. Preserve tier subscriptions,
-   context/range updates, and view-specific rendering and cleanup.
-2. **Range query preparation and result handling.** The store's range-query
-   methods require a snapshot and bounds and return a `StoreQuery` with values
-   and coverage. `StoreViewContext` already captures the snapshot, resolves
-   bounds, and handles empty ranges. Ground Track and station-pass views still
-   interpret values and incomplete coverage to decide what to display. Compare
-   these callers for repeated *policy*, rather than treating distinct messages or
-   rendering as duplication. Any shared result handling must retain partial
-   coverage and the distinction between pending, empty, and out-of-range data.
-3. **Opening and disposing a panel.**
-   [`PanelManagementMixin._open_view`](../../../src/ephem_toolkit/play_oem/app/panel_management.py)
-   selects a host, creates a view, resolves its range, chooses a build path,
-   applies range and current time, and sets up GUI resources and callbacks; its
-   disposal methods handle the corresponding lifecycle. Investigate whether an
-   explicit panel/view lifecycle contract can simplify setup and failure cleanup.
-   The different content and backend types may require genuine special handling;
-   preserve replacement, subscriptions, and native resource release.
-4. **Raw ingestion reservation protocol.**
-   [`_StoreRowSink`](../../../src/ephem_toolkit/play_oem/streaming_oem.py)
-   reserves rows, tracks a count, commits batches, publishes notices, and
-   discards an active reservation on close. This is an example of substantial
-   caller protocol, but the inspected production path uses a dedicated sink;
-   repeated independent callers have not been established. Check all callers
-   and failure paths before considering a scoped reservation helper. Preserve
-   zero-copy writes, epoch checks, cancellation, and commit atomicity.
-5. **Load event consumption.**
-   [`PlayerApp._poll_incremental_load`](../../../src/ephem_toolkit/play_oem/app/controller.py)
-   checks generations, handles event kinds, installs snapshots, updates loading
-   state, and schedules refreshes. Investigate whether a more explicit event
-   contract or lifecycle state can make the consumer's obligations easier to
-   understand and test. This is a complex consumer, not yet evidence of
-   duplicated consumers; preserve wx-thread updates and late-event handling.
+| Historical lead | Decision from completed review | Less-evaluated follow-up |
+| --- | --- | --- |
+| Store-backed view binding and refresh | Plan 7 found no shared refresh policy beyond existing subscription ownership. | Measure real queue depth and GUI latency before revisiting batching. |
+| Range query preparation and result handling | Plans 6 and 15 found shared snapshot preparation but distinct coverage and presentation semantics. | Exercise range changes while derived work is pending on representative data. |
+| Panel creation and disposal | Plan 12 centralized low-level release; Plan 14 established partial-startup rollback; Plans 16 and 20–21 verified Cocoa cleanup. | GTK/MSW and native VTK resource behavior remain unavailable or fake-widget tested. |
+| Raw-ingestion reservation | One production `_StoreRowSink` owns the protocol; no duplicate consumer was found. | Reopen only if a second caller or concrete lifecycle failure appears. |
+| Load event consumption | Plans 4, 20, 21, and 26 verified bounded draining, stale-event handling, and shutdown; extraction was rejected. | Representative sustained-load responsiveness and non-macOS event-loop behavior remain unmeasured. |
 
-For each candidate, inventory actual callers and list the required preconditions,
-operation order, result interpretation, and cleanup, including failure paths.
-Separate repeated policy from necessary caller-specific work. A promising change
-should remove or centralize a demonstrably repeated obligation and reduce the
-number of rules callers must remember; compare before/after call sites and
-tests as well as the additional abstraction and its performance cost.
+These are not active refactoring tasks. Consider a shared helper only when new
+evidence shows the same safe operation is independently repeated and the
+abstraction reduces caller obligations without hiding necessary policy.
 
-## Prioritized work items
+## Current evidence priorities
 
-This is the authoritative work-item order; the candidate inventory above records
-the underlying leads and does not establish a separate priority list.
+Plans 4–30 investigated the initial code-directed candidates. Plan 31 found
+that the available Git history spans only 27 days and does not support
+long-term frequency conclusions. Use the following evidence-first sequence;
+do not revive completed refactors based on old baseline scores.
 
-Order reflects the likely breadth of impact, complexity evidence, and risk of a
-mistake. It is a research and experiment order, not a claim about measured change
-frequency. Each item requires an evidence review before production refactoring.
+| Priority | Evidence task | Scope and decision rule |
+| --- | --- | --- |
+| 1 — next | Representative runtime and memory | On representative OEM data, trace incremental load through first usable data, then run derived work while appending and changing a plot range. Record first-data and query/load latency, GUI tick delay, queue depth, peak RSS, and memory held by pinned views. Synthetic capacity-scan and queue tests are not substitutes. Propose a store/controller change only if measurements expose a material cost. |
+| 2 — next | Internal dependency and responsibility map | Map imports, calls, state ownership, callbacks, and dynamic registration across the store, controller, representative history/Ground Track/station views, and both 3D backends. Identify cycles, dependency depth, duplicated policy, and coordinated-edit paths. Use the map to validate concrete boundaries, not to justify a split by itself. |
+| 3 — conditional | Native cross-platform GUI behavior | Real wx cleanup was verified on macOS Cocoa; GTK/MSW and native VTK widget lifecycle remain unverified. Resume when suitable Linux/Windows runners are available; do not infer native behavior from fake widgets or add speculative CI. |
+| 4 — conditional | External compatibility surface | Internal searches do not establish external use of cursors, store APIs, or saved-state formats. Seek package/release or consumer evidence before retiring or changing a compatibility path. |
+| 5 — deferred | Longer-term maintenance trends | Play-OEM source history begins 2026-10-15. Revisit change frequency after several months of ordinary maintenance; the current feature and migration bursts are not representative. |
 
-1. **Model incremental-load state and event handling.** Trace normal load,
-   replacement before and after first append, failure, cancellation, stale events,
-   and close. Inventory state fields and their owners across loader, store, and
-   controller; identify illegal combinations and test gaps. Then prototype a
-   smaller explicit lifecycle contract if it reduces rules spread across callers.
-   Success: one understandable transition table, traceable tests, and fewer
-   independently coordinated state changes without changing prefix, generation,
-   responsiveness, or wx-thread behavior. Incremental loading is the normal
-   path, not an optional CLI mode.
-2. **Simplify panel creation and rollback.** Map resources acquired at each
-   stage of `_open_view` and cleanup on each failure. Evaluate a scoped owner or
-   clearer lifecycle boundary against the existing implementation. Success:
-   fewer caller-managed intermediate resources and explicit ownership transfer,
-   with replacement restoration, subscriptions, and VTK/Matplotlib cleanup
-   preserved. Start with existing failed-view tests and add only missing failure
-   scenarios needed for a proposed change.
-3. **Map store scheduling, query, and eviction invariants.** Document the lock,
-   epoch, pinning, snapshot, and memory-accounting relationships around
-   `prefetch`, derived queries, and eviction; compare `series` and
-   `station_access` for repeated policy. Prototype a narrow internal boundary or
-   common operation only if it simplifies those relationships. Success: fewer
-   responsibilities or repeated rules per caller without a second raw-data
-   owner, numerical changes, weaker memory bounds, or a performance regression.
-4. **Reduce repeated view protocol where equivalent.** Detailed investigation
-   plan:
-   [PLAY_OEM_COMPLEXITY_7_VIEW_REFRESH_COORDINATION_PLAN.md](./PLAY_OEM_COMPLEXITY_7_VIEW_REFRESH_COORDINATION_PLAN.md).
-   Compare the ten binding
-   users, including history, Ground Track, and station views, and enumerate
-   bind/query/refresh/close obligations and coverage behavior. Test a small
-   helper only for truly shared policy. Success: fewer repeated lifecycle rules
-   without obscuring tier subscriptions, partial results, or backend-specific
-   rendering; report the number of affected callers before and after.
-5. **Review saved-state parsing and validation.** `load_saved_state` has the
-   highest measured decision score, with validation and version-dependent
-   behavior. Group branches by independent state section and inspect repeated
-   error handling. Try section-level parsing only if it makes the validation
-   contract clearer. Preserve version migrations, rejection behavior, error
-   messages where relied upon, and fallback-to-default startup; use the existing
-   saved-state tests to assess compatibility. Detailed investigation plan:
-   [PLAY_OEM_COMPLEXITY_8_SAVED_STATE_PARSING_VALIDATION_PLAN.md](./PLAY_OEM_COMPLEXITY_8_SAVED_STATE_PARSING_VALIDATION_PLAN.md).
-6. **Investigate domain and performance hotspots separately.** Examine
-   `_intervals_for_segment`, `_capacity_for_ascii_file`, and the large workspace
-   constructor for distinct opportunities. Their high scores may represent
-   necessary boundary handling, optimized scanning, or GUI layout. Require
-   boundary-case tests and relevant benchmarks before changing numerical or
-   scanning logic; do not prioritize a rewrite based on a score alone. Detailed
-   investigation plan:
-   [PLAY_OEM_COMPLEXITY_9_DOMAIN_PERFORMANCE_HOTSPOTS_PLAN.md](./PLAY_OEM_COMPLEXITY_9_DOMAIN_PERFORMANCE_HOTSPOTS_PLAN.md).
-7. **Inventory compatibility and backend variants.** Identify callers and
-   documented support for both cursor implementations and both 3D backends,
-   including possible external users. Estimate their maintenance cost and
-   behavioral differences before proposing consolidation or retirement. Treat
-   supported behavior as a constraint until its owner decides otherwise.
-   Detailed investigation plan:
-   [PLAY_OEM_COMPLEXITY_10_CURSOR_BACKEND_COMPATIBILITY_PLAN.md](./PLAY_OEM_COMPLEXITY_10_CURSOR_BACKEND_COMPATIBILITY_PLAN.md).
+Priorities 1 and 2 are the actionable next phase. Priorities 3–5 depend on
+runner availability, external consumer evidence, or additional ordinary
+maintenance history. Every follow-up should state its dataset, environment,
+commands, and measurable scenario, and stop if the evidence does not expose a
+concrete complexity cost.
 
 ## Evidence gaps and completion criteria
 
-The baseline does not measure runtime, memory, call-graph depth, dependency
-cycles, change frequency, defect history, or external API usage. It does not
-establish how many protocol steps are duplicated or whether a proposed
-abstraction will reduce total complexity. Static inspection and counts were
-performed; tests and GUI scenarios were not run for this assessment.
-
-For each chosen work item, record the relevant before/after behavior trace,
-caller obligations, local scores and volume, tests, and performance where
-applicable. Accept a change when it makes the relevant responsibilities and
-invariants easier to understand and verify without moving equal or greater
-complexity into another layer or changing required behavior. Reassess the
-priority order after the first lifecycle trace and caller inventory.
-
-## Lifecycle work-item update — 2026-11-10
-
-The detailed trace, transition table, responsibility matrix, and test mapping
-are recorded in
-[PLAY_OEM_COMPLEXITY_4_LOAD_LIFECYCLE_PLAN.md](./PLAY_OEM_COMPLEXITY_4_LOAD_LIFECYCLE_PLAN.md).
-At commit `629cb280b3f31bca3979aa8d79a96d82e6ae97f6`, the worktree was clean
-before implementation changes. Focused loader, stream, controller, cache,
-store, clock, range, and point-query validation passed (267 tests). Deterministic
-controller tests now cover closing during a blocked parse and the exact
-per-tick event-drain limit.
-
-The lifecycle remains the first investigation priority because mistakes can
-discard valid data or cross generation/epoch boundaries; however, no duplicated
-event consumer or row-sink protocol was found, and a single enum would conflate
-the current load with the installed store's completeness. A production
-abstraction was therefore not justified by this evidence. The controller's
-unbounded event drain was a separate, concrete responsiveness risk; it now
-handles at most 64 events per timer tick and leaves the rest for later ticks.
-The test verifies this work bound. Change frequency, defect history, and native
-GUI latency remain unknown. Store scheduling/query/eviction became the next
-investigation; see the subsequent work-item update.
-
-## Store scheduling and cache lifecycle update — 2026-11-10
-
-The verified trace, tier matrix, lock notes, test mapping, and evaluation are
-recorded in
-[PLAY_OEM_COMPLEXITY_5_STORE_SCHEDULING_CACHE_PLAN.md](./PLAY_OEM_COMPLEXITY_5_STORE_SCHEDULING_CACHE_PLAN.md).
-The investigation found identical tier-specific support-range expansion in
-`_priority_for_request` and `_request_rows`; the shared
-`_expanded_request_bounds` helper now owns that policy. The store/memo and
-controller integration suites passed (163 tests). Targeted method volume fell
-by 11 lines net, while the module gained one helper; this is a small local
-clarity and policy-consistency improvement, not a broad store simplification.
-
-The derived-memory budget covers selected chunk and Ground Track buffers, not
-process RSS or every bounded cache. Pinned/active chunks can remain resident
-over budget, and chunk eviction depends on platform memory advice. No RSS,
-native GUI latency, change-frequency, or defect-history evidence was gathered.
-The next work item is the derived-query slice of priority 3; avoid a scheduler
-extraction or module split absent stronger evidence.
-
-## Derived store query update — 2026-11-10
-
-The verified tier contracts, test map, before/after comparison, and decision
-are recorded in
-[PLAY_OEM_COMPLEXITY_6_DERIVED_STORE_QUERIES_PLAN.md](./PLAY_OEM_COMPLEXITY_6_DERIVED_STORE_QUERIES_PLAN.md).
-The query comparison found that `_coverage_for_rows` already centralizes the
-common series/Earth-fixed span-to-coverage conversion; their span selection is
-intentionally different, while Ground Track delegates to Earth-fixed coverage
-and station access has sample-grid coverage. No broader query abstraction was
-justified.
-
-The narrow repeated invariant was Earth-centered metadata validation across
-the three range queries and the station-metric and footprint point queries.
-`_earth_centered_frame_name` now owns string-presence, loading-versus-complete,
-and Earth-center checks while callers retain their distinct incomplete results
-and error messages. The source module fell from 3,536 to 3,505 physical lines;
-focused store/view validation passed (155 passed, 3 skipped). This is local
-deduplication, not evidence of lower whole-store coupling or improved runtime.
-Dataflow and store design did not change. Priority 3 is complete; the next
-authoritative work item was priority 4, view refresh coordination.
-
-## View refresh coordination update — 2026-11-10
-
-The verified event-to-view routing, binding inventory, benchmark limits,
-test results, and decision are recorded in
-[PLAY_OEM_COMPLEXITY_7_VIEW_REFRESH_COORDINATION_PLAN.md](./PLAY_OEM_COMPLEXITY_7_VIEW_REFRESH_COORDINATION_PLAN.md).
-The focused controller/binding/range/history/Ground Track/station/graph-panel
-suite passed (217 passed, 3 skipped). Eight deterministic routing cases were
-added, including duplicate-notice coalescing and stale-epoch rejection
-coverage. No production refresh or binding code changed.
-
-The current map is explicit and station-status demonstrates why scheduler
-binding interest and stale-view routing are not interchangeable. The synthetic
-notice-drain stress test scaled linearly, but did not establish realistic
-backlog frequency or rendering impact; a queue cap could break coalescing or
-starve refreshes. Retain the current architecture and revisit batching only if
-representative queue-depth or timer-latency evidence justifies it. The status
-bar reports panel update failures, but pending IDs are cleared and there is no
-automatic retry; this remains an unresolved recovery-policy question, not a
-verified defect.
-
-No dataflow or store-design document change is warranted because runtime
-ownership and behavior are unchanged. Priority 4 is complete. The next
-authoritative work item is priority 5, saved-state parsing and validation
-(`saved_state.load_saved_state`).
-
-## Saved-state parsing and validation update — 2026-11-10
-
-The verified section/version behavior, fallback contract, tests, and decision
-are recorded in
-[PLAY_OEM_COMPLEXITY_8_SAVED_STATE_PARSING_VALIDATION_PLAN.md](./PLAY_OEM_COMPLEXITY_8_SAVED_STATE_PARSING_VALIDATION_PLAN.md).
-The saved-state and CLI regression suite passed (48 passed). Tests now cover
-missing-file defaults, malformed TOML, unsupported versions, unknown root and
-nested keys, one-warning fallback, and document-wide fallback after a later
-section is invalid.
-
-No production parser refactor was justified: the existing code is already
-organized into contiguous sections, reuses shared domain validators, and
-enforces one consistent first-error/default policy. Extracting those blocks
-would add indirection without reducing validation rules or changing recovery
-behavior. Statement coverage in the targeted run increased from 74% to 76%;
-remaining uncovered paths are not treated as proof of defects.
-
-The persisted format, serializer, and startup ownership are unchanged, so no
-dataflow or format documentation update is warranted. Priority 5 is complete.
-The next authoritative work item is priority 6, investigating domain and
-performance hotspots separately.
-
-## Domain and performance hotspots update — 2026-11-10
-
-The three independent investigations, measurements, tests, and decisions are
-recorded in
-[PLAY_OEM_COMPLEXITY_9_DOMAIN_PERFORMANCE_HOTSPOTS_PLAN.md](./PLAY_OEM_COMPLEXITY_9_DOMAIN_PERFORMANCE_HOTSPOTS_PLAN.md).
-The store/interval test run passed (80 passed); the direct wx Workspace test
-was skipped because this environment has no display.
-
-Station interval logic remains unchanged; two focused tests now cover the
-non-finite-metric split/reset behavior and coverage/gap endpoint flags. The
-capacity scanner's synthetic 1-64 MiB runs measured scan latency separately
-from parsing, but did not establish a production bottleneck. The scan occurs
-on the loader worker before parsing begins, not on the wx thread. Workspace
-construction remains explicit GUI composition; no extraction boundary or
-performance need was demonstrated, and native layout validation was
-unavailable.
-
-No production source or subsystem ownership changed. Priority 6 is complete.
-The next authoritative work item is priority 7, inventorying cursor and 3D
-backend compatibility variants.
-
-## Cursor and 3D backend compatibility update — 2026-11-10
-
-The verified lifecycle, compatibility matrix, backend-selection trace,
-validation, and unresolved typing question are recorded in
-[PLAY_OEM_COMPLEXITY_10_CURSOR_BACKEND_COMPATIBILITY_PLAN.md](./PLAY_OEM_COMPLEXITY_10_CURSOR_BACKEND_COMPATIBILITY_PLAN.md).
-The focused cursor/store, Matplotlib/VTK, config/CLI, and app backend-selection
-tests passed (174 passed, no skips).
-
-`OemCursor` remains the owned-history and append path; `StoreCursor` is the
-snapshot-backed incremental path. Common point-query results matched across
-exact, interpolated, gap, out-of-range, and configured-interpolation cases.
-The app transitions to `StoreCursor` on the first usable append, while
-store-backed views use `StoreViewContext`. Matplotlib remains the exported
-default implementation; optional VTK retains separate native-widget,
-render-context, and cleanup behavior. CLI/config choices, lazy imports,
-fallback behavior, and explicit VTK errors are covered by focused tests.
-
-No production change or consolidation was justified. The source annotations
-still describe some runtime cursor fields as `OemCursor`; Pylance diagnostics
-timed out, so this is recorded as an unverified typing question rather than a
-confirmed type error. VTK unit tests use a fake widget for render-context
-behavior, so native desktop integration remains unverified. External consumer
-usage is unknown. Priority 7 is complete; the remaining assessment candidate
-is large GUI view responsibilities; see
-[PLAY_OEM_COMPLEXITY_11_LARGE_GUI_VIEW_RESPONSIBILITIES_PLAN.md](./PLAY_OEM_COMPLEXITY_11_LARGE_GUI_VIEW_RESPONSIBILITIES_PLAN.md)
-for the bounded investigation and candidate-ranking procedure.
-
-## Large GUI view responsibilities update — 2026-11-10
-
-The state/resource maps, candidate comparison, bounded change, and test
-results are recorded in
-[PLAY_OEM_COMPLEXITY_11_LARGE_GUI_VIEW_RESPONSIBILITIES_PLAN.md](./PLAY_OEM_COMPLEXITY_11_LARGE_GUI_VIEW_RESPONSIBILITIES_PLAN.md).
-The Ground Track and pass-view suites passed (41 passed, 3 display-gated
-skips); selected app lifecycle tests passed (9); store-backed view tests
-passed (3).
-
-No whole-view extraction was justified. The Ground Station Passes view already
-uses `StationAnalysisContext` for shared station/interval selection, and its
-responsive presentation and lifecycle have focused tests. Ground Track
-navigation remains tied to projection and axes operations, but its horizontal
-and vertical scrollbar conversions duplicated a small inverse-mapping policy
-with no direct headless coverage. That mapping is now centralized in private
-pure helpers and tested for direction, quantization, clamping, full-world
-disablement, and both-axis integration. The wx view retains ownership of
-controls, projection, axes, and redraw.
-
-Native wx layout tests were skipped without a display; no subsystem or
-dataflow ownership changed. This candidate is complete. Re-rank the remaining
-assessment candidates before defining the next authoritative work item. The
-next selected candidate is panel and view lifecycle: transactional rollback and
-heterogeneous resource release have concrete, testable consequences, while
-controller initialization remains a broader follow-on without a specific
-runtime mismatch. See
-[PLAY_OEM_COMPLEXITY_12_PANEL_VIEW_LIFECYCLE_PLAN.md](./PLAY_OEM_COMPLEXITY_12_PANEL_VIEW_LIFECYCLE_PLAN.md).
-
-## Panel and view lifecycle update
-
-The lifecycle trace, bounded change, and test results are recorded in
-[PLAY_OEM_COMPLEXITY_12_PANEL_VIEW_LIFECYCLE_PLAN.md](./PLAY_OEM_COMPLEXITY_12_PANEL_VIEW_LIFECYCLE_PLAN.md).
-The complete app lifecycle suite passed (88 passed); representative store
-binding, history, Ground Track, station, speed/altitude, and VTK suites passed
-(70 passed, 3 skipped). The skipped cases require a display. VTK cleanup tests
-use a fake widget, so native desktop integration remains unverified.
-
-Setup rollback and normal resource release shared the same low-level
-callback-disconnect, unsubscribe, and `view.close()` sequence. That sequence
-is now centralized in `_release_view_resources`, with exactly-once assertions
-for failed construction, successful replacement, ordinary close, and frame
-shutdown. Transaction-specific panel restoration, registry updates, and
-destruction remain separate. Existing resource owners and runtime behavior are
-unchanged; no subsystem or dataflow documentation update is warranted.
-
-Priority 8, panel and view lifecycle, is complete. The remaining assessment
-candidate is controller initialization and shared state. It is broader and
-currently lacks a specific runtime mismatch, so first define a bounded
-investigation and verify state ownership and initialization ordering before
-proposing a refactor. The bounded investigation is planned in
-[PLAY_OEM_COMPLEXITY_13_CONTROLLER_INITIALIZATION_SHARED_STATE_PLAN.md](./PLAY_OEM_COMPLEXITY_13_CONTROLLER_INITIALIZATION_SHARED_STATE_PLAN.md).
-
-## Controller initialization and shared state update — 2026-11-11
-
-The state map, ordering findings, bounded changes, and validation are recorded
-in
-[PLAY_OEM_COMPLEXITY_13_CONTROLLER_INITIALIZATION_SHARED_STATE_PLAN.md](./PLAY_OEM_COMPLEXITY_13_CONTROLLER_INITIALIZATION_SHARED_STATE_PLAN.md).
-An AST inventory found 80 unique attributes assigned by `PlayerApp.__init__`;
-all 48 data attributes in `PlayerAppState` are initialized there. No separate
-state owner or stale protocol member was identified, so a constructor
-extraction or state container is not justified.
-
-Two concrete initialization-order issues were fixed. Invalid render-rate
-input previously mutated the supplied clock and cursor before raising; its
-validation now precedes those side effects. A failure during the last workspace
-setup call previously left a clock observer registered to the incomplete app;
-the subscription now occurs after workspace setup succeeds. The app, CLI, and
-control-window tests passed (119 passed).
-
-No subsystem or dataflow ownership changed. Native wx event dispatch and
-cleanup after failure during frame/workspace/control-window construction
-remain unverified. Priority 9, controller initialization and shared state, is
-complete.
-
-## Partial GUI startup cleanup selection — 2026-11-11
-
-Re-ranking the remaining leads selects cleanup after partial GUI construction
-as the next investigation. It is the clearest unverified failure boundary from
-the controller initialization trace: a frame, workspace, control window, or
-timer may already exist when a later constructor step fails, but normal cleanup
-requires a successfully constructed `PlayerApp`. The bounded investigation is
-planned in
-[PLAY_OEM_COMPLEXITY_14_PARTIAL_GUI_STARTUP_CLEANUP_PLAN.md](./PLAY_OEM_COMPLEXITY_14_PARTIAL_GUI_STARTUP_CLEANUP_PLAN.md).
-
-The raw-ingestion reservation lead remains deferred because the lifecycle
-investigation found one production sink and no repeated independent protocol.
-Load-event consumption also remains deferred: the event consumer was traced,
-no duplicate consumer was found, and its per-tick drain is already bounded.
-
-## Partial GUI startup cleanup findings — 2026-11-11
-
-Failure injection confirmed that frame/workspace/control-window construction
-could fail after acquiring GUI resources without running normal close cleanup.
-`PlayerApp` now rolls back acquired resources independently and preserves the
-original construction exception. It keeps both newly created and reused
-`wx.App` instances intact; cleanup failures are logged and do not prevent
-remaining releases. The implementation and evidence are recorded in
-[PLAY_OEM_COMPLEXITY_14_PARTIAL_GUI_STARTUP_CLEANUP_PLAN.md](./PLAY_OEM_COMPLEXITY_14_PARTIAL_GUI_STARTUP_CLEANUP_PLAN.md).
-
-The app, CLI, and control-window regression suites passed (**125 passed**).
-These tests use fakes and do not verify native wx teardown. No dataflow
-ownership changed. Re-rank remaining candidates before selecting the next
-investigation; no next implementation item is preselected.
-
-## Store-backed view result-state selection — 2026-11-11
-
-The next investigation is how store-backed views interpret query coverage,
-committed-prefix values, and load state when rendering data and selecting
-status. `StoreViewContext` already binds queries to snapshots and ranges, while
-Ground Track, Ground Station Passes, Ground Station Analysis, and Speed/
-Altitude apply distinct result and presentation rules. This is a candidate for
-cross-caller clarification, not evidence that the rules are inconsistent or
-should be unified.
-
-The bounded investigation will compare the state precedence and test coverage
-without repeating the store-query, refresh-coordination, or panel-lifecycle
-work. Its plan is
-[PLAY_OEM_COMPLEXITY_15_STORE_VIEW_RESULT_STATE_PLAN.md](./PLAY_OEM_COMPLEXITY_15_STORE_VIEW_RESULT_STATE_PLAN.md).
-The raw-ingestion reservation and load-event-consumption leads remain deferred
-absent a concrete protocol gap or transition mismatch. Native wx teardown
-requires display-capable integration evidence and is deferred separately.
-
-## Store-backed view result-state findings — 2026-11-11
-
-The comparison and test map are recorded in
-[PLAY_OEM_COMPLEXITY_15_STORE_VIEW_RESULT_STATE_PLAN.md](./PLAY_OEM_COMPLEXITY_15_STORE_VIEW_RESULT_STATE_PLAN.md).
-`StoreViewContext` preserves snapshot/range semantics, and
-`store_load_status_message()` already centralizes the shared failed/cancelled
-store-state wording. Ground Track, station views, and Speed/Altitude have
-different result and presentation requirements; no common result classifier
-or production change was justified.
-
-Ground Track status tests now distinguish incomplete empty data, complete
-empty data, and no effective range. The focused Ground Track, Ground Station
-Passes, Station Analysis, Speed/Altitude, and shared series-view suites passed
-(80 passed, 3 skipped). The skipped tests require a wx display. Raw-ingestion
-reservation and load-event-consumption leads remain deferred; native wx
-teardown remains unverified. No next implementation candidate is selected;
-re-rank remaining candidates before defining another plan.
-
-## Native wx cleanup verification selection — 2026-11-11
-
-Re-ranking the residual leads selects native validation of partial GUI startup
-cleanup. Plan 14 established the Python-level rollback contract, but its fakes
-cannot verify native child ownership, deferred deletion, or timer behavior.
-Existing display-backed tests skip without a usable wx display and identify
-`xvfb-run` as a possible test path. The bounded feasibility and integration
-plan is
-[PLAY_OEM_COMPLEXITY_16_NATIVE_WX_STARTUP_CLEANUP_PLAN.md](./PLAY_OEM_COMPLEXITY_16_NATIVE_WX_STARTUP_CLEANUP_PLAN.md).
-
-This is a validation plan, not a new production refactor. Raw-ingestion
-reservation and load-event consumption remain deferred because their concrete
-failure and event paths have already been mapped without revealing a current
-gap. Plan 16 must report a native environment blocker if no display-backed run
-is feasible; fake-widget results must not be presented as native verification.
-
-## Native wx cleanup verification findings — 2026-11-11
-
-The display-backed test and evidence are recorded in
-[PLAY_OEM_COMPLEXITY_16_NATIVE_WX_STARTUP_CLEANUP_PLAN.md](./PLAY_OEM_COMPLEXITY_16_NATIVE_WX_STARTUP_CLEANUP_PLAN.md).
-Although `DISPLAY` was unset and `xvfb-run` unavailable, wxPython 4.2.4 on
-macOS reported a usable `osx-cocoa` display. A real `PlayerApp` failure after
-workspace/control-window/timer construction closed the workspace, left the
-timer stopped, preserved the wx app, propagated the injected exception, and
-removed the frame from wx's top-level windows after event processing; its
-wrapper then rejected native access.
-
-The complete app lifecycle suite passed (**97 passed**), including this native
-integration test. No production change was needed. Native teardown is verified
-only for macOS Cocoa; GTK, MSW, and other wxPython versions remain unverified.
-The test's display-free skip branch was reviewed but not executed because this
-environment reports a native display. Raw-ingestion and load-event leads
-remain deferred; no next implementation candidate is selected.
-
-## Cross-platform wx cleanup verification — 2026-11-11
-
-Plan 17 completed the runner-feasibility check. The current host is macOS;
-there is no Linux/GTK or Windows/MSW host, no `xvfb-run` or local container
-runtime, and no `.github/workflows` configuration. Linux and Windows runs are
-therefore **blocked**, not passed or skipped. The known macOS Cocoa result
-remains limited to the 97-pass app lifecycle suite recorded above.
-
-No CI infrastructure or production change was added: cross-platform teardown
-behavior and backend-specific assertion reliability remain unverified. The
-next actionable step requires access to a Linux runner with wxGTK and Xvfb and
-a desktop-capable Windows runner. The feasibility evidence and explicit
-limitations are recorded in
-[PLAY_OEM_COMPLEXITY_17_CROSS_PLATFORM_WX_CLEANUP_PLAN.md](./PLAY_OEM_COMPLEXITY_17_CROSS_PLATFORM_WX_CLEANUP_PLAN.md).
-
-## Native wx runner enablement selection — 2026-11-11
-
-Because plan 17 could not execute outside macOS, the next step is a separate,
-bounded feasibility and implementation plan for hosted Ubuntu/wxGTK and
-Windows/wxMSW test jobs. The work must first prove Linux dependency installation
-and virtual-display behavior, and Windows native GUI availability; it must not
-assume those capabilities or introduce self-hosted runners. If both hosted
-paths are viable, add only the narrow CI coverage needed for the real cleanup
-test and focused app lifecycle suite. If not, record the blocker and stop
-before adding infrastructure. Scope and gates are in
-[PLAY_OEM_COMPLEXITY_18_WX_CI_RUNNER_ENABLEMENT_PLAN.md](./PLAY_OEM_COMPLEXITY_18_WX_CI_RUNNER_ENABLEMENT_PLAN.md).
-
-Plan 18 found no configured GitHub Actions workflows and could not test hosted
-runner policy, Linux wxGTK installation, or Windows desktop availability from
-this session. It added no speculative infrastructure; GTK and MSW remain
-blocked and unverified. Continuing requires authorization and a mechanism to
-run a minimal hosted workflow, or independently provided platform runners.
-
-## Hosted wx test pilot selection — 2026-11-11
-
-Plan 19 proposed a manually triggered GitHub Actions run on one Ubuntu and one
-Windows hosted runner. Execution is deferred: the available environment is
-macOS only, with no access to Ubuntu or Windows. No workflow was added or
-triggered; GTK and MSW remain blocked until non-macOS runner access becomes
-available. See
-[PLAY_OEM_COMPLEXITY_19_HOSTED_WX_TEST_PILOT_PLAN.md](./PLAY_OEM_COMPLEXITY_19_HOSTED_WX_TEST_PILOT_PLAN.md).
-
-## Active-load shutdown investigation selection — 2026-11-11
-
-With cross-platform execution deferred, the next locally executable step is
-to verify app shutdown while an incremental OEM load is active. Shutdown is a
-stated invariant of the load lifecycle, but the available findings do not
-establish that a focused test covers late loader events after teardown. Plan 20
-will first check existing tests and add coverage only if a real gap remains;
-it will not presume a production defect.
-[PLAY_OEM_COMPLEXITY_20_ACTIVE_LOAD_SHUTDOWN_PLAN.md](./PLAY_OEM_COMPLEXITY_20_ACTIVE_LOAD_SHUTDOWN_PLAN.md)
-records the bounded procedure.
-
-Plan 20 found existing deterministic coverage for closing during a blocked
-parse: cancellation and store closure are asserted, and releasing the parser
-does not append a sample. The loader suite plus this focused app test passed
-(11 passed) on macOS; no duplicate test or production change was needed.
-GTK/MSW remain deferred.
-
-## Native active-load shutdown selection — 2026-11-11
-
-Plan 20's active-load shutdown test uses the app test doubles, while plan 16's
-native wx integration verifies partial-construction rollback. The next
-macOS-only step is to verify the intersection: closing real wx resources while
-the loader is blocked at a deterministic parser boundary. Add a display-gated
-test only if the combined setup is safe and reliable; keep GTK/MSW deferred.
-Scope is in
-[PLAY_OEM_COMPLEXITY_21_NATIVE_WX_ACTIVE_LOAD_SHUTDOWN_PLAN.md](./PLAY_OEM_COMPLEXITY_21_NATIVE_WX_ACTIVE_LOAD_SHUTDOWN_PLAN.md).
-
-Plan 21 verified the intersection on macOS Cocoa: the real wx app closed during
-a blocked parse, cancelling the session, stopping the timer, closing the store
-and workspace, preserving `wx.App`, and preventing late append. The focused
-native test passed and the full app lifecycle suite passed (98 passed) with
-wxPython 4.2.4 / wxWidgets 3.2.8. No production change was needed; GTK/MSW
-remain deferred.
-
-## Candidate re-ranking selection — 2026-11-11
-
-The next step is a decision checkpoint, not another adjacent lifecycle test.
-Reconcile remaining candidates against completed work, require an observable
-complexity hypothesis and feasible before/after validation, and select at most
-one new candidate. If none meets those criteria, pause the sequence until new
-evidence or platform access becomes available. Plan 22 records this bounded
-re-ranking procedure:
-[PLAY_OEM_COMPLEXITY_22_CANDIDATE_RERANKING_PLAN.md](./PLAY_OEM_COMPLEXITY_22_CANDIDATE_RERANKING_PLAN.md).
-
-## Snapshot-installation reduction selection — 2026-11-11
-
-The reranking conclusion is reopened by a focused source comparison of
-`PlayerApp._install_store_snapshot`: first and later appends contain the same
-pending-playback-bounds decision, while later append has a separate
-follow-coverage case. Plan 23 tests whether consolidating only the duplicated
-decision reduces local complexity without flags or indirection. This is the
-next code-directed experiment; retain the change only if the behavior remains
-clearer and the relevant tests pass:
-[PLAY_OEM_COMPLEXITY_23_SNAPSHOT_INSTALLATION_DEDUPLICATION_PLAN.md](./PLAY_OEM_COMPLEXITY_23_SNAPSHOT_INSTALLATION_DEDUPLICATION_PLAN.md).
-
-Plan 23 completed the experiment. `_apply_pending_playback_bounds` now owns
-the duplicated pending-range application decision; first-append cursor
-anchoring and later-append follow-coverage behavior remain separate. Existing
-pending-range tests cover initial and subsequent append behavior, so no test
-was added. The app, clock, and time-range suites passed (162 passed) on macOS.
-This is a bounded local reduction in duplicated policy, not a broader
-controller or load-lifecycle redesign.
-
-## Batch-install guard reduction selection — 2026-11-11
-
-The next bounded experiment targets another concrete repeated protocol in
-`_install_store_snapshot`: three clock/cursor operations manually set and
-clear `_installing_incremental_batch` with `try/finally`. The flag suppresses
-re-entrant observer refreshes during snapshot installation. Plan 24 evaluates
-whether a small scoped guard reduces exception-safety bookkeeping without
-hiding the operations or adding excessive abstraction:
-[PLAY_OEM_COMPLEXITY_24_BATCH_INSTALL_GUARD_PLAN.md](./PLAY_OEM_COMPLEXITY_24_BATCH_INSTALL_GUARD_PLAN.md).
-
-Plan 24 consolidated that protocol in `_installing_incremental_update`, which
-restores the previous flag value even on exceptions. The clock/cursor calls
-remain inline. A focused restoration test was added, and the app, clock, and
-time-range suites passed (163 passed) on macOS. Direct flag writes are now
-limited to initialization and the scope helper; no cross-platform claim is
-made.
-
-## Snapshot phase-boundary selection — 2026-11-11
-
-The next experiment targets the remaining large local coordination point in
-`_install_store_snapshot`: first append installs a replacement clock/store
-and initializes progressive-load state, while later append validates the
-active store and advances coverage/cursor state; both share a metadata and
-view-context tail. Plan 25 will determine whether these are cohesive phases
-that can be made clearer without moving code into broad helpers or duplicating
-updates. The goal is an actual reduction in local reasoning, not a smaller
-method:
-[PLAY_OEM_COMPLEXITY_25_SNAPSHOT_INSTALLATION_PHASES_PLAN.md](./PLAY_OEM_COMPLEXITY_25_SNAPSHOT_INSTALLATION_PHASES_PLAN.md).
-
-Plan 25 made the first-append and later-append phases explicit as
-`_install_first_store_snapshot` and `_advance_store_snapshot`. The shared
-metadata/view-context tail remains in one place. This gives the dispatcher a
-small lifecycle decision while keeping phase-specific invariants together,
-without a new state owner or broad forwarding interface. The app, loader,
-clock, and time-range suites passed (173 passed) on macOS.
-
-## Incremental event routing reduction selection — 2026-11-11
-
-The next code-directed experiment is a local review of
-`PlayerApp._poll_incremental_load`, which still handles five event kinds and
-then aggregates once-per-tick UI refresh work. Plan 4 rejected a shared
-lifecycle abstraction because there is one consumer; that decision stands.
-Plan 26 instead tests whether event transitions and shared post-drain work can
-be separated without result tuples, broad callbacks, or per-event indirection.
-The bounded drain and FIFO/generation semantics must remain unchanged:
-[PLAY_OEM_COMPLEXITY_26_INCREMENTAL_EVENT_ROUTING_PLAN.md](./PLAY_OEM_COMPLEXITY_26_INCREMENTAL_EVENT_ROUTING_PLAN.md).
-
-Plan 26 rejected per-event extraction: it would require outcome plumbing or
-hidden state mutation while the existing loop already makes FIFO ordering,
-event transitions, and once-per-tick aggregation visible together. The app and
-loader suites passed (109 passed) on macOS; the bounded drain is unchanged.
-No new event-policy abstraction or production change was warranted.
-
-## Station interval state reduction selection — 2026-11-11
-
-The next candidate revisits `_intervals_for_segment` from plan 9 as a
-complexity experiment, not a bug fix. Its parallel optional locals are reset
-in multiple transition branches and revalidated before interval construction.
-Plan 27 evaluates whether one in-progress interval state can make those
-invariants clearer without obscuring domain transitions or adding excessive
-indirection. Existing numerical and boundary behavior must remain unchanged:
-[PLAY_OEM_COMPLEXITY_27_STATION_INTERVAL_STATE_PLAN.md](./PLAY_OEM_COMPLEXITY_27_STATION_INTERVAL_STATE_PLAN.md).
-
-Plan 27 consolidated active-pass fields in `_ActiveAccessInterval`; the loop
-now owns one optional state reference, and the state object owns extrema and
-endpoint metrics. This removed parallel field synchronization and repeated
-completeness guards while retaining crossing and coverage/gap logic in place.
-The relevant store/station suites passed (113 passed, 1 display-dependent
-skip) on macOS. No interval semantics or tolerances changed.
-
-## Interpolation metadata policy selection — 2026-11-11
-
-The next bounded reduction candidate is the identical interpretation of
-`INTERPOLATION` and `INTERPOLATION_DEGREE` in snapshot installation and
-validated load completion. Plan 28 evaluates whether sharing just this
-conversion policy prevents drift while keeping the provisional and final
-metadata phases distinct. Retain the helper only if it is clearer than the
-repeated assignments:
-[PLAY_OEM_COMPLEXITY_28_INTERPOLATION_METADATA_PLAN.md](./PLAY_OEM_COMPLEXITY_28_INTERPOLATION_METADATA_PLAN.md).
-
-Plan 28 rejected a helper: the repeated logic is only two explicit
-conversions at two intentionally distinct lifecycle points; extracting it
-would add a call and tuple or mutable-state indirection without reducing
-reasoning. The app, loader, store, and stateless-interpolation suites passed
-(206 passed) on macOS. No source change was warranted.
-
-## Station-query phase reduction selection — 2026-11-11
-
-One code-directed candidate was `OemDataStore.station_access`, which
-coordinates validation, row-range selection, asynchronous derived work,
-profile and interval assembly, coverage calculation, cache publication, and
-eviction. Plan 6 rejected a generic shared-query abstraction because station
-access has distinct semantics. Plan 29 evaluated one local phase boundary,
-retaining station-specific policy and lock ownership:
-[PLAY_OEM_COMPLEXITY_29_STATION_QUERY_PHASES_PLAN.md](./PLAY_OEM_COMPLEXITY_29_STATION_QUERY_PHASES_PLAN.md).
-
-Plan 29 rejected phase extraction. Candidate helpers would carry multiple
-accumulators and shared tier/snapshot state, while splitting cache, lock, and
-eviction ordering across method boundaries. The station/store/analysis/view
-suites passed (113 passed, 1 display-dependent skip) on macOS; no source
-change was warranted.
-
-## Eviction candidate representation — complete
-
-The next local reduction candidate is the ten-position tuple used to represent
-derived-buffer eviction candidates. The same tuple is appended, byte-counted
-through its last position, sorted by its first four positions, and later
-unpacked into names. Plan 30 replaced it with a private frozen named record,
-retaining the current single eviction loop, LRU key, pin/range checks,
-tier-specific behavior, and memory advice. The store and chunk-memo tests
-passed (87 tests); no behavior change or additional test was needed:
-[PLAY_OEM_COMPLEXITY_30_EVICTION_CANDIDATE_SHAPE_PLAN.md](./PLAY_OEM_COMPLEXITY_30_EVICTION_CANDIDATE_SHAPE_PLAN.md).
-The eviction method decreased from 162 to 153 lines, while the store module
-increased from 3,505 to 3,510 lines for the named record. Its decision score
-remained 25, so the evidence supports clearer local data flow, not a reduction
-in branch complexity or overall store size.
-
-At completion of Plan 22, the ranked candidates had been investigated and the
-remaining leads lacked either a concrete complexity defect/change hypothesis
-or an available validation path. Plans 23–30 subsequently evaluated further
-bounded candidates. Reopen the ranking for additional candidates only when
-evidence emerges rather than continuing with adjacent test-only extensions.
+The current static baseline and 27-day change-history sample do not measure
+representative runtime, peak memory, sustained GUI latency, internal dependency
+and responsibility structure, external API use, or long-term maintenance
+patterns. GTK/MSW native behavior is blocked by runner availability. Existing
+tests and traces cover many lifecycle cases, but they do not substitute for
+production-like workload measurements.
+
+Accept a future change only when it reduces the rules, caller obligations, or
+interactions needed to understand a concrete behavior without moving equal or
+greater complexity elsewhere. Record the same before/after trace, relevant
+tests, code volume, and performance data where applicable. Otherwise retain the
+current design and document the limitation.
+
+## Compressed execution record — Plans 4–31
+
+Detailed traces, implementation decisions, and test commands remain in the
+linked plan documents. This summary retains outcomes and limits without
+repeating the chronological selection notes.
+
+| Scope | Durable outcome | Record |
+| --- | --- | --- |
+| Load lifecycle and store scheduling (4–5) | Bounded event draining to 64 per tick and centralized repeated request-bound policy. No lifecycle enum or scheduler extraction. | [Plan 4](./PLAY_OEM_COMPLEXITY_4_LOAD_LIFECYCLE_PLAN.md), [plan 5](./PLAY_OEM_COMPLEXITY_5_STORE_SCHEDULING_CACHE_PLAN.md) |
+| Queries and refresh (6–7) | Centralized Earth-center validation; retained distinct query coverage and refresh-routing rules. Focused routing tests added; no refresh policy abstraction. | [Plan 6](./PLAY_OEM_COMPLEXITY_6_DERIVED_STORE_QUERIES_PLAN.md), [plan 7](./PLAY_OEM_COMPLEXITY_7_VIEW_REFRESH_COORDINATION_PLAN.md) |
+| Saved state, domain logic, and variants (8–10) | Parser and cursor/backend refactors rejected; synthetic capacity scan showed no wx-thread bottleneck; scrollbar conversion helper retained. | [Plan 8](./PLAY_OEM_COMPLEXITY_8_SAVED_STATE_PARSING_VALIDATION_PLAN.md), [plan 9](./PLAY_OEM_COMPLEXITY_9_DOMAIN_PERFORMANCE_HOTSPOTS_PLAN.md), [plan 10](./PLAY_OEM_COMPLEXITY_10_CURSOR_BACKEND_COMPATIBILITY_PLAN.md) |
+| Views, panels, and controller state (11–13) | Added a scrollbar mapping helper and shared resource-release path; fixed two initialization-order defects. No broad view split or new state owner. | [Plans 11](./PLAY_OEM_COMPLEXITY_11_LARGE_GUI_VIEW_RESPONSIBILITIES_PLAN.md), [12](./PLAY_OEM_COMPLEXITY_12_PANEL_VIEW_LIFECYCLE_PLAN.md), [13](./PLAY_OEM_COMPLEXITY_13_CONTROLLER_INITIALIZATION_SHARED_STATE_PLAN.md) |
+| Startup and native wx cleanup (14–21) | Partial-startup rollback and active-load shutdown verified on macOS Cocoa. GTK/MSW execution and hosted runner feasibility remain blocked; no speculative CI was added. | [Plan 14](./PLAY_OEM_COMPLEXITY_14_PARTIAL_GUI_STARTUP_CLEANUP_PLAN.md), [15](./PLAY_OEM_COMPLEXITY_15_STORE_VIEW_RESULT_STATE_PLAN.md), [16](./PLAY_OEM_COMPLEXITY_16_NATIVE_WX_STARTUP_CLEANUP_PLAN.md), [17](./PLAY_OEM_COMPLEXITY_17_CROSS_PLATFORM_WX_CLEANUP_PLAN.md), [18](./PLAY_OEM_COMPLEXITY_18_WX_CI_RUNNER_ENABLEMENT_PLAN.md), [19](./PLAY_OEM_COMPLEXITY_19_HOSTED_WX_TEST_PILOT_PLAN.md), [20](./PLAY_OEM_COMPLEXITY_20_ACTIVE_LOAD_SHUTDOWN_PLAN.md), [21](./PLAY_OEM_COMPLEXITY_21_NATIVE_WX_ACTIVE_LOAD_SHUTDOWN_PLAN.md) |
+| Snapshot installation (22–25) | Re-ranking selected three local reductions: pending bounds, exception-safe batch scope, and first-versus-later append phases. | [Plan 22](./PLAY_OEM_COMPLEXITY_22_CANDIDATE_RERANKING_PLAN.md), [23](./PLAY_OEM_COMPLEXITY_23_SNAPSHOT_INSTALLATION_DEDUPLICATION_PLAN.md), [24](./PLAY_OEM_COMPLEXITY_24_BATCH_INSTALL_GUARD_PLAN.md), [25](./PLAY_OEM_COMPLEXITY_25_SNAPSHOT_INSTALLATION_PHASES_PLAN.md) |
+| Event routing and station access (26–29) | Rejected per-event and query-phase helpers; grouped active interval metrics in `_ActiveAccessInterval`; rejected metadata conversion extraction. | [Plan 26](./PLAY_OEM_COMPLEXITY_26_INCREMENTAL_EVENT_ROUTING_PLAN.md), [27](./PLAY_OEM_COMPLEXITY_27_STATION_INTERVAL_STATE_PLAN.md), [28](./PLAY_OEM_COMPLEXITY_28_INTERPOLATION_METADATA_PLAN.md), [29](./PLAY_OEM_COMPLEXITY_29_STATION_QUERY_PHASES_PLAN.md) |
+| Eviction and history re-ranking (30–31) | Named the eviction-candidate record; method shrank 9 lines while the module grew 5 and decision score stayed 25. Available Git history spans only 27 days and yielded no new refactor candidate. | [Plan 30](./PLAY_OEM_COMPLEXITY_30_EVICTION_CANDIDATE_SHAPE_PLAN.md), [plan 31](./PLAY_OEM_COMPLEXITY_31_CHANGE_HISTORY_RERANKING_PLAN.md) |
+
+## Current focus
+
+The next phase is evidence collection, not another speculative refactor:
+measure the representative load/query/range-change workflow, then map
+dependencies and responsibilities. Platform, compatibility, and maintenance
+questions remain conditional or deferred as ranked above.
 
 ## Current baseline refresh — 2026-11-11
 
@@ -945,10 +244,10 @@ Current high-scoring functions by the same custom AST indicator:
 | `OemDataStore._evict_derived_buffers` | 153 | 25 |
 
 This refresh is a reproducible current reference, not evidence that line or
-decision-score changes alone represent complexity reduction. Runtime and
-memory profiles, representative GUI latency, change frequency, defect history,
-and external API usage remain unmeasured; GTK/MSW behavior remains unverified
-without non-macOS runners.
+decision-score changes alone represent complexity reduction. Representative
+runtime/memory profiles, GUI latency, defect history, external API usage, and
+long-term change frequency remain unmeasured; GTK/MSW behavior remains
+unverified without non-macOS runners.
 
 Plan 31 analyzed all available non-merge history in the requested one-year
 window. The Play-OEM source history begins on 2026-10-15, so the actual sample

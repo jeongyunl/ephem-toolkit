@@ -1,28 +1,29 @@
 # play-oem complexity: subsystem research
 
-This research examines behavior that is difficult to reason about because of
-interacting states, ordering, concurrency, or numerical boundaries. It is based
-on static inspection of the source and named tests at commit `cf93496`; the tests
-were not run for this research. The [complexity assessment](./PLAY_OEM_COMPLEXITY_2_ASSESSMENT.md)
-contains the separate size and decision-count baseline. Rankings below are
-qualitative judgments about reasoning and consequences, not defect findings.
+This research records the original static findings and the later targeted
+investigations of difficult state, concurrency, and domain behavior. The initial
+inspection used commit `cf93496`; current decisions and less-evaluated areas are
+summarized in the [complexity assessment](./PLAY_OEM_COMPLEXITY_2_ASSESSMENT.md).
+Rankings are qualitative judgments, not defect findings.
 
-## Investigation overview
+## Current priority map
 
-| Order | Subsystem | Main source of logical complexity | Recommended investigation |
+The subsystem sections below preserve verified behavior and design constraints;
+their order reflects investigation history, not the next-work sequence. The
+[assessment](./PLAY_OEM_COMPLEXITY_2_ASSESSMENT.md) owns the ranked tasks and
+decision criteria.
+
+| Priority | Evidence task | Relevant subsystem findings | Timing and boundary |
 | --- | --- | --- | --- |
-| 1 | Incremental load and replacement | Concurrent generation, store epoch, partial installation, and failure state | Model transitions and ownership across worker and UI. |
-| 2 | Derived-data scheduling and cache lifetime | In-flight work, invalidation, tentative results, pinned views, eviction | Map validity keys, locks, and ownership for each tier. |
-| 3 | Station access and pass boundaries | Discontinuous samples, refined crossings, clipped intervals, extrema | Specify the interval state machine and boundary cases. |
-| 4 | Playback and time ranges | Independent coverage, playback bounds, moving plot rules, ongoing loading | Trace range resolution and changes under append and seek. |
-| 5 | Snapshot-based point interpolation | Segment gaps, policy revisions, support points, exact versus interpolated state | Document snapshot and interpolation contracts across consumers. |
-| 6 | Panel construction and teardown | Partial resource acquisition, rollback, replacement, native GUI lifetime | Map ownership and failure paths. |
+| 1 — next | Measure representative load, derived-query, and range-change behavior. | [Load/replacement](#1-incremental-load-and-replacement), [derived cache](#2-derived-data-scheduling-and-cache-lifetime), and [playback/ranges](#4-playback-coverage-and-time-ranges). | Exercise incremental append with derived work pending while changing a plot range. Record first-data and query/load latency, GUI tick delay, queue depth, peak RSS, and memory held by pinned views. Do not propose a store/controller change unless the measurements expose a material cost. |
+| 2 — next | Map internal dependencies and responsibility ownership. | All six subsystem sections, especially load/controller, store/cache, view, and backend interactions. | Map imports, calls, state owners, callbacks, and dynamic registration; validate apparent boundaries against actual change paths. Counts alone do not justify a split. |
+| 3 — conditional | Verify native cross-platform GUI behavior. | [Load shutdown](#1-incremental-load-and-replacement) and [panel/native lifecycle](#6-panel-lifecycle-and-gui-resources). | GTK/MSW and native VTK evidence requires suitable runners; do not infer native behavior from fake widgets or add speculative CI. |
+| 4 — conditional | Establish external compatibility use. | [Point interpolation and cursors](#5-snapshot-based-point-interpolation). | Seek package/release or consumer evidence before changing cursor, store, or saved-state compatibility paths. |
+| 5 — deferred | Reassess maintenance trends. | See the [assessment](./PLAY_OEM_COMPLEXITY_2_ASSESSMENT.md) for history findings. | Available source history spans only 27 days; revisit after several months of ordinary maintenance. |
 
-This order reflects the focus of the subsystem research. The assessment owns
-the overall work-item priorities. They do not imply that
-domain rules, asynchronous loading, or caching should be removed. In particular,
-some complexity is inherent in the required behavior; potential reduction lies
-in clarifying and containing it.
+These are evidence-collection priorities, not proposals to remove domain rules,
+asynchronous loading, caching, or backend variants. Potential simplification
+must come from clarifying necessary behavior and containing its interactions.
 
 ## 1. Incremental load and replacement
 
@@ -49,12 +50,14 @@ store invalidation, and GUI shutdown add ordering constraints. Tests named
 `test_controller_ignores_stale_incremental_events` cover parts of this behavior;
 loader tests cover cancellation and stale appends.
 
-**Next:** construct an event/transition table showing the current and pending
-store, generation, epoch, installed prefix, and thread at each transition.
-Cross-reference each transition with tests, including close and cancellation
-under backpressure. Investigate grouping lifecycle state only after establishing
-which combinations are valid. A reduction must retain partial loading and the
-old-data/valid-prefix behavior.
+**Current status and remaining evidence:** Plan 4 records the transition table
+and bounded event-drain change; Plans 20–21 verify close during blocked parsing,
+including real wx resources on macOS Cocoa. No lifecycle abstraction was
+justified. The next measurement combines this path with derived queries and
+range changes during append; capture first-data latency, queue depth, and GUI
+tick delay on representative data. GTK/MSW behavior is a separate conditional
+check when runners are available. Do not reopen event-policy work without a
+concrete platform or responsiveness finding.
 
 ## 2. Derived-data scheduling and cache lifetime
 
@@ -78,11 +81,13 @@ tests cover in-flight deduplication and invalidation in `test_chunk_memo.py`,
 and policy-dependent prefetch keys, partial coverage, and pinned views in
 `test_oem_data_store.py`.
 
-**Next:** document, per tier, its key, input revisions, work cancellation,
-publication condition, and pin/eviction lifetime. Draw the lock and ownership
-boundaries, then examine whether the caller protocol or shared policy can be
-simplified without sacrificing range-limited computation or memory behavior.
-Measure peak memory and relevant load/query performance for any experiment.
+**Current status and remaining evidence:** Plans 5–6 mapped tier validity and
+shared query rules; Plan 30 clarified the eviction-candidate representation.
+Broader scheduler/query extraction was rejected. The unresolved measurement is
+representative peak RSS and query/load latency during the combined incremental
+load and range-change workflow, especially when pinned views keep chunks over
+budget. Include this in priority 1's workload study; it is evidence for
+profiling, not an eviction redesign.
 
 ## 3. Station access and pass boundaries
 
@@ -92,9 +97,9 @@ the store's `station_access` query, and station views.
 The interval computation tracks whether access is active, refines entry and
 exit crossings, records peak elevation and minimum range, and handles missing
 metrics, coverage edges, and segment gaps. A store query additionally deals with
-range-limited profiles and partial results. The local interval function has a
-decision score of 42 in the assessment, but the key issue is the relationship
-among these states and boundaries, rather than the score itself.
+range-limited profiles and partial results. The function's score of 42 was from
+the initial assessment baseline; the key issue is the relationship among these
+states and boundaries, rather than the score itself.
 
 **Reasoning challenge:** a pass beginning at coverage is different from a
 refined entry within valid data; missing metrics interrupt continuity; a
@@ -103,11 +108,14 @@ extrema must remain consistent with the actual interval. Existing station
 analysis tests cover partial coverage and multi-segment profiles, while store
 tests cover station profiles and interpolation-dependent support margins.
 
-**Next:** enumerate entry, exit, missing-data, gap, and coverage-edge cases in
-a small transition table, including extrema initialization and reset. Map each
-case to the lower-level access tests as well as store/view tests; identify
-uncovered combinations before considering a cohesive active-pass state object
-or other simplification. Preserve crossing refinement and clipping semantics.
+**Current status and remaining evidence:** Plan 27 grouped active interval
+metrics in `_ActiveAccessInterval`; Plan 29 rejected phase extraction because
+the query phases share state and cache/lock ordering. Existing numerical tests
+cover boundary and gap behavior. Runtime cost on large, discontinuous,
+multi-segment real inputs remains unmeasured. This is not a separate priority-1
+benchmark unless representative files or observed behavior implicate station
+queries; avoid changing numerical logic without a concrete correctness or
+performance problem.
 
 ## 4. Playback, coverage, and time ranges
 
@@ -128,11 +136,12 @@ or resuming playback. Reverse and loop behavior add endpoint cases. Existing
 clock tests cover both directions, looping, and coverage extension; time-range
 tests cover endpoint combinations, clipping, and empty ranges.
 
-**Next:** trace one fixed/follow combination and one moving-offset combination
-through seek, append, and a range drag, including UI refresh. Identify which
-layer owns rules versus resolved bounds and whether there is repeated
-coordination. Preserve the distinction between empty plot range and unloaded or
-partial coverage; do not collapse playback and plot bounds for convenience.
+**Current status and remaining evidence:** Plans 7 and 23–26 mapped refresh and
+snapshot-installation behavior, retaining separate playback and plot-bound
+rules. The highest-priority end-to-end scenario is a range drag while derived
+work is pending during incremental append. Measure it with representative OEM
+data, collecting the shared workload metrics in the priority map before
+proposing more coordination.
 
 ## 5. Snapshot-based point interpolation
 
@@ -154,10 +163,14 @@ they can share or discard behavior. Tests cover snapshot policy changes and
 point-query behavior in `test_oem_data_store.py`, and stateless samples, edges,
 and gaps in `test_stateless_interpolation.py`.
 
-**Next:** map which consumers use each cursor, their status and unit contracts,
-and how changes to raw samples or policy affect a result. Compare behavior at
-exact samples, near segment edges, and during incremental append. Simplify only
-where the same numerical and compatibility guarantees can be demonstrated.
+**Current status and remaining evidence:** Plan 10 compared both cursor paths
+across exact, interpolated, gap, and out-of-range results; Plan 28 retained the
+two metadata phases because their validation contracts differ. External
+consumers remain unknown. Treat consumer discovery as the conditional
+compatibility priority; examine partial-load behavior under live derived work
+as part of the representative workload only if it exercises these cursor
+boundaries. Do not consolidate compatibility paths without consumer and
+behavior evidence.
 
 ## 6. Panel lifecycle and GUI resources
 
@@ -166,136 +179,34 @@ and view-specific `close` methods.
 
 Opening a panel acquires a host, view, content, callbacks, and possibly a
 Matplotlib canvas or native backend resources. Replacement must keep or restore
-the old panel if construction fails. Different resources become available at
-different points, so rollback depends on how far construction progressed.
+the old panel if construction fails. Resources become available at different
+stages, so rollback remains stage-specific.
 
-Application startup has a separate rollback boundary: if `PlayerApp` GUI
-construction fails, it releases the clock observer, timer, completed
-workspace, and frame acquired so far, while preserving the process-level
-`wx.App`. The failure-injection evidence and native-wx limitation are recorded
-in [plan 14](./PLAY_OEM_COMPLEXITY_14_PARTIAL_GUI_STARTUP_CLEANUP_PLAN.md).
+**Verified:** Plan 12 centralized low-level resource release; Plan 14 established
+partial-startup rollback while keeping transaction cleanup explicit. Plan 15
+rejected a shared result classifier because views have distinct partial/empty
+presentation rules. Plans 16 and 20–21 verified native startup and active-load
+cleanup on macOS Cocoa.
+Plans 17–19 found no available GTK/MSW runner and added no speculative CI.
+Detailed evidence and tests remain in the individual plan documents linked
+from the [assessment](./PLAY_OEM_COMPLEXITY_2_ASSESSMENT.md).
 
-The panel/view resource-acquisition and cleanup paths are mapped in
-[plan 12](./PLAY_OEM_COMPLEXITY_12_PANEL_VIEW_LIFECYCLE_PLAN.md), and
-application partial-startup cleanup is covered in
-[plan 14](./PLAY_OEM_COMPLEXITY_14_PARTIAL_GUI_STARTUP_CLEANUP_PLAN.md).
-The [plan 15 result-state comparison](./PLAY_OEM_COMPLEXITY_15_STORE_VIEW_RESULT_STATE_PLAN.md)
-found distinct view-specific query and presentation rules; no shared result
-classifier or resource-ownership change was justified. Native wx partial
-startup cleanup was verified on macOS Cocoa in
-[plan 16](./PLAY_OEM_COMPLEXITY_16_NATIVE_WX_STARTUP_CLEANUP_PLAN.md); other
-wx backends and versions remain unverified. Plan 17 completed a runner
-feasibility review: this environment has no Linux/GTK or Windows/MSW runner,
-local container runtime, or repository workflow configuration, so cross-platform
-execution is blocked. The macOS result must not be generalized; continuing
-requires access to GTK/Linux and MSW/Windows runners. Evidence and limitations
-are recorded in
-[plan 17](./PLAY_OEM_COMPLEXITY_17_CROSS_PLATFORM_WX_CLEANUP_PLAN.md).
-The next step is the separately scoped runner-enablement investigation in
-[plan 18](./PLAY_OEM_COMPLEXITY_18_WX_CI_RUNNER_ENABLEMENT_PLAN.md), which first
-proves hosted wxGTK/Xvfb and wxMSW desktop feasibility before proposing minimal
-CI jobs. Self-hosted infrastructure and broader compatibility matrices remain
-out of scope.
-Plan 18 found zero configured GitHub Actions workflows and no way in this
-session to validate hosted policy or actual non-macOS execution. It added no
-workflow; GTK/MSW remain blocked until hosted workflow execution is authorized
-or platform runners are provided.
-Plan 19's hosted runner pilot is deferred: the available environment is
-macOS-only and Ubuntu/Windows access is unavailable. No workflow was added or
-triggered. Resume the pilot only when non-macOS runner access is available:
-[plan 19](./PLAY_OEM_COMPLEXITY_19_HOSTED_WX_TEST_PILOT_PLAN.md).
-The next local investigation is active incremental-load shutdown on macOS,
-checking cancellation, timer/observer cleanup, and rejection of late events
-without changing cross-platform status:
-[plan 20](./PLAY_OEM_COMPLEXITY_20_ACTIVE_LOAD_SHUTDOWN_PLAN.md).
-Plan 20 confirmed the existing blocked-parser close test covers cancellation,
-store closure, and absence of post-close appends; the focused loader/app tests
-passed (11 passed) on macOS, with no production change.
-Plan 21 is the next macOS-only validation: combine that active-load shutdown
-case with real wx resources and deterministic parser blocking, while keeping
-the GTK/MSW runner work deferred:
-[plan 21](./PLAY_OEM_COMPLEXITY_21_NATIVE_WX_ACTIVE_LOAD_SHUTDOWN_PLAN.md).
-Plan 21 passed on macOS Cocoa (wxPython 4.2.4 / wxWidgets 3.2.8); the full
-app lifecycle suite passed (98 passed). Real wx shutdown during blocked OEM
-parsing cancelled the loader, stopped the timer, closed workspace/store,
-preserved `wx.App`, and prevented a late append. GTK/MSW remain unverified.
-The next step is to re-rank remaining candidates against the complexity
-strategy and either select one evidence-backed investigation or pause the
-sequence:
-[plan 22](./PLAY_OEM_COMPLEXITY_22_CANDIDATE_RERANKING_PLAN.md).
-Plan 22 found no remaining candidate meeting the evidence, complexity-benefit,
-and validation criteria. The current sequence is paused; reopen it only when
-new evidence or non-macOS runner access becomes available.
-On closer source comparison, `_install_store_snapshot` has the same pending
-playback-bounds decision in its first-append and later-append paths, with a
-distinct later-only follow-coverage case. Plan 23 evaluates a narrow
-deduplication as an actual complexity-reduction experiment:
-[plan 23](./PLAY_OEM_COMPLEXITY_23_SNAPSHOT_INSTALLATION_DEDUPLICATION_PLAN.md).
-The duplicated pending-bounds decision was consolidated in
-`_apply_pending_playback_bounds`; first-append anchoring and later-append
-follow-coverage logic remain distinct. The focused app, clock, and time-range
-suites passed (162 passed) on macOS.
-The next concrete reduction candidate is the three exception-safe toggles of
-`_installing_incremental_batch` around synchronous clock/cursor operations.
-Plan 24 tests whether one scoped guard clarifies that invariant without
-obscuring the actual operations:
-[plan 24](./PLAY_OEM_COMPLEXITY_24_BATCH_INSTALL_GUARD_PLAN.md).
-The three manual set/try/finally/reset sequences now use
-`_installing_incremental_update`, which restores the prior state on exceptions.
-The app, clock, and time-range suites passed (163 passed) on macOS.
-The next code-directed experiment is to test whether first-append replacement
-setup and subsequent-append advancement within `_install_store_snapshot` form
-clear, cohesive phases distinct from their shared metadata/view-context tail.
-Plan 25 rejects code movement without a measurable reduction in reasoning:
-[plan 25](./PLAY_OEM_COMPLEXITY_25_SNAPSHOT_INSTALLATION_PHASES_PLAN.md).
-The snapshot installer now dispatches to `_install_first_store_snapshot` or
-`_advance_store_snapshot`, then applies shared metadata and view-context
-updates once. The app/loader/clock/range suites passed (173 passed) on macOS.
-The next code-directed experiment is to review `_poll_incremental_load` for a
-clear boundary between per-event transitions and once-per-tick UI aggregation,
-without introducing a shared lifecycle abstraction or unnecessary result
-plumbing:
-[plan 26](./PLAY_OEM_COMPLEXITY_26_INCREMENTAL_EVENT_ROUTING_PLAN.md).
-Plan 26 found that per-event helpers would add result plumbing or hide state
-mutation without reducing policy duplication. The existing loop keeps FIFO
-transitions and once-per-tick aggregation together; app/loader tests passed
-(109 passed) on macOS, with no production change.
-The active start/extrema/end metrics are now held by `_ActiveAccessInterval`;
-the loop uses a single optional state and clears it on gap/exit. Store and
-station suites passed (113 passed, 1 display-dependent skip) on macOS.
-[plan 27](./PLAY_OEM_COMPLEXITY_27_STATION_INTERVAL_STATE_PLAN.md).
-The next targeted candidate is repeated interpretation of the same
-interpolation metadata fields in snapshot and completion phases; plan 28 keeps
-those phases distinct:
-[plan 28](./PLAY_OEM_COMPLEXITY_28_INTERPOLATION_METADATA_PLAN.md).
-Plan 28 rejected extraction because the repeated normalization is trivial and
-an abstraction would obscure when provisional versus validated metadata is
-applied. The app/loader/store/interpolation suites passed (206 passed) on
-macOS, with no source change.
-The next candidate is the long station-access store query. Plan 29 evaluates a
-single local phase boundary across query preparation, profile/interval
-assembly, and coverage/cache finalization, without generalizing its
-station-specific behavior:
-[plan 29](./PLAY_OEM_COMPLEXITY_29_STATION_QUERY_PHASES_PLAN.md).
-Plan 29 found no cohesive helper contract: candidate extractions would move
-multiple accumulators and split shared cache/lock ordering. The station/store/
-analysis/view suites passed (113 passed, 1 display-dependent skip) on macOS;
-no code change was made.
-The active start/extrema/end metrics are now held by `_ActiveAccessInterval`;
-the loop uses a single optional state and clears it on gap/exit. Store and
-station suites passed (113 passed, 1 display-dependent skip) on macOS.
+**Remaining evaluation:** GTK/MSW teardown and native VTK widget lifecycle are
+unverified. Fake-widget tests do not establish native event or resource
+behavior. This is conditional on suitable runners or a concrete lifecycle
+failure; it is not a reason to block the representative workload study.
 
-Plan 30 replaced the ten-position derived-buffer eviction tuple with a frozen
-record whose named fields clarify accounting, ordering, and release. The
-single eviction loop and tier-specific behavior remain unchanged; store and
-chunk-memo tests passed (87 tests):
-[plan 30](./PLAY_OEM_COMPLEXITY_30_EVICTION_CANDIDATE_SHAPE_PLAN.md).
+## Cross-cutting evidence gaps
 
-## Scope and follow-up
+The first work phase is a representative end-to-end measurement of incremental
+load, derived work, and range changes, capturing first-data/query latency, GUI
+tick delay, queue depth, peak RSS, and pinned-view memory. The second is an
+internal dependency and responsibility map that accounts for imports, calls,
+callbacks, dynamic registration, and state ownership. Neither phase presumes a
+refactor.
 
-This review identifies the main logical interactions visible in the inspected
-paths; it is not an exhaustive proof of all states or test coverage. The first
-deliverable should be the load transition table, followed by the cache validity
-and lifetime matrix. Use concrete traces and existing tests to refine the
-ranking; treat any proposed reduction as an experiment with explicit invariants
-and before/after evidence.
+Platform availability, external compatibility evidence, and longer-term
+maintenance trends remain conditional or deferred as ranked in the assessment.
+Promote a code change only when these observations identify a specific
+repeated rule or costly ownership interaction and a bounded change can be
+validated without weakening behavior.

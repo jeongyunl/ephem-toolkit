@@ -82,17 +82,18 @@ invariants, and error, cancellation, and cleanup paths. Compare the trace with
 the existing dataflow documentation and note discrepancies separately from
 proposed design changes.
 
-Start with **replacing an OEM while an incremental load is active**. It exercises
-generation changes, cancellation, event delivery, store replacement, snapshots,
-view refresh, and cleanup. Follow both successful replacement and failure or
-cancellation; establish what happens to late events and previously visible data.
+The replacement-during-load trace is complete; see the
+[load lifecycle plan](./PLAY_OEM_COMPLEXITY_4_LOAD_LIFECYCLE_PLAN.md) and
+[subsystem research](./PLAY_OEM_COMPLEXITY_3_SUBSYSTEMS.md). Reuse its
+transition and test map rather than repeating that investigation. The next
+vertical trace should target the remaining evidence gap: change a plot range
+while derived work is pending during incremental append, using representative
+OEM data and recording queue depth, GUI tick delay, and query/load latency.
 
-Then sample these other behaviors:
-
-1. Open an OEM and display its first usable data, then finish loading.
-2. Advance or seek playback, including a segment gap and reverse playback.
-3. Change the plot range while derived data is pending, then refresh a view.
-4. Close a panel or the application while work is pending.
+Existing tests and investigations already cover first usable data, playback
+across gaps and in reverse, range rules, and shutdown with work pending. Extend
+those traces only when needed to interpret the representative-workload
+measurements or investigate an observed behavior.
 
 For each trace, count components crossed, asynchronous handoffs, and distinct
 state transitions as aids to discussion. Record the assumptions needed to
@@ -108,11 +109,12 @@ cache lifetime, playback, ranges, configuration, panel lifecycle, rendering,
 and station analysis. Capture important invariants and the interfaces through
 which each responsibility is accessed.
 
-Review the store and controller first, then compare a representative history
-view, Ground Track, a station view, and both 3D backends. Look for duplicated
-policy, knowledge of another component's internals, and changes that require
-coordinated edits in several places. Also record useful separation already
-present so it is preserved.
+Build the currently missing import/call and responsibility map across the
+store, controller, representative views, and both 3D backends. Look for
+cycles, dependency depth, duplicated policy, knowledge of another component's
+internals, and changes that require coordinated edits in several places.
+Account for callbacks and dynamic registration that an import graph misses,
+and record useful separation already present so it is preserved.
 
 ### 3. Maintain a reproducible baseline
 
@@ -144,15 +146,22 @@ use judgment rather than presenting a calculated score as fact. Distinguish
 inherent domain and performance complexity from complexity caused by the
 current design.
 
-Choose one or two bounded experiments only after the traces and baseline. For
-example:
+Choose a bounded evidence-gathering experiment before proposing a code change.
+The current candidates are:
 
-- Sketch an explicit load-generation lifecycle and event ownership contract;
-  check it against late events, failed replacement, and shutdown tests.
-- Explore a narrower internal boundary around a store responsibility, retaining
-  one raw-data owner and checking snapshot, cache, and concurrency invariants.
-- Compare a shared view lifecycle helper against two or three actual views,
-  including one with different rendering needs, before generalizing it.
+- Measure a representative incremental-load and range-change workflow,
+  capturing first-data latency, GUI tick delay, queue depth, peak memory, and
+  pinned-view behavior. Stop if the results do not identify a material cost.
+- Map internal dependencies and responsibilities, then validate any apparent
+  boundary against real call paths, callbacks, and state ownership. Do not split
+  a module based on size or the map alone.
+- Verify GTK/MSW and native VTK behavior when suitable runners are available;
+  do not infer native behavior from fake widgets or add speculative CI.
+
+External compatibility and longer-term maintenance frequency are evidence
+gaps, not immediate refactoring experiments. Seek consumer evidence before
+changing compatibility paths, and revisit history-based conclusions only after
+a longer period of ordinary maintenance.
 
 Each experiment should state a hypothesis, expected benefit, affected
 interfaces and invariants, and a way to reject it. Compare the same trace,
@@ -162,55 +171,27 @@ volume. Account for new indirection and concepts as well as code removed or
 moved. A sketch or small prototype is sufficient if it exposes the tradeoff;
 production refactoring is a separate decision.
 
-## First effort: OEM replacement during loading
+## Reprioritized execution
 
-The detailed behavior, implementation checklist, and completion criteria are in
-the [load lifecycle plan](./PLAY_OEM_COMPLEXITY_4_LOAD_LIFECYCLE_PLAN.md).
+The lifecycle and selected follow-on investigations through Plan 31 are
+summarized in the [assessment](./PLAY_OEM_COMPLEXITY_2_ASSESSMENT.md); detailed
+traces and decisions remain in their linked plans and the subsystem research.
+They produced bounded local simplifications and rejected abstractions that
+were not supported by evidence. The next work should establish missing
+operational and architectural facts, not repeat completed code reviews:
 
-Start with **replacing an OEM while incremental loading is active**. This
-behavior crosses the loader, store, controller, and views, and makes both
-local complexity and cross-component coordination visible. The objective is to
-develop a repeatable way to reduce complexity while preserving observable
-behavior, not to begin with a broad file split or a package-wide line target.
+1. Measure representative OEM load, derived-query, and range-change behavior
+   together, including first-data latency, GUI responsiveness, queue depth,
+   peak RSS, and memory held by pinned views.
+2. Map internal dependencies and responsibility ownership, including callbacks
+   and dynamic registration, to test whether boundaries are clear and where
+   changes actually require coordinated edits.
+3. Use platform, compatibility, and maintenance evidence conditionally:
+   validate GTK/MSW and native VTK when runners exist; seek external consumer
+   evidence before changing compatibility paths; revisit history after several
+   months of ordinary maintenance.
 
-1. **Establish the contract.** Create a transition table for load, first
-   append, replacement, completion, failure, cancellation, and close. Record
-   the current and pending stores, generation, epoch, owning thread, and visible
-   data. Link each transition to existing tests and identify meaningful gaps.
-   In particular, check old-data retention before a replacement is usable,
-   valid-prefix behavior after a later failure, and rejection of stale events.
-2. **Identify costly coordination.** Use the table to find related flags,
-   state, or ordering rules maintained across components, including obligations
-   imposed on callers. Distinguish necessary asynchronous behavior from
-   avoidable duplication or distributed coordination.
-3. **Try one bounded change.** For example, prototype a more explicit
-   load-lifecycle state or contract. Compare the same behavior trace and tests,
-   state relationships, caller obligations, and relevant performance before and
-   after. Keep the change only if it reduces the rules needed to understand the
-   behavior without moving equivalent complexity elsewhere or weakening the
-   contract.
-
-Use what this first effort teaches to refine the method and priorities. The
-assessment next prioritized derived-data scheduling and cache lifetime, where
-epochs, in-flight work, partial coverage, and pinned views interact. The
-[logical-complexity research](./PLAY_OEM_COMPLEXITY_3_SUBSYSTEMS.md) describes
-these interactions; the [assessment](./PLAY_OEM_COMPLEXITY_2_ASSESSMENT.md)
-records the baseline and work-item inventory.
-
-The expected output is a transition table, a responsibility and invariants map,
-test evidence, and a decision on whether a bounded change improves the design.
-Update the existing assessment as findings and priorities change.
-
-## Execution status
-
-The lifecycle effort and prioritized follow-on investigations through Plan 30
-are recorded in the [assessment](./PLAY_OEM_COMPLEXITY_2_ASSESSMENT.md), with
-detailed traces and decisions in the linked plans and subsystem research. They
-produced several bounded local simplifications and rejected other abstractions
-where evidence did not support them. The current review is complete for the
-available evidence; Plan 31 found that the repository's Play-OEM history spans
-only 27 days and does not justify a new implementation candidate. This is not
-an exhaustive audit of every runtime, external caller, or platform. Reopen the
-work when longer-term maintenance evidence, representative performance data,
-a reproducible defect, or access to GTK/MSW runners supports a concrete
-candidate.
+The [assessment's current evidence priorities](./PLAY_OEM_COMPLEXITY_2_ASSESSMENT.md#current-evidence-priorities)
+owns the detailed limits and next observations. Do not select a production
+refactor unless measurements or dependency evidence identify a concrete rule,
+ownership boundary, or coordination cost that can be reduced and validated.
