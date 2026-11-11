@@ -285,6 +285,12 @@ The active start/extrema/end metrics are now held by `_ActiveAccessInterval`;
 the loop uses a single optional state and clears it on gap/exit. Store and
 station suites passed (113 passed, 1 display-dependent skip) on macOS.
 
+Plan 30 replaced the ten-position derived-buffer eviction tuple with a frozen
+record whose named fields clarify accounting, ordering, and release. The
+single eviction loop and tier-specific behavior remain unchanged; store and
+chunk-memo tests passed (87 tests):
+[plan 30](./PLAY_OEM_COMPLEXITY_30_EVICTION_CANDIDATE_SHAPE_PLAN.md).
+
 ## Scope and follow-up
 
 This review identifies the main logical interactions visible in the inspected

@@ -441,6 +441,20 @@ class RowSpan:
 
 
 @dataclass(frozen=True)
+class _EvictionCandidate:
+    access_order: int
+    buffer_id: int
+    kind: Literal["series", "earth-fixed", "station-access"]
+    chunk_index: int
+    buffer: np.ndarray
+    memo: ChunkMemo[int, RowSpan]
+    ready: np.ndarray
+    row_count: int
+    columns: int
+    size_bytes: int
+
+
+@dataclass(frozen=True)
 class QueryRequest:
     """Request for a lazy derived-tier range."""
 
@@ -2696,20 +2710,7 @@ class OemDataStore:
 
     def _evict_derived_buffers(self) -> None:
         with self._derived_compute_lock, self._lock:
-            candidates: list[
-                tuple[
-                    int,
-                    int,
-                    Literal["series", "earth-fixed", "station-access"],
-                    int,
-                    np.ndarray,
-                    ChunkMemo[int, RowSpan],
-                    np.ndarray,
-                    int,
-                    int,
-                    int,
-                ]
-            ] = []
+            candidates: list[_EvictionCandidate] = []
 
             def add_candidates(
                 kind: Literal["series", "earth-fixed", "station-access"],
@@ -2738,17 +2739,23 @@ class OemDataStore:
                     )
                     chunk_key = (buffer_id, chunk_index)
                     candidates.append(
-                        (
-                            self._chunk_access_order.get(chunk_key, 0),
-                            buffer_id,
-                            kind,
-                            chunk_index,
-                            buffer,
-                            memo,
-                            ready,
-                            row_count,
-                            columns,
-                            chunk_rows * columns * np.dtype(np.float64).itemsize,
+                        _EvictionCandidate(
+                            access_order=self._chunk_access_order.get(
+                                chunk_key, 0
+                            ),
+                            buffer_id=buffer_id,
+                            kind=kind,
+                            chunk_index=chunk_index,
+                            buffer=buffer,
+                            memo=memo,
+                            ready=ready,
+                            row_count=row_count,
+                            columns=columns,
+                            size_bytes=(
+                                chunk_rows
+                                * columns
+                                * np.dtype(np.float64).itemsize
+                            ),
                         )
                     )
 
@@ -2782,7 +2789,7 @@ class OemDataStore:
                     len(STATION_PROFILE_COLUMNS),
                     self._policy_revision,
                 )
-            resident_bytes = sum(candidate[-1] for candidate in candidates)
+            resident_bytes = sum(candidate.size_bytes for candidate in candidates)
             resident_bytes += sum(
                 sum(group.values.nbytes for group in query.value)
                 for query in self._ground_track_cache.values()
@@ -2803,22 +2810,18 @@ class OemDataStore:
             if advice is None or not hasattr(mmap.mmap, "madvise"):
                 return
 
-            for candidate in sorted(candidates, key=lambda item: item[:4]):
+            for candidate in sorted(
+                candidates,
+                key=lambda item: (
+                    item.access_order,
+                    item.buffer_id,
+                    item.kind,
+                    item.chunk_index,
+                ),
+            ):
                 if resident_bytes <= self._derived_memory_budget_bytes:
                     break
-                (
-                    _,
-                    buffer_id,
-                    kind,
-                    chunk_index,
-                    buffer,
-                    memo,
-                    ready,
-                    row_count,
-                    columns,
-                    chunk_bytes,
-                ) = candidate
-                chunk_key = (buffer_id, chunk_index)
+                chunk_key = (candidate.buffer_id, candidate.chunk_index)
                 if self._pinned_chunks.get(chunk_key, 0):
                     continue
                 if any(
@@ -2827,35 +2830,37 @@ class OemDataStore:
                 ):
                     continue
 
-                chunk_start = chunk_index * DERIVED_CHUNK_SIZE
-                chunk_stop = min(chunk_start + DERIVED_CHUNK_SIZE, row_count)
+                chunk_start = candidate.chunk_index * DERIVED_CHUNK_SIZE
+                chunk_stop = min(
+                    chunk_start + DERIVED_CHUNK_SIZE, candidate.row_count
+                )
 
                 def release_chunk() -> None:
                     _madvise_chunk(
-                        buffer,
-                        chunk_index,
-                        row_count,
-                        columns,
+                        candidate.buffer,
+                        candidate.chunk_index,
+                        candidate.row_count,
+                        candidate.columns,
                         advice,
                     )
-                    ready[chunk_start:chunk_stop] = False
+                    candidate.ready[chunk_start:chunk_stop] = False
 
-                if not memo.evict(
-                    chunk_index,
+                if not candidate.memo.evict(
+                    candidate.chunk_index,
                     release_chunk,
                     epoch=self._epoch,
                     policy_revision=(
                         self._policy_revision
-                        if kind == "station-access"
+                        if candidate.kind == "station-access"
                         else 0
                     ),
                 ):
                     continue
-                if kind == "station-access":
+                if candidate.kind == "station-access":
                     self._station_interval_cache.clear()
                 self._chunk_access_order.pop(chunk_key, None)
                 self._chunk_ranges.pop(chunk_key, None)
-                resident_bytes -= chunk_bytes
+                resident_bytes -= candidate.size_bytes
 
     def _earth_fixed_storage(
         self, snapshot: StoreSnapshot
