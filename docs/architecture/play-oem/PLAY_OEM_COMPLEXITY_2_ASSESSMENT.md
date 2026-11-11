@@ -675,3 +675,18 @@ only for macOS Cocoa; GTK, MSW, and other wxPython versions remain unverified.
 The test's display-free skip branch was reviewed but not executed because this
 environment reports a native display. Raw-ingestion and load-event leads
 remain deferred; no next implementation candidate is selected.
+
+## Cross-platform wx cleanup verification — 2026-11-11
+
+Plan 17 completed the runner-feasibility check. The current host is macOS;
+there is no Linux/GTK or Windows/MSW host, no `xvfb-run` or local container
+runtime, and no `.github/workflows` configuration. Linux and Windows runs are
+therefore **blocked**, not passed or skipped. The known macOS Cocoa result
+remains limited to the 97-pass app lifecycle suite recorded above.
+
+No CI infrastructure or production change was added: cross-platform teardown
+behavior and backend-specific assertion reliability remain unverified. The
+next actionable step requires access to a Linux runner with wxGTK and Xvfb and
+a desktop-capable Windows runner. The feasibility evidence and explicit
+limitations are recorded in
+[PLAY_OEM_COMPLEXITY_17_CROSS_PLATFORM_WX_CLEANUP_PLAN.md](./PLAY_OEM_COMPLEXITY_17_CROSS_PLATFORM_WX_CLEANUP_PLAN.md).

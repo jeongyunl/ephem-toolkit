@@ -184,7 +184,13 @@ found distinct view-specific query and presentation rules; no shared result
 classifier or resource-ownership change was justified. Native wx partial
 startup cleanup was verified on macOS Cocoa in
 [plan 16](./PLAY_OEM_COMPLEXITY_16_NATIVE_WX_STARTUP_CLEANUP_PLAN.md); other
-wx backends and versions remain unverified.
+wx backends and versions remain unverified. Plan 17 completed a runner
+feasibility review: this environment has no Linux/GTK or Windows/MSW runner,
+local container runtime, or repository workflow configuration, so cross-platform
+execution is blocked. The macOS result must not be generalized; continuing
+requires access to GTK/Linux and MSW/Windows runners. Evidence and limitations
+are recorded in
+[plan 17](./PLAY_OEM_COMPLEXITY_17_CROSS_PLATFORM_WX_CLEANUP_PLAN.md).
 
 ## Scope and follow-up
 
