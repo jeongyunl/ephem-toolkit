@@ -513,21 +513,18 @@ class GroundStationAccessView:
                     interval.limited_by_gap_at_start or interval.limited_by_gap_at_end
                 )
                 coverage_limited = interval.clipped_at_start or interval.clipped_at_end
-                label = (
-                    "Gap-limited access"
-                    if gap_limited
-                    else (
-                        "Coverage-limited access"
-                        if coverage_limited
-                        else "Access interval"
-                    )
-                )
+                if gap_limited:
+                    label, hatch = "Gap-limited access", "xx"
+                elif coverage_limited:
+                    label, hatch = "Coverage-limited access", "//"
+                else:
+                    label, hatch = "Access interval", None
                 axes.axvspan(
                     left,
                     right,
                     color="#2f7ebc",
                     alpha=0.12,
-                    hatch="xx" if gap_limited else ("//" if coverage_limited else None),
+                    hatch=hatch,
                     label=label if label not in interval_labels else "_nolegend_",
                 )
                 interval_labels.add(label)

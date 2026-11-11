@@ -33,9 +33,10 @@ decision criteria.
 | 7 — complete | [Review pass endpoint look-angle policy](./PLAY_OEM_COMPLEXITY_41_PASS_ENDPOINT_LOOK_ANGLE_POLICY_PLAN.md). | [Playback/ranges](#4-playback-coverage-and-time-ranges) and Ground Station Passes rendering. | Shared endpoint normalization locally; the two methods plus helper decreased from 124 to 115 lines and score 42 to 36. Focused suite passed (27, 1 skipped); no view split. |
 | 8 — complete | [Review sky-plot empty-state rendering](./PLAY_OEM_COMPLEXITY_42_SKY_PLOT_EMPTY_STATE_RENDERING_PLAN.md). | Ground Station Passes rendering. | Reused shared centered text options; `_draw_sky_plot` decreased from 172 to 157 lines with decision score unchanged at 27. Focused suite passed (28, 1 skipped); state precedence remains inline. |
 | 9 — complete | [Review sky-plot layout padding](./PLAY_OEM_COMPLEXITY_43_SKY_PLOT_LAYOUT_PADDING_PLAN.md). | Ground Station Passes rendering. | Shared one subplot adjustment; `_draw_sky_plot` decreased from 157 to 152 lines with score unchanged at 27. Focused suite passed (29, 1 skipped); exact margins and legend ordering preserved. |
-| 10 — deferred indefinitely | [Hosted wx test pilot](./PLAY_OEM_COMPLEXITY_19_HOSTED_WX_TEST_PILOT_PLAN.md). | [Load shutdown](#1-incremental-load-and-replacement) and [panel/native lifecycle](#6-panel-lifecycle-and-gui-resources). | GTK/MSW and native VTK behavior remains unverified. Do not resume without explicit reprioritization. |
-| 11 — deferred indefinitely | [Measure representative load, derived-query, and range-change behavior](./PLAY_OEM_COMPLEXITY_32_REPRESENTATIVE_LOAD_MEASUREMENT_PLAN.md). | [Load/replacement](#1-incremental-load-and-replacement), [derived cache](#2-derived-data-scheduling-and-cache-lifetime), and [playback/ranges](#4-playback-coverage-and-time-ranges). | No execution is scheduled. Resume only after explicit reprioritization; measurements remain operating constraints, not optimization targets. |
-| 12 — deferred | Reassess maintenance trends. | See the [assessment](./PLAY_OEM_COMPLEXITY_2_ASSESSMENT.md) for history findings. | Available source history spans only 27 days; revisit after several months of ordinary maintenance. |
+| 10 — complete | [Review access-graph interval annotation](./PLAY_OEM_COMPLEXITY_44_ACCESS_GRAPH_INTERVAL_ANNOTATION_PLAN.md). | Ground Station Access rendering. | Selected label and hatch together; `_draw_elevation_graph` decreased from 122 to 119 lines and score from 26 to 24. Focused suite passed (5); gap precedence and legend de-duplication preserved. |
+| 11 — deferred indefinitely | [Hosted wx test pilot](./PLAY_OEM_COMPLEXITY_19_HOSTED_WX_TEST_PILOT_PLAN.md). | [Load shutdown](#1-incremental-load-and-replacement) and [panel/native lifecycle](#6-panel-lifecycle-and-gui-resources). | GTK/MSW and native VTK behavior remains unverified. Do not resume without explicit reprioritization. |
+| 12 — deferred indefinitely | [Measure representative load, derived-query, and range-change behavior](./PLAY_OEM_COMPLEXITY_32_REPRESENTATIVE_LOAD_MEASUREMENT_PLAN.md). | [Load/replacement](#1-incremental-load-and-replacement), [derived cache](#2-derived-data-scheduling-and-cache-lifetime), and [playback/ranges](#4-playback-coverage-and-time-ranges). | No execution is scheduled. Resume only after explicit reprioritization; measurements remain operating constraints, not optimization targets. |
+| 13 — deferred | Reassess maintenance trends. | See the [assessment](./PLAY_OEM_COMPLEXITY_2_ASSESSMENT.md) for history findings. | Available source history spans only 27 days; revisit after several months of ordinary maintenance. |
 
 These are evidence-collection priorities, not proposals to remove domain rules,
 asynchronous loading, caching, or backend variants. Potential simplification
@@ -258,10 +259,11 @@ Passes view; its shared helper retained the distinct coverage and interpolation
 rules and reduced the combined decision score. Plan 42 reused centered
 status-text options without moving its message-selection branches or changing
 precedence; it did not split the view. Plan 43 shared subplot-padding setup
-while preserving the two margins and legend ordering. No further production
-refactor is selected. Plan 19's platform validation, Plan 32's workload study,
-and longer-term maintenance review remain deferred indefinitely as ranked in
-the assessment.
+while preserving the two margins and legend ordering. Plan 44 paired access
+interval labels and hatches without changing gap precedence or legend
+de-duplication. No further production refactor is selected. Plan 19's platform
+validation, Plan 32's workload study, and longer-term maintenance review
+remain deferred indefinitely as ranked in the assessment.
 Promote a follow-on code change only when evidence identifies a specific
 repeated rule or costly ownership interaction and a bounded change can be
 validated without weakening behavior.

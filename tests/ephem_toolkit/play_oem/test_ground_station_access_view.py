@@ -103,6 +103,70 @@ def test_elevation_graph_only_plots_values_at_or_above_station_mask() -> None:
     view.close()
 
 
+def test_interval_annotation_precedence_and_legend_deduplication() -> None:
+    station = GroundStation("station", "Site", 0.0, 0.0, 0.0, 10)
+    intervals = (
+        AccessInterval(1.0, 3.0, 20.0, 2.0, 2.0, 10.0),
+        AccessInterval(5.0, 7.0, 20.0, 6.0, 2.0, 10.0, clipped_at_start=True),
+        AccessInterval(
+            9.0,
+            11.0,
+            20.0,
+            10.0,
+            2.0,
+            10.0,
+            limited_by_gap_at_start=True,
+        ),
+        AccessInterval(
+            13.0,
+            15.0,
+            20.0,
+            14.0,
+            2.0,
+            10.0,
+            clipped_at_end=True,
+            limited_by_gap_at_start=True,
+        ),
+        AccessInterval(
+            17.0,
+            19.0,
+            20.0,
+            18.0,
+            2.0,
+            10.0,
+            limited_by_gap_at_end=True,
+        ),
+    )
+    profile = ElevationProfile(
+        np.asarray([0.0, 10.0, 20.0, 30.0]),
+        np.asarray([20.0, 20.0, 20.0, 20.0]),
+    )
+    view = _access_view([station])
+    view._access_results = (
+        StationAccess(station, intervals, elevation_profiles=(profile,)),
+    )
+    _figure_canvas(view)
+
+    view._draw_elevation_plot()
+
+    assert len(view._axes.patches) == 5
+    assert [patch.get_hatch() for patch in view._axes.patches] == [
+        None,
+        "//",
+        "xx",
+        "xx",
+        "xx",
+    ]
+    assert [patch.get_label() for patch in view._axes.patches] == [
+        "Access interval",
+        "Coverage-limited access",
+        "Gap-limited access",
+        "_nolegend_",
+        "_nolegend_",
+    ]
+    view.close()
+
+
 def test_timeline_x_axis_tracks_plot_range_and_empty_range() -> None:
     station = GroundStation("station", "Site", 0.0, 0.0, 0.0, 0)
     view = _access_view([station])
