@@ -328,9 +328,9 @@ class PanelManagementMixin:
         except Exception:
             if replacing is None:
                 self._open_panels.pop(panel_id, None)
-            if self._open_views.get(name) is not None:
-                if self._open_views[name].panel_id == panel_id:
-                    self._open_views.pop(name)
+                if self._open_views.get(name) is not None:
+                    if self._open_views[name].panel_id == panel_id:
+                        self._open_views.pop(name)
             _release_view_resources(view, canvas, click_callback_id, unsubscribe)
             if panel is not None:
                 try:

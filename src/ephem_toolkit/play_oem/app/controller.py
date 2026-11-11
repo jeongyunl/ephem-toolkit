@@ -1350,8 +1350,6 @@ class PlayerApp(
                     self.status_bar.set_message("")
                     data_changed = True
                     load_completed = True
-                if self._range_dragging:
-                    self._set_range_dragging(False)
             elif event.kind is LoadEventKind.FAILED:
                 message = str(event.error) if event.error is not None else "unknown error"
                 prefix = (
@@ -1370,8 +1368,11 @@ class PlayerApp(
                     self._store_view_context = self._store_view_context.refresh()
                     self._queue_store_view_refresh()
                     self._incremental_view_refresh_pending = True
-                if self._range_dragging:
-                    self._set_range_dragging(False)
+            if (
+                event.kind in (LoadEventKind.COMPLETE, LoadEventKind.FAILED)
+                and self._range_dragging
+            ):
+                self._set_range_dragging(False)
         if data_changed and self._oem_loaded:
             self.workspace.update_oem_information(
                 self._formatted_dashboard_context(),

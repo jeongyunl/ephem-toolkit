@@ -164,6 +164,13 @@ The current candidates and holds are:
   [Plan 36](./PLAY_OEM_COMPLEXITY_36_OEM_CURSOR_RETIREMENT_FEASIBILITY_PLAN.md)
   records the completed single-`StoreCursor` design. Reopen it only for a
   concrete cursor correctness or lifecycle regression.
+- [Plan 37](./PLAY_OEM_COMPLEXITY_37_SAVED_STATE_VALIDATION_BOUNDARY_PLAN.md)
+  completed with no shared validation helper: it would add error plumbing
+  without reducing rules or caller obligations. [Plan 38](./PLAY_OEM_COMPLEXITY_38_PANEL_OPEN_PREFLIGHT_PLAN.md)
+  retained the inline preflight and fixed failed replacement losing the old
+  default-view lookup. [Plan 39](./PLAY_OEM_COMPLEXITY_39_TERMINAL_LOAD_CLEANUP_PLAN.md)
+  deduplicated terminal drag cleanup while retaining the single event loop.
+  No broader refactor was selected.
 - The hosted native wx pilot in
   [Plan 19](./PLAY_OEM_COMPLEXITY_19_HOSTED_WX_TEST_PILOT_PLAN.md) is deferred
   indefinitely. Do not resume it without explicit reprioritization, even if
@@ -205,7 +212,13 @@ Do not repeat the map or begin a broad refactor without new evidence:
 3. Keep the completed cursor retirement under
    [Plan 36](./PLAY_OEM_COMPLEXITY_36_OEM_CURSOR_RETIREMENT_FEASIBILITY_PLAN.md)
    as the current design; reopen only for a concrete regression.
-4. Keep the hosted wx pilot in
+4. Keep [Plan 37](./PLAY_OEM_COMPLEXITY_37_SAVED_STATE_VALIDATION_BOUNDARY_PLAN.md)
+   complete with its no-change result. Plan 38 kept its preflight inline and
+   fixed the failed-replacement lookup regression. Plan 39 deduplicated the
+   terminal range-drag reset without extracting event handlers. Reopen these
+   decisions only for a concrete regression or new evidence of net
+   simplification.
+5. Keep the hosted wx pilot in
    [Plan 19](./PLAY_OEM_COMPLEXITY_19_HOSTED_WX_TEST_PILOT_PLAN.md) deferred
    indefinitely unless it is explicitly reprioritized. Retain the platform
    limitation and select no production refactor. Revisit maintenance trends

@@ -182,24 +182,23 @@ do not revive completed refactors based on old baseline scores.
 | Priority | Evidence task | Scope and decision rule |
 | --- | --- | --- |
 | 1 — complete | [Internal dependency and responsibility map](./PLAY_OEM_COMPLEXITY_33_INTERNAL_DEPENDENCY_RESPONSIBILITY_MAP_PLAN.md) | Completed the first-pass import, ownership, callback, dynamic-registration, and representative change-path map. No eager import cycle or avoidable boundary cost was established. Retain current boundaries; revisit view registration or tier-to-view refresh only if future changes demonstrate repeated coordination failures. |
-| 2 — deferred indefinitely | [Representative runtime and memory](./PLAY_OEM_COMPLEXITY_32_REPRESENTATIVE_LOAD_MEASUREMENT_PLAN.md) | No execution is scheduled. Resume only after explicit reprioritization. If reinstated, measure the combined workload as written and treat latency, queue depth, and memory as operating constraints—not optimization targets. |
-| 3 — complete | [Cursor runtime/type contract](./PLAY_OEM_COMPLEXITY_35_CURSOR_TYPE_CONTRACT_PLAN.md) | Added a `PlaybackCursor` union for the app's switched state and direct consumers; retained the initial `OemCursor` input and concrete refresh narrowing. Five focused suites passed (130 tests); post-change Pylance requests timed out. |
-| 4 — complete | [Retire `OemCursor`](./PLAY_OEM_COMPLEXITY_36_OEM_CURSOR_RETIREMENT_FEASIBILITY_PLAN.md) | Replaced the initial owned-history cursor with one `StoreCursor` type that supports inert empty startup and store-backed playback. Migrated trajectory updates and test fixtures to store commits; 266 focused tests passed. |
-| 5 — deferred indefinitely | [Hosted wx test pilot](./PLAY_OEM_COMPLEXITY_19_HOSTED_WX_TEST_PILOT_PLAN.md) | Real wx cleanup was verified on macOS Cocoa; GTK/MSW and native VTK widget lifecycle remain unverified. Do not resume without explicit reprioritization, even if suitable runners become available. |
-| 6 — deferred | Longer-term maintenance trends | Play-OEM source history begins 2026-10-15. Revisit change frequency after several months of ordinary maintenance; the current feature and migration bursts are not representative. |
+| 2 — complete | [Retire `OemCursor`](./PLAY_OEM_COMPLEXITY_36_OEM_CURSOR_RETIREMENT_FEASIBILITY_PLAN.md) | Replaced the owned-history cursor with one `StoreCursor` type supporting inert empty startup and store-backed playback. Migrated trajectory updates and test fixtures to store commits; 266 focused tests passed. |
+| 3 — complete | [Saved-state validation boundary](./PLAY_OEM_COMPLEXITY_37_SAVED_STATE_VALIDATION_BOUNDARY_PLAN.md) | Retained the inline checks: a helper would move section-specific validation and error translation without removing rules or caller obligations. The focused saved-state, CLI, and config tests passed (71). |
+| 4 — complete | [Panel-open preflight](./PLAY_OEM_COMPLEXITY_38_PANEL_OPEN_PREFLIGHT_PLAN.md) | Kept the preflight inline because it already precedes resource acquisition. Fixed failed forced replacement dropping the restored default-view lookup; the focused lifecycle/panel/cleanup suites passed (157). |
+| 5 — complete | [Terminal load-event cleanup](./PLAY_OEM_COMPLEXITY_39_TERMINAL_LOAD_CLEANUP_PLAN.md) | Moved the identical drag reset to one explicit `COMPLETE`/`FAILED` condition after their distinct transitions; preserved Plan 26's single event loop. App and incremental-loader suites passed (113). |
+| 6 — deferred indefinitely | [Hosted wx test pilot](./PLAY_OEM_COMPLEXITY_19_HOSTED_WX_TEST_PILOT_PLAN.md) | Real wx cleanup was verified on macOS Cocoa; GTK/MSW and native VTK widget lifecycle remain unverified. Do not resume without explicit reprioritization. |
+| 7 — deferred indefinitely | [Representative runtime and memory](./PLAY_OEM_COMPLEXITY_32_REPRESENTATIVE_LOAD_MEASUREMENT_PLAN.md) | No execution is scheduled. Resume only after explicit reprioritization; if reinstated, use measurements as operating constraints, not optimization targets. |
+| 8 — deferred | Longer-term maintenance trends | Play-OEM source history begins 2026-10-15. Revisit change frequency after several months of ordinary maintenance; the current feature and migration bursts are not representative. |
 
-Plan 33 is complete; it did not identify a boundary change to implement. The
-representative runtime and memory study is deferred indefinitely and is not an
-active task. The project maintainer has said that there are not yet external
-users and compatibility is not a concern; Plan 34 was closed before its
-evidence matrix was completed and compatibility evidence is not a gate for
-current changes. Plan 35 clarified the runtime cursor annotations without a
-runtime refactor. Plan 36 first concluded that both cursors should remain, then
-recorded the maintainer-directed retirement: empty startup now uses an inert
-`StoreCursor`, while trajectory updates use committed store samples. The
-focused migration suites passed (266 tests). Native GUI work depends on runner
-availability, and longer-term maintenance review depends on additional
-ordinary history.
+Plan 33 is complete; it did not identify a boundary change to implement. Plan
+36 superseded Plan 35's transitional two-cursor typing with a single
+`StoreCursor`; the focused retirement suites passed. Plans 37–39 completed the
+three highest-ranked bounded reviews: Plan 37 retained inline validation,
+Plan 38 fixed failed-replacement lookup loss without extracting preflight, and
+Plan 39 deduplicated only terminal drag cleanup. Plan 26's event-handler
+extraction remains rejected. Plans 19 and 32 remain deferred indefinitely by
+maintainer direction. Compatibility evidence is not a gate; longer-term
+maintenance review remains deferred.
 
 ## Evidence gaps and completion criteria
 
@@ -241,14 +240,20 @@ Plan 33's dependency and responsibility map is complete and supports retaining
 the current boundaries. Plan 32's representative load/query/range-change
 measurement is deferred indefinitely. Plan 36 superseded Plan 35's transitional
 two-cursor typing with a single `StoreCursor`; the focused retirement suites
-passed. The hosted wx pilot in Plan 19 is deferred indefinitely by maintainer
-direction. No production refactor is currently selected. Compatibility
-evidence is not a gate by maintainer direction; longer-term maintenance review
-remains deferred.
+passed. Plan 37 is complete with no code change: section-specific validation
+order and error handling make a shared helper less clear, and the focused
+saved-state, CLI, and config tests passed (71). Plan 38 kept the existing
+preflight block but fixed a failed forced replacement dropping the restored
+default-view lookup; the focused lifecycle, panel, and cleanup suites passed
+(157). Plan 39 deduplicated the `COMPLETE`/`FAILED` range-drag reset without
+extracting handlers; the app and incremental-loader suites passed (113).
+Plans 37–39 are complete, with no broad refactor selected. The hosted wx pilot
+in Plan 19 is deferred indefinitely by maintainer direction. Compatibility
+evidence is not a gate; longer-term maintenance review remains deferred.
 
 ## Current baseline refresh — 2026-11-11
 
-Measured at commit `34a405bcecef47d7ba94110609f47658491db589`, with a clean
+Measured at commit `c422b94c7ec3b938ff104e16fe5e35d8672e863d`, with a clean
 worktree, on macOS using Python 3.9.6. Scope and AST decision-score method are
 unchanged from the initial baseline above; the reproduction script there emits
 the current counts when run at this commit.
@@ -256,10 +261,10 @@ the current counts when run at this commit.
 | Measure | Current result |
 | --- | ---: |
 | Python files | 63 |
-| Physical lines | 25,602 |
-| Function and method definitions, including nested definitions | 1,111 |
-| `oem_data_store.py` lines | 3,510 (13.7% of package) |
-| `app/controller.py` lines | 1,954 (7.6%) |
+| Physical lines | 25,332 |
+| Function and method definitions, including nested definitions | 1,096 |
+| `oem_data_store.py` lines | 3,510 (13.9% of package) |
+| `app/controller.py` lines | 1,954 (7.7%) |
 | `app/panel_management.py` lines | 402 |
 | `saved_state.py` lines | 551 |
 | View files containing `StoreViewBinding(` | 10 |
@@ -283,18 +288,28 @@ Current high-scoring functions by the same custom AST indicator:
 | `OemDataStore.ground_track` | 176 | 25 |
 | `OemDataStore._evict_derived_buffers` | 153 | 25 |
 
+Compared with the prior refresh at commit `34a405bcecef47d7ba94110609f47658491db589`,
+the package has 270 fewer physical lines and 15 fewer function definitions.
+The leading hotspot names, sizes, and scores are unchanged. This volume change
+does not establish a new complexity reduction or justify a follow-on refactor;
+the previously investigated candidates remain rejected or conditional. No
+production improvement is selected until new behavior or maintenance evidence
+reveals a concrete simplification.
+
 This refresh is a reproducible current reference, not evidence that line or
 decision-score changes alone represent complexity reduction. Representative
 runtime/memory profiles, GUI latency, defect history, external API usage, and
 long-term change frequency remain unmeasured; GTK/MSW behavior remains
-unverified without non-macOS runners.
+unverified and deferred indefinitely.
 
 Plan 31 analyzed all available non-merge history in the requested one-year
 window. The Play-OEM source history begins on 2026-10-15, so the actual sample
 covers only 27 days and is dominated by initial feature development, module
 splits, and the store migration. The most common co-changes pair application
 layers and match expected feature integration; excluding broad migration
-commits did not expose a distinct duplicated policy. No further implementation
-candidate is selected. Change frequency beyond the available 27-day period
-remains unknown:
+commits did not expose a distinct duplicated policy. Plans 37–39 completed
+narrow local reviews: they retained the saved-state and panel-open boundaries
+while implementing only the forced-replacement rollback fix and terminal
+cleanup deduplication. No broad production refactor was selected. Change
+frequency beyond the available 27-day period remains unknown:
 [PLAY_OEM_COMPLEXITY_31_CHANGE_HISTORY_RERANKING_PLAN.md](./PLAY_OEM_COMPLEXITY_31_CHANGE_HISTORY_RERANKING_PLAN.md).

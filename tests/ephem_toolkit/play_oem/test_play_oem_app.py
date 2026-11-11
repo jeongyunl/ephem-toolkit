@@ -2216,6 +2216,36 @@ def test_failed_incremental_replacement_leaves_current_oem_installed(
     player.close()
 
 
+@pytest.mark.parametrize(
+    ("kind", "expected_dragging"),
+    [
+        (LoadEventKind.STARTED, True),
+        (LoadEventKind.COMPLETE, False),
+        (LoadEventKind.FAILED, False),
+    ],
+)
+def test_terminal_load_events_end_active_range_drag(
+    monkeypatch: pytest.MonkeyPatch,
+    kind: LoadEventKind,
+    expected_dragging: bool,
+) -> None:
+    player, _views, _canvases, _frames = make_app(monkeypatch)
+    event = LoadEvent(1, kind, 0)
+    monkeypatch.setattr(
+        player._incremental_loader,
+        "drain",
+        lambda limit=None: [event],
+    )
+    player._active_load_generation = event.generation
+    player._active_load_path = "test.oem"
+    player._set_range_dragging(True)
+
+    player._poll_incremental_load()
+
+    assert player._range_dragging is expected_dragging
+    player.close()
+
+
 def test_controller_ignores_stale_incremental_events() -> None:
     events = [
         LoadEvent(1, LoadEventKind.RAW_APPEND, 100),
@@ -2837,6 +2867,40 @@ def test_failed_view_change_restores_the_original_panel(
     assert failed_view.closed
     assert failed_view.close_calls == 1
     assert len(errors) == 1
+    player.close()
+
+
+def test_failed_forced_replacement_preserves_default_view_lookup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    player, _views, _canvases, _frames = make_app(
+        monkeypatch,
+        plots=("speed-altitude",),
+    )
+    player.start()
+    original = player._open_views["speed-altitude"]
+
+    class FailingView(FakeView):
+        def build(self, _series, _time_unit):
+            raise RuntimeError("view refresh failed")
+
+    failed_view = FailingView()
+    with pytest.raises(RuntimeError, match="view refresh failed"):
+        player._open_view(
+            "speed-altitude",
+            lambda _panel: failed_view,
+            panel_id=original.panel_id,
+            force_replace=True,
+        )
+
+    assert player._open_panels[original.panel_id] is original
+    assert player._open_views["speed-altitude"] is original
+    assert not original.panel.destroyed
+    assert failed_view.close_calls == 1
+
+    player.open_view("speed-altitude")
+    assert original.panel.focused
+    assert len(player._open_panels) == 1
     player.close()
 
 
