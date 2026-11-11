@@ -323,6 +323,8 @@ frequency. Each item requires an evidence review before production refactoring.
    including possible external users. Estimate their maintenance cost and
    behavioral differences before proposing consolidation or retirement. Treat
    supported behavior as a constraint until its owner decides otherwise.
+   Detailed investigation plan:
+   [PLAY_OEM_COMPLEXITY_10_CURSOR_BACKEND_COMPATIBILITY_PLAN.md](./PLAY_OEM_COMPLEXITY_10_CURSOR_BACKEND_COMPATIBILITY_PLAN.md).
 
 ## Evidence gaps and completion criteria
 
@@ -468,3 +470,29 @@ unavailable.
 No production source or subsystem ownership changed. Priority 6 is complete.
 The next authoritative work item is priority 7, inventorying cursor and 3D
 backend compatibility variants.
+
+## Cursor and 3D backend compatibility update — 2026-11-10
+
+The verified lifecycle, compatibility matrix, backend-selection trace,
+validation, and unresolved typing question are recorded in
+[PLAY_OEM_COMPLEXITY_10_CURSOR_BACKEND_COMPATIBILITY_PLAN.md](./PLAY_OEM_COMPLEXITY_10_CURSOR_BACKEND_COMPATIBILITY_PLAN.md).
+The focused cursor/store, Matplotlib/VTK, config/CLI, and app backend-selection
+tests passed (174 passed, no skips).
+
+`OemCursor` remains the owned-history and append path; `StoreCursor` is the
+snapshot-backed incremental path. Common point-query results matched across
+exact, interpolated, gap, out-of-range, and configured-interpolation cases.
+The app transitions to `StoreCursor` on the first usable append, while
+store-backed views use `StoreViewContext`. Matplotlib remains the exported
+default implementation; optional VTK retains separate native-widget,
+render-context, and cleanup behavior. CLI/config choices, lazy imports,
+fallback behavior, and explicit VTK errors are covered by focused tests.
+
+No production change or consolidation was justified. The source annotations
+still describe some runtime cursor fields as `OemCursor`; Pylance diagnostics
+timed out, so this is recorded as an unverified typing question rather than a
+confirmed type error. VTK unit tests use a fake widget for render-context
+behavior, so native desktop integration remains unverified. External consumer
+usage is unknown. Priority 7 is complete; the remaining assessment candidate
+is large GUI view responsibilities, which should be ranked against the other
+candidates before selecting a concrete boundary.
