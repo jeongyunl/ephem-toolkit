@@ -113,8 +113,8 @@ PY
   unverified.
 - **Store ownership:** Plans 5–6 mapped locks, epochs, tier validity, and shared
   query policy; Plan 30 clarified the eviction-candidate record. Broad module
-  separation remains unjustified without representative memory, latency, or
-  dependency evidence.
+  separation remains unjustified; Plan 33 found no boundary cost, and Plan 32
+  is deferred indefinitely.
 - **Internal dependencies and responsibility map:** Plan 33 inspected 63
   modules and found no eager import cycle in its first-pass AST graph. It
   traced load/store ownership, derived-query subscriptions, range and redraw
@@ -176,15 +176,16 @@ do not revive completed refactors based on old baseline scores.
 | 1 — complete | [Internal dependency and responsibility map](./PLAY_OEM_COMPLEXITY_33_INTERNAL_DEPENDENCY_RESPONSIBILITY_MAP_PLAN.md) | Completed the first-pass import, ownership, callback, dynamic-registration, and representative change-path map. No eager import cycle or avoidable boundary cost was established. Retain current boundaries; revisit view registration or tier-to-view refresh only if future changes demonstrate repeated coordination failures. |
 | 2 — deferred indefinitely | [Representative runtime and memory](./PLAY_OEM_COMPLEXITY_32_REPRESENTATIVE_LOAD_MEASUREMENT_PLAN.md) | No execution is scheduled. Resume only after explicit reprioritization. If reinstated, measure the combined workload as written and treat latency, queue depth, and memory as operating constraints—not optimization targets. |
 | 3 — conditional | Native cross-platform GUI behavior | Real wx cleanup was verified on macOS Cocoa; GTK/MSW and native VTK widget lifecycle remain unverified. Resume when suitable Linux/Windows runners are available; do not infer native behavior from fake widgets or add speculative CI. |
-| 4 — conditional | External compatibility surface | Internal searches do not establish external use of cursors, store APIs, or saved-state formats. Seek package/release or consumer evidence before retiring or changing a compatibility path. |
-| 5 — deferred | Longer-term maintenance trends | Play-OEM source history begins 2026-10-15. Revisit change frequency after several months of ordinary maintenance; the current feature and migration bursts are not representative. |
+| 4 — deferred | Longer-term maintenance trends | Play-OEM source history begins 2026-10-15. Revisit change frequency after several months of ordinary maintenance; the current feature and migration bursts are not representative. |
 
 Plan 33 is complete; it did not identify a boundary change to implement. The
 representative runtime and memory study is deferred indefinitely and is not an
-active task. Priorities 3–5 depend on runner availability, external consumer
-evidence, or additional ordinary maintenance history. Every follow-up should
-state its scope, evidence sources, and decision criteria, and stop if the
-evidence does not expose a concrete implementation-complexity cost.
+active task. The project maintainer has said that there are not yet external
+users and compatibility is not a concern; Plan 34 was closed before its
+evidence matrix was completed and compatibility evidence is not a gate for
+current changes. Native GUI work depends on runner availability, and
+longer-term maintenance review depends on additional ordinary history. No
+code-change candidate is currently justified by the completed investigations.
 
 ## Evidence gaps and completion criteria
 
@@ -224,9 +225,10 @@ repeating the chronological selection notes.
 
 Plan 33's dependency and responsibility map is complete and supports retaining
 the current boundaries. Plan 32's representative load/query/range-change
-measurement is deferred indefinitely and is not an active task. Platform,
-compatibility, and maintenance questions remain conditional or deferred as
-ranked above.
+measurement is deferred indefinitely. Compatibility evidence is not a current
+gate by maintainer direction. Platform and longer-term maintenance questions
+remain conditional or deferred as ranked above; no code change is currently
+supported by the evidence.
 
 ## Current baseline refresh — 2026-11-11
 

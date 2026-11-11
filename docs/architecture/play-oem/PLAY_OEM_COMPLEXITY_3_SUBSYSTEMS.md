@@ -27,8 +27,7 @@ decision criteria.
 | 1 — complete | [Map internal dependencies and responsibility ownership](./PLAY_OEM_COMPLEXITY_33_INTERNAL_DEPENDENCY_RESPONSIBILITY_MAP_PLAN.md). | All six subsystem sections, especially load/controller, store/cache, view, and backend interactions. | The first-pass map found no eager import cycle or avoidable boundary cost. Retain current boundaries; revisit explicit coordination points only if future changes demonstrate repeated cost. |
 | 2 — deferred indefinitely | [Measure representative load, derived-query, and range-change behavior](./PLAY_OEM_COMPLEXITY_32_REPRESENTATIVE_LOAD_MEASUREMENT_PLAN.md). | [Load/replacement](#1-incremental-load-and-replacement), [derived cache](#2-derived-data-scheduling-and-cache-lifetime), and [playback/ranges](#4-playback-coverage-and-time-ranges). | No execution is scheduled. Resume only after explicit reprioritization. If reinstated, use measurements as operating constraints, not optimization targets; time/space complexity optimization remains out of scope. |
 | 3 — conditional | Verify native cross-platform GUI behavior. | [Load shutdown](#1-incremental-load-and-replacement) and [panel/native lifecycle](#6-panel-lifecycle-and-gui-resources). | GTK/MSW and native VTK evidence requires suitable runners; do not infer native behavior from fake widgets or add speculative CI. |
-| 4 — conditional | Establish external compatibility use. | [Point interpolation and cursors](#5-snapshot-based-point-interpolation). | Seek package/release or consumer evidence before changing cursor, store, or saved-state compatibility paths. |
-| 5 — deferred | Reassess maintenance trends. | See the [assessment](./PLAY_OEM_COMPLEXITY_2_ASSESSMENT.md) for history findings. | Available source history spans only 27 days; revisit after several months of ordinary maintenance. |
+| 4 — deferred | Reassess maintenance trends. | See the [assessment](./PLAY_OEM_COMPLEXITY_2_ASSESSMENT.md) for history findings. | Available source history spans only 27 days; revisit after several months of ordinary maintenance. |
 
 These are evidence-collection priorities, not proposals to remove domain rules,
 asynchronous loading, caching, or backend variants. Potential simplification
@@ -144,10 +143,10 @@ tests cover station profiles and interpolation-dependent support margins.
 metrics in `_ActiveAccessInterval`; Plan 29 rejected phase extraction because
 the query phases share state and cache/lock ordering. Existing numerical tests
 cover boundary and gap behavior. Runtime cost on large, discontinuous,
-multi-segment real inputs remains unmeasured. This is not a separate priority-1
-benchmark unless representative files or observed behavior implicate station
-queries; avoid changing numerical logic without a concrete correctness or
-performance problem.
+multi-segment real inputs remains unmeasured. No benchmark is scheduled under
+Plan 32, which is deferred indefinitely; do not reopen it without explicit
+reprioritization. Avoid changing numerical logic without a concrete
+correctness finding.
 
 ## 4. Playback, coverage, and time ranges
 
@@ -170,10 +169,9 @@ tests cover endpoint combinations, clipping, and empty ranges.
 
 **Current status and remaining evidence:** Plans 7 and 23–26 mapped refresh and
 snapshot-installation behavior, retaining separate playback and plot-bound
-rules. The highest-priority end-to-end scenario is a range drag while derived
-work is pending during incremental append. Measure it with representative OEM
-data, collecting the shared workload metrics in the priority map before
-proposing more coordination.
+rules. Plan 32 describes an end-to-end range-drag scenario while derived work
+is pending during incremental append, but that measurement is deferred
+indefinitely and is not scheduled.
 
 ## 5. Snapshot-based point interpolation
 
@@ -198,11 +196,12 @@ and gaps in `test_stateless_interpolation.py`.
 **Current status and remaining evidence:** Plan 10 compared both cursor paths
 across exact, interpolated, gap, and out-of-range results; Plan 28 retained the
 two metadata phases because their validation contracts differ. External
-consumers remain unknown. Treat consumer discovery as the conditional
-compatibility priority; examine partial-load behavior under live derived work
-as part of the representative workload only if it exercises these cursor
-boundaries. Do not consolidate compatibility paths without consumer and
-behavior evidence.
+consumers remain unknown. Plan 34 is limited to gathering evidence about
+documented promises and authorized downstream use, but was closed without
+execution after the maintainer confirmed compatibility is not a concern. This
+decision removes compatibility as a gate; it does not itself justify
+consolidating paths. Any change still needs a concrete complexity or behavior
+rationale and focused tests.
 
 ## 6. Panel lifecycle and GUI resources
 
@@ -226,17 +225,19 @@ from the [assessment](./PLAY_OEM_COMPLEXITY_2_ASSESSMENT.md).
 **Remaining evaluation:** GTK/MSW teardown and native VTK widget lifecycle are
 unverified. Fake-widget tests do not establish native event or resource
 behavior. This is conditional on suitable runners or a concrete lifecycle
-failure; it is not a reason to block the representative workload study.
+failure. Plan 32's workload study is deferred indefinitely and is not
+scheduled.
 
 ## Cross-cutting evidence gaps
 
 The internal dependency and responsibility map is complete; its coverage and
-limits are recorded in Plan 33. The representative runtime and memory
-measurement is deferred indefinitely and is not an active task. Neither phase
-presumes a refactor.
+limits are recorded in Plan 33. The project maintainer has said that there are
+not yet external users and compatibility is not a concern, so Plan 34 is closed
+without execution. The representative runtime and memory measurement is
+deferred indefinitely. No code change is currently justified by these
+investigations.
 
-Platform availability, external compatibility evidence, and longer-term
-maintenance trends remain conditional or deferred as ranked in the assessment.
-Promote a code change only when these observations identify a specific
-repeated rule or costly ownership interaction and a bounded change can be
-validated without weakening behavior.
+Platform availability and longer-term maintenance trends remain conditional or
+deferred as ranked in the assessment. Promote a code change only when evidence
+identifies a specific repeated rule or costly ownership interaction and a
+bounded change can be validated without weakening behavior.

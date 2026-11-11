@@ -162,10 +162,11 @@ The current candidates and holds are:
 - Verify GTK/MSW and native VTK behavior when suitable runners are available;
   do not infer native behavior from fake widgets or add speculative CI.
 
-External compatibility and longer-term maintenance frequency are evidence
-gaps, not immediate refactoring experiments. Seek consumer evidence before
-changing compatibility paths, and revisit history-based conclusions only after
-a longer period of ordinary maintenance.
+The project maintainer has stated that there are not yet external users and
+compatibility is not a concern. Plan 34 is closed before its evidence matrix
+was completed; compatibility evidence is not a gate for current changes.
+Longer-term maintenance frequency remains deferred until there is a longer
+period of ordinary maintenance.
 
 Each experiment should state a hypothesis, expected benefit, affected
 interfaces and invariants, and a way to reject it. Compare the same trace,
@@ -194,10 +195,11 @@ Do not repeat the map or begin a broad refactor without new evidence:
    under [Plan 32](./PLAY_OEM_COMPLEXITY_32_REPRESENTATIVE_LOAD_MEASUREMENT_PLAN.md)
    deferred indefinitely. Do not resume or schedule them without explicit
    reprioritization.
-3. Use platform, compatibility, and maintenance evidence conditionally:
-   validate GTK/MSW and native VTK when runners exist; seek external consumer
-   evidence before changing compatibility paths; revisit history after several
-   months of ordinary maintenance.
+3. Validate GTK/MSW and native VTK only when suitable runners exist; revisit
+   maintenance trends after several months of ordinary maintenance.
+4. Do not start a code refactor until a concrete behavior or repeated
+   implementation-complexity cost is identified and can be validated. No such
+   candidate is currently established by the completed investigations.
 
 The [assessment's current evidence priorities](./PLAY_OEM_COMPLEXITY_2_ASSESSMENT.md#current-evidence-priorities)
 owns the detailed limits and next observations. Do not select a production
