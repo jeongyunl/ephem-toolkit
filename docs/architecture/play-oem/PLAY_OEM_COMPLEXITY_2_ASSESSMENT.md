@@ -641,3 +641,37 @@ Passes, Station Analysis, Speed/Altitude, and shared series-view suites passed
 reservation and load-event-consumption leads remain deferred; native wx
 teardown remains unverified. No next implementation candidate is selected;
 re-rank remaining candidates before defining another plan.
+
+## Native wx cleanup verification selection — 2026-11-11
+
+Re-ranking the residual leads selects native validation of partial GUI startup
+cleanup. Plan 14 established the Python-level rollback contract, but its fakes
+cannot verify native child ownership, deferred deletion, or timer behavior.
+Existing display-backed tests skip without a usable wx display and identify
+`xvfb-run` as a possible test path. The bounded feasibility and integration
+plan is
+[PLAY_OEM_COMPLEXITY_16_NATIVE_WX_STARTUP_CLEANUP_PLAN.md](./PLAY_OEM_COMPLEXITY_16_NATIVE_WX_STARTUP_CLEANUP_PLAN.md).
+
+This is a validation plan, not a new production refactor. Raw-ingestion
+reservation and load-event consumption remain deferred because their concrete
+failure and event paths have already been mapped without revealing a current
+gap. Plan 16 must report a native environment blocker if no display-backed run
+is feasible; fake-widget results must not be presented as native verification.
+
+## Native wx cleanup verification findings — 2026-11-11
+
+The display-backed test and evidence are recorded in
+[PLAY_OEM_COMPLEXITY_16_NATIVE_WX_STARTUP_CLEANUP_PLAN.md](./PLAY_OEM_COMPLEXITY_16_NATIVE_WX_STARTUP_CLEANUP_PLAN.md).
+Although `DISPLAY` was unset and `xvfb-run` unavailable, wxPython 4.2.4 on
+macOS reported a usable `osx-cocoa` display. A real `PlayerApp` failure after
+workspace/control-window/timer construction closed the workspace, left the
+timer stopped, preserved the wx app, propagated the injected exception, and
+removed the frame from wx's top-level windows after event processing; its
+wrapper then rejected native access.
+
+The complete app lifecycle suite passed (**97 passed**), including this native
+integration test. No production change was needed. Native teardown is verified
+only for macOS Cocoa; GTK, MSW, and other wxPython versions remain unverified.
+The test's display-free skip branch was reviewed but not executed because this
+environment reports a native display. Raw-ingestion and load-event leads
+remain deferred; no next implementation candidate is selected.

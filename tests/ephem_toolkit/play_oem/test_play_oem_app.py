@@ -1305,6 +1305,94 @@ def test_cleanup_failure_is_logged_without_masking_initialization_error(
     )
 
 
+def test_native_partial_startup_cleanup_destroys_real_wx_frame(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    wx = app.wx
+    if not wx.App.IsDisplayAvailable():
+        pytest.skip("wx cannot connect to the available display")
+    wx_app = wx.App.Get() or wx.App(False)
+    real_frame_class = wx.Frame
+    real_timer_class = wx.Timer
+    frames = []
+    timers = []
+    closed_workspaces = []
+    clock = make_clock()
+    subscriptions: list[Callable[[float], None]] = []
+    subscribe = clock.subscribe
+
+    def create_frame(*args, **kwargs):
+        frame = real_frame_class(*args, **kwargs)
+        frames.append(frame)
+        return frame
+
+    def create_timer(*args, **kwargs):
+        timer = real_timer_class(*args, **kwargs)
+        timers.append(timer)
+        return timer
+
+    def track_workspace_close(workspace) -> None:
+        closed_workspaces.append(workspace)
+        original_workspace_close(workspace)
+
+    def track_subscription(observer: Callable[[float], None]):
+        subscriptions.append(observer)
+        return subscribe(observer)
+
+    def fail_set_oem_loaded(_workspace, _loaded: bool) -> None:
+        raise RuntimeError("native workspace setup failed")
+
+    original_workspace_close = app.workspace.Workspace.close
+    monkeypatch.setattr(wx, "Frame", create_frame)
+    monkeypatch.setattr(wx, "Timer", create_timer)
+    monkeypatch.setattr(app.workspace.Workspace, "close", track_workspace_close)
+    monkeypatch.setattr(
+        app.workspace.Workspace, "set_oem_loaded", fail_set_oem_loaded
+    )
+    monkeypatch.setattr(clock, "subscribe", track_subscription)
+
+    try:
+        with pytest.raises(RuntimeError, match="native workspace setup failed"):
+            app.PlayerApp(
+                clock,
+                compute_orbit_series(
+                    [100.0, 200.0], make_states(), TimeUnit.MINUTES
+                ),
+                TimeUnit.MINUTES,
+                OemCursor([100.0, 200.0], make_states()),
+                "TEST",
+                "GCRF / Earth",
+                plots=("overview",),
+                oem_loaded=False,
+            )
+
+        assert wx.App.Get() is wx_app
+        assert len(frames) == 1
+        assert len(timers) == 1
+        assert not timers[0].IsRunning()
+        assert subscriptions == []
+        assert len(closed_workspaces) == 1
+        assert closed_workspaces[0]._graph_redraw_timer is None
+        assert all(
+            timer is None
+            for timer in closed_workspaces[0]._graph_scroll_timers.values()
+        )
+
+        frame = frames[0]
+        frame_id = id(frame)
+        wx.YieldIfNeeded()
+
+        assert not any(id(window) == frame_id for window in wx.GetTopLevelWindows())
+        with pytest.raises(RuntimeError):
+            frame.GetHandle()
+    finally:
+        frame_ids = {id(frame) for frame in frames}
+        for window in wx.GetTopLevelWindows():
+            if id(window) in frame_ids:
+                window.Destroy()
+        wx.YieldIfNeeded()
+
+
 def test_playback_pause_state_updates_when_playback_reaches_an_endpoint(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

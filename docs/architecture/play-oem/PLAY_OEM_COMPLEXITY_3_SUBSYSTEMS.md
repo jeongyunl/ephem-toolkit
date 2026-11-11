@@ -181,7 +181,10 @@ application partial-startup cleanup is covered in
 [plan 14](./PLAY_OEM_COMPLEXITY_14_PARTIAL_GUI_STARTUP_CLEANUP_PLAN.md).
 The [plan 15 result-state comparison](./PLAY_OEM_COMPLEXITY_15_STORE_VIEW_RESULT_STATE_PLAN.md)
 found distinct view-specific query and presentation rules; no shared result
-classifier or resource-ownership change was justified.
+classifier or resource-ownership change was justified. Native wx partial
+startup cleanup was verified on macOS Cocoa in
+[plan 16](./PLAY_OEM_COMPLEXITY_16_NATIVE_WX_STARTUP_CLEANUP_PLAN.md); other
+wx backends and versions remain unverified.
 
 ## Scope and follow-up
 

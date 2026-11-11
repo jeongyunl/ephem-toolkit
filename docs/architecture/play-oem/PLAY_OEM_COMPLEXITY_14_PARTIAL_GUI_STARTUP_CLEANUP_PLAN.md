@@ -181,6 +181,9 @@ establish native wx ownership/destruction behavior. No native desktop failure
 injection was available. No dataflow or subsystem ownership changed. The
 subsystem overview now records the separate partial-startup rollback boundary.
 
-Plan 14 is complete. Native wx teardown remains a limitation rather than a
-verified claim. No further implementation candidate is selected here;
-re-rank the remaining assessment leads before starting another plan.
+Plan 14 is complete. At that time, native wx teardown remained unverified; it
+was subsequently verified for one macOS Cocoa failure boundary in
+[plan 16](./PLAY_OEM_COMPLEXITY_16_NATIVE_WX_STARTUP_CLEANUP_PLAN.md). Other
+wx backends and versions remain unverified. No further implementation
+candidate is selected here; re-rank the remaining assessment leads before
+starting another plan.
