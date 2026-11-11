@@ -12,7 +12,6 @@ from itertools import tee
 import logging
 import math
 import mmap
-import re
 import weakref
 from pathlib import Path
 from threading import Event, RLock
@@ -160,191 +159,7 @@ def _freeze_metadata(
 
 
 _CAPACITY_SCAN_CHUNK_SIZE = 1024 * 1024
-_CAPACITY_MARKER_PATTERN = re.compile(rb"COVARIANCE_(?:START|STOP)")
-
-
-def _capacity_for_ascii_file(
-    source: Path, cancel_event: Event | None
-) -> int | None:
-    """Count safe capacity from an ASCII OEM without materializing its lines."""
-    with source.open("rb") as stream:
-        stream.seek(0, 2)
-        file_size = stream.tell()
-        stream.seek(0)
-        if not file_size:
-            if cancel_event is not None and cancel_event.is_set():
-                raise InterruptedError("capacity scan cancelled")
-            return 1
-
-        separators: list[np.ndarray] = []
-        previous_separator = -1
-        non_ascii = False
-        with mmap.mmap(stream.fileno(), 0, access=mmap.ACCESS_READ) as data:
-            for offset in range(0, file_size, _CAPACITY_SCAN_CHUNK_SIZE):
-                if cancel_event is not None and cancel_event.is_set():
-                    raise InterruptedError("capacity scan cancelled")
-                end = min(offset + _CAPACITY_SCAN_CHUNK_SIZE, file_size)
-                chunk_length = end - offset
-                values = np.frombuffer(
-                    data, dtype=np.uint8, count=chunk_length, offset=offset
-                )
-                if values.max() >= 128:
-                    non_ascii = True
-                    del values
-                    break
-
-                lf_mask = values == 10
-                cr_mask = values == 13
-                if end < file_size:
-                    next_values = np.frombuffer(
-                        data,
-                        dtype=np.uint8,
-                        count=chunk_length,
-                        offset=offset + 1,
-                    )
-                    cr_mask &= next_values != 10
-                    del next_values
-                elif chunk_length > 1:
-                    cr_mask[:-1] &= values[1:] != 10
-                line_ends = np.flatnonzero(lf_mask | cr_mask)
-                too_long = False
-                if line_ends.size:
-                    lf_ends = values[line_ends] == 10
-                    previous_is_cr = np.zeros(line_ends.size, dtype=bool)
-                    has_previous = line_ends > 0
-                    previous_is_cr[has_previous] = (
-                        values[line_ends[has_previous] - 1] == 13
-                    )
-                    if offset and np.any(~has_previous & lf_ends):
-                        previous_is_cr[~has_previous & lf_ends] = data[offset - 1] == 13
-                    crlf_ends = lf_ends & previous_is_cr
-                    line_starts = np.empty(line_ends.size, dtype=np.int64)
-                    line_starts[0] = previous_separator + 1 - offset
-                    if line_ends.size > 1:
-                        line_starts[1:] = line_ends[:-1] + 1
-                    too_long = bool(
-                        np.any(line_ends - crlf_ends - line_starts > ODM_MAX_LINE_LENGTH)
-                    )
-                    previous_separator = offset + int(line_ends[-1])
-                    line_ends = line_ends.astype(np.int64, copy=False)
-                    line_ends += offset
-                    separators.append(line_ends)
-
-                del values
-                trailing_length = end - (previous_separator + 1)
-                if (
-                    end < file_size
-                    and data[end - 1] == 13
-                    and data[end] == 10
-                ):
-                    trailing_length -= 1
-                if too_long or trailing_length > ODM_MAX_LINE_LENGTH:
-                    raise ValueError(
-                        f"OEM exceeds {ODM_MAX_LINE_LENGTH}-character line limit"
-                    )
-
-            if not non_ascii:
-                all_separators = (
-                    np.concatenate(separators)
-                    if separators
-                    else np.empty(0, dtype=np.int64)
-                )
-                line_count = 0
-                in_covariance = False
-                position = 0
-                search_position = 0
-                start_marker = b"COVARIANCE_START"
-                stop_marker = b"COVARIANCE_STOP"
-                for chunk_start in range(0, file_size, _CAPACITY_SCAN_CHUNK_SIZE):
-                    if cancel_event is not None and cancel_event.is_set():
-                        raise InterruptedError("capacity scan cancelled")
-                    chunk_end = min(
-                        chunk_start + _CAPACITY_SCAN_CHUNK_SIZE, file_size
-                    )
-                    search_end = min(
-                        file_size,
-                        chunk_end + len(start_marker) - 1,
-                    )
-                    while search_position < chunk_end:
-                        if cancel_event is not None and cancel_event.is_set():
-                            raise InterruptedError("capacity scan cancelled")
-                        match = _CAPACITY_MARKER_PATTERN.search(
-                            data, search_position, search_end
-                        )
-                        if match is None or match.start() >= chunk_end:
-                            search_position = chunk_end
-                            break
-                        marker_index = match.start()
-                        marker = (
-                            start_marker
-                            if match.end() - marker_index == len(start_marker)
-                            else stop_marker
-                        )
-
-                        line_start = max(
-                            data.rfind(b"\n", 0, marker_index),
-                            data.rfind(b"\r", 0, marker_index),
-                        ) + 1
-                        next_lf = data.find(b"\n", marker_index)
-                        next_cr = data.find(b"\r", marker_index)
-                        line_ends = [
-                            value
-                            for value in (next_lf, next_cr)
-                            if value >= 0
-                        ]
-                        line_end = min(line_ends) if line_ends else file_size
-                        terminator_end = line_end
-                        if (
-                            line_end < file_size
-                            and data[line_end] == 13
-                            and line_end + 1 < file_size
-                            and data[line_end + 1] == 10
-                        ):
-                            terminator_end += 1
-
-                        if data[line_start:line_end].strip() == marker:
-                            if not in_covariance:
-                                line_count += int(
-                                    np.searchsorted(
-                                        all_separators, line_start, side="left"
-                                    )
-                                    - np.searchsorted(
-                                        all_separators, position, side="left"
-                                    )
-                                )
-                            in_covariance = marker == start_marker
-                            position = (
-                                terminator_end + 1
-                                if terminator_end < file_size
-                                else file_size
-                            )
-                        search_position = match.end()
-
-                if not in_covariance:
-                    line_count += int(
-                        all_separators.size
-                        - np.searchsorted(all_separators, position, side="left")
-                    )
-                    if (
-                        position < file_size
-                        and (
-                            not all_separators.size
-                            or all_separators[-1] < file_size - 1
-                        )
-                    ):
-                        line_count += 1
-                result = max(line_count, 1)
-            else:
-                result = None
-
-    if non_ascii:
-        return None
-    if cancel_event is not None and cancel_event.is_set():
-        raise InterruptedError("capacity scan cancelled")
-    return result
-
-
-def _capacity_for_text_file(
+def _capacity_for_file(
     source: Path, cancel_event: Event | None
 ) -> int:
     line_count = 0
@@ -352,6 +167,8 @@ def _capacity_for_text_file(
     pending = ""
 
     with source.open("r", encoding="utf-8", newline=None) as stream:
+        if cancel_event is not None and cancel_event.is_set():
+            raise InterruptedError("capacity scan cancelled")
         while chunk := stream.read(_CAPACITY_SCAN_CHUNK_SIZE):
             if cancel_event is not None and cancel_event.is_set():
                 raise InterruptedError("capacity scan cancelled")
@@ -1245,15 +1062,12 @@ class OemDataStore:
         State rows are outside covariance blocks and the parser accepts at most one
         state row per physical input line. Counting every other line as well keeps
         this a safe upper bound without reserving for covariance matrices. Universal
-        newlines and a final unterminated line are supported. ASCII files are scanned
-        through a read-only mapping; non-ASCII files use strict UTF-8 text scanning.
-        An optional cancellation event is checked between bounded reads.
+        newlines and a final unterminated line are supported. Files are scanned as
+        strict UTF-8 text in bounded chunks. An optional cancellation event is
+        checked before scanning and between bounded reads.
         """
         path = Path(source)
-        capacity = _capacity_for_ascii_file(path, cancel_event)
-        if capacity is not None:
-            return capacity
-        return _capacity_for_text_file(path, cancel_event)
+        return _capacity_for_file(path, cancel_event)
 
     def begin(self, capacity: int) -> int:
         """Start a new epoch with a caller-provided maximum number of rows."""

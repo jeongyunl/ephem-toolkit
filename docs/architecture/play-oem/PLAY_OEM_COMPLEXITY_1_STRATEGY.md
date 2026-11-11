@@ -171,6 +171,12 @@ The current candidates and holds are:
   default-view lookup. [Plan 39](./PLAY_OEM_COMPLEXITY_39_TERMINAL_LOAD_CLEANUP_PLAN.md)
   deduplicated terminal drag cleanup while retaining the single event loop.
   No broader refactor was selected.
+- [Plan 40](./PLAY_OEM_COMPLEXITY_40_CAPACITY_SCANNER_SIMPLIFICATION_PLAN.md)
+  completed the capacity-scanner simplification: the separate ASCII and UTF-8
+  paths now use one bounded scanner. All 88 focused store/loader tests passed,
+  and the measured synthetic medians remained within the plan's guardrails.
+  Plan 32 remains deferred; do not infer a production performance target from
+  these synthetic measurements.
 - The hosted native wx pilot in
   [Plan 19](./PLAY_OEM_COMPLEXITY_19_HOSTED_WX_TEST_PILOT_PLAN.md) is deferred
   indefinitely. Do not resume it without explicit reprioritization, even if
@@ -218,7 +224,11 @@ Do not repeat the map or begin a broad refactor without new evidence:
    terminal range-drag reset without extracting event handlers. Reopen these
    decisions only for a concrete regression or new evidence of net
    simplification.
-5. Keep the hosted wx pilot in
+5. Keep the single bounded scanner completed under
+   [Plan 40](./PLAY_OEM_COMPLEXITY_40_CAPACITY_SCANNER_SIMPLIFICATION_PLAN.md).
+   Reopen the ASCII-specific path only for a demonstrated correctness issue or
+   a measured regression outside the documented guardrails.
+6. Keep the hosted wx pilot in
    [Plan 19](./PLAY_OEM_COMPLEXITY_19_HOSTED_WX_TEST_PILOT_PLAN.md) deferred
    indefinitely unless it is explicitly reprioritized. Retain the platform
    limitation and select no production refactor. Revisit maintenance trends

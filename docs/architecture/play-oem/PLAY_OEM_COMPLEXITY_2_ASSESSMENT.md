@@ -168,9 +168,10 @@ weakening the underlying guarantees. Reviewed leads and remaining evaluation:
 | Raw-ingestion reservation | One production `_StoreRowSink` owns the protocol; no duplicate consumer was found. | Reopen only if a second caller or concrete lifecycle failure appears. |
 | Load event consumption | Plans 4, 20, 21, and 26 verified bounded draining, stale-event handling, and shutdown; extraction was rejected. | Representative sustained-load responsiveness and non-macOS event-loop behavior remain unmeasured. |
 
-These are not active refactoring tasks. Consider a shared helper only when new
-evidence shows the same safe operation is independently repeated and the
-abstraction reduces caller obligations without hiding necessary policy.
+The historical leads are not open-ended refactoring tasks. Plan 40 completed a
+bounded scanner simplification: it removed the separate ASCII path, retained
+strict UTF-8 and bounded chunk scanning, and passed the focused behavior and
+timing checks. It did not resume the deferred workload study.
 
 ## Current evidence priorities
 
@@ -186,9 +187,10 @@ do not revive completed refactors based on old baseline scores.
 | 3 — complete | [Saved-state validation boundary](./PLAY_OEM_COMPLEXITY_37_SAVED_STATE_VALIDATION_BOUNDARY_PLAN.md) | Retained the inline checks: a helper would move section-specific validation and error translation without removing rules or caller obligations. The focused saved-state, CLI, and config tests passed (71). |
 | 4 — complete | [Panel-open preflight](./PLAY_OEM_COMPLEXITY_38_PANEL_OPEN_PREFLIGHT_PLAN.md) | Kept the preflight inline because it already precedes resource acquisition. Fixed failed forced replacement dropping the restored default-view lookup; the focused lifecycle/panel/cleanup suites passed (157). |
 | 5 — complete | [Terminal load-event cleanup](./PLAY_OEM_COMPLEXITY_39_TERMINAL_LOAD_CLEANUP_PLAN.md) | Moved the identical drag reset to one explicit `COMPLETE`/`FAILED` condition after their distinct transitions; preserved Plan 26's single event loop. App and incremental-loader suites passed (113). |
-| 6 — deferred indefinitely | [Hosted wx test pilot](./PLAY_OEM_COMPLEXITY_19_HOSTED_WX_TEST_PILOT_PLAN.md) | Real wx cleanup was verified on macOS Cocoa; GTK/MSW and native VTK widget lifecycle remain unverified. Do not resume without explicit reprioritization. |
-| 7 — deferred indefinitely | [Representative runtime and memory](./PLAY_OEM_COMPLEXITY_32_REPRESENTATIVE_LOAD_MEASUREMENT_PLAN.md) | No execution is scheduled. Resume only after explicit reprioritization; if reinstated, use measurements as operating constraints, not optimization targets. |
-| 8 — deferred | Longer-term maintenance trends | Play-OEM source history begins 2026-10-15. Revisit change frequency after several months of ordinary maintenance; the current feature and migration bursts are not representative. |
+| 6 — complete | [Capacity scanner simplification](./PLAY_OEM_COMPLEXITY_40_CAPACITY_SCANNER_SIMPLIFICATION_PLAN.md) | Replaced the separate ASCII mmap and UTF-8 paths with one bounded scanner: 177 fewer helper lines and score reduced from 68 to 24. All 88 focused tests passed; all measured medians remained within twice the Plan 9 baselines. |
+| 7 — deferred indefinitely | [Hosted wx test pilot](./PLAY_OEM_COMPLEXITY_19_HOSTED_WX_TEST_PILOT_PLAN.md) | Real wx cleanup was verified on macOS Cocoa; GTK/MSW and native VTK widget lifecycle remain unverified. Do not resume without explicit reprioritization. |
+| 8 — deferred indefinitely | [Representative runtime and memory](./PLAY_OEM_COMPLEXITY_32_REPRESENTATIVE_LOAD_MEASUREMENT_PLAN.md) | No execution is scheduled. Resume only after explicit reprioritization; if reinstated, use measurements as operating constraints, not optimization targets. |
+| 9 — deferred | Longer-term maintenance trends | Play-OEM source history begins 2026-10-15. Revisit change frequency after several months of ordinary maintenance; the current feature and migration bursts are not representative. |
 
 Plan 33 is complete; it did not identify a boundary change to implement. Plan
 36 superseded Plan 35's transitional two-cursor typing with a single
@@ -196,9 +198,11 @@ Plan 33 is complete; it did not identify a boundary change to implement. Plan
 three highest-ranked bounded reviews: Plan 37 retained inline validation,
 Plan 38 fixed failed-replacement lookup loss without extracting preflight, and
 Plan 39 deduplicated only terminal drag cleanup. Plan 26's event-handler
-extraction remains rejected. Plans 19 and 32 remain deferred indefinitely by
-maintainer direction. Compatibility evidence is not a gate; longer-term
-maintenance review remains deferred.
+extraction remains rejected. Plan 40 replaced the two capacity scanners with
+one bounded implementation; its focused tests and synthetic timing guardrails
+passed. Plans 19 and 32 remain deferred indefinitely by maintainer direction.
+Compatibility evidence is not a gate; longer-term maintenance review remains
+deferred.
 
 ## Evidence gaps and completion criteria
 
@@ -247,24 +251,26 @@ preflight block but fixed a failed forced replacement dropping the restored
 default-view lookup; the focused lifecycle, panel, and cleanup suites passed
 (157). Plan 39 deduplicated the `COMPLETE`/`FAILED` range-drag reset without
 extracting handlers; the app and incremental-loader suites passed (113).
-Plans 37–39 are complete, with no broad refactor selected. The hosted wx pilot
-in Plan 19 is deferred indefinitely by maintainer direction. Compatibility
+Plan 40 is complete: one bounded scanner replaced the ASCII and text paths,
+the focused store/loader suites passed (88), and all synthetic medians met the
+documented guardrails. The hosted wx pilot in Plan 19 and workload study in
+Plan 32 remain deferred indefinitely by maintainer direction. Compatibility
 evidence is not a gate; longer-term maintenance review remains deferred.
 
-## Current baseline refresh — 2026-11-11
+## Current source refresh after Plan 40 — 2026-11-11
 
-Measured at commit `c422b94c7ec3b938ff104e16fe5e35d8672e863d`, with a clean
-worktree, on macOS using Python 3.9.6. Scope and AST decision-score method are
-unchanged from the initial baseline above; the reproduction script there emits
-the current counts when run at this commit.
+Measured in the working tree after the Plan 40 source change, on macOS using
+Python 3.9.6. Scope and AST decision-score method are unchanged from the
+initial baseline above; the reproduction script there emits these counts when
+run against the same source state.
 
 | Measure | Current result |
 | --- | ---: |
 | Python files | 63 |
-| Physical lines | 25,332 |
-| Function and method definitions, including nested definitions | 1,096 |
-| `oem_data_store.py` lines | 3,510 (13.9% of package) |
-| `app/controller.py` lines | 1,954 (7.7%) |
+| Physical lines | 25,147 |
+| Function and method definitions, including nested definitions | 1,095 |
+| `oem_data_store.py` lines | 3,324 (13.2% of package) |
+| `app/controller.py` lines | 1,954 (7.8%) |
 | `app/panel_management.py` lines | 402 |
 | `saved_state.py` lines | 551 |
 | View files containing `StoreViewBinding(` | 10 |
@@ -274,10 +280,9 @@ Current high-scoring functions by the same custom AST indicator:
 | Function | Lines | Decision score |
 | --- | ---: | ---: |
 | `saved_state.load_saved_state` | 268 | 69 |
-| `oem_data_store._capacity_for_ascii_file` | 179 | 46 |
 | `PanelManagementMixin._open_view` | 172 | 39 |
 | `OemDataStore.station_access` | 234 | 35 |
-| `PlayerApp._poll_incremental_load` | 128 | 32 |
+| `PlayerApp._poll_incremental_load` | 129 | 32 |
 | `Workspace.__init__` | 398 | 30 |
 | `OemDataStore.series` | 159 | 30 |
 | `PlayerApp.__init__` | 265 | 28 |
@@ -287,14 +292,15 @@ Current high-scoring functions by the same custom AST indicator:
 | `views/ground_track.update` | 107 | 26 |
 | `OemDataStore.ground_track` | 176 | 25 |
 | `OemDataStore._evict_derived_buffers` | 153 | 25 |
+| `config.load_config` | 146 | 25 |
+| `views/ground_station_analysis._update_status_text` | 47 | 25 |
 
-Compared with the prior refresh at commit `34a405bcecef47d7ba94110609f47658491db589`,
-the package has 270 fewer physical lines and 15 fewer function definitions.
-The leading hotspot names, sizes, and scores are unchanged. This volume change
-does not establish a new complexity reduction or justify a follow-on refactor;
-the previously investigated candidates remain rejected or conditional. No
-production improvement is selected until new behavior or maintenance evidence
-reveals a concrete simplification.
+The unified `_capacity_for_file` is 68 lines with a decision score of 24,
+below the high-score table's 25-point cutoff. Before Plan 40, the two scanner
+helpers together were 245 lines with a combined score of 68. Plan 40's
+measured reduction is supported by removal of one complete implementation,
+preserved behavior tests, and timings within the explicit guardrails; line
+counts alone are not treated as proof of lower complexity.
 
 This refresh is a reproducible current reference, not evidence that line or
 decision-score changes alone represent complexity reduction. Representative
@@ -310,6 +316,7 @@ layers and match expected feature integration; excluding broad migration
 commits did not expose a distinct duplicated policy. Plans 37–39 completed
 narrow local reviews: they retained the saved-state and panel-open boundaries
 while implementing only the forced-replacement rollback fix and terminal
-cleanup deduplication. No broad production refactor was selected. Change
-frequency beyond the available 27-day period remains unknown:
+cleanup deduplication. Plan 40 completed a scanner-specific simplification
+with behavior and performance guardrails. Change frequency beyond the
+available 27-day period remains unknown:
 [PLAY_OEM_COMPLEXITY_31_CHANGE_HISTORY_RERANKING_PLAN.md](./PLAY_OEM_COMPLEXITY_31_CHANGE_HISTORY_RERANKING_PLAN.md).
