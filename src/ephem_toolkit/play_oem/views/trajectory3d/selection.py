@@ -77,7 +77,7 @@ class VTKBackendUnavailableError(RuntimeError):
 
 def create_vtk_view(
     parent: wx.Window,
-    oem_cursor: cursor.OemCursor,
+    oem_cursor: cursor.PlaybackCursor,
     object_name: str,
     frame_context: str,
     playback_rate: Callable[[], float],
@@ -88,7 +88,7 @@ def create_vtk_view(
     ----------
     parent : wx.Window
         wx graph-panel host that will own the VTK render-window widget.
-    oem_cursor : cursor.OemCursor
+    oem_cursor : cursor.PlaybackCursor
         State lookup used to position the satellite marker.
     object_name : str
         Object name displayed in the plot context.

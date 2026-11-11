@@ -31,7 +31,7 @@ class GroundStationPassTrackView:
     def __init__(
         self,
         parent: wx.Window,
-        cursor: playback_cursor.OemCursor,
+        cursor: playback_cursor.PlaybackCursor,
         stations: Sequence[GroundStation],
         *,
         oem_loaded: bool,

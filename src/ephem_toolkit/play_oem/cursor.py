@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from enum import Enum
 import math
 from threading import RLock
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING, Sequence, Union
 
 import numpy as np
 
@@ -431,3 +431,6 @@ class StoreCursor:
     def lookup(self, t: float) -> CursorState:
         """Resolve a point query against the currently bound store snapshot."""
         return self._store.state_at(self._snapshot, t)
+
+
+PlaybackCursor = Union[OemCursor, StoreCursor]

@@ -49,7 +49,7 @@ class Trajectory3DView:
 
     def __init__(
         self,
-        oem_cursor: cursor.OemCursor | None,
+        oem_cursor: cursor.PlaybackCursor | None,
         object_name: str,
         frame_context: str,
     ) -> None:
@@ -57,14 +57,14 @@ class Trajectory3DView:
 
         Parameters
         ----------
-        oem_cursor : cursor.OemCursor
+        oem_cursor : cursor.PlaybackCursor
             State lookup used to position the satellite marker.
         object_name : str
             Object name displayed in the figure title.
         frame_context : str
             Reference-frame and origin description displayed in the title.
         """
-        self._cursor: cursor.OemCursor | None = oem_cursor
+        self._cursor: cursor.PlaybackCursor | None = oem_cursor
         self._object_name: str = object_name
         self._frame_context: str = frame_context
         self._figure: Figure | None = None

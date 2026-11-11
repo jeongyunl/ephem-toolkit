@@ -208,7 +208,7 @@ class PlayerApp(
         self.clock.set_playback_bounds(self.clock.t_start, self.clock.t_end)
         self.series = series
         self.time_unit = time_unit
-        self.cursor = cursor
+        self.cursor: cursor.PlaybackCursor = cursor
         self.object_name = object_name
         self.object_id = dict(metadata_details).get("Object ID", "").strip()
         self._loaded_file_name = loaded_file_name

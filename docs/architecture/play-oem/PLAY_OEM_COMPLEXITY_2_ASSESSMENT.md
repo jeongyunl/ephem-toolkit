@@ -123,6 +123,14 @@ PY
   and no repeated avoidable cost was established. Retain the current
   boundaries; the scan is not an exhaustive runtime call graph or external
   caller audit. See the [Plan 33 execution record](./PLAY_OEM_COMPLEXITY_33_INTERNAL_DEPENDENCY_RESPONSIBILITY_MAP_PLAN.md).
+- **Cursor type contract:** Plan 10 documented that playback starts with an
+  `OemCursor` and the controller replaces it with a `StoreCursor` on the first
+  usable append, while several declarations still named `OemCursor`. Plan 35
+  confirmed that the app and views opened after installation can receive
+  either concrete cursor. It added a `PlaybackCursor` union to those runtime
+  surfaces while preserving `OemCursor`-only initialization and
+  `StoreCursor`-only refresh narrowing. Focused tests passed; post-change
+  Pylance diagnostics timed out.
 
 ## Historical code-directed candidates
 
@@ -175,8 +183,9 @@ do not revive completed refactors based on old baseline scores.
 | --- | --- | --- |
 | 1 — complete | [Internal dependency and responsibility map](./PLAY_OEM_COMPLEXITY_33_INTERNAL_DEPENDENCY_RESPONSIBILITY_MAP_PLAN.md) | Completed the first-pass import, ownership, callback, dynamic-registration, and representative change-path map. No eager import cycle or avoidable boundary cost was established. Retain current boundaries; revisit view registration or tier-to-view refresh only if future changes demonstrate repeated coordination failures. |
 | 2 — deferred indefinitely | [Representative runtime and memory](./PLAY_OEM_COMPLEXITY_32_REPRESENTATIVE_LOAD_MEASUREMENT_PLAN.md) | No execution is scheduled. Resume only after explicit reprioritization. If reinstated, measure the combined workload as written and treat latency, queue depth, and memory as operating constraints—not optimization targets. |
-| 3 — conditional | Native cross-platform GUI behavior | Real wx cleanup was verified on macOS Cocoa; GTK/MSW and native VTK widget lifecycle remain unverified. Resume when suitable Linux/Windows runners are available; do not infer native behavior from fake widgets or add speculative CI. |
-| 4 — deferred | Longer-term maintenance trends | Play-OEM source history begins 2026-10-15. Revisit change frequency after several months of ordinary maintenance; the current feature and migration bursts are not representative. |
+| 3 — complete | [Cursor runtime/type contract](./PLAY_OEM_COMPLEXITY_35_CURSOR_TYPE_CONTRACT_PLAN.md) | Added a `PlaybackCursor` union for the app's switched state and direct consumers; retained the initial `OemCursor` input and concrete refresh narrowing. Five focused suites passed (130 tests); post-change Pylance requests timed out. |
+| 4 — conditional | Native cross-platform GUI behavior | Real wx cleanup was verified on macOS Cocoa; GTK/MSW and native VTK widget lifecycle remain unverified. Resume when suitable Linux/Windows runners are available; do not infer native behavior from fake widgets or add speculative CI. |
+| 5 — deferred | Longer-term maintenance trends | Play-OEM source history begins 2026-10-15. Revisit change frequency after several months of ordinary maintenance; the current feature and migration bursts are not representative. |
 
 Plan 33 is complete; it did not identify a boundary change to implement. The
 representative runtime and memory study is deferred indefinitely and is not an
@@ -184,8 +193,9 @@ active task. The project maintainer has said that there are not yet external
 users and compatibility is not a concern; Plan 34 was closed before its
 evidence matrix was completed and compatibility evidence is not a gate for
 current changes. Native GUI work depends on runner availability, and
-longer-term maintenance review depends on additional ordinary history. No
-code-change candidate is currently justified by the completed investigations.
+longer-term maintenance review depends on additional ordinary history. Plan 35
+is complete with a bounded annotation-only clarification and no runtime
+refactor.
 
 ## Evidence gaps and completion criteria
 
@@ -214,7 +224,7 @@ repeating the chronological selection notes.
 | --- | --- | --- |
 | Load lifecycle and store scheduling (4–5) | Bounded event draining to 64 per tick and centralized repeated request-bound policy. No lifecycle enum or scheduler extraction. | [Plan 4](./PLAY_OEM_COMPLEXITY_4_LOAD_LIFECYCLE_PLAN.md), [plan 5](./PLAY_OEM_COMPLEXITY_5_STORE_SCHEDULING_CACHE_PLAN.md) |
 | Queries and refresh (6–7) | Centralized Earth-center validation; retained distinct query coverage and refresh-routing rules. Focused routing tests added; no refresh policy abstraction. | [Plan 6](./PLAY_OEM_COMPLEXITY_6_DERIVED_STORE_QUERIES_PLAN.md), [plan 7](./PLAY_OEM_COMPLEXITY_7_VIEW_REFRESH_COORDINATION_PLAN.md) |
-| Saved state, domain logic, and variants (8–10) | Parser and cursor/backend refactors rejected; synthetic capacity scan showed no wx-thread bottleneck; scrollbar conversion helper retained. | [Plan 8](./PLAY_OEM_COMPLEXITY_8_SAVED_STATE_PARSING_VALIDATION_PLAN.md), [plan 9](./PLAY_OEM_COMPLEXITY_9_DOMAIN_PERFORMANCE_HOTSPOTS_PLAN.md), [plan 10](./PLAY_OEM_COMPLEXITY_10_CURSOR_BACKEND_COMPATIBILITY_PLAN.md) |
+| Saved state, domain logic, and variants (8–10) | Parser and cursor/backend consolidation rejected; synthetic capacity scan showed no wx-thread bottleneck; scrollbar conversion helper retained. Plan 35 later clarified the runtime cursor union without changing behavior. | [Plan 8](./PLAY_OEM_COMPLEXITY_8_SAVED_STATE_PARSING_VALIDATION_PLAN.md), [plan 9](./PLAY_OEM_COMPLEXITY_9_DOMAIN_PERFORMANCE_HOTSPOTS_PLAN.md), [plan 10](./PLAY_OEM_COMPLEXITY_10_CURSOR_BACKEND_COMPATIBILITY_PLAN.md), [plan 35](./PLAY_OEM_COMPLEXITY_35_CURSOR_TYPE_CONTRACT_PLAN.md) |
 | Views, panels, and controller state (11–13) | Added a scrollbar mapping helper and shared resource-release path; fixed two initialization-order defects. No broad view split or new state owner. | [Plans 11](./PLAY_OEM_COMPLEXITY_11_LARGE_GUI_VIEW_RESPONSIBILITIES_PLAN.md), [12](./PLAY_OEM_COMPLEXITY_12_PANEL_VIEW_LIFECYCLE_PLAN.md), [13](./PLAY_OEM_COMPLEXITY_13_CONTROLLER_INITIALIZATION_SHARED_STATE_PLAN.md) |
 | Startup and native wx cleanup (14–21) | Partial-startup rollback and active-load shutdown verified on macOS Cocoa. GTK/MSW execution and hosted runner feasibility remain blocked; no speculative CI was added. | [Plan 14](./PLAY_OEM_COMPLEXITY_14_PARTIAL_GUI_STARTUP_CLEANUP_PLAN.md), [15](./PLAY_OEM_COMPLEXITY_15_STORE_VIEW_RESULT_STATE_PLAN.md), [16](./PLAY_OEM_COMPLEXITY_16_NATIVE_WX_STARTUP_CLEANUP_PLAN.md), [17](./PLAY_OEM_COMPLEXITY_17_CROSS_PLATFORM_WX_CLEANUP_PLAN.md), [18](./PLAY_OEM_COMPLEXITY_18_WX_CI_RUNNER_ENABLEMENT_PLAN.md), [19](./PLAY_OEM_COMPLEXITY_19_HOSTED_WX_TEST_PILOT_PLAN.md), [20](./PLAY_OEM_COMPLEXITY_20_ACTIVE_LOAD_SHUTDOWN_PLAN.md), [21](./PLAY_OEM_COMPLEXITY_21_NATIVE_WX_ACTIVE_LOAD_SHUTDOWN_PLAN.md) |
 | Snapshot installation (22–25) | Re-ranking selected three local reductions: pending bounds, exception-safe batch scope, and first-versus-later append phases. | [Plan 22](./PLAY_OEM_COMPLEXITY_22_CANDIDATE_RERANKING_PLAN.md), [23](./PLAY_OEM_COMPLEXITY_23_SNAPSHOT_INSTALLATION_DEDUPLICATION_PLAN.md), [24](./PLAY_OEM_COMPLEXITY_24_BATCH_INSTALL_GUARD_PLAN.md), [25](./PLAY_OEM_COMPLEXITY_25_SNAPSHOT_INSTALLATION_PHASES_PLAN.md) |
@@ -225,10 +235,10 @@ repeating the chronological selection notes.
 
 Plan 33's dependency and responsibility map is complete and supports retaining
 the current boundaries. Plan 32's representative load/query/range-change
-measurement is deferred indefinitely. Compatibility evidence is not a current
-gate by maintainer direction. Platform and longer-term maintenance questions
-remain conditional or deferred as ranked above; no code change is currently
-supported by the evidence.
+measurement is deferred indefinitely. Plan 35 completed the cursor type
+contract clarification; compatibility evidence is not a current gate by
+maintainer direction. Platform and longer-term maintenance questions remain
+conditional or deferred as ranked above.
 
 ## Current baseline refresh — 2026-11-11
 
