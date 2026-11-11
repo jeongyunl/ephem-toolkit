@@ -20,7 +20,7 @@ from typing import Generic, Literal, TypeVar, Union, cast
 
 import numpy as np
 
-from ephem_toolkit.core import misc, wgs
+from ephem_toolkit.core import wgs
 from ephem_toolkit.core.ccsds.odm import ODM_MAX_LINE_LENGTH
 from ephem_toolkit.core.interpolator.factory import InterpolatorFactory
 from ephem_toolkit.core.interpolator.interpolation_spec import (
@@ -47,7 +47,17 @@ from .ground_track import (
     split_ground_track_runs,
     state_position_to_itrf_m,
 )
-from .series import OrbitSeries
+from .series import (
+    DIRECTION_RATE_COLUMNS,
+    DISTANCE_DELTA_COLUMNS,
+    KINEMATICS_COLUMNS,
+    RTN_COLUMNS,
+    SERIES_GROUPS,
+    OrbitSeries,
+    SeriesGroupName,
+    _SERIES_COLUMNS,
+    compute_series_chunk,
+)
 from .station_access import (
     ACCESS_WINDOW_MARGIN_FRACTION,
     ACCESS_WINDOW_MIN_MARGIN_S,
@@ -63,49 +73,10 @@ from .time_unit import TimeUnit
 
 T = TypeVar("T")
 TimeBounds = tuple[float, float]
-SeriesGroupName = Literal[
-    "kinematics", "rtn", "direction-rates", "distance-delta"
-]
-SERIES_GROUPS: tuple[SeriesGroupName, ...] = (
-    "kinematics",
-    "rtn",
-    "direction-rates",
-    "distance-delta",
-)
 DERIVED_CHUNK_SIZE = 4096
-KINEMATICS_COLUMNS = ("t", "speed_m_s", "distance_m", "altitude_m")
-DISTANCE_DELTA_COLUMNS = ("t", "delta_distance_m")
-RTN_COLUMNS = (
-    "t",
-    "delta_r_m",
-    "delta_t_m",
-    "delta_n_m",
-    "delta_vr_m_s",
-    "delta_vt_m_s",
-    "delta_vn_m_s",
-)
-DIRECTION_RATE_COLUMNS = (
-    "t",
-    "direction_change_rad",
-    "angular_velocity_rad_s",
-    "roll_rad",
-    "pitch_rad",
-    "yaw_rad",
-    "roll_rate_rad_s",
-    "pitch_rate_rad_s",
-    "yaw_rate_rad_s",
-)
 EARTH_FIXED_COLUMNS = ("t", "x_itrf", "y_itrf", "z_itrf")
 GROUND_TRACK_COLUMNS = ("t", "longitude", "latitude")
 STATION_PROFILE_COLUMNS = ("t", "azimuth_deg", "elevation_deg", "range_km")
-_SERIES_COLUMNS: Mapping[SeriesGroupName, tuple[str, ...]] = MappingProxyType(
-    {
-        "kinematics": KINEMATICS_COLUMNS,
-        "rtn": RTN_COLUMNS,
-        "direction-rates": DIRECTION_RATE_COLUMNS,
-        "distance-delta": DISTANCE_DELTA_COLUMNS,
-    }
-)
 TierName = Literal[
     "series", "earth-fixed", "ground-track", "station-access", "footprints"
 ]
@@ -3237,73 +3208,13 @@ def _write_series_chunk(
     stop: int,
     output: np.ndarray,
 ) -> None:
-    raw = snapshot.raw
-    segments = snapshot.segment_ids
-    if group == "kinematics":
-        for row in range(start, stop):
-            state = raw[row, 1:7]
-            output[row, 0] = raw[row, 0]
-            output[row, 1] = np.linalg.norm(state[3:6])
-            output[row, 2] = np.linalg.norm(state[0:3])
-            output[row, 3] = wgs.ecef_to_lla(state[0:3])[2]
-        return
-
-    if group == "rtn":
-        for row in range(start, stop):
-            output[row, 0] = raw[row, 0]
-            output[row, 1:] = np.nan
-            if row > 0 and segments[row] == segments[row - 1]:
-                output[row, 1:] = misc.transform_to_rtn(
-                    raw[row, 1:7],
-                    raw[row - 1, 1:7],
-                )
-        return
-
-    if group == "distance-delta":
-        for row in range(start, stop):
-            output[row, 0] = raw[row, 0]
-            output[row, 1] = 0.0
-            if row > 0 and segments[row] == segments[row - 1]:
-                output[row, 1] = (
-                    np.linalg.norm(raw[row, 1:4])
-                    - np.linalg.norm(raw[row - 1, 1:4])
-                )
-        return
-
-    for row in range(start, stop):
-        state = raw[row, 1:7]
-        direction = OrbitSeries._compute_rtn_velocity_direction_vector(state)
-        radial, transverse, normal = direction
-        pitch = math.atan2(float(radial), float(transverse))
-        yaw = math.atan2(float(normal), math.hypot(float(radial), float(transverse)))
-        output[row, 0] = raw[row, 0]
-        output[row, 1:3] = 0.0
-        output[row, 3:6] = (0.0, pitch, yaw)
-        output[row, 6:9] = 0.0
-        if row == 0 or segments[row] != segments[row - 1]:
-            continue
-
-        previous_direction = OrbitSeries._compute_rtn_velocity_direction_vector(
-            raw[row - 1, 1:7]
-        )
-        dot_product = float(np.dot(previous_direction, direction))
-        angle_rad = math.acos(float(np.clip(dot_product, -1.0, 1.0)))
-        delta_time_s = float(raw[row, 0] - raw[row - 1, 0])
-        output[row, 1] = angle_rad
-        if delta_time_s > 0.0:
-            output[row, 2] = angle_rad / delta_time_s
-            previous_pitch = math.atan2(
-                float(previous_direction[0]), float(previous_direction[1])
-            )
-            previous_yaw = math.atan2(
-                float(previous_direction[2]),
-                math.hypot(float(previous_direction[0]), float(previous_direction[1])),
-            )
-            output[row, 6:9] = (
-                0.0,
-                (pitch - previous_pitch) / delta_time_s,
-                (yaw - previous_yaw) / delta_time_s,
-            )
+    output[start:stop] = compute_series_chunk(
+        snapshot.raw,
+        snapshot.segment_ids,
+        group,
+        start,
+        stop,
+    )
 
 
 def _write_earth_fixed_chunk(

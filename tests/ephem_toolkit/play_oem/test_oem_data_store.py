@@ -29,7 +29,11 @@ from ephem_toolkit.play_oem.oem_data_store import (
     RowSpan,
     StoreSnapshot,
 )
-from ephem_toolkit.play_oem.series import compute_orbit_series
+from ephem_toolkit.play_oem.series import (
+    SERIES_GROUPS,
+    compute_orbit_series,
+    compute_series_chunk,
+)
 from ephem_toolkit.play_oem.time_unit import TimeUnit
 
 
@@ -921,6 +925,57 @@ def test_series_groups_are_lazy_chunked_views_matching_reference_computations() 
     assert result.coverage.covered_s == ((60.0, 120.0), (300.0, 360.0))
     assert result.coverage.complete
     assert _one_group(repeated, "kinematics").values.shape == (4, 4)
+
+
+def test_compute_series_chunk_matches_batch_reference_without_store_state() -> None:
+    times, states, segments = _series_samples()
+    raw = np.column_stack((times, states))
+    reference = compute_orbit_series(
+        times.tolist(),
+        list(states),
+        TimeUnit.for_duration(float(times[-1] - times[0])),
+        segments,
+    )
+    expected: dict[str, np.ndarray] = {
+        "kinematics": np.column_stack(
+            (
+                times,
+                reference.velocity_magnitude_km_s * 1000.0,
+                reference.geocentric_distance_km * 1000.0,
+                reference.altitude_km * 1000.0,
+            )
+        ),
+    }
+
+    rtn = np.full((len(times), 7), np.nan)
+    rtn[:, 0] = times
+    rtn[1:, 1:] = reference.rtn_delta_km * 1000.0
+    expected["rtn"] = rtn
+    expected["direction-rates"] = np.column_stack(
+        (
+            times,
+            np.deg2rad(reference.direction_change_angle_deg),
+            reference.angular_velocity_rad_s,
+            np.deg2rad(reference.euler_angles_deg),
+            np.deg2rad(reference.euler_angle_rates_deg_s),
+        )
+    )
+    distance_delta = np.zeros(len(times))
+    same_segment = segments[1:] == segments[:-1]
+    distance_delta[1:][same_segment] = np.diff(
+        reference.geocentric_distance_km
+    )[same_segment] * 1000.0
+    expected["distance-delta"] = np.column_stack((times, distance_delta))
+
+    for group in SERIES_GROUPS:
+        computed = compute_series_chunk(raw, segments, group, 0, len(times))
+        np.testing.assert_allclose(
+            computed, expected[group], atol=1e-14, equal_nan=True
+        )
+        sliced = compute_series_chunk(raw, segments, group, 1, len(times) - 1)
+        np.testing.assert_allclose(
+            sliced, expected[group][1:-1], atol=1e-14, equal_nan=True
+        )
 
 
 def test_series_computes_only_rows_inside_requested_ranges(monkeypatch) -> None:

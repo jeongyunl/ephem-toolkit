@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
+import math
+from types import MappingProxyType
+from typing import Literal
 
 import ephem_toolkit.core.misc as misc
 import ephem_toolkit.core.wgs as wgs
@@ -12,6 +16,46 @@ from .time_unit import TimeUnit
 
 KILOMETERS_PER_METER: float = 0.001
 """Length conversion factor from meters (m) to kilometers (km)."""
+
+SeriesGroupName = Literal[
+    "kinematics", "rtn", "direction-rates", "distance-delta"
+]
+SERIES_GROUPS: tuple[SeriesGroupName, ...] = (
+    "kinematics",
+    "rtn",
+    "direction-rates",
+    "distance-delta",
+)
+KINEMATICS_COLUMNS = ("t", "speed_m_s", "distance_m", "altitude_m")
+DISTANCE_DELTA_COLUMNS = ("t", "delta_distance_m")
+RTN_COLUMNS = (
+    "t",
+    "delta_r_m",
+    "delta_t_m",
+    "delta_n_m",
+    "delta_vr_m_s",
+    "delta_vt_m_s",
+    "delta_vn_m_s",
+)
+DIRECTION_RATE_COLUMNS = (
+    "t",
+    "direction_change_rad",
+    "angular_velocity_rad_s",
+    "roll_rad",
+    "pitch_rad",
+    "yaw_rad",
+    "roll_rate_rad_s",
+    "pitch_rate_rad_s",
+    "yaw_rate_rad_s",
+)
+_SERIES_COLUMNS: Mapping[SeriesGroupName, tuple[str, ...]] = MappingProxyType(
+    {
+        "kinematics": KINEMATICS_COLUMNS,
+        "rtn": RTN_COLUMNS,
+        "direction-rates": DIRECTION_RATE_COLUMNS,
+        "distance-delta": DISTANCE_DELTA_COLUMNS,
+    }
+)
 
 
 @dataclass
@@ -134,6 +178,83 @@ class OrbitSeries:
             velocity_rtn[valid_velocities] / velocity_norms[valid_velocities, None]
         )
         return directions
+
+
+def compute_series_chunk(
+    raw: np.ndarray,
+    segment_ids: np.ndarray,
+    group: SeriesGroupName,
+    start: int,
+    stop: int,
+) -> np.ndarray:
+    """Compute one derived-series span without store or cache lifecycle state."""
+    if group not in _SERIES_COLUMNS:
+        raise ValueError(f"unsupported series group: {group}")
+    output = np.empty((stop - start, len(_SERIES_COLUMNS[group])), dtype=float)
+    for row in range(start, stop):
+        output_row = row - start
+        if group == "kinematics":
+            state = raw[row, 1:7]
+            output[output_row, 0] = raw[row, 0]
+            output[output_row, 1] = np.linalg.norm(state[3:6])
+            output[output_row, 2] = np.linalg.norm(state[0:3])
+            output[output_row, 3] = wgs.ecef_to_lla(state[0:3])[2]
+            continue
+
+        if group == "rtn":
+            output[output_row, 0] = raw[row, 0]
+            output[output_row, 1:] = np.nan
+            if row > 0 and segment_ids[row] == segment_ids[row - 1]:
+                output[output_row, 1:] = misc.transform_to_rtn(
+                    raw[row, 1:7],
+                    raw[row - 1, 1:7],
+                )
+            continue
+
+        if group == "distance-delta":
+            output[output_row, 0] = raw[row, 0]
+            output[output_row, 1] = 0.0
+            if row > 0 and segment_ids[row] == segment_ids[row - 1]:
+                output[output_row, 1] = (
+                    np.linalg.norm(raw[row, 1:4])
+                    - np.linalg.norm(raw[row - 1, 1:4])
+                )
+            continue
+
+        state = raw[row, 1:7]
+        direction = OrbitSeries._compute_rtn_velocity_direction_vector(state)
+        radial, transverse, normal = direction
+        pitch = math.atan2(float(radial), float(transverse))
+        yaw = math.atan2(float(normal), math.hypot(float(radial), float(transverse)))
+        output[output_row, 0] = raw[row, 0]
+        output[output_row, 1:3] = 0.0
+        output[output_row, 3:6] = (0.0, pitch, yaw)
+        output[output_row, 6:9] = 0.0
+        if row == 0 or segment_ids[row] != segment_ids[row - 1]:
+            continue
+
+        previous_direction = OrbitSeries._compute_rtn_velocity_direction_vector(
+            raw[row - 1, 1:7]
+        )
+        dot_product = float(np.dot(previous_direction, direction))
+        angle_rad = math.acos(float(np.clip(dot_product, -1.0, 1.0)))
+        delta_time_s = float(raw[row, 0] - raw[row - 1, 0])
+        output[output_row, 1] = angle_rad
+        if delta_time_s > 0.0:
+            output[output_row, 2] = angle_rad / delta_time_s
+            previous_pitch = math.atan2(
+                float(previous_direction[0]), float(previous_direction[1])
+            )
+            previous_yaw = math.atan2(
+                float(previous_direction[2]),
+                math.hypot(float(previous_direction[0]), float(previous_direction[1])),
+            )
+            output[output_row, 6:9] = (
+                0.0,
+                (pitch - previous_pitch) / delta_time_s,
+                (yaw - previous_yaw) / delta_time_s,
+            )
+    return output
 
 
 def compute_orbit_series(
