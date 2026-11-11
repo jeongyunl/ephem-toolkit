@@ -190,13 +190,27 @@ behavior, not to begin with a broad file split or a package-wide line target.
    behavior without moving equivalent complexity elsewhere or weakening the
    contract.
 
-Use what this first effort teaches to refine the method and priorities. The next
-candidate is derived-data scheduling and cache lifetime, where epochs,
-in-flight work, partial coverage, and pinned views interact. The
-[logical-complexity research](./PLAY_OEM_COMPLEXITY_3_SUBSYSTEMS.md) describes these
-interactions; the [assessment](./PLAY_OEM_COMPLEXITY_2_ASSESSMENT.md) records the
-baseline and work-item inventory.
+Use what this first effort teaches to refine the method and priorities. The
+assessment next prioritized derived-data scheduling and cache lifetime, where
+epochs, in-flight work, partial coverage, and pinned views interact. The
+[logical-complexity research](./PLAY_OEM_COMPLEXITY_3_SUBSYSTEMS.md) describes
+these interactions; the [assessment](./PLAY_OEM_COMPLEXITY_2_ASSESSMENT.md)
+records the baseline and work-item inventory.
 
 The expected output is a transition table, a responsibility and invariants map,
 test evidence, and a decision on whether a bounded change improves the design.
 Update the existing assessment as findings and priorities change.
+
+## Execution status
+
+The lifecycle effort and prioritized follow-on investigations through Plan 30
+are recorded in the [assessment](./PLAY_OEM_COMPLEXITY_2_ASSESSMENT.md), with
+detailed traces and decisions in the linked plans and subsystem research. They
+produced several bounded local simplifications and rejected other abstractions
+where evidence did not support them. The current review is complete for the
+available evidence; Plan 31 found that the repository's Play-OEM history spans
+only 27 days and does not justify a new implementation candidate. This is not
+an exhaustive audit of every runtime, external caller, or platform. Reopen the
+work when longer-term maintenance evidence, representative performance data,
+a reproducible defect, or access to GTK/MSW runners supports a concrete
+candidate.

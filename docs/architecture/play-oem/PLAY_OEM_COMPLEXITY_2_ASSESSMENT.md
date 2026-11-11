@@ -9,10 +9,10 @@ and measurements provide better evidence.
 For an analysis of state, concurrency, and domain interactions, see
 [logically complex subsystems](./PLAY_OEM_COMPLEXITY_3_SUBSYSTEMS.md).
 
-## Baseline and method
+## Initial baseline and method
 
-Measured against source at Git commit `cf93496` on 2026-11-10, with no source
-modifications in the working tree. Scope: Python files recursively under
+Initially measured against source at Git commit `cf93496` on 2026-11-10, with
+no source modifications in the working tree. Scope: Python files recursively under
 `src/ephem_toolkit/play_oem`; tests, generated artifacts, documentation, and
 assets are excluded. Counts are physical lines including blanks and comments.
 
@@ -30,6 +30,8 @@ assets are excluded. Counts are physical lines including blanks and comments.
 The last count identifies files, not the number of duplicated sequences or the
 number of callers with equivalent behavior. The two largest files together
 contain 21.4% of package lines; concentration does not prove poor design.
+The current source baseline, measured with the same method, is recorded at the
+end of this document.
 
 The following **decision score** is a simple AST-based hotspot indicator, not
 a standard cyclomatic-complexity implementation: for each function definition,
@@ -113,14 +115,15 @@ PY
 
 ## Candidate inventory
 
-A line count of Python files under `src/ephem_toolkit/play_oem` gives roughly
-25,600 lines, including 3,545 in
+A line count at the initial assessment baseline gave 25,577 lines, including
+3,545 in
 [`oem_data_store.py`](../../../src/ephem_toolkit/play_oem/oem_data_store.py)
 and 1,920 in
 [`app/controller.py`](../../../src/ephem_toolkit/play_oem/app/controller.py).
 These counts include comments and blank lines and will change as the code
-changes. They identify places to inspect; they do not measure complexity or
-establish that a file should be divided.
+changes. The current measurement is recorded below. These counts identify
+places to inspect; they do not measure complexity or establish that a file
+should be divided.
 
 The following inventory contains *candidates*, not a claim that each has
 avoidable complexity. The work-item order below is the priority order. Validate
@@ -893,9 +896,66 @@ retaining the current single eviction loop, LRU key, pin/range checks,
 tier-specific behavior, and memory advice. The store and chunk-memo tests
 passed (87 tests); no behavior change or additional test was needed:
 [PLAY_OEM_COMPLEXITY_30_EVICTION_CANDIDATE_SHAPE_PLAN.md](./PLAY_OEM_COMPLEXITY_30_EVICTION_CANDIDATE_SHAPE_PLAN.md).
+The eviction method decreased from 162 to 153 lines, while the store module
+increased from 3,505 to 3,510 lines for the named record. Its decision score
+remained 25, so the evidence supports clearer local data flow, not a reduction
+in branch complexity or overall store size.
 
 At completion of Plan 22, the ranked candidates had been investigated and the
 remaining leads lacked either a concrete complexity defect/change hypothesis
 or an available validation path. Plans 23–30 subsequently evaluated further
 bounded candidates. Reopen the ranking for additional candidates only when
 evidence emerges rather than continuing with adjacent test-only extensions.
+
+## Current baseline refresh — 2026-11-11
+
+Measured at commit `34a405bcecef47d7ba94110609f47658491db589`, with a clean
+worktree, on macOS using Python 3.9.6. Scope and AST decision-score method are
+unchanged from the initial baseline above; the reproduction script there emits
+the current counts when run at this commit.
+
+| Measure | Current result |
+| --- | ---: |
+| Python files | 63 |
+| Physical lines | 25,602 |
+| Function and method definitions, including nested definitions | 1,111 |
+| `oem_data_store.py` lines | 3,510 (13.7% of package) |
+| `app/controller.py` lines | 1,954 (7.6%) |
+| `app/panel_management.py` lines | 402 |
+| `saved_state.py` lines | 551 |
+| View files containing `StoreViewBinding(` | 10 |
+
+Current high-scoring functions by the same custom AST indicator:
+
+| Function | Lines | Decision score |
+| --- | ---: | ---: |
+| `saved_state.load_saved_state` | 268 | 69 |
+| `oem_data_store._capacity_for_ascii_file` | 179 | 46 |
+| `PanelManagementMixin._open_view` | 172 | 39 |
+| `OemDataStore.station_access` | 234 | 35 |
+| `PlayerApp._poll_incremental_load` | 128 | 32 |
+| `Workspace.__init__` | 398 | 30 |
+| `OemDataStore.series` | 159 | 30 |
+| `PlayerApp.__init__` | 265 | 28 |
+| `views/ground_station_passes._draw_sky_plot` | 172 | 27 |
+| `views/ground_station_access._draw_elevation_graph` | 122 | 26 |
+| `views/trajectory3d/mpl_backend._refresh_store_trajectory` | 116 | 26 |
+| `views/ground_track.update` | 107 | 26 |
+| `OemDataStore.ground_track` | 176 | 25 |
+| `OemDataStore._evict_derived_buffers` | 153 | 25 |
+
+This refresh is a reproducible current reference, not evidence that line or
+decision-score changes alone represent complexity reduction. Runtime and
+memory profiles, representative GUI latency, change frequency, defect history,
+and external API usage remain unmeasured; GTK/MSW behavior remains unverified
+without non-macOS runners.
+
+Plan 31 analyzed all available non-merge history in the requested one-year
+window. The Play-OEM source history begins on 2026-10-15, so the actual sample
+covers only 27 days and is dominated by initial feature development, module
+splits, and the store migration. The most common co-changes pair application
+layers and match expected feature integration; excluding broad migration
+commits did not expose a distinct duplicated policy. No further implementation
+candidate is selected. Change frequency beyond the available 27-day period
+remains unknown:
+[PLAY_OEM_COMPLEXITY_31_CHANGE_HISTORY_RERANKING_PLAN.md](./PLAY_OEM_COMPLEXITY_31_CHANGE_HISTORY_RERANKING_PLAN.md).
