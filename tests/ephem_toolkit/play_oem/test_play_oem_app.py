@@ -2923,6 +2923,117 @@ def test_closing_while_oem_parse_is_blocked_cancels_without_waiting(
     assert store.snapshot().sample_count == 0
 
 
+def test_native_wx_close_during_oem_parse_cancels_and_destroys_resources(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    wx = app.wx
+    if not wx.App.IsDisplayAvailable():
+        pytest.skip("wx cannot connect to the available display")
+
+    source = tmp_path / "native-closing-load.oem"
+    source.write_text(
+        "CCSDS_OEM_VERS = 2.0\n"
+        "META_START\n"
+        "OBJECT_NAME = NATIVE CLOSING LOAD\n"
+        "CENTER_NAME = EARTH\n"
+        "REF_FRAME = GCRF\n"
+        "TIME_SYSTEM = UTC\n"
+        "META_STOP\n"
+        "2026-01-01T00:00:00 7000 0 0 0 7.5 0\n",
+        encoding="utf-8",
+    )
+    parsing_started = Event()
+    release_parser = Event()
+    original_validate = odm.validate_odm_line
+    real_frame_class = wx.Frame
+    real_timer_class = wx.Timer
+    wx_app = wx.App.Get() or wx.App(False)
+    frames = []
+    timers = []
+    closed_workspaces = []
+    player = None
+    session = None
+    store = None
+
+    def create_frame(*args, **kwargs):
+        frame = real_frame_class(*args, **kwargs)
+        frames.append(frame)
+        return frame
+
+    def create_timer(*args, **kwargs):
+        timer = real_timer_class(*args, **kwargs)
+        timers.append(timer)
+        return timer
+
+    def block_parser(line: str, label: str) -> None:
+        if line.startswith("2026-01-01T00:00:00"):
+            parsing_started.set()
+            if not release_parser.wait(3.0):
+                raise TimeoutError("test parser was not released")
+        original_validate(line, label)
+
+    original_workspace_close = app.workspace.Workspace.close
+
+    def track_workspace_close(workspace) -> None:
+        closed_workspaces.append(workspace)
+        original_workspace_close(workspace)
+
+    monkeypatch.setattr(wx, "Frame", create_frame)
+    monkeypatch.setattr(wx, "Timer", create_timer)
+    monkeypatch.setattr(odm, "validate_odm_line", block_parser)
+    monkeypatch.setattr(app.workspace.Workspace, "close", track_workspace_close)
+
+    try:
+        player = app.PlayerApp(
+            make_clock(),
+            compute_orbit_series(
+                [100.0, 200.0], make_states(), TimeUnit.MINUTES
+            ),
+            TimeUnit.MINUTES,
+            OemCursor([100.0, 200.0], make_states()),
+            "TEST",
+            "GCRF / Earth",
+            plots=("overview",),
+            oem_loaded=False,
+        )
+        player.start()
+        player._load_oem_file(str(source))
+        session = player._incremental_loader.session
+        assert session is not None
+        assert parsing_started.wait(3.0)
+        store = player._pending_oem_store
+        assert store is not None
+
+        player.close()
+
+        assert player._closed
+        assert session.cancelled
+        assert not timers[0].IsRunning()
+        assert store.status is LoadStatus.CANCELLED
+        assert store._scheduler_closed
+        assert len(closed_workspaces) == 1
+        assert wx.App.Get() is wx_app
+        assert player._incremental_loader.drain() == []
+    finally:
+        release_parser.set()
+        if player is not None and not player._closed:
+            player.close()
+        frame_ids = {id(frame) for frame in frames}
+        for window in wx.GetTopLevelWindows():
+            if id(window) in frame_ids:
+                window.Destroy()
+        wx.YieldIfNeeded()
+
+    assert session is not None
+    assert store is not None
+    assert session._finished.wait(3.0)
+    assert store.snapshot().sample_count == 0
+    assert not any(
+        id(window) in {id(frame) for frame in frames}
+        for window in wx.GetTopLevelWindows()
+    )
+
+
 def test_sigint_is_forwarded_with_call_after_and_previous_handler_restored(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

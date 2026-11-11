@@ -734,3 +734,20 @@ parse: cancellation and store closure are asserted, and releasing the parser
 does not append a sample. The loader suite plus this focused app test passed
 (11 passed) on macOS; no duplicate test or production change was needed.
 GTK/MSW remain deferred.
+
+## Native active-load shutdown selection — 2026-11-11
+
+Plan 20's active-load shutdown test uses the app test doubles, while plan 16's
+native wx integration verifies partial-construction rollback. The next
+macOS-only step is to verify the intersection: closing real wx resources while
+the loader is blocked at a deterministic parser boundary. Add a display-gated
+test only if the combined setup is safe and reliable; keep GTK/MSW deferred.
+Scope is in
+[PLAY_OEM_COMPLEXITY_21_NATIVE_WX_ACTIVE_LOAD_SHUTDOWN_PLAN.md](./PLAY_OEM_COMPLEXITY_21_NATIVE_WX_ACTIVE_LOAD_SHUTDOWN_PLAN.md).
+
+Plan 21 verified the intersection on macOS Cocoa: the real wx app closed during
+a blocked parse, cancelling the session, stopping the timer, closing the store
+and workspace, preserving `wx.App`, and preventing late append. The focused
+native test passed and the full app lifecycle suite passed (98 passed) with
+wxPython 4.2.4 / wxWidgets 3.2.8. No production change was needed; GTK/MSW
+remain deferred.

@@ -211,6 +211,14 @@ without changing cross-platform status:
 Plan 20 confirmed the existing blocked-parser close test covers cancellation,
 store closure, and absence of post-close appends; the focused loader/app tests
 passed (11 passed) on macOS, with no production change.
+Plan 21 is the next macOS-only validation: combine that active-load shutdown
+case with real wx resources and deterministic parser blocking, while keeping
+the GTK/MSW runner work deferred:
+[plan 21](./PLAY_OEM_COMPLEXITY_21_NATIVE_WX_ACTIVE_LOAD_SHUTDOWN_PLAN.md).
+Plan 21 passed on macOS Cocoa (wxPython 4.2.4 / wxWidgets 3.2.8); the full
+app lifecycle suite passed (98 passed). Real wx shutdown during blocked OEM
+parsing cancelled the loader, stopped the timer, closed workspace/store,
+preserved `wx.App`, and prevented a late append. GTK/MSW remain unverified.
 
 ## Scope and follow-up
 
