@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from typing import Any, cast
 
 import numpy as np
+import pytest
 from matplotlib.backend_bases import MouseButton
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
@@ -77,6 +78,24 @@ def _pass_summary_view(
         StationAccess(station, intervals, limitation=limitation),
     )
     return view
+
+
+def _record_labels(
+    view: GroundStationAccessView,
+    *,
+    status: str = "",
+    metrics: str = "",
+    passes: str = "",
+) -> dict[str, list[str]]:
+    values = {
+        "status": [status],
+        "metrics": [metrics],
+        "passes": [passes],
+    }
+    view._status_label = SimpleNamespace(SetLabel=values["status"].append)
+    view._metrics_label = SimpleNamespace(SetLabel=values["metrics"].append)
+    view._pass_label = SimpleNamespace(SetLabel=values["passes"].append)
+    return values
 
 
 def test_elevation_graph_draws_profile_updates_cursor_and_seeks() -> None:
@@ -430,3 +449,148 @@ def test_pass_summary_treats_both_active_interval_endpoints_as_inclusive() -> No
             f"{expected_active}\nNext pass: none in OEM coverage"
         )
         view.close()
+
+
+def test_update_early_returns_preserve_priority_and_cursor_updates() -> None:
+    station = GroundStation("station", "Site", 0.0, 0.0, 0.0, 0)
+    header = "Site · 0.0000°, 0.0000° · 0.0 m (WGS-84 ellipsoid)\n"
+    no_station = _access_view([])
+    no_station._oem_loaded = False
+    no_station._preparation_error = "Preparation error"
+    unloaded_oem = _access_view([station])
+    unloaded_oem._oem_loaded = False
+    unloaded_oem._preparation_error = "Preparation error"
+    preparation_error = _access_view([station])
+    preparation_error._preparation_error = "Preparation error"
+    cases = (
+        (
+            no_station,
+            "No ground stations are configured. Add a station to calculate access.",
+            "",
+        ),
+        (
+            unloaded_oem,
+            "Load an Earth-centered OEM to calculate access.",
+            f"{header}",
+        ),
+        (
+            preparation_error,
+            "Preparation error",
+            f"{header}Current metrics unavailable.",
+        ),
+    )
+
+    for view, expected_status, expected_metrics in cases:
+        labels = _record_labels(view)
+        _figure_canvas(view)
+        cursor_line, = view._axes.plot([0.0, 0.0], [0.0, 1.0])
+        cursor_line.set_gid("playback-cursor")
+
+        view.update(60.0)
+
+        assert labels["status"][-1] == expected_status
+        assert labels["metrics"][-1] == expected_metrics
+        assert labels["passes"][-1] == ""
+        assert np.allclose(cursor_line.get_xdata(), [1.0, 1.0])
+        assert cursor_line.get_visible()
+        view.close()
+
+
+def test_update_successful_metrics_keep_limitation_in_pass_summary() -> None:
+    station = GroundStation("station", "Site", 1.23456, -2.34567, 123.45, 10)
+    limitation = "Unsupported Earth-centered frame."
+    view = _access_view([station])
+    view._access_results = (
+        StationAccess(station, (), limitation=limitation),
+    )
+    view._store_context = cast(
+        Any,
+        SimpleNamespace(
+            station_metrics_at=lambda _station, _time: SimpleNamespace(
+                access=True,
+                azimuth_deg=123.44,
+                elevation_deg=45.67,
+                slant_range_km=987.64,
+            )
+        ),
+    )
+    labels = _record_labels(view)
+
+    view.update(60.0)
+
+    assert labels["status"][-2:] == [limitation, ""]
+    assert labels["metrics"][-1] == (
+        "Site · 1.2346°, -2.3457° · 123.5 m (WGS-84 ellipsoid)\n"
+        "Access · Mask 10° · Azimuth 123.4° · Elevation 45.7° · "
+        "Slant range 987.6 km"
+    )
+    assert labels["passes"][-1] == limitation
+    view.close()
+
+
+def test_update_missing_metrics_and_value_errors_set_readout_labels() -> None:
+    station = GroundStation("station", "Site", 0.0, 0.0, 0.0, 0)
+    header = "Site · 0.0000°, 0.0000° · 0.0 m (WGS-84 ellipsoid)\n"
+
+    missing_metrics = _access_view([station])
+    missing_metrics._access_results = (StationAccess(station, ()),)
+    missing_labels = _record_labels(missing_metrics)
+    missing_metrics.update(60.0)
+    assert missing_labels["status"][-1] == (
+        "Current OEM state unavailable (outside coverage or in a segment gap)."
+    )
+    assert missing_labels["metrics"][-1] == (
+        f"{header}Azimuth, elevation, and range are unavailable."
+    )
+    assert missing_labels["passes"][-1] == (
+        "Previous pass: none in OEM coverage\nNext pass: none in OEM coverage"
+    )
+    missing_metrics.close()
+
+    def fail_with_value_error(_station: Any, _time: float) -> None:
+        raise ValueError("Metric lookup failed")
+
+    invalid_metrics = _access_view([station])
+    invalid_metrics._store_context = cast(
+        Any, SimpleNamespace(station_metrics_at=fail_with_value_error)
+    )
+    invalid_labels = _record_labels(invalid_metrics)
+    invalid_metrics.update(60.0)
+    assert invalid_labels["status"][-1] == "Metric lookup failed"
+    assert invalid_labels["metrics"][-1] == (
+        f"{header}Current metrics unavailable."
+    )
+    assert invalid_labels["passes"][-1] == ""
+    invalid_metrics.close()
+
+
+def test_update_propagates_unexpected_metric_errors_after_clearing_stale_labels() -> None:
+    station = GroundStation("station", "Site", 0.0, 0.0, 0.0, 0)
+    limitation = "Unsupported Earth-centered frame."
+    view = _access_view([station])
+    view._access_results = (
+        StationAccess(station, (), limitation=limitation),
+    )
+
+    def fail_unexpectedly(_station: Any, _time: float) -> None:
+        raise RuntimeError("Unexpected metric failure")
+
+    view._store_context = cast(
+        Any, SimpleNamespace(station_metrics_at=fail_unexpectedly)
+    )
+    labels = _record_labels(
+        view,
+        status="Stale status",
+        metrics="Stale metrics",
+        passes="Stale pass summary",
+    )
+
+    with pytest.raises(RuntimeError, match="Unexpected metric failure"):
+        view.update(60.0)
+
+    assert labels["status"][-1] == limitation
+    assert labels["metrics"][-1] == (
+        "Site · 0.0000°, 0.0000° · 0.0 m (WGS-84 ellipsoid)\n"
+    )
+    assert labels["passes"][-1] == ""
+    view.close()

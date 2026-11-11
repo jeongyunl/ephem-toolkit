@@ -212,6 +212,10 @@ The current candidates and holds are:
   explicit contiguous-index splits: a shared helper would not reduce method
   size or decision score and would add indirection. The focused suite passed
   (10); `_draw_elevation_graph` remains 119 lines with score 24.
+- [Plan 48](./PLAY_OEM_COMPLEXITY_48_READOUT_STATUS_INITIALIZATION_PLAN.md)
+  characterized readout and error states, then retained the pre-metrics status
+  write: it clears stale labels before unexpected metrics exceptions propagate.
+  The focused suite passed (14); `update` remains 65 lines with score 16.
 - The hosted native wx pilot in
   [Plan 19](./PLAY_OEM_COMPLEXITY_19_HOSTED_WX_TEST_PILOT_PLAN.md) is deferred
   indefinitely. Do not resume it without explicit reprioritization, even if
