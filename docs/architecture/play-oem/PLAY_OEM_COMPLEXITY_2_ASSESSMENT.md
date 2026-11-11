@@ -751,3 +751,20 @@ and workspace, preserving `wx.App`, and preventing late append. The focused
 native test passed and the full app lifecycle suite passed (98 passed) with
 wxPython 4.2.4 / wxWidgets 3.2.8. No production change was needed; GTK/MSW
 remain deferred.
+
+## Candidate re-ranking selection — 2026-11-11
+
+The next step is a decision checkpoint, not another adjacent lifecycle test.
+Reconcile remaining candidates against completed work, require an observable
+complexity hypothesis and feasible before/after validation, and select at most
+one new candidate. If none meets those criteria, pause the sequence until new
+evidence or platform access becomes available. Plan 22 records this bounded
+re-ranking procedure:
+[PLAY_OEM_COMPLEXITY_22_CANDIDATE_RERANKING_PLAN.md](./PLAY_OEM_COMPLEXITY_22_CANDIDATE_RERANKING_PLAN.md).
+
+Plan 22 is complete. The ranked candidates have been investigated, and the
+remaining leads lack either a concrete complexity defect/change hypothesis or
+an available validation path. No new implementation plan is selected. Reopen
+the ranking when evidence emerges—such as duplicated protocol callers,
+representative refresh latency, a reproducible state mismatch, or non-macOS
+runner access—rather than continuing with adjacent test-only extensions.

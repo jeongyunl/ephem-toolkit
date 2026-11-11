@@ -219,6 +219,13 @@ Plan 21 passed on macOS Cocoa (wxPython 4.2.4 / wxWidgets 3.2.8); the full
 app lifecycle suite passed (98 passed). Real wx shutdown during blocked OEM
 parsing cancelled the loader, stopped the timer, closed workspace/store,
 preserved `wx.App`, and prevented a late append. GTK/MSW remain unverified.
+The next step is to re-rank remaining candidates against the complexity
+strategy and either select one evidence-backed investigation or pause the
+sequence:
+[plan 22](./PLAY_OEM_COMPLEXITY_22_CANDIDATE_RERANKING_PLAN.md).
+Plan 22 found no remaining candidate meeting the evidence, complexity-benefit,
+and validation criteria. The current sequence is paused; reopen it only when
+new evidence or non-macOS runner access becomes available.
 
 ## Scope and follow-up
 
