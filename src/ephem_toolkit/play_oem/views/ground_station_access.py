@@ -326,11 +326,7 @@ class GroundStationAccessView:
 
     def _prepare_access(self) -> None:
         self._store_queries.clear()
-        if self._store_context is None:
-            self._access_results = ()
-            self._preparation_error = None
-            return
-        if not self._oem_loaded:
+        if self._store_context is None or not self._oem_loaded:
             self._access_results = ()
             self._preparation_error = None
             return

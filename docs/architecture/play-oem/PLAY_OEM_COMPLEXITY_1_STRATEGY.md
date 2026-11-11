@@ -216,6 +216,11 @@ The current candidates and holds are:
   characterized readout and error states, then retained the pre-metrics status
   write: it clears stale labels before unexpected metrics exceptions propagate.
   The focused suite passed (14); `update` remains 65 lines with score 16.
+- [Plan 49](./PLAY_OEM_COMPLEXITY_49_ACCESS_PREPARATION_GUARDS_PLAN.md)
+  combined the identical missing-context and unloaded-OEM early-return bodies
+  in `_prepare_access`. Focused characterization and the full access-view
+  suite passed (3 and 17 tests); the method decreased from 22 to 18 lines,
+  with score unchanged at 7.
 - The hosted native wx pilot in
   [Plan 19](./PLAY_OEM_COMPLEXITY_19_HOSTED_WX_TEST_PILOT_PLAN.md) is deferred
   indefinitely. Do not resume it without explicit reprioritization, even if

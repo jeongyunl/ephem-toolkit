@@ -80,6 +80,46 @@ def _pass_summary_view(
     return view
 
 
+@pytest.mark.parametrize(
+    ("store_context", "oem_loaded"),
+    [(None, True), (object(), False)],
+    ids=("missing-context", "unloaded-oem"),
+)
+def test_prepare_access_clears_state_when_store_is_unavailable(
+    store_context: object | None,
+    oem_loaded: bool,
+) -> None:
+    station = GroundStation("station", "Site", 0.0, 0.0, 0.0, 0)
+    view = _access_view([station])
+    view._store_context = cast(Any, store_context)
+    view._oem_loaded = oem_loaded
+    view._store_queries["stale"] = cast(Any, object())
+    view._access_results = (StationAccess(station, ()),)
+    view._preparation_error = "stale preparation error"
+
+    view._prepare_access()
+
+    assert view._store_queries == {}
+    assert view._access_results == ()
+    assert view._preparation_error is None
+
+
+def test_prepare_access_keeps_loaded_unprepared_range_results() -> None:
+    station = GroundStation("station", "Site", 0.0, 0.0, 0.0, 0)
+    view = _access_view([station])
+    view._store_context = cast(Any, object())
+    view._limit_to_range = True
+    view._prepare_range = None
+    view._store_queries["stale"] = cast(Any, object())
+    view._preparation_error = "stale preparation error"
+
+    view._prepare_access()
+
+    assert view._store_queries == {}
+    assert view._access_results == (StationAccess(station, ()),)
+    assert view._preparation_error is None
+
+
 def _record_labels(
     view: GroundStationAccessView,
     *,

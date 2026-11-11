@@ -206,6 +206,10 @@ in `GroundStationAccessView.update`, then retained the pre-metrics status
 write because it replaces stale labels before an unexpected exception
 propagates. The focused suite passed (14); the method remains 65 lines/score
 16.
+Plan 49 combined the equivalent missing-context and unloaded-OEM guards in
+`GroundStationAccessView._prepare_access`. The focused characterization and
+full access-view suite passed (3 and 17 tests); the method decreased from 22
+to 18 lines while its score remained 7.
 
 ## Current evidence priorities
 
@@ -230,9 +234,10 @@ do not revive completed refactors based on old baseline scores.
 | 12 — complete | [Access-pass summary formatting](./PLAY_OEM_COMPLEXITY_46_ACCESS_PASS_SUMMARY_FORMATTING_PLAN.md) | Reused a nested formatter for interval details and coverage notes; `_pass_summary` decreased from 63 to 54 lines and score from 15 to 13. Focused suite passed (8); selection and labels stayed inline. |
 | 13 — complete | [Access-graph run segmentation](./PLAY_OEM_COMPLEXITY_47_ACCESS_GRAPH_RUN_SEGMENTATION_PLAN.md) | Characterized non-finite and below-mask gaps; retained explicit splits because a shared helper would not reduce method size or score and would add indirection. Focused suite passed (10); method remains 119 lines/score 24. |
 | 14 — complete | [Readout status initialization](./PLAY_OEM_COMPLEXITY_48_READOUT_STATUS_INITIALIZATION_PLAN.md) | Characterized readout and exception paths; retained the write because it clears stale labels before unexpected exceptions propagate. Focused suite passed (14); `update` remains 65 lines/score 16. |
-| 15 — deferred indefinitely | [Hosted wx test pilot](./PLAY_OEM_COMPLEXITY_19_HOSTED_WX_TEST_PILOT_PLAN.md) | Real wx cleanup was verified on macOS Cocoa; GTK/MSW and native VTK widget lifecycle remain unverified. Do not resume without explicit reprioritization. |
-| 16 — deferred indefinitely | [Representative runtime and memory](./PLAY_OEM_COMPLEXITY_32_REPRESENTATIVE_LOAD_MEASUREMENT_PLAN.md) | No execution is scheduled. Resume only after explicit reprioritization; if reinstated, use measurements as operating constraints, not optimization targets. |
-| 17 — deferred | Longer-term maintenance trends | Play-OEM source history begins 2026-10-15. Revisit change frequency after several months of ordinary maintenance; the current feature and migration bursts are not representative. |
+| 15 — complete | [Access-preparation guards](./PLAY_OEM_COMPLEXITY_49_ACCESS_PREPARATION_GUARDS_PLAN.md) | Combined identical missing-context and unloaded-OEM early returns; characterization and full access-view suites passed (3 and 17 tests). `_prepare_access` decreased from 22 to 18 lines; score remains 7. |
+| 16 — deferred indefinitely | [Hosted wx test pilot](./PLAY_OEM_COMPLEXITY_19_HOSTED_WX_TEST_PILOT_PLAN.md) | Real wx cleanup was verified on macOS Cocoa; GTK/MSW and native VTK widget lifecycle remain unverified. Do not resume without explicit reprioritization. |
+| 17 — deferred indefinitely | [Representative runtime and memory](./PLAY_OEM_COMPLEXITY_32_REPRESENTATIVE_LOAD_MEASUREMENT_PLAN.md) | No execution is scheduled. Resume only after explicit reprioritization; if reinstated, use measurements as operating constraints, not optimization targets. |
+| 18 — deferred | Longer-term maintenance trends | Play-OEM source history begins 2026-10-15. Revisit change frequency after several months of ordinary maintenance; the current feature and migration bursts are not representative. |
 
 Plan 33 is complete; it did not identify a boundary change to implement. Plan
 36 superseded Plan 35's transitional two-cursor typing with a single
@@ -256,7 +261,9 @@ characterized non-finite and below-mask gaps, then retained the explicit
 contiguous-index splits because a helper offered no net reduction and added
 indirection. Plan 48 retained pre-metrics label initialization because it
 clears stale readout fields before unexpected metrics errors propagate. Plans
-19 and 32 remain deferred indefinitely by maintainer direction.
+19 and 32 remain deferred indefinitely by maintainer direction. Plan 49
+combined the equivalent `_prepare_access` guards while preserving cache
+resetting and the loaded limited-range path.
 Compatibility evidence is not a gate; longer-term maintenance review remains
 deferred.
 
