@@ -1061,6 +1061,60 @@ def test_explicit_render_rate_is_not_reconstructed_from_rounded_interval(
     player.close()
 
 
+def test_invalid_render_rate_does_not_mutate_supplied_playback_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = make_clock(t_now=150.0)
+    clock.set_playback_bounds(120.0, 180.0)
+    notifications: list[float] = []
+    clock.subscribe(notifications.append)
+    cursor = OemCursor([100.0, 200.0], make_states())
+    interpolation_calls: list[tuple[str | None, int | None]] = []
+    monkeypatch.setattr(
+        cursor,
+        "set_interpolation",
+        lambda interpolation, degree: interpolation_calls.append((interpolation, degree)),
+    )
+
+    with pytest.raises(ValueError, match="render_rate_fps"):
+        app.PlayerApp(
+            clock,
+            compute_orbit_series([100.0, 200.0], make_states(), TimeUnit.MINUTES),
+            TimeUnit.MINUTES,
+            cursor,
+            "TEST",
+            "GCRF / Earth",
+            render_rate_fps=0,
+        )
+
+    assert (clock.playback_start, clock.playback_end) == (120.0, 180.0)
+    assert notifications == []
+    assert interpolation_calls == []
+
+
+def test_failed_final_workspace_setup_does_not_subscribe_clock(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = make_clock()
+    subscriptions: list[Callable[[float], None]] = []
+    subscribe = clock.subscribe
+
+    def track_subscription(observer: Callable[[float], None]) -> Callable[[], None]:
+        subscriptions.append(observer)
+        return subscribe(observer)
+
+    def fail_set_oem_loaded(_workspace: FakeWorkspace, _loaded: bool) -> None:
+        raise RuntimeError("workspace initialization failed")
+
+    monkeypatch.setattr(clock, "subscribe", track_subscription)
+    monkeypatch.setattr(FakeWorkspace, "set_oem_loaded", fail_set_oem_loaded)
+
+    with pytest.raises(RuntimeError, match="workspace initialization failed"):
+        make_app(monkeypatch, clock=clock)
+
+    assert subscriptions == []
+
+
 def test_playback_pause_state_updates_when_playback_reaches_an_endpoint(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -551,4 +551,28 @@ Priority 8, panel and view lifecycle, is complete. The remaining assessment
 candidate is controller initialization and shared state. It is broader and
 currently lacks a specific runtime mismatch, so first define a bounded
 investigation and verify state ownership and initialization ordering before
-proposing a refactor.
+proposing a refactor. The bounded investigation is planned in
+[PLAY_OEM_COMPLEXITY_13_CONTROLLER_INITIALIZATION_SHARED_STATE_PLAN.md](./PLAY_OEM_COMPLEXITY_13_CONTROLLER_INITIALIZATION_SHARED_STATE_PLAN.md).
+
+## Controller initialization and shared state update — 2026-11-11
+
+The state map, ordering findings, bounded changes, and validation are recorded
+in
+[PLAY_OEM_COMPLEXITY_13_CONTROLLER_INITIALIZATION_SHARED_STATE_PLAN.md](./PLAY_OEM_COMPLEXITY_13_CONTROLLER_INITIALIZATION_SHARED_STATE_PLAN.md).
+An AST inventory found 80 unique attributes assigned by `PlayerApp.__init__`;
+all 48 data attributes in `PlayerAppState` are initialized there. No separate
+state owner or stale protocol member was identified, so a constructor
+extraction or state container is not justified.
+
+Two concrete initialization-order issues were fixed. Invalid render-rate
+input previously mutated the supplied clock and cursor before raising; its
+validation now precedes those side effects. A failure during the last workspace
+setup call previously left a clock observer registered to the incomplete app;
+the subscription now occurs after workspace setup succeeds. The app, CLI, and
+control-window tests passed (119 passed).
+
+No subsystem or dataflow ownership changed. Native wx event dispatch and
+cleanup after failure during frame/workspace/control-window construction
+remain unverified. Priority 9, controller initialization and shared state, is
+complete. No next implementation candidate is selected; re-rank the remaining
+unprioritized leads before starting another plan.

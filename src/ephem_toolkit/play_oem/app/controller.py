@@ -176,6 +176,18 @@ class PlayerApp(
                 "three_d_backend must be one of "
                 f"{', '.join(trajectory3d_selection.THREE_D_BACKEND_CHOICES)}"
             )
+        if render_rate_fps is not None and (
+            isinstance(render_rate_fps, bool)
+            or not isinstance(render_rate_fps, int)
+            or not control_window.RENDER_RATE_FPS_MIN
+            <= render_rate_fps
+            <= control_window.RENDER_RATE_FPS_MAX
+        ):
+            raise ValueError(
+                "render_rate_fps must be between "
+                f"{control_window.RENDER_RATE_FPS_MIN} and "
+                f"{control_window.RENDER_RATE_FPS_MAX}"
+            )
 
         self.clock = clock
         self._slider_bounds = (clock.t_start, clock.t_end)
@@ -224,18 +236,6 @@ class PlayerApp(
                 ),
             )
         # Keep render-rate FPS separately so timer rounding does not affect clock steps.
-        if render_rate_fps is not None and (
-            isinstance(render_rate_fps, bool)
-            or not isinstance(render_rate_fps, int)
-            or not control_window.RENDER_RATE_FPS_MIN
-            <= render_rate_fps
-            <= control_window.RENDER_RATE_FPS_MAX
-        ):
-            raise ValueError(
-                "render_rate_fps must be between "
-                f"{control_window.RENDER_RATE_FPS_MIN} and "
-                f"{control_window.RENDER_RATE_FPS_MAX}"
-            )
         self._render_rate_fps = (
             render_rate_fps
             if render_rate_fps is not None
@@ -467,10 +467,10 @@ class PlayerApp(
         self._closed = False
         self._open_views: dict[str, _OpenView] = {}
         self._open_panels: dict[str, _OpenView] = {}
-        self._clock_unsubscribe = self.clock.subscribe(self._on_clock_time_changed)
         self.workspace.set_oem_loaded(oem_loaded)
         if not oem_loaded:
             self.status_bar.set_message("Open an OEM file to begin playback.")
+        self._clock_unsubscribe = self.clock.subscribe(self._on_clock_time_changed)
 
     def run(self) -> None:
         """Run the wx event loop and restore the prior SIGINT handler on exit."""
