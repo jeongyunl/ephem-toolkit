@@ -315,7 +315,9 @@ frequency. Each item requires an evidence review before production refactoring.
    constructor for distinct opportunities. Their high scores may represent
    necessary boundary handling, optimized scanning, or GUI layout. Require
    boundary-case tests and relevant benchmarks before changing numerical or
-   scanning logic; do not prioritize a rewrite based on a score alone.
+   scanning logic; do not prioritize a rewrite based on a score alone. Detailed
+   investigation plan:
+   [PLAY_OEM_COMPLEXITY_9_DOMAIN_PERFORMANCE_HOTSPOTS_PLAN.md](./PLAY_OEM_COMPLEXITY_9_DOMAIN_PERFORMANCE_HOTSPOTS_PLAN.md).
 7. **Inventory compatibility and backend variants.** Identify callers and
    documented support for both cursor implementations and both 3D backends,
    including possible external users. Estimate their maintenance cost and
@@ -445,3 +447,24 @@ The persisted format, serializer, and startup ownership are unchanged, so no
 dataflow or format documentation update is warranted. Priority 5 is complete.
 The next authoritative work item is priority 6, investigating domain and
 performance hotspots separately.
+
+## Domain and performance hotspots update — 2026-11-10
+
+The three independent investigations, measurements, tests, and decisions are
+recorded in
+[PLAY_OEM_COMPLEXITY_9_DOMAIN_PERFORMANCE_HOTSPOTS_PLAN.md](./PLAY_OEM_COMPLEXITY_9_DOMAIN_PERFORMANCE_HOTSPOTS_PLAN.md).
+The store/interval test run passed (80 passed); the direct wx Workspace test
+was skipped because this environment has no display.
+
+Station interval logic remains unchanged; two focused tests now cover the
+non-finite-metric split/reset behavior and coverage/gap endpoint flags. The
+capacity scanner's synthetic 1-64 MiB runs measured scan latency separately
+from parsing, but did not establish a production bottleneck. The scan occurs
+on the loader worker before parsing begins, not on the wx thread. Workspace
+construction remains explicit GUI composition; no extraction boundary or
+performance need was demonstrated, and native layout validation was
+unavailable.
+
+No production source or subsystem ownership changed. Priority 6 is complete.
+The next authoritative work item is priority 7, inventorying cursor and 3D
+backend compatibility variants.
