@@ -157,6 +157,170 @@ def test_store_sky_path_bounds_profile_samples() -> None:
     assert sampled_times[-1] == interval.end_s
 
 
+@pytest.mark.parametrize(
+    (
+        "clipped_at_start",
+        "limited_by_gap_at_start",
+        "clipped_at_end",
+        "limited_by_gap_at_end",
+        "expected_start_elevation",
+        "expected_end_elevation",
+    ),
+    [
+        (False, False, False, False, 10.0, 10.0),
+        (True, False, False, False, 5.0, 10.0),
+        (False, True, False, False, 5.0, 10.0),
+        (False, False, True, False, 10.0, 6.0),
+        (False, False, False, True, 10.0, 6.0),
+    ],
+)
+def test_pass_endpoint_angles_respect_mask_and_boundary_limits(
+    clipped_at_start: bool,
+    limited_by_gap_at_start: bool,
+    clipped_at_end: bool,
+    limited_by_gap_at_end: bool,
+    expected_start_elevation: float,
+    expected_end_elevation: float,
+) -> None:
+    station = GroundStation("site", "Site", 0.0, 0.0, 0.0, 10)
+    interval = AccessInterval(
+        0.0,
+        20.0,
+        30.0,
+        10.0,
+        500.0,
+        10.0,
+        clipped_at_start=clipped_at_start,
+        clipped_at_end=clipped_at_end,
+        limited_by_gap_at_start=limited_by_gap_at_start,
+        limited_by_gap_at_end=limited_by_gap_at_end,
+        start_azimuth_deg=350.0,
+        start_elevation_deg=5.0,
+        end_azimuth_deg=10.0,
+        end_elevation_deg=6.0,
+    )
+    profile = LookAngleProfile(
+        np.asarray([0.0, 10.0, 20.0]),
+        np.asarray([350.0, 0.0, 10.0]),
+        np.asarray([5.0, 30.0, 6.0]),
+    )
+    view, _cache = _make_view((interval,), station=station, profiles=(profile,))
+
+    times, azimuths, elevations = view._profile_points(profile, interval)
+    result = view._access_results[0]
+
+    assert times[[0, -1]].tolist() == [interval.start_s, interval.end_s]
+    np.testing.assert_allclose(
+        azimuths[[0, -1]], [350.0, 10.0]
+    )
+    np.testing.assert_allclose(
+        elevations[[0, -1]],
+        [expected_start_elevation, expected_end_elevation],
+    )
+    assert view._look_angle_at(result, interval, interval.start_s) == (
+        350.0,
+        expected_start_elevation,
+    )
+    assert view._look_angle_at(result, interval, interval.end_s) == (
+        10.0,
+        expected_end_elevation,
+    )
+
+
+def test_pass_endpoint_helpers_keep_distinct_profile_coverage_rules() -> None:
+    station = GroundStation("site", "Site", 0.0, 0.0, 0.0, 10)
+    interval = AccessInterval(
+        0.0,
+        20.0,
+        30.0,
+        10.0,
+        500.0,
+        10.0,
+        start_azimuth_deg=350.0,
+        start_elevation_deg=5.0,
+        end_azimuth_deg=10.0,
+        end_elevation_deg=6.0,
+    )
+    profile = LookAngleProfile(
+        np.asarray([5.0, 10.0, 15.0]),
+        np.asarray([355.0, 0.0, 5.0]),
+        np.asarray([20.0, 30.0, 20.0]),
+    )
+    view, _cache = _make_view((interval,), station=station, profiles=(profile,))
+
+    times, _azimuths, _elevations = view._profile_points(profile, interval)
+    result = view._access_results[0]
+
+    assert times.tolist() == [5.0, 10.0, 15.0]
+    assert view._look_angle_at(result, interval, interval.start_s) == (350.0, 10.0)
+    assert view._look_angle_at(result, interval, interval.end_s) == (10.0, 10.0)
+
+
+def test_pass_endpoint_helpers_fall_back_when_boundary_angles_are_missing() -> None:
+    station = GroundStation("site", "Site", 0.0, 0.0, 0.0, 10)
+    interval = AccessInterval(0.0, 20.0, 30.0, 10.0, 500.0, 10.0)
+    profile = LookAngleProfile(
+        np.asarray([0.0, 10.0, 20.0]),
+        np.asarray([350.0, 0.0, 10.0]),
+        np.asarray([5.0, 30.0, 6.0]),
+    )
+    view, _cache = _make_view((interval,), station=station, profiles=(profile,))
+
+    times, azimuths, elevations = view._profile_points(profile, interval)
+    result = view._access_results[0]
+
+    assert times[[0, -1]].tolist() == [interval.start_s, interval.end_s]
+    np.testing.assert_allclose(azimuths[[0, -1]], [350.0, 10.0])
+    np.testing.assert_allclose(elevations[[0, -1]], [5.0, 6.0])
+    assert view._look_angle_at(result, interval, interval.start_s) == (350.0, 5.0)
+    assert view._look_angle_at(result, interval, interval.end_s) == (10.0, 6.0)
+
+
+def test_pass_endpoint_lookup_preserves_time_tolerance() -> None:
+    station = GroundStation("site", "Site", 0.0, 0.0, 0.0, 10)
+    interval = _interval(0.0, 20.0)
+    profile = LookAngleProfile(
+        np.asarray([0.0, 10.0, 20.0]),
+        np.asarray([350.0, 0.0, 10.0]),
+        np.asarray([5.0, 30.0, 6.0]),
+    )
+    view, _cache = _make_view((interval,), station=station, profiles=(profile,))
+    result = view._access_results[0]
+
+    assert view._look_angle_at(result, interval, 0.5e-9) == (350.0, 10.0)
+    assert view._look_angle_at(result, interval, 1.5e-9)[1] < 10.0
+
+
+def test_pass_endpoint_lookup_does_not_apply_mask_without_a_station(
+    monkeypatch,
+) -> None:
+    interval = AccessInterval(
+        0.0,
+        20.0,
+        30.0,
+        10.0,
+        500.0,
+        10.0,
+        start_azimuth_deg=350.0,
+        start_elevation_deg=5.0,
+        end_azimuth_deg=10.0,
+        end_elevation_deg=6.0,
+    )
+    view, _cache = _make_view((interval,))
+    monkeypatch.setattr(view, "_selected_station", lambda: None)
+    result = view._access_results[0]
+
+    assert view._profile_points(
+        LookAngleProfile(
+            np.asarray([0.0, 20.0]),
+            np.asarray([350.0, 10.0]),
+            np.asarray([5.0, 6.0]),
+        ),
+        interval,
+    )[0].size == 0
+    assert view._look_angle_at(result, interval, interval.start_s) == (350.0, 5.0)
+
+
 def test_store_pass_view_uses_leased_station_access() -> None:
     elevations = np.asarray([0.0, 60.0, 0.0])
     states = np.column_stack(

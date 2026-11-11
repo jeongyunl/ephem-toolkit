@@ -30,9 +30,11 @@ decision criteria.
 | 4 — complete | [Review panel-open preflight](./PLAY_OEM_COMPLEXITY_38_PANEL_OPEN_PREFLIGHT_PLAN.md). | [Panel/native lifecycle](#6-panel-lifecycle-and-gui-resources). | Retained the inline preflight; fixed failed forced replacement dropping the restored default-view lookup. Focused lifecycle/panel/cleanup suites passed (157). |
 | 5 — complete | [Review terminal load cleanup](./PLAY_OEM_COMPLEXITY_39_TERMINAL_LOAD_CLEANUP_PLAN.md). | [Load/replacement](#1-incremental-load-and-replacement) and [playback/ranges](#4-playback-coverage-and-time-ranges). | Shared only the identical `COMPLETE`/`FAILED` drag reset after their distinct transitions; retained Plan 26's single event loop. App/loader suites passed (113). |
 | 6 — complete | [Review capacity scanner simplification](./PLAY_OEM_COMPLEXITY_40_CAPACITY_SCANNER_SIMPLIFICATION_PLAN.md). | [Load/replacement](#1-incremental-load-and-replacement) and store allocation. | Replaced the two scanner paths with one bounded strict-UTF-8 scanner; 88 focused tests passed and the synthetic medians met Plan 40's guardrails. Plan 32 remains deferred. |
-| 7 — deferred indefinitely | [Hosted wx test pilot](./PLAY_OEM_COMPLEXITY_19_HOSTED_WX_TEST_PILOT_PLAN.md). | [Load shutdown](#1-incremental-load-and-replacement) and [panel/native lifecycle](#6-panel-lifecycle-and-gui-resources). | GTK/MSW and native VTK behavior remains unverified. Do not resume without explicit reprioritization. |
-| 8 — deferred indefinitely | [Measure representative load, derived-query, and range-change behavior](./PLAY_OEM_COMPLEXITY_32_REPRESENTATIVE_LOAD_MEASUREMENT_PLAN.md). | [Load/replacement](#1-incremental-load-and-replacement), [derived cache](#2-derived-data-scheduling-and-cache-lifetime), and [playback/ranges](#4-playback-coverage-and-time-ranges). | No execution is scheduled. Resume only after explicit reprioritization; measurements remain operating constraints, not optimization targets. |
-| 9 — deferred | Reassess maintenance trends. | See the [assessment](./PLAY_OEM_COMPLEXITY_2_ASSESSMENT.md) for history findings. | Available source history spans only 27 days; revisit after several months of ordinary maintenance. |
+| 7 — complete | [Review pass endpoint look-angle policy](./PLAY_OEM_COMPLEXITY_41_PASS_ENDPOINT_LOOK_ANGLE_POLICY_PLAN.md). | [Playback/ranges](#4-playback-coverage-and-time-ranges) and Ground Station Passes rendering. | Shared endpoint normalization locally; the two methods plus helper decreased from 124 to 115 lines and score 42 to 36. Focused suite passed (27, 1 skipped); no view split. |
+| 8 — planned | [Review sky-plot empty-state rendering](./PLAY_OEM_COMPLEXITY_42_SKY_PLOT_EMPTY_STATE_RENDERING_PLAN.md). | Ground Station Passes rendering. | Assess repeated centered status-message rendering; preserve state precedence and reject any change that adds complexity without reducing repeated presentation code. |
+| 9 — deferred indefinitely | [Hosted wx test pilot](./PLAY_OEM_COMPLEXITY_19_HOSTED_WX_TEST_PILOT_PLAN.md). | [Load shutdown](#1-incremental-load-and-replacement) and [panel/native lifecycle](#6-panel-lifecycle-and-gui-resources). | GTK/MSW and native VTK behavior remains unverified. Do not resume without explicit reprioritization. |
+| 10 — deferred indefinitely | [Measure representative load, derived-query, and range-change behavior](./PLAY_OEM_COMPLEXITY_32_REPRESENTATIVE_LOAD_MEASUREMENT_PLAN.md). | [Load/replacement](#1-incremental-load-and-replacement), [derived cache](#2-derived-data-scheduling-and-cache-lifetime), and [playback/ranges](#4-playback-coverage-and-time-ranges). | No execution is scheduled. Resume only after explicit reprioritization; measurements remain operating constraints, not optimization targets. |
+| 11 — deferred | Reassess maintenance trends. | See the [assessment](./PLAY_OEM_COMPLEXITY_2_ASSESSMENT.md) for history findings. | Available source history spans only 27 days; revisit after several months of ordinary maintenance. |
 
 These are evidence-collection priorities, not proposals to remove domain rules,
 asynchronous loading, caching, or backend variants. Potential simplification
@@ -250,8 +252,12 @@ focused lifecycle/panel/cleanup suites passed (157). Plan 39 shared terminal
 drag cleanup without extracting event handlers; the app and incremental-loader
 suites passed (113). Plan 40 removed the separate ASCII capacity scanner after
 the single bounded path passed behavior tests and synthetic timing guardrails.
-This did not resume Plan 32's workload study. Plan 19's platform validation,
-Plan 32's workload study, and longer-term maintenance review remain deferred
-indefinitely as ranked in the assessment. Promote a follow-on code change only
-when evidence identifies a specific repeated rule or costly ownership
-interaction and a bounded change can be validated without weakening behavior.
+Plan 41 completed a local endpoint-normalization review in the Ground Station
+Passes view; its shared helper retained the distinct coverage and interpolation
+rules and reduced the combined decision score. Plan 42 is a bounded assessment
+of repeated sky-plot status-message rendering, not a view split. Plan 19's
+platform validation, Plan 32's workload study, and longer-term maintenance
+review remain deferred indefinitely as ranked in the assessment.
+Promote a follow-on code change only when evidence identifies a specific
+repeated rule or costly ownership interaction and a bounded change can be
+validated without weakening behavior.

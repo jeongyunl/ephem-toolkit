@@ -177,6 +177,17 @@ The current candidates and holds are:
   and the measured synthetic medians remained within the plan's guardrails.
   Plan 32 remains deferred; do not infer a production performance target from
   these synthetic measurements.
+- [Plan 41](./PLAY_OEM_COMPLEXITY_41_PASS_ENDPOINT_LOOK_ANGLE_POLICY_PLAN.md)
+  completed the local endpoint-policy review. Its resolver reduced the two
+  methods plus helper from 124 to 115 lines and their combined AST decision
+  score from 42 to 36; all 27 focused tests passed, with one display-gated
+  skip. Profile-coverage and interpolation rules remain at their callers.
+- The next bounded review is
+  [Plan 42](./PLAY_OEM_COMPLEXITY_42_SKY_PLOT_EMPTY_STATE_RENDERING_PLAN.md):
+  assess whether repeated centered sky-plot status-message rendering can be
+  consolidated without changing message precedence or adding complexity. This
+  does not propose a view split or reopen Plan 38's completed panel lifecycle
+  decision.
 - The hosted native wx pilot in
   [Plan 19](./PLAY_OEM_COMPLEXITY_19_HOSTED_WX_TEST_PILOT_PLAN.md) is deferred
   indefinitely. Do not resume it without explicit reprioritization, even if
@@ -228,11 +239,19 @@ Do not repeat the map or begin a broad refactor without new evidence:
    [Plan 40](./PLAY_OEM_COMPLEXITY_40_CAPACITY_SCANNER_SIMPLIFICATION_PLAN.md).
    Reopen the ASCII-specific path only for a demonstrated correctness issue or
    a measured regression outside the documented guardrails.
-6. Keep the hosted wx pilot in
+6. Keep the endpoint-policy result from
+   [Plan 41](./PLAY_OEM_COMPLEXITY_41_PASS_ENDPOINT_LOOK_ANGLE_POLICY_PLAN.md):
+   retain its local resolver and keep profile-coverage and interpolation rules
+   in their respective callers.
+7. Evaluate the repeated sky-plot status-message rendering under
+   [Plan 42](./PLAY_OEM_COMPLEXITY_42_SKY_PLOT_EMPTY_STATE_RENDERING_PLAN.md).
+   Preserve message precedence and reject any consolidation that adds
+   complexity without a measurable reduction in repeated presentation code.
+8. Keep the hosted wx pilot in
    [Plan 19](./PLAY_OEM_COMPLEXITY_19_HOSTED_WX_TEST_PILOT_PLAN.md) deferred
    indefinitely unless it is explicitly reprioritized. Retain the platform
-   limitation and select no production refactor. Revisit maintenance trends
-   after several months of ordinary maintenance.
+   limitation and select no production refactor.
+9. Revisit maintenance trends after several months of ordinary maintenance.
 
 The [assessment's current evidence priorities](./PLAY_OEM_COMPLEXITY_2_ASSESSMENT.md#current-evidence-priorities)
 owns the detailed limits and next observations. Do not select a production

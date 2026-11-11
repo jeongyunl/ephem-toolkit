@@ -659,6 +659,24 @@ class GroundStationPassesView:
         if interval is not None and math.isfinite(interval.peak_time_s):
             self._on_seek(interval.peak_time_s)
 
+    def _interval_endpoint_look_angle(
+        self, interval: AccessInterval, *, at_start: bool
+    ) -> tuple[float, float] | None:
+        if at_start:
+            azimuth = interval.start_azimuth_deg
+            elevation = interval.start_elevation_deg
+            limited = interval.clipped_at_start or interval.limited_by_gap_at_start
+        else:
+            azimuth = interval.end_azimuth_deg
+            elevation = interval.end_elevation_deg
+            limited = interval.clipped_at_end or interval.limited_by_gap_at_end
+        if azimuth is None or elevation is None:
+            return None
+        station = self._selected_station()
+        if station is not None and not limited:
+            elevation = max(station.minimum_elevation_deg, elevation)
+        return azimuth, elevation
+
     def _profile_points(
         self, profile: LookAngleProfile, interval: AccessInterval
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -695,24 +713,14 @@ class GroundStationPassesView:
             float(time_s): (float(azimuth), float(elevation))
             for time_s, azimuth, elevation in samples
         }
-        if (
-            interval.start_azimuth_deg is not None
-            and interval.start_elevation_deg is not None
-            and profile.times_s[0] <= interval.start_s <= profile.times_s[-1]
-        ):
-            elevation = interval.start_elevation_deg
-            if not interval.clipped_at_start and not interval.limited_by_gap_at_start:
-                elevation = max(station.minimum_elevation_deg, elevation)
-            points[interval.start_s] = (interval.start_azimuth_deg, elevation)
-        if (
-            interval.end_azimuth_deg is not None
-            and interval.end_elevation_deg is not None
-            and profile.times_s[0] <= interval.end_s <= profile.times_s[-1]
-        ):
-            elevation = interval.end_elevation_deg
-            if not interval.clipped_at_end and not interval.limited_by_gap_at_end:
-                elevation = max(station.minimum_elevation_deg, elevation)
-            points[interval.end_s] = (interval.end_azimuth_deg, elevation)
+        if profile.times_s[0] <= interval.start_s <= profile.times_s[-1]:
+            look_angle = self._interval_endpoint_look_angle(interval, at_start=True)
+            if look_angle is not None:
+                points[interval.start_s] = look_angle
+        if profile.times_s[0] <= interval.end_s <= profile.times_s[-1]:
+            look_angle = self._interval_endpoint_look_angle(interval, at_start=False)
+            if look_angle is not None:
+                points[interval.end_s] = look_angle
         times = np.asarray(sorted(points), dtype=float)
         azimuths = np.asarray([points[t][0] for t in times], dtype=float)
         elevations = np.asarray([points[t][1] for t in times], dtype=float)
@@ -722,33 +730,17 @@ class GroundStationPassesView:
         self, result: StationAccess, interval: AccessInterval, time_s: float
     ) -> tuple[float, float] | None:
         if abs(time_s - interval.start_s) < 1e-9:
-            if (
-                interval.start_azimuth_deg is not None
-                and interval.start_elevation_deg is not None
-            ):
-                elevation = interval.start_elevation_deg
-                station = self._selected_station()
-                if (
-                    station is not None
-                    and not interval.clipped_at_start
-                    and not interval.limited_by_gap_at_start
-                ):
-                    elevation = max(station.minimum_elevation_deg, elevation)
-                return interval.start_azimuth_deg, elevation
+            look_angle = self._interval_endpoint_look_angle(
+                interval, at_start=True
+            )
+            if look_angle is not None:
+                return look_angle
         if abs(time_s - interval.end_s) < 1e-9:
-            if (
-                interval.end_azimuth_deg is not None
-                and interval.end_elevation_deg is not None
-            ):
-                elevation = interval.end_elevation_deg
-                station = self._selected_station()
-                if (
-                    station is not None
-                    and not interval.clipped_at_end
-                    and not interval.limited_by_gap_at_end
-                ):
-                    elevation = max(station.minimum_elevation_deg, elevation)
-                return interval.end_azimuth_deg, elevation
+            look_angle = self._interval_endpoint_look_angle(
+                interval, at_start=False
+            )
+            if look_angle is not None:
+                return look_angle
         for profile in result.look_angle_profiles:
             times = profile.times_s
             if times.size == 0 or not times[0] <= time_s <= times[-1]:

@@ -41,8 +41,9 @@ assets are excluded. Counts are physical lines including blanks and comments.
 The last count identifies files, not the number of duplicated sequences or the
 number of callers with equivalent behavior. The two largest files together
 contain 21.4% of package lines; concentration does not prove poor design.
-The current source baseline, measured with the same method, is recorded at the
-end of this document.
+The latest package-wide source baseline, measured with the same method, is
+recorded at the end of this document; later local changes are recorded with
+their plans.
 
 The following **decision score** is a simple AST-based hotspot indicator, not
 a standard cyclomatic-complexity implementation: for each function definition,
@@ -171,7 +172,12 @@ weakening the underlying guarantees. Reviewed leads and remaining evaluation:
 The historical leads are not open-ended refactoring tasks. Plan 40 completed a
 bounded scanner simplification: it removed the separate ASCII path, retained
 strict UTF-8 and bounded chunk scanning, and passed the focused behavior and
-timing checks. It did not resume the deferred workload study.
+timing checks. It did not resume the deferred workload study. Plan 41 completed
+the local pass-endpoint policy review: its resolver reduced the combined
+implementation from 124 to 115 lines and the AST decision score from 42 to 36,
+while keeping profile-coverage and interpolation rules distinct. Its focused
+suite passed (27, with one display-gated skip). Plan 42 is the next bounded
+review of repeated centered status-message rendering in the sky plot.
 
 ## Current evidence priorities
 
@@ -188,9 +194,11 @@ do not revive completed refactors based on old baseline scores.
 | 4 — complete | [Panel-open preflight](./PLAY_OEM_COMPLEXITY_38_PANEL_OPEN_PREFLIGHT_PLAN.md) | Kept the preflight inline because it already precedes resource acquisition. Fixed failed forced replacement dropping the restored default-view lookup; the focused lifecycle/panel/cleanup suites passed (157). |
 | 5 — complete | [Terminal load-event cleanup](./PLAY_OEM_COMPLEXITY_39_TERMINAL_LOAD_CLEANUP_PLAN.md) | Moved the identical drag reset to one explicit `COMPLETE`/`FAILED` condition after their distinct transitions; preserved Plan 26's single event loop. App and incremental-loader suites passed (113). |
 | 6 — complete | [Capacity scanner simplification](./PLAY_OEM_COMPLEXITY_40_CAPACITY_SCANNER_SIMPLIFICATION_PLAN.md) | Replaced the separate ASCII mmap and UTF-8 paths with one bounded scanner: 177 fewer helper lines and score reduced from 68 to 24. All 88 focused tests passed; all measured medians remained within twice the Plan 9 baselines. |
-| 7 — deferred indefinitely | [Hosted wx test pilot](./PLAY_OEM_COMPLEXITY_19_HOSTED_WX_TEST_PILOT_PLAN.md) | Real wx cleanup was verified on macOS Cocoa; GTK/MSW and native VTK widget lifecycle remain unverified. Do not resume without explicit reprioritization. |
-| 8 — deferred indefinitely | [Representative runtime and memory](./PLAY_OEM_COMPLEXITY_32_REPRESENTATIVE_LOAD_MEASUREMENT_PLAN.md) | No execution is scheduled. Resume only after explicit reprioritization; if reinstated, use measurements as operating constraints, not optimization targets. |
-| 9 — deferred | Longer-term maintenance trends | Play-OEM source history begins 2026-10-15. Revisit change frequency after several months of ordinary maintenance; the current feature and migration bursts are not representative. |
+| 7 — complete | [Pass endpoint look-angle policy](./PLAY_OEM_COMPLEXITY_41_PASS_ENDPOINT_LOOK_ANGLE_POLICY_PLAN.md) | Shared endpoint metadata and mask policy locally; reduced the two methods plus helper from 124 to 115 lines and score from 42 to 36. Focused suite passed (27, 1 skipped). |
+| 8 — planned | [Sky-plot empty-state rendering](./PLAY_OEM_COMPLEXITY_42_SKY_PLOT_EMPTY_STATE_RENDERING_PLAN.md) | Assess consolidation of repeated centered status-message rendering while preserving state precedence and avoiding a view split. |
+| 9 — deferred indefinitely | [Hosted wx test pilot](./PLAY_OEM_COMPLEXITY_19_HOSTED_WX_TEST_PILOT_PLAN.md) | Real wx cleanup was verified on macOS Cocoa; GTK/MSW and native VTK widget lifecycle remain unverified. Do not resume without explicit reprioritization. |
+| 10 — deferred indefinitely | [Representative runtime and memory](./PLAY_OEM_COMPLEXITY_32_REPRESENTATIVE_LOAD_MEASUREMENT_PLAN.md) | No execution is scheduled. Resume only after explicit reprioritization; if reinstated, use measurements as operating constraints, not optimization targets. |
+| 11 — deferred | Longer-term maintenance trends | Play-OEM source history begins 2026-10-15. Revisit change frequency after several months of ordinary maintenance; the current feature and migration bursts are not representative. |
 
 Plan 33 is complete; it did not identify a boundary change to implement. Plan
 36 superseded Plan 35's transitional two-cursor typing with a single
@@ -200,7 +208,11 @@ Plan 38 fixed failed-replacement lookup loss without extracting preflight, and
 Plan 39 deduplicated only terminal drag cleanup. Plan 26's event-handler
 extraction remains rejected. Plan 40 replaced the two capacity scanners with
 one bounded implementation; its focused tests and synthetic timing guardrails
-passed. Plans 19 and 32 remain deferred indefinitely by maintainer direction.
+passed. Plan 41 then shared endpoint normalization locally without combining
+profile-coverage and interpolation rules; it did not split the view or reopen
+Plan 38. Plan 42 is the next bounded review of repeated sky-plot
+status-message rendering. Plans 19 and 32 remain deferred indefinitely by
+maintainer direction.
 Compatibility evidence is not a gate; longer-term maintenance review remains
 deferred.
 
@@ -257,7 +269,7 @@ documented guardrails. The hosted wx pilot in Plan 19 and workload study in
 Plan 32 remain deferred indefinitely by maintainer direction. Compatibility
 evidence is not a gate; longer-term maintenance review remains deferred.
 
-## Current source refresh after Plan 40 — 2026-11-11
+## Package-wide source refresh after Plan 40 — 2026-11-11
 
 Measured in the working tree after the Plan 40 source change, on macOS using
 Python 3.9.6. Scope and AST decision-score method are unchanged from the
