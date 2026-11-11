@@ -867,6 +867,22 @@ would add a call and tuple or mutable-state indirection without reducing
 reasoning. The app, loader, store, and stateless-interpolation suites passed
 (206 passed) on macOS. No source change was warranted.
 
+## Station-query phase reduction selection — 2026-11-11
+
+The next code-directed candidate is `OemDataStore.station_access`, which
+coordinates validation, row-range selection, asynchronous derived work,
+profile and interval assembly, coverage calculation, cache publication, and
+eviction. Plan 6 rejected a generic shared-query abstraction because station
+access has distinct semantics. Plan 29 evaluates one local phase boundary
+instead, retaining station-specific policy and lock ownership:
+[PLAY_OEM_COMPLEXITY_29_STATION_QUERY_PHASES_PLAN.md](./PLAY_OEM_COMPLEXITY_29_STATION_QUERY_PHASES_PLAN.md).
+
+Plan 29 rejected phase extraction. Candidate helpers would carry multiple
+accumulators and shared tier/snapshot state, while splitting cache, lock, and
+eviction ordering across method boundaries. The station/store/analysis/view
+suites passed (113 passed, 1 display-dependent skip) on macOS; no source
+change was warranted.
+
 Plan 22 is complete. The ranked candidates have been investigated, and the
 remaining leads lack either a concrete complexity defect/change hypothesis or
 an available validation path. No new implementation plan is selected. Reopen

@@ -272,6 +272,15 @@ Plan 28 rejected extraction because the repeated normalization is trivial and
 an abstraction would obscure when provisional versus validated metadata is
 applied. The app/loader/store/interpolation suites passed (206 passed) on
 macOS, with no source change.
+The next candidate is the long station-access store query. Plan 29 evaluates a
+single local phase boundary across query preparation, profile/interval
+assembly, and coverage/cache finalization, without generalizing its
+station-specific behavior:
+[plan 29](./PLAY_OEM_COMPLEXITY_29_STATION_QUERY_PHASES_PLAN.md).
+Plan 29 found no cohesive helper contract: candidate extractions would move
+multiple accumulators and split shared cache/lock ordering. The station/store/
+analysis/view suites passed (113 passed, 1 display-dependent skip) on macOS;
+no code change was made.
 The active start/extrema/end metrics are now held by `_ActiveAccessInterval`;
 the loop uses a single optional state and clears it on gap/exit. Store and
 station suites passed (113 passed, 1 display-dependent skip) on macOS.
