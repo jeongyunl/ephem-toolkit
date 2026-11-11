@@ -200,13 +200,60 @@ def test_timeline_x_axis_tracks_plot_range_and_empty_range() -> None:
     view.close()
 
 
-def test_empty_station_elevation_graph_has_empty_state() -> None:
-    view = _access_view([])
-    _figure, canvas = _figure_canvas(view)
+def test_elevation_plot_status_messages_preserve_precedence_and_styling() -> None:
+    station = GroundStation("station", "Site", 0.0, 0.0, 0.0, 0)
+    no_stations = _access_view([])
+    no_stations._oem_loaded = False
+    unloaded_oem = _access_view([station])
+    unloaded_oem._oem_loaded = False
+    no_range = _access_view([station])
+    no_range._selected_station_id = None
+    no_range._time_range_applied = True
+    no_selection = _access_view([station])
+    no_selection._selected_station_id = None
+    unavailable_profile = _access_view([station])
+    limited_profile = _access_view([station])
+    limited_profile._access_results = (
+        StationAccess(station, (), limitation="Unsupported Earth-centered frame."),
+    )
 
-    view._draw_elevation_plot()
-    canvas.draw()
+    cases = (
+        (no_stations, "No ground stations configured", False),
+        (
+            unloaded_oem,
+            "Load an Earth-centered OEM to view elevation",
+            False,
+        ),
+        (no_range, "No data in Plot Range", True),
+        (
+            no_selection,
+            "Select a ground station to view elevation",
+            True,
+        ),
+        (
+            unavailable_profile,
+            "Elevation profile unavailable",
+            True,
+        ),
+        (
+            limited_profile,
+            "Unsupported Earth-centered frame.",
+            True,
+        ),
+    )
 
-    assert not view._axes.patches
-    assert view._axes.texts[0].get_text() == "No ground stations configured"
-    view.close()
+    for view, expected_message, axes_on in cases:
+        _figure, canvas = _figure_canvas(view)
+        view._draw_elevation_plot()
+        canvas.draw()
+
+        assert not view._axes.patches
+        assert len(view._axes.texts) == 1
+        text = view._axes.texts[0]
+        assert text.get_text() == expected_message
+        assert text.get_position() == (0.5, 0.5)
+        assert text.get_ha() == "center"
+        assert text.get_va() == "center"
+        assert text.get_transform() is view._axes.transAxes
+        assert view._axes.axison is axes_on
+        view.close()

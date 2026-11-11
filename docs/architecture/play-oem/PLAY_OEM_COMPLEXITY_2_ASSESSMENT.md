@@ -188,6 +188,11 @@ all 29 focused tests passed, with one display-gated skip. Plan 44 completed
 the access-graph interval annotation review: paired label/hatch selection
 reduced `_draw_elevation_graph` from 122 to 119 lines and its AST decision
 score from 26 to 24. The focused suite passed (5).
+Plan 45 reused local status-text options in
+`GroundStationAccessView._draw_elevation_plot`, reducing it from 82 to 77
+lines with its AST decision score unchanged at 15. The focused suite passed
+(5); message precedence, axes state, and centered axes-relative placement were
+characterized.
 
 ## Current evidence priorities
 
@@ -208,9 +213,10 @@ do not revive completed refactors based on old baseline scores.
 | 8 — complete | [Sky-plot empty-state rendering](./PLAY_OEM_COMPLEXITY_42_SKY_PLOT_EMPTY_STATE_RENDERING_PLAN.md) | Reused centered text options across five message cases, reducing `_draw_sky_plot` from 172 to 157 lines with score unchanged at 27. Focused suite passed (28, 1 skipped); message precedence stayed inline. |
 | 9 — complete | [Sky-plot layout padding](./PLAY_OEM_COMPLEXITY_43_SKY_PLOT_LAYOUT_PADDING_PLAN.md) | Shared one subplot adjustment while preserving legend order and exact bottom margins; `_draw_sky_plot` decreased from 157 to 152 lines with score unchanged at 27. Focused suite passed (29, 1 skipped). |
 | 10 — complete | [Access-graph interval annotation](./PLAY_OEM_COMPLEXITY_44_ACCESS_GRAPH_INTERVAL_ANNOTATION_PLAN.md) | Selected label and hatch together, preserving gap precedence and legend de-duplication; `_draw_elevation_graph` decreased from 122 to 119 lines and score from 26 to 24. Focused suite passed (5). |
-| 11 — deferred indefinitely | [Hosted wx test pilot](./PLAY_OEM_COMPLEXITY_19_HOSTED_WX_TEST_PILOT_PLAN.md) | Real wx cleanup was verified on macOS Cocoa; GTK/MSW and native VTK widget lifecycle remain unverified. Do not resume without explicit reprioritization. |
-| 12 — deferred indefinitely | [Representative runtime and memory](./PLAY_OEM_COMPLEXITY_32_REPRESENTATIVE_LOAD_MEASUREMENT_PLAN.md) | No execution is scheduled. Resume only after explicit reprioritization; if reinstated, use measurements as operating constraints, not optimization targets. |
-| 13 — deferred | Longer-term maintenance trends | Play-OEM source history begins 2026-10-15. Revisit change frequency after several months of ordinary maintenance; the current feature and migration bursts are not representative. |
+| 11 — complete | [Access-plot empty-state rendering](./PLAY_OEM_COMPLEXITY_45_ACCESS_GRAPH_EMPTY_STATE_RENDERING_PLAN.md) | Reused local centered text options across five status-message calls; `_draw_elevation_plot` decreased from 82 to 77 lines with score unchanged at 15. Focused suite passed (5); message precedence and axes-on/off behavior were preserved. |
+| 12 — deferred indefinitely | [Hosted wx test pilot](./PLAY_OEM_COMPLEXITY_19_HOSTED_WX_TEST_PILOT_PLAN.md) | Real wx cleanup was verified on macOS Cocoa; GTK/MSW and native VTK widget lifecycle remain unverified. Do not resume without explicit reprioritization. |
+| 13 — deferred indefinitely | [Representative runtime and memory](./PLAY_OEM_COMPLEXITY_32_REPRESENTATIVE_LOAD_MEASUREMENT_PLAN.md) | No execution is scheduled. Resume only after explicit reprioritization; if reinstated, use measurements as operating constraints, not optimization targets. |
+| 14 — deferred | Longer-term maintenance trends | Play-OEM source history begins 2026-10-15. Revisit change frequency after several months of ordinary maintenance; the current feature and migration bursts are not representative. |
 
 Plan 33 is complete; it did not identify a boundary change to implement. Plan
 36 superseded Plan 35's transitional two-cursor typing with a single
@@ -226,9 +232,9 @@ Plan 38. Plan 42 reduced repeated sky-plot status-text options while retaining
 all five message cases and their precedence. Plan 43 shared the repeated
 subplot-padding setup while preserving exact layout behavior. Plan 44 selected
 paired interval annotation classification without changing legend
-de-duplication or rendering behavior. No view split or further production
-refactor is selected. Plans 19 and 32 remain deferred indefinitely by
-maintainer direction.
+de-duplication or rendering behavior. Plan 45 reused local access-plot
+status-text options without moving message selection or changing axes
+behavior. Plans 19 and 32 remain deferred indefinitely by maintainer direction.
 Compatibility evidence is not a gate; longer-term maintenance review remains
 deferred.
 

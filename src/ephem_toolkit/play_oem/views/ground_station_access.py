@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
+from typing import Any
 
 import wx
 from matplotlib.axes import Axes
@@ -351,14 +352,17 @@ class GroundStationAccessView:
             return
         axes = self._axes
         axes.clear()
+        status_text_kwargs: dict[str, Any] = {
+            "ha": "center",
+            "va": "center",
+            "transform": axes.transAxes,
+        }
         if not self._stations:
             axes.text(
                 0.5,
                 0.5,
                 "No ground stations configured",
-                ha="center",
-                va="center",
-                transform=axes.transAxes,
+                **status_text_kwargs,
             )
             axes.set_axis_off()
         elif not self._oem_loaded:
@@ -366,9 +370,7 @@ class GroundStationAccessView:
                 0.5,
                 0.5,
                 "Load an Earth-centered OEM to view elevation",
-                ha="center",
-                va="center",
-                transform=axes.transAxes,
+                **status_text_kwargs,
             )
             axes.set_axis_off()
         else:
@@ -392,18 +394,14 @@ class GroundStationAccessView:
                     0.5,
                     0.5,
                     "No data in Plot Range",
-                    ha="center",
-                    va="center",
-                    transform=axes.transAxes,
+                    **status_text_kwargs,
                 )
             elif station is None:
                 axes.text(
                     0.5,
                     0.5,
                     "Select a ground station to view elevation",
-                    ha="center",
-                    va="center",
-                    transform=axes.transAxes,
+                    **status_text_kwargs,
                 )
             elif result is None or not (
                 result.look_angle_profiles or result.elevation_profiles
@@ -417,9 +415,7 @@ class GroundStationAccessView:
                     0.5,
                     0.5,
                     message,
-                    ha="center",
-                    va="center",
-                    transform=axes.transAxes,
+                    **status_text_kwargs,
                 )
             else:
                 self._draw_elevation_graph(axes, station, result, divisor)

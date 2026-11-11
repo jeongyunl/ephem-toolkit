@@ -197,6 +197,11 @@ The current candidates and holds are:
   together reduced `_draw_elevation_graph` from 122 to 119 lines and its AST
   decision score from 26 to 24. Gap precedence and legend de-duplication are
   covered by the focused tests (5 passed).
+- [Plan 45](./PLAY_OEM_COMPLEXITY_45_ACCESS_GRAPH_EMPTY_STATE_RENDERING_PLAN.md)
+  reused local centered text options across five status-message calls in
+  `_draw_elevation_plot`, reducing it from 82 to 77 lines with its AST decision
+  score unchanged at 15. The focused suite passed (5); message precedence,
+  axes-on/off behavior, and axes-relative styling are characterized.
 - The hosted native wx pilot in
   [Plan 19](./PLAY_OEM_COMPLEXITY_19_HOSTED_WX_TEST_PILOT_PLAN.md) is deferred
   indefinitely. Do not resume it without explicit reprioritization, even if
