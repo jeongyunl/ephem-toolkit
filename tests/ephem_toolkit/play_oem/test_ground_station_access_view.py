@@ -56,6 +56,14 @@ def _profile_access(station: GroundStation) -> StationAccess:
     return StationAccess(station, (interval,), elevation_profiles=(profile,))
 
 
+def _plotted_elevation_lines(view: GroundStationAccessView) -> list[Any]:
+    return [
+        line
+        for line in view._axes.lines
+        if line.get_label() in ("Elevation", "_nolegend_")
+    ]
+
+
 def _pass_summary_view(
     station: GroundStation,
     intervals: tuple[AccessInterval, ...] = (),
@@ -115,6 +123,57 @@ def test_elevation_graph_only_plots_values_at_or_above_station_mask() -> None:
     assert np.allclose(elevation_line.get_ydata(), [10.0, 20.0, 20.0, 10.0])
     assert np.all(elevation_line.get_ydata() >= station.minimum_elevation_deg)
     assert view._axes.get_ylim() == (0.0, 95.0)
+    view.close()
+
+
+def test_elevation_graph_does_not_bridge_nonfinite_profile_samples() -> None:
+    station = GroundStation("station", "Site", 0.0, 0.0, 0.0, 0)
+    interval = AccessInterval(0.0, 80.0, 20.0, 0.0, 500.0, 0.0)
+    profile = ElevationProfile(
+        np.asarray([0.0, 10.0, np.nan, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0]),
+        np.asarray([20.0, 20.0, 20.0, 20.0, 20.0, np.nan, 20.0, 20.0, 20.0]),
+    )
+    view = _access_view([station])
+    view._access_results = (
+        StationAccess(station, (interval,), elevation_profiles=(profile,)),
+    )
+    _figure, canvas = _figure_canvas(view)
+
+    view._draw_elevation_plot()
+    canvas.draw()
+
+    lines = _plotted_elevation_lines(view)
+    assert len(lines) == 3
+    expected_x = ([0.0, 1.0 / 6.0], [0.5, 2.0 / 3.0], [1.0, 7.0 / 6.0, 4.0 / 3.0])
+    expected_y = ([0.0, 20.0], [20.0, 20.0], [20.0, 20.0, 0.0])
+    for line, x_values, y_values in zip(lines, expected_x, expected_y):
+        assert np.allclose(line.get_xdata(), x_values)
+        assert np.allclose(line.get_ydata(), y_values)
+    view.close()
+
+
+def test_elevation_graph_splits_visible_runs_below_station_mask() -> None:
+    station = GroundStation("station", "Site", 0.0, 0.0, 0.0, 10)
+    interval = AccessInterval(0.0, 40.0, 20.0, 10.0, 500.0, 10.0)
+    profile = ElevationProfile(
+        np.asarray([0.0, 10.0, 20.0, 30.0, 40.0]),
+        np.asarray([20.0, 20.0, 5.0, 20.0, 20.0]),
+    )
+    view = _access_view([station])
+    view._access_results = (
+        StationAccess(station, (interval,), elevation_profiles=(profile,)),
+    )
+    _figure, canvas = _figure_canvas(view)
+
+    view._draw_elevation_plot()
+    canvas.draw()
+
+    lines = _plotted_elevation_lines(view)
+    assert len(lines) == 2
+    assert np.allclose(lines[0].get_xdata(), [0.0, 1.0 / 6.0])
+    assert np.allclose(lines[0].get_ydata(), [10.0, 20.0])
+    assert np.allclose(lines[1].get_xdata(), [0.5, 2.0 / 3.0])
+    assert np.allclose(lines[1].get_ydata(), [20.0, 10.0])
     view.close()
 
 

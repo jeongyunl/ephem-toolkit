@@ -207,6 +207,11 @@ The current candidates and holds are:
   in `_pass_summary`, reducing it from 63 to 54 lines and its AST decision score
   from 15 to 13. The focused suite passed (8); result handling, interval
   selection, labels, and timezone formatting were preserved.
+- [Plan 47](./PLAY_OEM_COMPLEXITY_47_ACCESS_GRAPH_RUN_SEGMENTATION_PLAN.md)
+  characterized non-finite and below-mask profile gaps, then retained the two
+  explicit contiguous-index splits: a shared helper would not reduce method
+  size or decision score and would add indirection. The focused suite passed
+  (10); `_draw_elevation_graph` remains 119 lines with score 24.
 - The hosted native wx pilot in
   [Plan 19](./PLAY_OEM_COMPLEXITY_19_HOSTED_WX_TEST_PILOT_PLAN.md) is deferred
   indefinitely. Do not resume it without explicit reprioritization, even if
