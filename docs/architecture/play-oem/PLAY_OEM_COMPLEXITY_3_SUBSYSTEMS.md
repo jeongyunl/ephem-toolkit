@@ -175,11 +175,13 @@ workspace, and frame acquired so far, while preserving the process-level
 `wx.App`. The failure-injection evidence and native-wx limitation are recorded
 in [plan 14](./PLAY_OEM_COMPLEXITY_14_PARTIAL_GUI_STARTUP_CLEANUP_PLAN.md).
 
-**Next:** make a resource-acquisition and cleanup table for successful open,
-failed construction, replacement, and application close. Start with
-`test_failed_view_change_restores_the_original_panel` and inspect coverage of
-failure at intermediate stages. Evaluate a scoped lifecycle only if it makes
-ownership and rollback clearer without hiding native backend cleanup.
+The panel/view resource-acquisition and cleanup paths are mapped in
+[plan 12](./PLAY_OEM_COMPLEXITY_12_PANEL_VIEW_LIFECYCLE_PLAN.md), and
+application partial-startup cleanup is covered in
+[plan 14](./PLAY_OEM_COMPLEXITY_14_PARTIAL_GUI_STARTUP_CLEANUP_PLAN.md).
+The [plan 15 result-state comparison](./PLAY_OEM_COMPLEXITY_15_STORE_VIEW_RESULT_STATE_PLAN.md)
+found distinct view-specific query and presentation rules; no shared result
+classifier or resource-ownership change was justified.
 
 ## Scope and follow-up
 

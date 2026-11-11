@@ -273,6 +273,9 @@ def test_store_station_view_reports_terminal_load_state(
         view.build_from_store(context)
         view._update_status_text()
 
+        assert view._store_context is not None
+        assert view._store_context.snapshot.sample_count == 3
+        assert not view._store_queries[station.station_id].coverage.complete
         assert labels[-1] == expected_message
     finally:
         view.close()

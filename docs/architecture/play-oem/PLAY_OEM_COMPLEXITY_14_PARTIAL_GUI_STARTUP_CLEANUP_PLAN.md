@@ -178,8 +178,8 @@ owning frame rather than calling `close()` on an incomplete object.
 The app, CLI, and control-window regression suites passed: **125 passed**.
 The fakes establish the Python-level cleanup calls and their order; they do not
 establish native wx ownership/destruction behavior. No native desktop failure
-injection was available. No dataflow or subsystem ownership changed, so no
-subsystem document was modified.
+injection was available. No dataflow or subsystem ownership changed. The
+subsystem overview now records the separate partial-startup rollback boundary.
 
 Plan 14 is complete. Native wx teardown remains a limitation rather than a
 verified claim. No further implementation candidate is selected here;

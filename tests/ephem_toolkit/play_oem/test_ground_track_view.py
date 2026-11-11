@@ -293,6 +293,63 @@ def test_ground_track_store_view_uses_bound_queries_and_point_footprints() -> No
     assert "earth-fixed" not in store._tier_interest
 
 
+@pytest.mark.parametrize(
+    ("complete", "plot_range", "expected_status"),
+    (
+        (
+            False,
+            ResolvedTimeRange(0.0, 30.0),
+            "Ground track data is loading",
+        ),
+        (
+            True,
+            ResolvedTimeRange(0.0, 30.0),
+            "No ground track samples in plot range",
+        ),
+        (True, None, "Plot range does not overlap OEM coverage"),
+    ),
+)
+def test_ground_track_status_distinguishes_empty_query_states(
+    complete: bool,
+    plot_range: ResolvedTimeRange | None,
+    expected_status: str,
+) -> None:
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    from matplotlib.figure import Figure
+
+    store = OemDataStore()
+    epoch = store.begin(1)
+    if complete:
+        store.mark_complete(
+            epoch,
+            (),
+            (("CENTER_NAME", "EARTH"), ("REF_FRAME", "ITRF")),
+        )
+    context = StoreViewContext.capture(
+        store,
+        time_unit=TimeUnit.MINUTES,
+        plot_range=plot_range,
+        coverage=(0.0, 30.0),
+    )
+    view = ground_track.GroundTrackView(cast(Any, None), "Test object")
+    view._store_binding.bind(context)
+    view._store_context = context
+    view._effective_plot_range = context.bounds_s
+    view._figure = Figure()
+    view._canvas = cast(Any, FigureCanvasAgg(view._figure))
+    view._axes = view._figure.add_subplot(111)
+
+    try:
+        view._draw_map()
+
+        assert view._track_status_artist is not None
+        assert view._track_status_artist.get_text() == expected_status
+        assert view._track_status_artist.get_visible()
+    finally:
+        view.close()
+        store.close()
+
+
 def test_ground_track_axes_follow_canvas_height_without_fixed_aspect() -> None:
     from matplotlib.backends.backend_agg import FigureCanvasAgg
     from matplotlib.figure import Figure

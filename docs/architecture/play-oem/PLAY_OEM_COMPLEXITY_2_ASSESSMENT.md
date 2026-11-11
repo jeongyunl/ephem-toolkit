@@ -605,3 +605,39 @@ The app, CLI, and control-window regression suites passed (**125 passed**).
 These tests use fakes and do not verify native wx teardown. No dataflow
 ownership changed. Re-rank remaining candidates before selecting the next
 investigation; no next implementation item is preselected.
+
+## Store-backed view result-state selection — 2026-11-11
+
+The next investigation is how store-backed views interpret query coverage,
+committed-prefix values, and load state when rendering data and selecting
+status. `StoreViewContext` already binds queries to snapshots and ranges, while
+Ground Track, Ground Station Passes, Ground Station Analysis, and Speed/
+Altitude apply distinct result and presentation rules. This is a candidate for
+cross-caller clarification, not evidence that the rules are inconsistent or
+should be unified.
+
+The bounded investigation will compare the state precedence and test coverage
+without repeating the store-query, refresh-coordination, or panel-lifecycle
+work. Its plan is
+[PLAY_OEM_COMPLEXITY_15_STORE_VIEW_RESULT_STATE_PLAN.md](./PLAY_OEM_COMPLEXITY_15_STORE_VIEW_RESULT_STATE_PLAN.md).
+The raw-ingestion reservation and load-event-consumption leads remain deferred
+absent a concrete protocol gap or transition mismatch. Native wx teardown
+requires display-capable integration evidence and is deferred separately.
+
+## Store-backed view result-state findings — 2026-11-11
+
+The comparison and test map are recorded in
+[PLAY_OEM_COMPLEXITY_15_STORE_VIEW_RESULT_STATE_PLAN.md](./PLAY_OEM_COMPLEXITY_15_STORE_VIEW_RESULT_STATE_PLAN.md).
+`StoreViewContext` preserves snapshot/range semantics, and
+`store_load_status_message()` already centralizes the shared failed/cancelled
+store-state wording. Ground Track, station views, and Speed/Altitude have
+different result and presentation requirements; no common result classifier
+or production change was justified.
+
+Ground Track status tests now distinguish incomplete empty data, complete
+empty data, and no effective range. The focused Ground Track, Ground Station
+Passes, Station Analysis, Speed/Altitude, and shared series-view suites passed
+(80 passed, 3 skipped). The skipped tests require a wx display. Raw-ingestion
+reservation and load-event-consumption leads remain deferred; native wx
+teardown remains unverified. No next implementation candidate is selected;
+re-rank remaining candidates before defining another plan.
