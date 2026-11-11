@@ -25,10 +25,11 @@ than changing the design in this plan.
 
 ## Why this step
 
-The assessment ranks representative runtime and memory as the next evidence
-priority. Plans 4–31 established lifecycle, query, cache, and refresh contracts
-and rejected abstractions not supported by code evidence, but they do not
-measure this combined workload on representative OEM data.
+The assessment originally ranked representative runtime and memory as the next
+evidence priority. Plans 4–31 established lifecycle, query, cache, and refresh
+contracts and rejected abstractions not supported by code evidence, but they do
+not measure this combined workload on representative OEM data. This plan is
+now deferred for later; Plan 33 is the current next evidence task.
 
 The existing [`bench_play_oem.py`](../../../scripts/bench_play_oem.py) already
 measures direct-store ingestion and range-bound queries. Its optional
@@ -169,8 +170,12 @@ measurement.
 
 ## Implementation checklist
 
-- **Status:** Planned.
-- **Progress:** 0/8 checklist items.
+- **Status:** Deferred.
+- **Progress:** Exploratory harness work was performed, but no checklist item
+  has been completed as a final measurement result.
+- **Note:** Preliminary benchmark instrumentation, focused tests, and
+  exploratory GUI runs are not controlled final results. Complete the matched
+  workload trials and document their limits if this plan is resumed.
 - [ ] Record revision, environment, harness version, and candidate input files.
 - [ ] Verify which checked-in or local OEM files are representative and
       characterize their sample, coverage, and segment counts.

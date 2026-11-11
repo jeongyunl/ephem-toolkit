@@ -7,6 +7,16 @@ The current ranking is a judgment about what evidence to collect next, not a
 measured defect rate or commitment to implement a particular design. Update it
 when traces, experiments, and measurements provide better evidence.
 
+## Scope boundary
+
+This assessment concerns implementation complexity, not algorithmic
+efficiency. Reducing asymptotic time complexity or space complexity (Big-O
+runtime or memory) is out of scope. Runtime, latency, queue, and RSS
+measurements are guardrails for understanding the operating envelope and
+checking that maintainability changes preserve required behavior; improving
+those measurements is not an objective. Track any separate performance or
+memory optimization independently.
+
 For an analysis of state, concurrency, and domain interactions, see
 [logically complex subsystems](./PLAY_OEM_COMPLEXITY_3_SUBSYSTEMS.md).
 
@@ -105,6 +115,14 @@ PY
   query policy; Plan 30 clarified the eviction-candidate record. Broad module
   separation remains unjustified without representative memory, latency, or
   dependency evidence.
+- **Internal dependencies and responsibility map:** Plan 33 inspected 63
+  modules and found no eager import cycle in its first-pass AST graph. It
+  traced load/store ownership, derived-query subscriptions, range and redraw
+  callbacks, view/panel lifecycle, and backend selection. View registration and
+  tier-to-view refresh are explicit coordination points, but the roles differ
+  and no repeated avoidable cost was established. Retain the current
+  boundaries; the scan is not an exhaustive runtime call graph or external
+  caller audit. See the [Plan 33 execution record](./PLAY_OEM_COMPLEXITY_33_INTERNAL_DEPENDENCY_RESPONSIBILITY_MAP_PLAN.md).
 
 ## Historical code-directed candidates
 
@@ -155,26 +173,29 @@ do not revive completed refactors based on old baseline scores.
 
 | Priority | Evidence task | Scope and decision rule |
 | --- | --- | --- |
-| 1 — next | [Representative runtime and memory](./PLAY_OEM_COMPLEXITY_32_REPRESENTATIVE_LOAD_MEASUREMENT_PLAN.md) | On representative OEM data, trace incremental load through first usable data, then run derived work while appending and changing a plot range. Record first-data and query/load latency, GUI tick delay, queue depth, peak RSS, and memory held by pinned views. Synthetic capacity-scan and queue tests are not substitutes. Propose a store/controller change only if measurements expose a material cost. |
-| 2 — next | Internal dependency and responsibility map | Map imports, calls, state ownership, callbacks, and dynamic registration across the store, controller, representative history/Ground Track/station views, and both 3D backends. Identify cycles, dependency depth, duplicated policy, and coordinated-edit paths. Use the map to validate concrete boundaries, not to justify a split by itself. |
+| 1 — complete | [Internal dependency and responsibility map](./PLAY_OEM_COMPLEXITY_33_INTERNAL_DEPENDENCY_RESPONSIBILITY_MAP_PLAN.md) | Completed the first-pass import, ownership, callback, dynamic-registration, and representative change-path map. No eager import cycle or avoidable boundary cost was established. Retain current boundaries; revisit view registration or tier-to-view refresh only if future changes demonstrate repeated coordination failures. |
+| 2 — deferred | [Representative runtime and memory](./PLAY_OEM_COMPLEXITY_32_REPRESENTATIVE_LOAD_MEASUREMENT_PLAN.md) | When resumed, trace incremental load through first usable data, then run derived work while appending and changing a plot range. Record first-data and query/load latency, GUI tick delay, queue depth, peak RSS, and memory held by pinned views as operating constraints, not optimization targets. Synthetic capacity-scan and queue tests are not substitutes. Propose a store/controller change only if measurements expose a material implementation-complexity cost; performance or memory optimization is out of scope. |
 | 3 — conditional | Native cross-platform GUI behavior | Real wx cleanup was verified on macOS Cocoa; GTK/MSW and native VTK widget lifecycle remain unverified. Resume when suitable Linux/Windows runners are available; do not infer native behavior from fake widgets or add speculative CI. |
 | 4 — conditional | External compatibility surface | Internal searches do not establish external use of cursors, store APIs, or saved-state formats. Seek package/release or consumer evidence before retiring or changing a compatibility path. |
 | 5 — deferred | Longer-term maintenance trends | Play-OEM source history begins 2026-10-15. Revisit change frequency after several months of ordinary maintenance; the current feature and migration bursts are not representative. |
 
-Priorities 1 and 2 are the actionable next phase. Priorities 3–5 depend on
-runner availability, external consumer evidence, or additional ordinary
-maintenance history. Every follow-up should state its dataset, environment,
-commands, and measurable scenario, and stop if the evidence does not expose a
-concrete complexity cost.
+Plan 33 is complete; it did not identify a boundary change to implement. The
+representative runtime and memory study remains deferred for later. Priorities
+3–5 depend on runner availability, external consumer evidence, or additional
+ordinary maintenance history. Every follow-up should state its scope, evidence
+sources, and decision criteria, and stop if the evidence does not expose a
+concrete implementation-complexity cost.
 
 ## Evidence gaps and completion criteria
 
 The current static baseline and 27-day change-history sample do not measure
-representative runtime, peak memory, sustained GUI latency, internal dependency
-and responsibility structure, external API use, or long-term maintenance
-patterns. GTK/MSW native behavior is blocked by runner availability. Existing
-tests and traces cover many lifecycle cases, but they do not substitute for
-production-like workload measurements.
+representative runtime, peak memory, sustained GUI latency, external API use,
+or long-term maintenance patterns. Plan 33 records a package-local dependency
+and responsibility map and selected callback paths, but it is not an
+exhaustive runtime call graph or external-caller audit. GTK/MSW native behavior
+is blocked by runner availability. Existing tests and traces cover many
+lifecycle cases, but they do not substitute for production-like workload
+measurements.
 
 Accept a future change only when it reduces the rules, caller obligations, or
 interactions needed to understand a concrete behavior without moving equal or
@@ -201,10 +222,11 @@ repeating the chronological selection notes.
 
 ## Current focus
 
-The next phase is evidence collection, not another speculative refactor:
-measure the representative load/query/range-change workflow, then map
-dependencies and responsibilities. Platform, compatibility, and maintenance
-questions remain conditional or deferred as ranked above.
+Plan 33's dependency and responsibility map is complete and supports retaining
+the current boundaries. Plan 32's representative load/query/range-change
+measurement remains deferred for later, not an active task. Platform,
+compatibility, and maintenance questions remain conditional or deferred as
+ranked above.
 
 ## Current baseline refresh — 2026-11-11
 

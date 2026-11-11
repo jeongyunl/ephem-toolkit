@@ -8,6 +8,15 @@ The aim is to identify where a change requires understanding too many
 interacting concepts, and then evaluate whether a proposed change makes
 the application easier to understand, modify, and verify.
 
+### Scope boundary
+
+This effort targets implementation complexity, not algorithmic efficiency.
+Reducing asymptotic time complexity or space complexity (Big-O runtime or
+memory) is out of scope. Runtime, latency, queue, and RSS measurements may
+establish operating constraints and help verify that a maintainability change
+preserves required behavior; they are not optimization targets. Any separate
+performance or memory optimization should be tracked independently.
+
 The ultimate goal is to reduce Play-OEM's implementation complexity while
 preserving required behavior. Plans, measurements, documentation, and tests are
 means to find, evaluate, and safely validate that reduction; producing those
@@ -85,10 +94,12 @@ proposed design changes.
 The replacement-during-load trace is complete; see the
 [load lifecycle plan](./PLAY_OEM_COMPLEXITY_4_LOAD_LIFECYCLE_PLAN.md) and
 [subsystem research](./PLAY_OEM_COMPLEXITY_3_SUBSYSTEMS.md). Reuse its
-transition and test map rather than repeating that investigation. The next
-vertical trace should target the remaining evidence gap: change a plot range
-while derived work is pending during incremental append, using representative
-OEM data and recording queue depth, GUI tick delay, and query/load latency.
+transition and test map rather than repeating that investigation. The combined
+range/derived-work measurement is documented in
+[Plan 32](./PLAY_OEM_COMPLEXITY_32_REPRESENTATIVE_LOAD_MEASUREMENT_PLAN.md) and
+is deferred for later. Resume that trace only when it is needed to answer a
+concrete maintainability question; its runtime and memory measurements are
+constraints, not optimization targets.
 
 Existing tests and investigations already cover first usable data, playback
 across gaps and in reverse, range rules, and shutdown with work pending. Extend
@@ -102,19 +113,12 @@ unnecessary.
 
 ### 2. Map responsibilities horizontally
 
-Create a matrix with components as rows and responsibilities as columns. Mark
-the component that owns each state or decision, those that coordinate it, and
-those that consume it. Include loading, raw data, interpolation, scheduling,
-cache lifetime, playback, ranges, configuration, panel lifecycle, rendering,
-and station analysis. Capture important invariants and the interfaces through
-which each responsibility is accessed.
-
-Build the currently missing import/call and responsibility map across the
-store, controller, representative views, and both 3D backends. Look for
-cycles, dependency depth, duplicated policy, knowledge of another component's
-internals, and changes that require coordinated edits in several places.
-Account for callbacks and dynamic registration that an import graph misses,
-and record useful separation already present so it is preserved.
+Plan 33 completed the initial import/call and responsibility map across the
+store, controller, representative views, workspace, and 3D backends. Its
+execution record documents ownership, callbacks, dynamic registration, change
+paths, scan limits, and the decision to retain current boundaries. Refresh or
+extend that map only when a concrete change or new evidence raises a specific
+boundary question; do not repeat it as a general refactoring exercise.
 
 ### 3. Maintain a reproducible baseline
 
@@ -149,12 +153,14 @@ current design.
 Choose a bounded evidence-gathering experiment before proposing a code change.
 The current candidates are:
 
-- Measure a representative incremental-load and range-change workflow,
-  capturing first-data latency, GUI tick delay, queue depth, peak memory, and
-  pinned-view behavior. Stop if the results do not identify a material cost.
-- Map internal dependencies and responsibilities, then validate any apparent
-  boundary against real call paths, callbacks, and state ownership. Do not split
-  a module based on size or the map alone.
+- Extend the completed Plan 33 map only to investigate a new, concrete
+  dependency or responsibility concern. Do not split a module based on size or
+  the map alone.
+- Resume the representative incremental-load and range-change workflow in
+  Plan 32 when needed to answer a concrete maintainability question. Treat
+  latency, queue depth, and memory as operating constraints, not optimization
+  targets, and stop if results do not identify an implementation-complexity
+  cost.
 - Verify GTK/MSW and native VTK behavior when suitable runners are available;
   do not infer native behavior from fake widgets or add speculative CI.
 
@@ -177,15 +183,20 @@ The lifecycle and selected follow-on investigations through Plan 31 are
 summarized in the [assessment](./PLAY_OEM_COMPLEXITY_2_ASSESSMENT.md); detailed
 traces and decisions remain in their linked plans and the subsystem research.
 They produced bounded local simplifications and rejected abstractions that
-were not supported by evidence. The next work should establish missing
-operational and architectural facts, not repeat completed code reviews:
+were not supported by evidence. Plan 33 has now mapped internal dependencies,
+ownership, callbacks, and representative change paths. It found explicit
+coordination points but no avoidable cost that justifies a boundary change.
+Do not repeat the map or begin a broad refactor without new evidence:
 
-1. Measure representative OEM load, derived-query, and range-change behavior
-   together, including first-data latency, GUI responsiveness, queue depth,
-   peak RSS, and memory held by pinned views.
-2. Map internal dependencies and responsibility ownership, including callbacks
-   and dynamic registration, to test whether boundaries are clear and where
-   changes actually require coordinated edits.
+1. Keep current boundaries. Revisit explicit view-registration and
+   tier-to-view refresh coordination only if ordinary changes expose repeated
+   missed updates or unnecessary cross-component knowledge. The map and its
+   limits are recorded in [Plan 33](./PLAY_OEM_COMPLEXITY_33_INTERNAL_DEPENDENCY_RESPONSIBILITY_MAP_PLAN.md).
+2. Keep representative OEM load, derived-query, and range-change
+   measurements under [Plan 32](./PLAY_OEM_COMPLEXITY_32_REPRESENTATIVE_LOAD_MEASUREMENT_PLAN.md)
+   deferred for later; resume only if needed to answer a maintainability
+   question. Use first-data latency, GUI responsiveness, queue depth, peak RSS,
+   and pinned-view memory as constraints, not optimization targets.
 3. Use platform, compatibility, and maintenance evidence conditionally:
    validate GTK/MSW and native VTK when runners exist; seek external consumer
    evidence before changing compatibility paths; revisit history after several
