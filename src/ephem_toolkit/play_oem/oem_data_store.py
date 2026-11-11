@@ -1629,19 +1629,9 @@ class OemDataStore:
         if not isinstance(station, GroundStation):
             raise TypeError("station must be a GroundStation")
         query_time = _validate_query_time(t_s)
-        metadata = dict(snapshot.meta)
-        frame_name = metadata.get("REF_FRAME")
-        center_name = metadata.get("CENTER_NAME")
-        if not isinstance(frame_name, str) or not isinstance(center_name, str):
-            if snapshot.status is LoadStatus.COMPLETE:
-                raise GroundTrackPreparationError(
-                    "Station metrics require CENTER_NAME and REF_FRAME metadata"
-                )
+        frame_name = _earth_centered_frame_name(snapshot, "Station metrics")
+        if frame_name is None:
             return None
-        if center_name.strip().upper() not in EARTH_CENTERS:
-            raise GroundTrackPreparationError(
-                f"Station metrics require an Earth-centered OEM; found {center_name!r}"
-            )
         state = self.state_at(snapshot, query_time)
         if state.status not in (
             CursorStatus.EXACT_SAMPLE,
@@ -1660,19 +1650,9 @@ class OemDataStore:
         self._validate_snapshot_epoch(snapshot)
         query_time = _validate_query_time(t_s)
         minimum_elevation = _validate_elevation_threshold(min_elevation_deg)
-        metadata = dict(snapshot.meta)
-        frame_name = metadata.get("REF_FRAME")
-        center_name = metadata.get("CENTER_NAME")
-        if not isinstance(frame_name, str) or not isinstance(center_name, str):
-            if snapshot.status is LoadStatus.COMPLETE:
-                raise GroundTrackPreparationError(
-                    "Footprints require CENTER_NAME and REF_FRAME metadata"
-                )
+        frame_name = _earth_centered_frame_name(snapshot, "Footprints")
+        if frame_name is None:
             return None
-        if center_name.strip().upper() not in EARTH_CENTERS:
-            raise GroundTrackPreparationError(
-                f"Footprints require an Earth-centered OEM; found {center_name!r}"
-            )
         state = self.state_at(snapshot, query_time)
         if state.status not in (
             CursorStatus.EXACT_SAMPLE,
@@ -1876,24 +1856,14 @@ class OemDataStore:
         if _cancel_event is not None and _cancel_event.is_set():
             raise CancelledError()
         margin = _validate_nonnegative_finite(margin_s, "margin_s")
-        metadata = dict(snapshot.meta)
-        frame_name = metadata.get("REF_FRAME")
-        center_name = metadata.get("CENTER_NAME")
-        if not isinstance(frame_name, str) or not isinstance(center_name, str):
-            if snapshot.status is LoadStatus.COMPLETE:
-                raise GroundTrackPreparationError(
-                    "Earth-fixed positions require CENTER_NAME and REF_FRAME metadata"
-                )
+        frame_name = _earth_centered_frame_name(snapshot, "Earth-fixed positions")
+        if frame_name is None:
             return StoreQuery(
                 snapshot.epoch,
                 snapshot.revision,
                 snapshot.policy_revision,
                 (),
                 TimeCoverage(bounds, (), False),
-            )
-        if center_name.strip().upper() not in EARTH_CENTERS:
-            raise GroundTrackPreparationError(
-                f"Earth-fixed positions require an Earth-centered OEM; found {center_name!r}"
             )
 
         if snapshot.sample_count == 0:
@@ -2062,24 +2032,14 @@ class OemDataStore:
                 _time_coverage(snapshot, bounds),
             )
 
-        metadata = dict(snapshot.meta)
-        frame_name = metadata.get("REF_FRAME")
-        center_name = metadata.get("CENTER_NAME")
-        if not isinstance(frame_name, str) or not isinstance(center_name, str):
-            if snapshot.status is LoadStatus.COMPLETE:
-                raise GroundTrackPreparationError(
-                    "Ground Track requires CENTER_NAME and REF_FRAME metadata"
-                )
+        frame_name = _earth_centered_frame_name(snapshot, "Ground Track")
+        if frame_name is None:
             return StoreQuery(
                 snapshot.epoch,
                 snapshot.revision,
                 snapshot.policy_revision,
                 (),
                 TimeCoverage(bounds, (), False),
-            )
-        if center_name.strip().upper() not in EARTH_CENTERS:
-            raise GroundTrackPreparationError(
-                f"Ground Track requires an Earth-centered OEM; found {center_name!r}"
             )
 
         if not wait:
@@ -2235,14 +2195,8 @@ class OemDataStore:
                 _time_coverage(snapshot, bounds),
             )
 
-        metadata = dict(snapshot.meta)
-        frame_name = metadata.get("REF_FRAME")
-        center_name = metadata.get("CENTER_NAME")
-        if not isinstance(frame_name, str) or not isinstance(center_name, str):
-            if snapshot.status is LoadStatus.COMPLETE:
-                raise GroundTrackPreparationError(
-                    "Station access requires CENTER_NAME and REF_FRAME metadata"
-                )
+        frame_name = _earth_centered_frame_name(snapshot, "Station access")
+        if frame_name is None:
             value = StationAccessView(selected_station, (), (), None)
             return StoreQuery(
                 snapshot.epoch,
@@ -2250,10 +2204,6 @@ class OemDataStore:
                 snapshot.policy_revision,
                 value,
                 TimeCoverage(bounds, (), False),
-            )
-        if center_name.strip().upper() not in EARTH_CENTERS:
-            raise GroundTrackPreparationError(
-                f"Station access requires an Earth-centered OEM; found {center_name!r}"
             )
 
         margin = max(
@@ -3343,6 +3293,25 @@ def _coverage_for_rows(
                 else:
                     covered.append((start_s, stop_s))
     return TimeCoverage(bounds, tuple(covered), complete)
+
+
+def _earth_centered_frame_name(
+    snapshot: StoreSnapshot, purpose: str
+) -> str | None:
+    metadata = dict(snapshot.meta)
+    frame_name = metadata.get("REF_FRAME")
+    center_name = metadata.get("CENTER_NAME")
+    if not isinstance(frame_name, str) or not isinstance(center_name, str):
+        if snapshot.status is LoadStatus.COMPLETE:
+            raise GroundTrackPreparationError(
+                f"{purpose} requires CENTER_NAME and REF_FRAME metadata"
+            )
+        return None
+    if center_name.strip().upper() not in EARTH_CENTERS:
+        raise GroundTrackPreparationError(
+            f"{purpose} requires an Earth-centered OEM; found {center_name!r}"
+        )
+    return frame_name
 
 
 def _validate_query_time(t_s: float) -> float:

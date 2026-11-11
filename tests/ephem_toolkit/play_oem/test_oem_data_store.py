@@ -83,6 +83,92 @@ def _one_group(query, name: str) -> ColumnGroupView:
     return views[0]
 
 
+def test_earth_centered_queries_preserve_incomplete_metadata_results() -> None:
+    times, states, segments = _series_samples()
+    store = _store_with_samples(times, states, segments, complete=False)
+    snapshot = store.snapshot()
+    station = GroundStation("station", "Test Station", 35.0, -117.0, 100.0)
+
+    assert store.station_metrics_at(snapshot, station, times[0]) is None
+    assert store.footprints(snapshot, times[0], 10.0) is None
+
+    earth_fixed = store.earth_fixed_positions(
+        snapshot, (times[0], times[-1]), wait=True
+    )
+    ground_track_result = store.ground_track(
+        snapshot, (times[0], times[-1]), wait=True
+    )
+    station_access_result = store.station_access(
+        snapshot, station, (times[0], times[-1]), wait=True
+    )
+
+    for query in (earth_fixed, ground_track_result, station_access_result):
+        assert query.epoch == snapshot.epoch
+        assert query.revision == snapshot.revision
+        assert query.policy_revision == snapshot.policy_revision
+        assert query.coverage.covered_s == ()
+        assert not query.coverage.complete
+    assert earth_fixed.value == ()
+    assert ground_track_result.value == ()
+    assert station_access_result.value.profiles == ()
+    assert station_access_result.value.intervals == ()
+    assert station_access_result.value.limitation is None
+
+
+@pytest.mark.parametrize(
+    ("metadata", "error_message"),
+    [
+        ((), "requires CENTER_NAME and REF_FRAME metadata"),
+        (
+            (("CENTER_NAME", "MARS"), ("REF_FRAME", "ITRF")),
+            "requires an Earth-centered OEM; found 'MARS'",
+        ),
+    ],
+)
+def test_earth_centered_queries_preserve_metadata_errors(
+    metadata: tuple[tuple[str, object], ...], error_message: str
+) -> None:
+    times, states, segments = _series_samples()
+    store = _store_with_samples(
+        times,
+        states,
+        segments,
+        metadata=metadata,
+    )
+    snapshot = store.snapshot()
+    station = GroundStation("station", "Test Station", 35.0, -117.0, 100.0)
+    operations = (
+        (
+            "Station metrics",
+            lambda: store.station_metrics_at(snapshot, station, times[0]),
+        ),
+        ("Footprints", lambda: store.footprints(snapshot, times[0], 10.0)),
+        (
+            "Earth-fixed positions",
+            lambda: store.earth_fixed_positions(
+                snapshot, (times[0], times[-1]), wait=True
+            ),
+        ),
+        (
+            "Ground Track",
+            lambda: store.ground_track(
+                snapshot, (times[0], times[-1]), wait=True
+            ),
+        ),
+        (
+            "Station access",
+            lambda: store.station_access(
+                snapshot, station, (times[0], times[-1]), wait=True
+            ),
+        ),
+    )
+
+    for purpose, operation in operations:
+        with pytest.raises(oem_data_store.GroundTrackPreparationError) as error:
+            operation()
+        assert str(error.value) == f"{purpose} {error_message}"
+
+
 def test_commit_publishes_zero_copy_prefix_and_preserves_snapshots() -> None:
     store = OemDataStore()
     epoch = store.begin(8)
@@ -1674,6 +1760,44 @@ def test_earth_fixed_computes_only_rows_inside_requested_range(monkeypatch) -> N
     np.testing.assert_array_equal(
         np.flatnonzero(store._earth_fixed_ready), [4500, 4501]
     )
+
+
+def test_nonblocking_earth_fixed_query_reports_pending_coverage(monkeypatch) -> None:
+    times, states, segments = _series_samples()
+    store = _store_with_samples(
+        times,
+        states,
+        segments,
+        metadata=(("CENTER_NAME", "EARTH"), ("REF_FRAME", "ITRF")),
+    )
+    snapshot = store.snapshot()
+    entered = Event()
+    release = Event()
+    original_write = oem_data_store._write_earth_fixed_chunk
+
+    def blocked_write(snapshot, frame_name, start, stop, output) -> None:
+        entered.set()
+        assert release.wait(3)
+        original_write(snapshot, frame_name, start, stop, output)
+
+    monkeypatch.setattr(oem_data_store, "_write_earth_fixed_chunk", blocked_write)
+    future = None
+    bounds = (times[0], times[-1])
+    try:
+        partial = store.earth_fixed_positions(snapshot, bounds)
+        assert entered.wait(3)
+        assert partial.value == ()
+        assert partial.coverage.covered_s == ()
+        assert not partial.coverage.complete
+        future = store.prefetch(
+            snapshot,
+            QueryRequest("earth-fixed", bounds),
+        )
+    finally:
+        release.set()
+        if future is not None:
+            future.result(timeout=3)
+        store.close()
 
 
 def test_station_profiles_are_lazy_shared_and_threshold_independent() -> None:

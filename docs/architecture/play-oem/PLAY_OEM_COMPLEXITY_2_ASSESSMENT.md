@@ -147,7 +147,9 @@ tests before changing an interface or removing a path.
    scheduling or eviction can have a narrower internal interface. Preserve one
    raw-data owner, snapshot validity, bounded memory, cancellation, and query
    performance; moving methods alone is not a reduction in coupling.
-3. **Derived store queries.** The store's `series`,
+3. **Derived store queries.** Detailed investigation plan:
+   [PLAY_OEM_COMPLEXITY_6_DERIVED_STORE_QUERIES_PLAN.md](./PLAY_OEM_COMPLEXITY_6_DERIVED_STORE_QUERIES_PLAN.md).
+   The store's `series`,
    `earth_fixed_positions`, `ground_track`, and `station_access` methods each
    manage range-oriented derived data. Compare their coverage, chunk, and
    invalidation handling for repeated policy, then test a small shared internal
@@ -367,5 +369,26 @@ The derived-memory budget covers selected chunk and Ground Track buffers, not
 process RSS or every bounded cache. Pinned/active chunks can remain resident
 over budget, and chunk eviction depends on platform memory advice. No RSS,
 native GUI latency, change-frequency, or defect-history evidence was gathered.
-The next work item is priority 3, derived store queries; avoid a scheduler
+The next work item is the derived-query slice of priority 3; avoid a scheduler
 extraction or module split absent stronger evidence.
+
+## Derived store query update — 2026-11-10
+
+The verified tier contracts, test map, before/after comparison, and decision
+are recorded in
+[PLAY_OEM_COMPLEXITY_6_DERIVED_STORE_QUERIES_PLAN.md](./PLAY_OEM_COMPLEXITY_6_DERIVED_STORE_QUERIES_PLAN.md).
+The query comparison found that `_coverage_for_rows` already centralizes the
+common series/Earth-fixed span-to-coverage conversion; their span selection is
+intentionally different, while Ground Track delegates to Earth-fixed coverage
+and station access has sample-grid coverage. No broader query abstraction was
+justified.
+
+The narrow repeated invariant was Earth-centered metadata validation across
+the three range queries and the station-metric and footprint point queries.
+`_earth_centered_frame_name` now owns string-presence, loading-versus-complete,
+and Earth-center checks while callers retain their distinct incomplete results
+and error messages. The source module fell from 3,536 to 3,505 physical lines;
+focused store/view validation passed (155 passed, 3 skipped). This is local
+deduplication, not evidence of lower whole-store coupling or improved runtime.
+Dataflow and store design did not change. Priority 3 is complete; the next
+authoritative work item is priority 4, view refresh coordination.
