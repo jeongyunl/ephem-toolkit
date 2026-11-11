@@ -235,6 +235,14 @@ The duplicated pending-bounds decision was consolidated in
 `_apply_pending_playback_bounds`; first-append anchoring and later-append
 follow-coverage logic remain distinct. The focused app, clock, and time-range
 suites passed (162 passed) on macOS.
+The next concrete reduction candidate is the three exception-safe toggles of
+`_installing_incremental_batch` around synchronous clock/cursor operations.
+Plan 24 tests whether one scoped guard clarifies that invariant without
+obscuring the actual operations:
+[plan 24](./PLAY_OEM_COMPLEXITY_24_BATCH_INSTALL_GUARD_PLAN.md).
+The three manual set/try/finally/reset sequences now use
+`_installing_incremental_update`, which restores the prior state on exceptions.
+The app, clock, and time-range suites passed (163 passed) on macOS.
 
 ## Scope and follow-up
 

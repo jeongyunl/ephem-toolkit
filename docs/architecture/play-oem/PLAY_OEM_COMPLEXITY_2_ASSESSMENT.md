@@ -781,6 +781,23 @@ was added. The app, clock, and time-range suites passed (162 passed) on macOS.
 This is a bounded local reduction in duplicated policy, not a broader
 controller or load-lifecycle redesign.
 
+## Batch-install guard reduction selection — 2026-11-11
+
+The next bounded experiment targets another concrete repeated protocol in
+`_install_store_snapshot`: three clock/cursor operations manually set and
+clear `_installing_incremental_batch` with `try/finally`. The flag suppresses
+re-entrant observer refreshes during snapshot installation. Plan 24 evaluates
+whether a small scoped guard reduces exception-safety bookkeeping without
+hiding the operations or adding excessive abstraction:
+[PLAY_OEM_COMPLEXITY_24_BATCH_INSTALL_GUARD_PLAN.md](./PLAY_OEM_COMPLEXITY_24_BATCH_INSTALL_GUARD_PLAN.md).
+
+Plan 24 consolidated that protocol in `_installing_incremental_update`, which
+restores the previous flag value even on exceptions. The clock/cursor calls
+remain inline. A focused restoration test was added, and the app, clock, and
+time-range suites passed (163 passed) on macOS. Direct flag writes are now
+limited to initialization and the scope helper; no cross-platform claim is
+made.
+
 Plan 22 is complete. The ranked candidates have been investigated, and the
 remaining leads lack either a concrete complexity defect/change hypothesis or
 an available validation path. No new implementation plan is selected. Reopen

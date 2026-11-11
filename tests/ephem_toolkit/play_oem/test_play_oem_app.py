@@ -3034,6 +3034,26 @@ def test_native_wx_close_during_oem_parse_cancels_and_destroys_resources(
     )
 
 
+def test_incremental_update_scope_restores_previous_flag_on_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    player, _views, _canvases, _frames = make_app(monkeypatch)
+    try:
+        with pytest.raises(RuntimeError, match="clock update failed"):
+            with player._installing_incremental_update():
+                assert player._installing_incremental_batch
+                raise RuntimeError("clock update failed")
+
+        assert not player._installing_incremental_batch
+        player._installing_incremental_batch = True
+        with player._installing_incremental_update():
+            assert player._installing_incremental_batch
+        assert player._installing_incremental_batch
+    finally:
+        player._installing_incremental_batch = False
+        player.close()
+
+
 def test_sigint_is_forwarded_with_call_after_and_previous_handler_restored(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

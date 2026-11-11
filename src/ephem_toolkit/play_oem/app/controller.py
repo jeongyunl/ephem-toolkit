@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
+from contextlib import contextmanager
 from queue import Empty, SimpleQueue
 import gc
 import logging
@@ -602,6 +603,15 @@ class PlayerApp(
             and self._incremental_view_refresh_pending
         ):
             self._refresh_incremental_views(force=True)
+
+    @contextmanager
+    def _installing_incremental_update(self) -> Iterator[None]:
+        was_installing = self._installing_incremental_batch
+        self._installing_incremental_batch = True
+        try:
+            yield
+        finally:
+            self._installing_incremental_batch = was_installing
 
     def _publish_range_hint(self) -> None:
         store = self._oem_store
@@ -1448,12 +1458,9 @@ class PlayerApp(
             if not isinstance(self.cursor, cursor.StoreCursor):
                 raise RuntimeError("active store has no store-backed cursor")
             if snapshot.sample_count > self.cursor.timestamps_s.size:
-                self._installing_incremental_batch = True
-                try:
+                with self._installing_incremental_update():
                     self.clock.extend_coverage(float(snapshot.raw[-1, 0]))
                     self.cursor.refresh(snapshot)
-                finally:
-                    self._installing_incremental_batch = False
             else:
                 self.cursor.refresh(snapshot)
             if self._pending_playback_bounds is None:
@@ -1509,20 +1516,14 @@ class PlayerApp(
             self._pending_playback_bounds = None
             self._loading_cursor_anchor_s = None
             self._playback_handle_bounds = bounds
-            self._installing_incremental_batch = True
-            try:
+            with self._installing_incremental_update():
                 self.clock.set_playback_bounds(*bounds)
-            finally:
-                self._installing_incremental_batch = False
         elif (
             self.clock.t_start <= bounds[0] <= self.clock.t_end
             and self.clock.t_now != bounds[0]
         ):
-            self._installing_incremental_batch = True
-            try:
+            with self._installing_incremental_update():
                 self.clock.seek(bounds[0])
-            finally:
-                self._installing_incremental_batch = False
             self._loading_cursor_anchor_s = None
 
     def _close_pending_oem_store(self) -> None:
