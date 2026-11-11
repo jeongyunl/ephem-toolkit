@@ -1196,6 +1196,76 @@ def test_range_hint_prioritizes_active_tier_ranges() -> None:
     store.close()
 
 
+@pytest.mark.parametrize(
+    ("tier", "margin", "expected"),
+    [
+        ("series", 20.0, (100.0, 200.0)),
+        ("earth-fixed", 20.0, (80.0, 220.0)),
+        ("ground-track", 20.0, (80.0, 220.0)),
+        (
+            "station-access",
+            20.0,
+            (
+                100.0
+                - max(
+                    oem_data_store.ACCESS_WINDOW_MIN_MARGIN_S,
+                    oem_data_store.ACCESS_WINDOW_MARGIN_FRACTION * 100.0,
+                ),
+                200.0
+                + max(
+                    oem_data_store.ACCESS_WINDOW_MIN_MARGIN_S,
+                    oem_data_store.ACCESS_WINDOW_MARGIN_FRACTION * 100.0,
+                ),
+            ),
+        ),
+    ],
+)
+def test_request_bounds_include_each_tiers_support_margin(
+    tier: oem_data_store.TierName,
+    margin: float,
+    expected: tuple[float, float],
+) -> None:
+    request = QueryRequest(tier, (100.0, 200.0), margin_s=margin)
+
+    assert oem_data_store._expanded_request_bounds(request) == expected
+
+
+def test_scheduler_priority_and_drag_size_use_expanded_request_bounds() -> None:
+    times = np.array([0.0, 50.0, 100.0, 150.0, 200.0, 250.0])
+    states = np.zeros((times.size, 6))
+    segments = np.zeros(times.size, dtype=np.int64)
+    store = _store_with_samples(times, states, segments)
+    unsubscribe = store.subscribe_tier("earth-fixed")
+    hint = RangeHint(
+        plot=(100.0, 200.0),
+        playback=(500.0, 600.0),
+        now_s=150.0,
+        dragging=True,
+    )
+    store.set_range_hint(hint)
+    request = QueryRequest(
+        "earth-fixed",
+        (0.0, 10.0),
+        margin_s=95.0,
+    )
+
+    assert store._priority_for_request(request, hint) == 1
+    snapshot = store.snapshot()
+    work = oem_data_store._ScheduledWork(
+        priority=1,
+        sequence=0,
+        key=(snapshot.epoch, snapshot.revision, 0, request),
+        snapshot=snapshot,
+        request=request,
+        future=oem_data_store._PrefetchFuture(),
+        generation=0,
+    )
+    assert store._request_rows(work) == 3
+
+    unsubscribe()
+    store.close()
+
+
 def test_nonblocking_series_query_does_not_report_uncomputed_data_complete() -> None:
     times, states, segments = _series_samples()
     store = _store_with_samples(times, states, segments)
@@ -1306,6 +1376,111 @@ def test_range_hint_cancels_stale_work_between_chunks(monkeypatch) -> None:
         policy_revision=0,
     ) is ChunkState.ABSENT
     store.close()
+
+
+def test_clear_cancels_active_prefetch_without_publishing_old_epoch(
+    monkeypatch,
+) -> None:
+    times, states, segments = _series_samples()
+    store = _store_with_samples(times, states, segments)
+    snapshot = store.snapshot()
+    entered = Event()
+    release = Event()
+    original_write = oem_data_store._write_series_chunk
+
+    def blocked_write(*args, **kwargs) -> None:
+        entered.set()
+        assert release.wait(3)
+        original_write(*args, **kwargs)
+
+    monkeypatch.setattr(
+        "ephem_toolkit.play_oem.oem_data_store._write_series_chunk",
+        blocked_write,
+    )
+    future = store.prefetch(
+        snapshot,
+        QueryRequest(
+            "series",
+            (times[0], times[-1]),
+            series_groups=("kinematics",),
+        ),
+    )
+    memo = None
+    try:
+        assert entered.wait(3)
+        memo = store._series_memos["kinematics"]
+        store.clear()
+        assert future.cancel_event.is_set()
+    finally:
+        release.set()
+
+    with pytest.raises(CancelledError):
+        future.result(timeout=3)
+    assert store.epoch > snapshot.epoch
+    assert memo is not None
+    assert memo.state(
+        0,
+        epoch=snapshot.epoch,
+        policy_revision=0,
+    ) is ChunkState.ABSENT
+    store.close()
+
+
+def test_close_cancels_active_prefetch_and_waits_for_worker(
+    monkeypatch,
+) -> None:
+    times, states, segments = _series_samples()
+    store = _store_with_samples(times, states, segments)
+    snapshot = store.snapshot()
+    entered = Event()
+    release = Event()
+    close_finished = Event()
+    close_errors: list[Exception] = []
+    original_write = oem_data_store._write_series_chunk
+
+    def blocked_write(*args, **kwargs) -> None:
+        entered.set()
+        assert release.wait(3)
+        original_write(*args, **kwargs)
+
+    def close_store() -> None:
+        try:
+            store.close()
+        except Exception as error:
+            close_errors.append(error)
+        finally:
+            close_finished.set()
+
+    closer = Thread(target=close_store)
+    monkeypatch.setattr(
+        "ephem_toolkit.play_oem.oem_data_store._write_series_chunk",
+        blocked_write,
+    )
+    future = store.prefetch(
+        snapshot,
+        QueryRequest(
+            "series",
+            (times[0], times[-1]),
+            series_groups=("kinematics",),
+        ),
+    )
+    try:
+        assert entered.wait(3)
+        closer = Thread(target=close_store)
+        closer.start()
+        assert future.cancel_event.wait(3)
+        assert not close_finished.is_set()
+    finally:
+        release.set()
+        if closer.ident is not None:
+            closer.join(3)
+
+    assert closer.ident is not None
+    assert not closer.is_alive()
+    assert close_finished.is_set()
+    assert close_errors == []
+    with pytest.raises(CancelledError):
+        future.result(timeout=3)
 
 
 def test_loading_append_recomputes_only_the_tentative_series_tail() -> None:

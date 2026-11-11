@@ -454,6 +454,20 @@ class QueryRequest:
     center_longitude_deg: float = 0.0
 
 
+def _expanded_request_bounds(request: QueryRequest) -> TimeBounds:
+    bounds = _validate_time_bounds(request.bounds_s)
+    if request.tier in ("earth-fixed", "ground-track"):
+        margin = _validate_nonnegative_finite(request.margin_s, "margin_s")
+    elif request.tier == "station-access":
+        margin = max(
+            ACCESS_WINDOW_MIN_MARGIN_S,
+            ACCESS_WINDOW_MARGIN_FRACTION * (bounds[1] - bounds[0]),
+        )
+    else:
+        return bounds
+    return bounds[0] - margin, bounds[1] + margin
+
+
 @dataclass(frozen=True)
 class RangeHint:
     """Current plot and playback interest used to prioritize derived work."""
@@ -999,19 +1013,7 @@ class OemDataStore:
             return 4
         if self._tier_interest.get(request.tier, 0) == 0:
             return 4
-        bounds = _validate_time_bounds(request.bounds_s)
-        if request.tier == "earth-fixed":
-            margin = _validate_nonnegative_finite(request.margin_s, "margin_s")
-            bounds = (bounds[0] - margin, bounds[1] + margin)
-        elif request.tier == "ground-track":
-            margin = _validate_nonnegative_finite(request.margin_s, "margin_s")
-            bounds = (bounds[0] - margin, bounds[1] + margin)
-        elif request.tier == "station-access":
-            margin = max(
-                ACCESS_WINDOW_MIN_MARGIN_S,
-                ACCESS_WINDOW_MARGIN_FRACTION * (bounds[1] - bounds[0]),
-            )
-            bounds = (bounds[0] - margin, bounds[1] + margin)
+        bounds = _expanded_request_bounds(request)
         if hint.plot is not None:
             plot = hint.plot
             width = max(plot[1] - plot[0], 1.0)
@@ -1093,19 +1095,8 @@ class OemDataStore:
     @staticmethod
     def _request_rows(work: _ScheduledWork) -> int:
         snapshot = work.snapshot
-        bounds = _validate_time_bounds(work.request.bounds_s)
-        if work.request.tier == "earth-fixed":
-            margin = _validate_nonnegative_finite(work.request.margin_s, "margin_s")
-            bounds = (bounds[0] - margin, bounds[1] + margin)
-        elif work.request.tier == "ground-track":
-            margin = _validate_nonnegative_finite(work.request.margin_s, "margin_s")
-            bounds = (bounds[0] - margin, bounds[1] + margin)
-        elif work.request.tier == "station-access":
-            margin = max(
-                ACCESS_WINDOW_MIN_MARGIN_S,
-                ACCESS_WINDOW_MARGIN_FRACTION * (bounds[1] - bounds[0]),
-            )
-            bounds = (bounds[0] - margin, bounds[1] + margin)
+        bounds = _expanded_request_bounds(work.request)
+        if work.request.tier == "station-access":
             requested_rows = 0
             for raw_start_value, raw_stop_value in snapshot.segment_bounds:
                 raw_start, raw_stop = int(raw_start_value), int(raw_stop_value)

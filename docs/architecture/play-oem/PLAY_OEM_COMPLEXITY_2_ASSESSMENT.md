@@ -137,7 +137,9 @@ tests before changing an interface or removing a path.
    cross-method reasoning; preserve late-event rejection, valid-prefix behavior,
    replacement, cancellation, and shutdown. Incremental loading is the normal
    application path, not a CLI-selectable mode to remove as an unused variant.
-2. **Store scheduling and cache lifecycle.** `OemDataStore.prefetch`,
+2. **Store scheduling and cache lifecycle.** Detailed investigation plan:
+   [PLAY_OEM_COMPLEXITY_5_STORE_SCHEDULING_CACHE_PLAN.md](./PLAY_OEM_COMPLEXITY_5_STORE_SCHEDULING_CACHE_PLAN.md).
+   `OemDataStore.prefetch`,
    `_drain_scheduler_queue`, `_run_prefetch`, and `_evict_derived_buffers`
    coexist with raw storage and query methods in
    [`oem_data_store.py`](../../../src/ephem_toolkit/play_oem/oem_data_store.py).
@@ -346,6 +348,24 @@ abstraction was therefore not justified by this evidence. The controller's
 unbounded event drain was a separate, concrete responsiveness risk; it now
 handles at most 64 events per timer tick and leaves the rest for later ticks.
 The test verifies this work bound. Change frequency, defect history, and native
-GUI latency remain unknown. Continue with priority 2, store
-scheduling/query/eviction invariants, unless operational evidence changes the
-ranking.
+GUI latency remain unknown. Store scheduling/query/eviction became the next
+investigation; see the subsequent work-item update.
+
+## Store scheduling and cache lifecycle update — 2026-11-10
+
+The verified trace, tier matrix, lock notes, test mapping, and evaluation are
+recorded in
+[PLAY_OEM_COMPLEXITY_5_STORE_SCHEDULING_CACHE_PLAN.md](./PLAY_OEM_COMPLEXITY_5_STORE_SCHEDULING_CACHE_PLAN.md).
+The investigation found identical tier-specific support-range expansion in
+`_priority_for_request` and `_request_rows`; the shared
+`_expanded_request_bounds` helper now owns that policy. The store/memo and
+controller integration suites passed (163 tests). Targeted method volume fell
+by 11 lines net, while the module gained one helper; this is a small local
+clarity and policy-consistency improvement, not a broad store simplification.
+
+The derived-memory budget covers selected chunk and Ground Track buffers, not
+process RSS or every bounded cache. Pinned/active chunks can remain resident
+over budget, and chunk eviction depends on platform memory advice. No RSS,
+native GUI latency, change-frequency, or defect-history evidence was gathered.
+The next work item is priority 3, derived store queries; avoid a scheduler
+extraction or module split absent stronger evidence.
