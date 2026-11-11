@@ -801,8 +801,12 @@ def test_legacy_saved_panel_names_open_focused_station_panels(
         lambda name, _create_view, **_kwargs: opened.append(name),
     )
 
-    player.open_panel_view("ground-station-access", "legacy-access")
-    player.open_panel_view("ground-station-passes", "legacy-passes")
+    player.open_panel_view(
+        "ground-station-access", panel_id="legacy-access"
+    )
+    player.open_panel_view(
+        "ground-station-passes", panel_id="legacy-passes"
+    )
 
     assert opened == ["elevation-profile", "pass-list"]
 
@@ -1972,7 +1976,7 @@ def test_controller_owns_one_clock_dispatch_and_hidden_panels_catch_up(
     )
 
     assert len(player.clock._observers) == 1
-    player.open_panel_view("speed-altitude", "duplicate")
+    player.open_panel_view("speed-altitude", panel_id="duplicate")
     assert len(player.clock._observers) == 1
     player.clock.seek(150.0)
     assert views[0].updated_times[-1] == 150.0
@@ -2002,8 +2006,10 @@ def test_panel_instances_can_duplicate_views_and_keep_independent_lifecycles(
     player.start()
     default = player._open_views["speed-altitude"]
 
-    player.open_panel_view("speed-altitude", "duplicate-middle")
-    player.open_panel_view("speed-altitude", "duplicate-right", stack="right")
+    player.open_panel_view("speed-altitude", panel_id="duplicate-middle")
+    player.open_panel_view(
+        "speed-altitude", panel_id="duplicate-right", stack="right"
+    )
     middle_duplicate = player._open_panels["duplicate-middle"]
     right_duplicate = player._open_panels["duplicate-right"]
 
@@ -2466,8 +2472,12 @@ def test_store_refresh_rebuilds_panels_opened_before_the_store(
 
     assert replacements == [
         (
-            ("speed-altitude", "pre-store", "middle"),
-            {"force_replace": True},
+            ("speed-altitude",),
+            {
+                "panel_id": "pre-store",
+                "stack": "middle",
+                "force_replace": True,
+            },
         )
     ]
     player._open_panels.pop(opened.panel_id)

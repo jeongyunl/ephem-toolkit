@@ -173,16 +173,6 @@ class StoreViewContext:
         query = self.series_groups((group,), max_samples=max_samples, wait=wait)
         return replace(query, value=query.value[group])
 
-    def query_series(
-        self,
-        groups: Sequence[SeriesGroupName],
-        *,
-        max_samples: int | None = None,
-        wait: bool = False,
-    ) -> StoreQuery[SeriesGroups]:
-        """Compatibility spelling for a multi-group series query."""
-        return self.series_groups(groups, max_samples=max_samples, wait=wait)
-
     def state_at(self, t_s: float) -> CursorState:
         """Resolve a point state against this context's stable snapshot."""
         return self.store.state_at(self.snapshot, t_s)

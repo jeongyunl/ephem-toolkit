@@ -218,9 +218,9 @@ class PlayerAppState(Protocol):
     def open_panel_view(
         self,
         name: str,
+        *,
         panel_id: str,
         stack: str = "middle",
-        *,
         force_replace: bool = False,
     ) -> None: ...
     def _select_panel_view(self, name: str, panel_id: str, stack: str) -> None: ...

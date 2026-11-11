@@ -211,6 +211,25 @@ Plan 49 combined the equivalent missing-context and unloaded-OEM guards in
 full access-view suite passed (3 and 17 tests); the method decreased from 22
 to 18 lines while its score remained 7.
 
+## Proposed interface simplifications
+
+These are bounded follow-up candidates, not approved refactors. Confirm the
+compatibility requirements and all callers before changing a module boundary.
+Prefer removing redundant entry points or clarifying call syntax over adding
+new request, options, or facade types.
+
+| Candidate | Proposed action | Preserve and verify |
+| --- | --- | --- |
+| [View query context](../../../../../src/ephem_toolkit/play_oem/views/base.py) | [Plan 50](./PLAY_OEM_COMPLEXITY_50_VIEW_QUERY_ALIAS_PLAN.md) removed the uncalled `query_series` alias; the distinct single-group and multi-group APIs remain. | Snapshot binding, range handling, partial coverage, and explicit `wait` behavior. |
+| [Incremental loader](../../../../../src/ephem_toolkit/play_oem/incremental_loader.py) | [Plan 51](./PLAY_OEM_COMPLEXITY_51_INCREMENTAL_LOADER_RETURN_CONTRACT_PLAN.md) retained the session return for direct clients; the controller now reads generation from the loader. | Bounded draining, cancellation, and the distinction between load generation and store epoch. |
+| [Panel management](../../../../../src/ephem_toolkit/play-oem/app/panel_management.py) | [Plan 52](./PLAY_OEM_COMPLEXITY_52_PANEL_OPEN_KEYWORD_ARGUMENTS_PLAN.md) made `panel_id` and `stack` keyword-only; no request object was added. | Alias validation, pending-data views, replacement rollback, panel identity, and resource cleanup. |
+
+`saved_state.load_saved_state` has complex validation and migration logic, but
+its caller-facing function takes a simple optional path. Keep that distinction:
+implementation complexity alone is not a reason to expand or redesign its API.
+The caller-side findings above also caution against broad extraction where
+callers have distinct semantics.
+
 ## Current evidence priorities
 
 Plans 4–30 investigated the initial code-directed candidates. Plan 31 found

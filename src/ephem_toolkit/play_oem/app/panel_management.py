@@ -47,9 +47,9 @@ class PanelManagementMixin:
     def open_panel_view(
         self: PlayerAppState,
         name: str,
+        *,
         panel_id: str,
         stack: str = "middle",
-        *,
         force_replace: bool = False,
     ) -> None:
         """Open a view in the graph-panel instance identified by ``panel_id``."""
@@ -101,7 +101,7 @@ class PanelManagementMixin:
 
     def _add_graph_panel(self: PlayerAppState, stack: str) -> None:
         try:
-            self.open_panel_view(EMPTY_GRAPH_VIEW, uuid4().hex, stack)
+            self.open_panel_view(EMPTY_GRAPH_VIEW, panel_id=uuid4().hex, stack=stack)
         except Exception as error:
             wx.MessageBox(
                 f"Could not add a graph panel: {error}",
@@ -114,7 +114,7 @@ class PanelManagementMixin:
         self: PlayerAppState, name: str, panel_id: str, stack: str
     ) -> None:
         try:
-            self.open_panel_view(name, panel_id, stack)
+            self.open_panel_view(name, panel_id=panel_id, stack=stack)
         except Exception as error:
             wx.MessageBox(
                 f"Could not create {self._panel_view_label(name)}: {error}",
@@ -133,7 +133,11 @@ class PanelManagementMixin:
         if opened is None:
             return
         try:
-            self.open_panel_view(opened.view_name, uuid4().hex, opened.stack)
+            self.open_panel_view(
+                opened.view_name,
+                panel_id=uuid4().hex,
+                stack=opened.stack,
+            )
         except Exception as error:
             wx.MessageBox(
                 f"Could not duplicate graph panel: {error}",

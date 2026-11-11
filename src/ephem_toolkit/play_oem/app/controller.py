@@ -726,8 +726,8 @@ class PlayerApp(
             if opened.requires_store_rebuild:
                 self.open_panel_view(
                     opened.view_name,
-                    panel_id,
-                    opened.stack,
+                    panel_id=panel_id,
+                    stack=opened.stack,
                     force_replace=True,
                 )
                 continue
@@ -755,8 +755,8 @@ class PlayerApp(
                 else:
                     self.open_panel_view(
                         opened.view_name,
-                        panel_id,
-                        opened.stack,
+                        panel_id=panel_id,
+                        stack=opened.stack,
                         force_replace=True,
                     )
             except Exception as error:
@@ -1224,7 +1224,7 @@ class PlayerApp(
                 if self._pending_file_playback_bounds is not None:
                     self._playback_handle_bounds = self._pending_file_playback_bounds
                 self._restore_recent_file_plot_range(normalize_recent_path(path))
-            session = self._incremental_loader.start(path, store=store)
+            self._incremental_loader.start(path, store=store)
         except Exception:
             store.close()
             raise
@@ -1234,7 +1234,7 @@ class PlayerApp(
         ):
             previous_pending_store.close()
         self._pending_oem_store = store
-        self._active_load_generation = session.generation
+        self._active_load_generation = self._incremental_loader.generation
         self._active_load_path = path
         self._active_load_first_batch = False
         self._active_load_failed = False
@@ -1665,8 +1665,8 @@ class PlayerApp(
                         continue
                     self.open_panel_view(
                         view_name,
-                        panel_id,
-                        stack,
+                        panel_id=panel_id,
+                        stack=stack,
                         force_replace=True,
                     )
             elif self._oem_loaded:
