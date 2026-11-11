@@ -420,6 +420,7 @@ class FakeView:
     def __init__(self) -> None:
         self.updated_times: list[float] = []
         self.closed = False
+        self.close_calls = 0
         self._cursor_artists = ()
 
     @property
@@ -437,6 +438,7 @@ class FakeView:
             artist.set_xdata([t_s, t_s])
 
     def close(self) -> None:
+        self.close_calls += 1
         self.closed = True
 
 
@@ -1587,6 +1589,7 @@ def test_closing_one_plot_unsubscribes_only_that_view(
     assert canvases[0].disconnected_callbacks == [1]
     assert canvases[0].callbacks == {}
     assert views[0].closed
+    assert views[0].close_calls == 1
     assert views[0].updated_times == [100.0]
     assert not player._closed
     assert player._timer.running
@@ -2451,6 +2454,7 @@ def test_new_graph_panel_starts_empty_and_can_switch_between_empty_and_a_view(
     rtn_panel.panel.on_view_selected(app_support.EMPTY_GRAPH_VIEW)
     empty_again = player._open_panels[empty_panel.panel_id]
     assert views[-1].closed
+    assert views[-1].close_calls == 1
     assert empty_again.view_name == app_support.EMPTY_GRAPH_VIEW
     assert player.workspace.graph_panels.index(empty_again.panel) == 1
 
@@ -2486,6 +2490,7 @@ def test_failed_view_change_restores_the_original_panel(
     assert player.workspace.graph_panels[original_index] is original.panel
     assert not original.panel.destroyed
     assert failed_view.closed
+    assert failed_view.close_calls == 1
     assert len(errors) == 1
     player.close()
 
@@ -2526,6 +2531,7 @@ def test_closing_primary_frame_stops_timer_and_closes_all_views(
     assert player._closed
     assert not player._timer.running
     assert all(view.closed for view in views)
+    assert all(view.close_calls == 1 for view in views)
     assert all(frame.destroyed for frame in frames)
     assert all(view.updated_times == [100.0] for view in views)
     player.close()

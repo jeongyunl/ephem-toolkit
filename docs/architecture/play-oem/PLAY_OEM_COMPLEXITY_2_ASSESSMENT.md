@@ -178,6 +178,8 @@ tests before changing an interface or removing a path.
    Ground Track, a station view, and a 3D backend for duplicated lifecycle
    policy before extending shared machinery. Preserve panel identity, observer
    cleanup, and backend-specific native resource release.
+   Detailed investigation plan:
+   [PLAY_OEM_COMPLEXITY_12_PANEL_VIEW_LIFECYCLE_PLAN.md](./PLAY_OEM_COMPLEXITY_12_PANEL_VIEW_LIFECYCLE_PLAN.md).
 7. **Large GUI view responsibilities.**
    [`GroundTrackView`](../../../src/ephem_toolkit/play_oem/views/ground_track.py)
    combines panel construction, map drawing and navigation, station controls,
@@ -521,4 +523,32 @@ controls, projection, axes, and redraw.
 
 Native wx layout tests were skipped without a display; no subsystem or
 dataflow ownership changed. This candidate is complete. Re-rank the remaining
-assessment candidates before defining the next authoritative work item.
+assessment candidates before defining the next authoritative work item. The
+next selected candidate is panel and view lifecycle: transactional rollback and
+heterogeneous resource release have concrete, testable consequences, while
+controller initialization remains a broader follow-on without a specific
+runtime mismatch. See
+[PLAY_OEM_COMPLEXITY_12_PANEL_VIEW_LIFECYCLE_PLAN.md](./PLAY_OEM_COMPLEXITY_12_PANEL_VIEW_LIFECYCLE_PLAN.md).
+
+## Panel and view lifecycle update
+
+The lifecycle trace, bounded change, and test results are recorded in
+[PLAY_OEM_COMPLEXITY_12_PANEL_VIEW_LIFECYCLE_PLAN.md](./PLAY_OEM_COMPLEXITY_12_PANEL_VIEW_LIFECYCLE_PLAN.md).
+The complete app lifecycle suite passed (88 passed); representative store
+binding, history, Ground Track, station, speed/altitude, and VTK suites passed
+(70 passed, 3 skipped). The skipped cases require a display. VTK cleanup tests
+use a fake widget, so native desktop integration remains unverified.
+
+Setup rollback and normal resource release shared the same low-level
+callback-disconnect, unsubscribe, and `view.close()` sequence. That sequence
+is now centralized in `_release_view_resources`, with exactly-once assertions
+for failed construction, successful replacement, ordinary close, and frame
+shutdown. Transaction-specific panel restoration, registry updates, and
+destruction remain separate. Existing resource owners and runtime behavior are
+unchanged; no subsystem or dataflow documentation update is warranted.
+
+Priority 8, panel and view lifecycle, is complete. The remaining assessment
+candidate is controller initialization and shared state. It is broader and
+currently lacks a specific runtime mismatch, so first define a bounded
+investigation and verify state ownership and initialization ordering before
+proposing a refactor.

@@ -24,6 +24,20 @@ from .support import (
 )
 
 
+def _release_view_resources(
+    view: base.View | None,
+    canvas: FigureCanvasWxAgg | None,
+    click_callback_id: int | None,
+    unsubscribe: Callable[[], None] | None,
+) -> None:
+    if canvas is not None and click_callback_id is not None:
+        canvas.mpl_disconnect(click_callback_id)
+    if unsubscribe is not None:
+        unsubscribe()
+    if view is not None:
+        view.close()
+
+
 class PanelManagementMixin:
     """Manage graph panel instances and their associated rendering resources."""
 
@@ -317,12 +331,7 @@ class PanelManagementMixin:
             if self._open_views.get(name) is not None:
                 if self._open_views[name].panel_id == panel_id:
                     self._open_views.pop(name)
-            if canvas is not None and click_callback_id is not None:
-                canvas.mpl_disconnect(click_callback_id)
-            if unsubscribe is not None:
-                unsubscribe()
-            if view is not None:
-                view.close()
+            _release_view_resources(view, canvas, click_callback_id, unsubscribe)
             if panel is not None:
                 try:
                     if panel_inserted:
@@ -385,7 +394,9 @@ class PanelManagementMixin:
     def _release_open_view_resources(self: PlayerAppState, opened: _OpenView) -> None:
         if self._open_views.get(opened.view_name) is opened:
             self._open_views.pop(opened.view_name)
-        if opened.canvas is not None and opened.click_callback_id is not None:
-            opened.canvas.mpl_disconnect(opened.click_callback_id)
-        opened.unsubscribe()
-        opened.view.close()
+        _release_view_resources(
+            opened.view,
+            opened.canvas,
+            opened.click_callback_id,
+            opened.unsubscribe,
+        )
