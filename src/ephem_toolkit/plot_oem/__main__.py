@@ -17,6 +17,7 @@ def main(argv=None) -> None:
     from typing import Any
 
     import matplotlib.pyplot as plt
+    from ephem_toolkit.core.app_utils import activate_application
 
     import ephem_toolkit.core.time_utils as time_utils
 
@@ -135,6 +136,7 @@ def main(argv=None) -> None:
             figure = plt.figure(figure_number)
             figure.canvas.mpl_connect("key_press_event", handle_key_press)
         try:
+            activate_application()
             plt.show()
         except KeyboardInterrupt:
             plt.close("all")

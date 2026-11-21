@@ -9,6 +9,8 @@ from __future__ import annotations
 import wx
 from wx.lib.agw.supertooltip import SuperToolTip
 
+from ephem_toolkit.core.app_utils import activate_application
+
 
 class SuperToolTipFontDemo(wx.Frame):
     def __init__(self) -> None:
@@ -45,4 +47,5 @@ if __name__ == "__main__":
     app = wx.App(False)
     frame = SuperToolTipFontDemo()
     frame.Show()
+    activate_application()
     app.MainLoop()

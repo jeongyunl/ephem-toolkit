@@ -53,6 +53,7 @@ def main(argv=None) -> None:
     from typing import Any
 
     import matplotlib.pyplot as plt
+    from ephem_toolkit.core.app_utils import activate_application
     import numpy as np
 
     import ephem_toolkit.core.time_utils as time_utils
@@ -212,6 +213,7 @@ def main(argv=None) -> None:
         for figure_number in plt.get_fignums():
             figure = plt.figure(figure_number)
             figure.canvas.mpl_connect("key_press_event", handle_key_press)
+        activate_application()
         plt.show()
 
     signal.signal(signal.SIGINT, previous_sigint_handler)

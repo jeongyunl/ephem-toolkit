@@ -20,6 +20,7 @@ def main(argv=None) -> None:
     cli_args: PlotDependentVariablesArgs = parse_arguments(cli_parser, argv)
 
     from matplotlib import pyplot as plt
+    from ephem_toolkit.core.app_utils import activate_application
     from .plot_dependent_variables import plot_dependent_variables_from_csv
 
     def handle_sigint(_signum: int, _frame: FrameType | None) -> None:
@@ -49,6 +50,7 @@ def main(argv=None) -> None:
             figure = plt.figure(figure_number)
             figure.canvas.mpl_connect("key_press_event", handle_key_press)
 
+        activate_application()
         plt.show()
     except KeyboardInterrupt:
         plt.close("all")

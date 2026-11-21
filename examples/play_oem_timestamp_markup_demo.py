@@ -8,6 +8,7 @@ from __future__ import annotations
 import wx
 from wx.lib.agw.supertooltip import SuperToolTip
 
+from ephem_toolkit.core.app_utils import activate_application
 from ephem_toolkit.play_oem.timestamp_markup import set_timestamp_label
 
 TIMESTAMP = "2026-10-19T19:41:40.501Z"
@@ -133,4 +134,5 @@ if __name__ == "__main__":
     app = wx.App(False)
     frame = TimestampMarkupDemo()
     frame.Show()
+    activate_application()
     app.MainLoop()

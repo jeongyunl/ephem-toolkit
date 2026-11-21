@@ -18,6 +18,7 @@ from typing import cast
 
 import wx
 
+from ephem_toolkit.core.app_utils import activate_application
 from ephem_toolkit.core.interpolator.interpolation_spec import (
     DEFAULT_HERMITE_DEGREE,
     InterpolationSpec,
@@ -541,6 +542,7 @@ class PlayerApp(
         self._last_frame_monotonic_s = time.monotonic()
         self._update_time_display()
         self.frame.Show()
+        activate_application()
         if self._oem_loaded:
             self.open_plots(self._plots)
         else:

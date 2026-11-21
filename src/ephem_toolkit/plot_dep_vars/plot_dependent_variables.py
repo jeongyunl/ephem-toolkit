@@ -18,6 +18,8 @@ import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
 
+from ephem_toolkit.core.app_utils import activate_application
+
 SECONDS_PER_HOUR: float = 3600.0
 """Conversion factor from seconds to hours."""
 
@@ -1173,6 +1175,7 @@ def plot_dependent_variables_from_csv(
     )
 
     if show:
+        activate_application()
         plt.show()
 
     return trajectory_animation

@@ -17,6 +17,8 @@ from datetime import datetime, timedelta, timezone
 
 import wx
 
+from ephem_toolkit.core.app_utils import activate_application
+
 SLIDER_MAX = 10_000
 START = datetime(2026, 1, 1, tzinfo=timezone.utc)
 SPAN = timedelta(days=30)
@@ -107,5 +109,9 @@ if __name__ == "__main__":
         window = WorkspaceTooltipDemo(args.refresh_ms)
     else:
         window = TimelineTooltipDemo(args.refresh_ms, args.skip_unchanged)
+    app.SetTopWindow(window)
     window.Show()
+    window.Raise()
+    window.SetFocus()
+    activate_application()
     app.MainLoop()
