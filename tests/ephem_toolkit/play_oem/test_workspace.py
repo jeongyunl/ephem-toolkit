@@ -156,6 +156,8 @@ class FakeTimeSlider(FakeSlider):
         self.client_size = FakeSize(600, 74)
         self.ranges = None
         self.display_time_zone = "UTC"
+        self.is_dragging = False
+        self._seek_grip = FakeWidget(parent, -1)
 
     def GetClientSize(self) -> FakeSize:
         return self.client_size
@@ -667,11 +669,34 @@ class FakeCallLater:
         self.callback()
 
 
+class FakeSuperToolTip:
+    def __init__(self, message: str) -> None:
+        self.message = message
+
+    def SetStartDelay(self, _delay: int) -> None:
+        pass
+
+    def SetMessage(self, message: str) -> None:
+        self.message = message
+
+    def DoHideNow(self) -> None:
+        pass
+
+
 def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
     wx = workspace.wx
     # Fake controls cannot host native SuperToolTip windows; retain the message
     # for assertions without creating GUI resources in these layout tests.
-    set_fake_tooltip = lambda widget, message: widget.SetToolTip(message)
+    def set_fake_tooltip(widget, message):
+        widget.SetToolTip(message)
+        tooltip = getattr(widget, "_play_oem_tooltip", None)
+        if tooltip is None:
+            tooltip = FakeSuperToolTip(message)
+            widget._play_oem_tooltip = tooltip
+        else:
+            tooltip.SetMessage(message)
+        return tooltip
+
     monkeypatch.setattr(core, "set_tooltip", set_fake_tooltip)
     monkeypatch.setattr(features, "set_tooltip", set_fake_tooltip)
     monkeypatch.setattr(graph_stack, "set_tooltip", set_fake_tooltip)
@@ -746,6 +771,7 @@ def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
         "EVT_SIZE": "size",
         "EVT_KEY_DOWN": "key-down",
         "EVT_SLIDER": "slider",
+        "EVT_MOTION": "motion",
         "EVT_SCROLLWIN": "scroll-window",
         "EVT_SPLITTER_SASH_POS_CHANGING": "splitter-sash-changing",
         "WXK_UP": 315,
@@ -772,6 +798,7 @@ def make_workspace(
     on_step_samples=None,
     on_open_preset=None,
     on_follow_selection=None,
+    timeline_tooltip_at=None,
 ) -> tuple[Any, list[float], FakeFrame]:
     configure_fake_wx(monkeypatch)
     frame = FakeFrame()
@@ -790,6 +817,7 @@ def make_workspace(
         on_set_playback_rate=on_set_playback_rate,
         on_step_samples=on_step_samples,
         timeline_enabled=timeline_enabled,
+        timeline_tooltip_at=timeline_tooltip_at,
         playback_bounds=(10.0, 90.0),
         oem_coverage=(0.0, 100.0),
         slider_bounds=slider_bounds,
@@ -1870,6 +1898,59 @@ def test_timeline_motion_during_drag_dismisses_slider_tooltip() -> None:
 
     assert dismissed == [True]
     assert skipped == [True]
+
+
+def test_seek_grip_motion_positions_timestamp_tooltip_above_track(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result, _seeks, _frame = make_workspace(
+        monkeypatch,
+        timeline_tooltip_at=lambda fraction: f"time {fraction:.2f}",
+    )
+    slider = result.timeline_slider
+    slider._seek_grip._play_oem_tooltip = FakeSuperToolTip("2026-01-01T00:00:00")
+    positioned = []
+    monkeypatch.setattr(
+        timeline,
+        "position_tooltip_at_pointer",
+        lambda _tooltip, _window, position, **kwargs: positioned.append(
+            (position, kwargs)
+        ),
+    )
+    skipped = []
+    event = SimpleNamespace(
+        GetPosition=lambda: SimpleNamespace(x=10, y=6),
+        Skip=lambda: skipped.append(True),
+    )
+
+    slider._seek_grip.bindings["motion"](event)
+
+    assert slider._seek_grip._play_oem_tooltip.message == "2026-01-01T00:00:00"
+    assert positioned[0][0] == event.GetPosition()
+    assert positioned[0][1] == {"above_track": True}
+    assert skipped == [True]
+
+
+def test_seek_grip_motion_does_not_dismiss_tooltip_while_dragging(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result, _seeks, _frame = make_workspace(
+        monkeypatch,
+        timeline_tooltip_at=lambda _fraction: "track tooltip",
+    )
+    result.timeline_slider.is_dragging = True
+    dismissed = []
+    result.timeline_slider._seek_grip._play_oem_tooltip = SimpleNamespace(
+        DoHideNow=lambda: dismissed.append(True)
+    )
+    event = SimpleNamespace(
+        GetPosition=lambda: SimpleNamespace(x=10, y=6),
+        Skip=lambda: None,
+    )
+
+    result.timeline_slider._seek_grip.bindings["motion"](event)
+
+    assert dismissed == []
 
 
 def test_unloading_oem_dismisses_timeline_tooltip(monkeypatch) -> None:

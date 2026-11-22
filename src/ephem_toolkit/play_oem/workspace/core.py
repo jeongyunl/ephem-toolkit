@@ -286,6 +286,9 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             # automatic hover timer can place it at the slider edge.
             self._timeline_tooltip.SetStartDelay(1)
             self.timeline_slider.Bind(wx.EVT_MOTION, self._on_timeline_motion)
+            self.timeline_slider._seek_grip.Bind(
+                wx.EVT_MOTION, self._on_timeline_seek_grip_motion
+            )
         timeline_scrubber_sizer.Add(
             self.timeline_slider,
             1,

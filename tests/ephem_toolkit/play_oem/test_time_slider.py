@@ -250,6 +250,8 @@ def test_unloaded_track_segment_uses_metadata_bounds_as_slider_scale() -> None:
 def test_seek_grip_reports_drag_end_and_capture_loss() -> None:
     dragging: list[bool] = []
     refreshes: list[bool] = []
+    seeks: list[object] = []
+    tooltip_positions: list[object] = []
     slider = SimpleNamespace(
         IsEnabled=lambda: True,
         SetFocus=lambda: None,
@@ -264,7 +266,8 @@ def test_seek_grip_reports_drag_end_and_capture_loss() -> None:
                 slider, source, release_capture=release_capture
             )
         ),
-        _seek_from_grip=lambda _grip, _point: None,
+        _seek_from_grip=lambda _grip, point: seeks.append(point),
+        _position_seek_tooltip=tooltip_positions.append,
     )
     grip = SimpleNamespace(
         slider=slider,
@@ -273,18 +276,89 @@ def test_seek_grip_reports_drag_end_and_capture_loss() -> None:
         CaptureMouse=lambda: None,
     )
     slider._seek_grip = grip
-    event = SimpleNamespace(GetPosition=lambda: None, Skip=lambda: None)
+    event = SimpleNamespace(GetPosition=lambda: "click position", Skip=lambda: None)
 
     _SeekGrip._down(grip, event)
     assert TimeSlider.is_dragging.__get__(slider)
+    assert tooltip_positions == ["click position"]
     _SeekGrip._up(grip, event)
     assert not TimeSlider.is_dragging.__get__(slider)
+    assert seeks == []
     _SeekGrip._down(grip, event)
+    assert tooltip_positions == ["click position", "click position"]
+    motion = SimpleNamespace(
+        Dragging=lambda: True,
+        LeftIsDown=lambda: True,
+        GetPosition=lambda: "dragged position",
+        Skip=lambda: None,
+    )
+    _SeekGrip._motion(grip, motion)
+    assert seeks == ["dragged position"]
+    assert tooltip_positions == [
+        "click position",
+        "click position",
+        "dragged position",
+    ]
     _SeekGrip._capture_lost(grip, event)
 
     assert dragging == [True, False, True, False]
     assert not TimeSlider.is_dragging.__get__(slider)
     assert len(refreshes) == 4
+
+
+def test_seek_grip_tooltip_is_a_plain_timestamp(monkeypatch) -> None:
+    from ephem_toolkit.play_oem.workspace import time_slider as time_slider_module
+
+    messages = []
+    monkeypatch.setattr(
+        time_slider_module,
+        "format_tt",
+        lambda timestamp, _time_zone, **_kwargs: f"timestamp {timestamp:g}",
+    )
+    monkeypatch.setattr(
+        time_slider_module,
+        "set_tooltip",
+        lambda widget, message: messages.append((widget, message)),
+    )
+
+    class FakeGrip:
+        def Show(self) -> None:
+            pass
+
+        def Hide(self) -> None:
+            pass
+
+        def SetSize(self, _size) -> None:
+            pass
+
+        def SetPosition(self, _position) -> None:
+            pass
+
+        def GetSize(self):
+            return SimpleNamespace(width=18)
+
+        def GetName(self) -> str:
+            return "Current playback time marker"
+
+    grip = FakeGrip()
+    seek_grip = FakeGrip()
+    slider = SimpleNamespace(
+        _grips={"playback_start": grip},
+        _plot_rule=object(),
+        _playback_handles=(10.0, 90.0),
+        _slider_bounds=(0.0, 100.0),
+        _now=50.0,
+        _display_time_zone="UTC",
+        _time_for=lambda _key: 10.0,
+        _x_for=lambda timestamp: int(timestamp),
+        GetClientSize=lambda: SimpleNamespace(width=100, height=74),
+        GetPosition=lambda: SimpleNamespace(x=0, y=0),
+        _seek_grip=seek_grip,
+    )
+
+    TimeSlider._position_grips(slider)
+
+    assert messages[-1] == (seek_grip, "timestamp 50")
 
 
 def test_seek_grip_looks_filled_and_larger_while_dragging(monkeypatch) -> None:

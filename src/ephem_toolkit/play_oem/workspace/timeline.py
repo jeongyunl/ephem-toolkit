@@ -8,7 +8,12 @@ from typing import TYPE_CHECKING, Protocol
 import wx
 
 from .constants import TIMELINE_SLIDER_MAX
-from ..tooltips import SuperToolTip, position_tooltip_at_pointer, set_tooltip
+from ..tooltips import (
+    SuperToolTip,
+    dismiss_tooltip,
+    position_tooltip_at_pointer,
+    set_tooltip,
+)
 
 if TYPE_CHECKING:
     from .time_slider import TimeSlider
@@ -242,4 +247,27 @@ class TimelineMixin:
                 event.GetPosition(),
                 above_track=True,
             )
+        event.Skip()
+
+    def _on_timeline_seek_grip_motion(
+        self: _TimelineState, event: wx.MouseEvent
+    ) -> None:
+        slider = self.timeline_slider
+        seek_grip = slider._seek_grip
+        if (
+            not self._timeline_enabled
+            or not slider.IsEnabled()
+        ):
+            dismiss_tooltip(seek_grip)
+            event.Skip()
+            return
+        if not slider.is_dragging:
+            tooltip = getattr(seek_grip, "_play_oem_tooltip", None)
+            if tooltip is not None:
+                position_tooltip_at_pointer(
+                    tooltip,
+                    seek_grip,
+                    event.GetPosition(),
+                    above_track=True,
+                )
         event.Skip()

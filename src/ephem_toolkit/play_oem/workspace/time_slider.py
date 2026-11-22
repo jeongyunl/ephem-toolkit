@@ -7,7 +7,12 @@ from collections.abc import Callable
 import wx
 
 from .. import time_range
-from ..tooltips import dismiss_tooltip, set_tooltip, suppress_tooltips
+from ..tooltips import (
+    dismiss_tooltip,
+    position_tooltip_at_pointer,
+    set_tooltip,
+    suppress_tooltips,
+)
 from ..display_time import UTC_DISPLAY, format_tt
 
 
@@ -211,7 +216,7 @@ class _SeekGrip(wx.Control):
         self.slider._begin_pointer_drag(self)
         if not self.HasCapture():
             self.CaptureMouse()
-        self.slider._seek_from_grip(self, event.GetPosition())
+        self.slider._position_seek_tooltip(event.GetPosition())
 
     def _up(self, _event: wx.MouseEvent) -> None:
         self.slider._end_pointer_drag(self)
@@ -224,6 +229,7 @@ class _SeekGrip(wx.Control):
             and event.LeftIsDown()
         ):
             self.slider._seek_from_grip(self, event.GetPosition())
+            self.slider._position_seek_tooltip(event.GetPosition())
         event.Skip()
 
     def _capture_lost(self, event: wx.MouseCaptureLostEvent) -> None:
@@ -347,6 +353,16 @@ class TimeSlider(wx.Control):
     def _pointer_leave(self, event: wx.MouseEvent) -> None:
         self._set_track_hover(False)
         event.Skip()
+
+    def _position_seek_tooltip(self, position: wx.Point) -> None:
+        tooltip = getattr(self._seek_grip, "_play_oem_tooltip", None)
+        if tooltip is not None:
+            position_tooltip_at_pointer(
+                tooltip,
+                self._seek_grip,
+                position,
+                above_track=True,
+            )
 
     def _begin_pointer_drag(self, source: wx.Window) -> None:
         self._drag_source = source
@@ -704,6 +720,15 @@ class TimeSlider(wx.Control):
         )
         if _timestamp_is_visible(self._now, self._slider_bounds):
             self._seek_grip.Show()
+            try:
+                timestamp = format_tt(
+                    self._now,
+                    self._display_time_zone,
+                    fractional_second_places=0,
+                )
+                set_tooltip(self._seek_grip, timestamp)
+            except (AttributeError, TypeError, OverflowError, ValueError):
+                set_tooltip(self._seek_grip, self._seek_grip.GetName())
         else:
             self._seek_grip.Hide()
         if _event is not None:
