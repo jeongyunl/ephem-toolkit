@@ -1834,7 +1834,29 @@ def test_timeline_motion_outside_track_band_dismisses_slider_tooltip() -> None:
     dismissed = []
     slider = SimpleNamespace(
         IsEnabled=lambda: True,
+        is_dragging=False,
         is_pointer_over_timeline_track=lambda _position: False,
+    )
+    result = SimpleNamespace(
+        _timeline_enabled=True,
+        timeline_slider=slider,
+        _timeline_tooltip=SimpleNamespace(DoHideNow=lambda: dismissed.append(True)),
+    )
+    skipped = []
+    event = SimpleNamespace(GetPosition=lambda: None, Skip=lambda: skipped.append(True))
+
+    timeline.TimelineMixin._on_timeline_motion(result, event)
+
+    assert dismissed == [True]
+    assert skipped == [True]
+
+
+def test_timeline_motion_during_drag_dismisses_slider_tooltip() -> None:
+    dismissed = []
+    slider = SimpleNamespace(
+        IsEnabled=lambda: True,
+        is_dragging=True,
+        is_pointer_over_timeline_track=lambda _position: True,
     )
     result = SimpleNamespace(
         _timeline_enabled=True,

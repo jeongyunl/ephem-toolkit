@@ -174,7 +174,16 @@ def test_seek_grip_reports_drag_end_and_capture_loss() -> None:
     slider = SimpleNamespace(
         IsEnabled=lambda: True,
         SetFocus=lambda: None,
+        _drag_source=None,
         _on_range_dragging=dragging.append,
+        _begin_pointer_drag=lambda source: TimeSlider._begin_pointer_drag(
+            slider, source
+        ),
+        _end_pointer_drag=lambda source, release_capture=True: (
+            TimeSlider._end_pointer_drag(
+                slider, source, release_capture=release_capture
+            )
+        ),
         _seek_from_grip=lambda _grip, _point: None,
     )
     grip = SimpleNamespace(
@@ -187,11 +196,14 @@ def test_seek_grip_reports_drag_end_and_capture_loss() -> None:
     event = SimpleNamespace(GetPosition=lambda: None, Skip=lambda: None)
 
     _SeekGrip._down(grip, event)
+    assert TimeSlider.is_dragging.__get__(slider)
     _SeekGrip._up(grip, event)
+    assert not TimeSlider.is_dragging.__get__(slider)
     _SeekGrip._down(grip, event)
     _SeekGrip._capture_lost(grip, event)
 
     assert dragging == [True, False, True, False]
+    assert not TimeSlider.is_dragging.__get__(slider)
     assert len(refreshes) == 4
 
 
@@ -220,7 +232,10 @@ def test_seek_grip_looks_filled_and_larger_while_dragging(monkeypatch) -> None:
     monkeypatch.setattr(wx, "Pen", lambda color, width: ("pen", color, width))
     monkeypatch.setattr(wx.SystemSettings, "GetColour", lambda _id: highlight)
     grip = SimpleNamespace(
-        slider=SimpleNamespace(GetBackgroundColour=lambda: background),
+        slider=SimpleNamespace(
+            GetBackgroundColour=lambda: background,
+            _drag_source=None,
+        ),
         GetClientSize=lambda: (16, 16),
         _dragging=False,
     )
@@ -230,7 +245,13 @@ def test_seek_grip_looks_filled_and_larger_while_dragging(monkeypatch) -> None:
     assert drawing["brush"] == ("brush", background)
     assert drawing["circle"] == (8, 8, 6)
 
-    grip._dragging = True
+    grip.slider._drag_source = grip
+    _SeekGrip._paint(grip, None)
+    assert drawing["pen"] == ("pen", highlight, 3)
+    assert drawing["brush"] == ("brush", highlight)
+    assert drawing["circle"] == (8, 8, 7)
+
+    grip.slider._drag_source = grip.slider
     _SeekGrip._paint(grip, None)
     assert drawing["pen"] == ("pen", highlight, 3)
     assert drawing["brush"] == ("brush", highlight)
@@ -271,7 +292,10 @@ def test_endpoint_grip_appearance_changes_while_dragging(
     grip = SimpleNamespace(
         kind=kind,
         color=color,
-        slider=SimpleNamespace(_plot_mode=lambda _grip: "fixed"),
+        slider=SimpleNamespace(
+            _plot_mode=lambda _grip: "fixed",
+            _drag_source=None,
+        ),
         GetParent=lambda: SimpleNamespace(GetBackgroundColour=lambda: background),
         GetClientSize=lambda: (18, 18),
         HasFocus=lambda: False,
@@ -280,7 +304,7 @@ def test_endpoint_grip_appearance_changes_while_dragging(
 
     _RangeGrip._paint(grip, None)
     idle_pen, idle_brush = drawing["pen"], drawing["brush"]
-    grip._dragging = True
+    grip.slider._drag_source = grip
     _RangeGrip._paint(grip, None)
 
     assert drawing["pen"] == ("pen", highlight, 3)
@@ -291,24 +315,40 @@ def test_endpoint_grip_appearance_changes_while_dragging(
 
 def test_track_scrubbing_reports_drag_end_and_capture_loss() -> None:
     dragging: list[bool] = []
+    refreshes: list[bool] = []
     slider = SimpleNamespace(
         IsEnabled=lambda: True,
         SetFocus=lambda: None,
+        _drag_source=None,
+        Refresh=lambda: None,
+        _begin_pointer_drag=lambda source: TimeSlider._begin_pointer_drag(
+            slider, source
+        ),
+        _end_pointer_drag=lambda source, release_capture=True: (
+            TimeSlider._end_pointer_drag(
+                slider, source, release_capture=release_capture
+            )
+        ),
         _on_range_dragging=dragging.append,
         _value_at_x=lambda x: x,
         _set_value_from_user=lambda _value: None,
         _dragging=False,
+        _seek_grip=SimpleNamespace(Refresh=lambda: refreshes.append(True)),
         HasCapture=lambda: False,
         CaptureMouse=lambda: None,
     )
     event = SimpleNamespace(GetX=lambda: 50, Skip=lambda: None)
 
     TimeSlider._left_down(slider, event)
+    assert TimeSlider.is_dragging.__get__(slider)
     TimeSlider._left_up(slider, event)
+    assert not TimeSlider.is_dragging.__get__(slider)
     TimeSlider._left_down(slider, event)
     TimeSlider._capture_lost(slider, event)
 
     assert dragging == [True, False, True, False]
+    assert not TimeSlider.is_dragging.__get__(slider)
+    assert len(refreshes) == 4
 
 
 def test_slider_seek_position_uses_metadata_domain() -> None:

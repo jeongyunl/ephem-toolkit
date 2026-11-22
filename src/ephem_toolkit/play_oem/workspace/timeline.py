@@ -220,7 +220,11 @@ class TimelineMixin:
         wx.CallAfter(self.timeline_time_entry.SelectAll)
 
     def _on_timeline_motion(self: _TimelineState, event: wx.MouseEvent) -> None:
-        if not self._timeline_enabled or not self.timeline_slider.IsEnabled():
+        if (
+            not self._timeline_enabled
+            or not self.timeline_slider.IsEnabled()
+            or self.timeline_slider.is_dragging
+        ):
             self._timeline_tooltip.DoHideNow()
             event.Skip()
             return

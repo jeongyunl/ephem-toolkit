@@ -7,7 +7,7 @@ from collections.abc import Callable
 import wx
 
 from .. import time_range
-from ..tooltips import set_tooltip, suppress_tooltips
+from ..tooltips import dismiss_tooltip, set_tooltip, suppress_tooltips
 from ..display_time import UTC_DISPLAY, format_tt
 
 
@@ -97,7 +97,6 @@ class _RangeGrip(wx.Control):
         self.Bind(wx.EVT_MOTION, self._motion)
         self.Bind(wx.EVT_MOUSE_CAPTURE_LOST, self._capture_lost)
         self.Bind(wx.EVT_CHAR, self._key)
-        self._dragging = False
 
     def _paint(self, _event: wx.PaintEvent) -> None:
         dc = wx.AutoBufferedPaintDC(self)
@@ -107,19 +106,16 @@ class _RangeGrip(wx.Control):
         cx, cy = w // 2, h // 2
         color = (
             wx.SystemSettings.GetColour(wx.SYS_COLOUR_HIGHLIGHT)
-            if self._dragging
+            if self.slider._drag_source is self
             else self.color
         )
-        dc.SetPen(wx.Pen(color, 3 if self._dragging else 2))
+        dragging = self.slider._drag_source is self
+        dc.SetPen(wx.Pen(color, 3 if dragging else 2))
         if self.kind == "playback":
             dc.SetBrush(wx.Brush(color))
             vertices = _triangle_vertices(self.kind, cx, cy)
         else:
-            brush_color = (
-                color
-                if self._dragging
-                else self.GetParent().GetBackgroundColour()
-            )
+            brush_color = color if dragging else self.GetParent().GetBackgroundColour()
             dc.SetBrush(wx.Brush(brush_color))
             vertices = _plot_handle_vertices(self.slider._plot_mode(self), cx, cy)
         dc.DrawPolygon([wx.Point(x, y) for x, y in vertices])
@@ -138,9 +134,7 @@ class _RangeGrip(wx.Control):
         self.SetFocus()
         if self.kind == "plot" and self.slider._plot_mode(self) == "follow":
             return
-        self._dragging = True
-        self.Refresh()
-        self.slider._on_range_dragging(True)
+        self.slider._begin_pointer_drag(self)
         if not self.HasCapture():
             self.CaptureMouse()
         self.slider._drag(self, event.GetPosition())
@@ -159,25 +153,14 @@ class _RangeGrip(wx.Control):
             event.Skip()
 
     def _up(self, _event: wx.MouseEvent) -> None:
-        was_dragging = self._dragging
-        self._dragging = False
-        if was_dragging:
-            self.Refresh()
-        if self.HasCapture():
-            self.ReleaseMouse()
-        if was_dragging:
-            self.slider._on_range_dragging(False)
+        self.slider._end_pointer_drag(self)
 
     def _capture_lost(self, event: wx.MouseCaptureLostEvent) -> None:
-        was_dragging = self._dragging
-        self._dragging = False
-        if was_dragging:
-            self.Refresh()
-            self.slider._on_range_dragging(False)
+        self.slider._end_pointer_drag(self, release_capture=False)
         event.Skip()
 
     def _motion(self, event: wx.MouseEvent) -> None:
-        if self._dragging and event.Dragging() and event.LeftIsDown():
+        if self.slider._drag_source is self and event.Dragging() and event.LeftIsDown():
             self.slider._drag(self, event.GetPosition())
 
     def _key(self, event: wx.KeyEvent) -> None:
@@ -208,7 +191,6 @@ class _SeekGrip(wx.Control):
         self.Bind(wx.EVT_LEFT_UP, self._up)
         self.Bind(wx.EVT_MOTION, self._motion)
         self.Bind(wx.EVT_MOUSE_CAPTURE_LOST, self._capture_lost)
-        self._dragging = False
 
     def _paint(self, _event: wx.PaintEvent) -> None:
         dc = wx.AutoBufferedPaintDC(self)
@@ -217,35 +199,27 @@ class _SeekGrip(wx.Control):
         dc.Clear()
         width, height = self.GetClientSize()
         highlight = wx.SystemSettings.GetColour(wx.SYS_COLOUR_HIGHLIGHT)
-        dc.SetPen(wx.Pen(highlight, 3 if self._dragging else 2))
-        dc.SetBrush(wx.Brush(highlight if self._dragging else background))
-        dc.DrawCircle(width // 2, height // 2, 7 if self._dragging else 6)
+        dragging = self.slider._drag_source is self or self.slider._drag_source is self.slider
+        dc.SetPen(wx.Pen(highlight, 3 if dragging else 2))
+        dc.SetBrush(wx.Brush(highlight if dragging else background))
+        dc.DrawCircle(width // 2, height // 2, 7 if dragging else 6)
 
     def _down(self, event: wx.MouseEvent) -> None:
         if not self.slider.IsEnabled():
             return
         self.slider.SetFocus()
-        self._dragging = True
-        self.Refresh()
-        self.slider._on_range_dragging(True)
+        self.slider._begin_pointer_drag(self)
         if not self.HasCapture():
             self.CaptureMouse()
         self.slider._seek_from_grip(self, event.GetPosition())
 
     def _up(self, _event: wx.MouseEvent) -> None:
-        was_dragging = self._dragging
-        self._dragging = False
-        if was_dragging:
-            self.Refresh()
-        if self.HasCapture():
-            self.ReleaseMouse()
-        if was_dragging:
-            self.slider._on_range_dragging(False)
+        self.slider._end_pointer_drag(self)
 
     def _motion(self, event: wx.MouseEvent) -> None:
         if (
             self.slider.IsEnabled()
-            and self._dragging
+            and self.slider._drag_source is self
             and event.Dragging()
             and event.LeftIsDown()
         ):
@@ -253,11 +227,7 @@ class _SeekGrip(wx.Control):
         event.Skip()
 
     def _capture_lost(self, event: wx.MouseCaptureLostEvent) -> None:
-        was_dragging = self._dragging
-        self._dragging = False
-        if was_dragging:
-            self.Refresh()
-            self.slider._on_range_dragging(False)
+        self.slider._end_pointer_drag(self, release_capture=False)
         event.Skip()
 
 
@@ -307,10 +277,10 @@ class TimeSlider(wx.Control):
         self._plot_rule: time_range.PlotTimeRange | None = None
         self._display_time_zone = UTC_DISPLAY
         self._now = 0.0
+        self._drag_source: wx.Window | None = None
         self._grips: dict[str, _RangeGrip] = {}
         self._seek_grip = _SeekGrip(self.GetParent(), self)
         self._seek_grip.Hide()
-        self._dragging = False
         self.Bind(wx.EVT_PAINT, self._paint_track)
         self.Bind(wx.EVT_LEFT_DOWN, self._left_down)
         self.Bind(wx.EVT_LEFT_UP, self._left_up)
@@ -348,6 +318,37 @@ class TimeSlider(wx.Control):
 
     def GetValue(self) -> int:
         return self._value
+
+    @property
+    def is_dragging(self) -> bool:
+        return self._drag_source is not None
+
+    def _begin_pointer_drag(self, source: wx.Window) -> None:
+        self._drag_source = source
+        dismiss_tooltip(self)
+        if source is not self:
+            dismiss_tooltip(source)
+        source.Refresh()
+        if source is self:
+            self._seek_grip.Refresh()
+        self._on_range_dragging(True)
+
+    def _end_pointer_drag(
+        self,
+        source: wx.Window,
+        *,
+        release_capture: bool = True,
+    ) -> None:
+        was_dragging = self._drag_source is source
+        if was_dragging:
+            self._drag_source = None
+            source.Refresh()
+            if source is self:
+                self._seek_grip.Refresh()
+        if release_capture and source.HasCapture():
+            source.ReleaseMouse()
+        if was_dragging:
+            self._on_range_dragging(False)
 
     def SetValue(self, value: int) -> None:
         self._value = min(max(int(value), self._minimum), self._maximum)
@@ -443,30 +444,21 @@ class TimeSlider(wx.Control):
         if not self.IsEnabled():
             return
         self.SetFocus()
-        self._dragging = True
-        self._on_range_dragging(True)
+        self._begin_pointer_drag(self)
         if not self.HasCapture():
             self.CaptureMouse()
         self._set_value_from_user(self._value_at_x(event.GetX()))
 
     def _left_up(self, _event: wx.MouseEvent) -> None:
-        was_dragging = self._dragging
-        self._dragging = False
-        if self.HasCapture():
-            self.ReleaseMouse()
-        if was_dragging:
-            self._on_range_dragging(False)
+        self._end_pointer_drag(self)
 
     def _motion(self, event: wx.MouseEvent) -> None:
-        if self._dragging and event.Dragging() and event.LeftIsDown():
+        if self._drag_source is self and event.Dragging() and event.LeftIsDown():
             self._set_value_from_user(self._value_at_x(event.GetX()))
         event.Skip()
 
     def _capture_lost(self, event: wx.MouseCaptureLostEvent) -> None:
-        was_dragging = self._dragging
-        self._dragging = False
-        if was_dragging:
-            self._on_range_dragging(False)
+        self._end_pointer_drag(self, release_capture=False)
         event.Skip()
 
     def _mouse_wheel(self, event: wx.MouseEvent) -> None:
