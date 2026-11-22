@@ -288,6 +288,40 @@ def test_vtk_view_reports_a_failed_initial_render(
     view.close()
 
 
+def test_vtk_view_retries_an_initial_render_after_layout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pytest.importorskip("vtk")
+    pytest.importorskip("wx")
+    from ephem_toolkit.play_oem.views.trajectory3d import vtk_backend
+
+    monkeypatch.setattr(vtk_backend, "wxVTKRenderWindowInteractor", FakeWidget)
+    monkeypatch.setattr(vtk_backend.wx, "YieldIfNeeded", lambda: None)
+    series, _store, cursor = make_orbit()
+    view = vtk_backend.VTKTrajectory3DView(
+        object(),
+        cursor,
+        "ISS",
+        "EME2000 / Earth",
+        lambda: 1.0,
+    )
+    widget = view.build(series, TimeUnit.MINUTES)
+    widget.render_window.never_rendered = 1
+    initial_render_count = widget.render_count
+
+    def render_after_layout() -> None:
+        widget.render_count += 1
+        widget.render_window.never_rendered = 0
+
+    monkeypatch.setattr(widget, "Render", render_after_layout)
+
+    try:
+        view.validate_render_context()
+        assert widget.render_count == initial_render_count + 1
+    finally:
+        view.close()
+
+
 def test_vtk_range_replaces_source_path_and_gates_cursor_and_tail(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

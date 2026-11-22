@@ -455,6 +455,8 @@ class VTKTrajectory3DView:
         try:
             self._widget.Refresh()
             wx.YieldIfNeeded()
+            if render_window.GetNeverRendered():
+                self._widget.Render()
         except (OSError, RuntimeError) as error:
             raise VTKBackendUnavailableError(
                 f"could not initialize the VTK render context: {error}"
