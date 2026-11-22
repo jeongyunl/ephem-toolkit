@@ -378,7 +378,6 @@ class TimeScrubber(TimeSlider):
         self._viewport_fits_coverage = True
         self.SetName("Scrollable TimeScrubber")
         self.SetMinSize(wx.Size(480, 56))
-        self.Bind(wx.EVT_LEFT_DCLICK, self._fit)
         self._apply_viewport(self._viewport)
 
     def set_viewport(self, viewport: tuple[float, float]) -> None:
@@ -544,9 +543,6 @@ class TimeScrubber(TimeSlider):
                 self.zoom_in(fraction)
             else:
                 self.zoom_out(fraction)
-
-    def _fit(self, _event: wx.MouseEvent) -> None:
-        self.fit()
 
     def _key_down(self, event: wx.KeyEvent) -> None:
         control_down = event.ControlDown()
