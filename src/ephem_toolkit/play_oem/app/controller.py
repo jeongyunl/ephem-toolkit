@@ -59,7 +59,7 @@ from ..saved_state import (
     MAX_STORED_WINDOW_POSITION,
     MIN_STORED_WINDOW_DIMENSION,
     MIN_STORED_WINDOW_POSITION,
-    RecentFileSettings,
+    FileSettings,
     SavedAppState,
     normalize_recent_path,
     remember_recent_file,
@@ -316,14 +316,14 @@ class PlayerApp(
             else None
         )
         if self._current_oem_path is not None:
-            self._restore_recent_file_playback_range(self.clock, self._current_oem_path)
+            self._restore_file_playback_range(self.clock, self._current_oem_path)
         self._playback_handle_bounds = (
             self.clock.playback_start,
             self.clock.playback_end,
         )
         self.plot_time_range = playback_range_plot_rule()
         if self._current_oem_path is not None:
-            self._restore_recent_file_plot_range(self._current_oem_path)
+            self._restore_file_plot_range(self._current_oem_path)
         self._oem_loaded = oem_loaded
         self._requested_3d_backend = three_d_backend
         self._selected_3d_backend: str | None = (
@@ -1041,8 +1041,8 @@ class PlayerApp(
             )
         ):
             return
-        settings = self._saved_state.recent_file_settings.setdefault(
-            self._current_oem_path, RecentFileSettings()
+        settings = self._saved_state.file_settings.setdefault(
+            self._current_oem_path, FileSettings()
         )
         settings.playback_range = (
             self.clock.playback_start,
@@ -1056,17 +1056,17 @@ class PlayerApp(
             or self._current_oem_path is None
         ):
             return
-        settings = self._saved_state.recent_file_settings.setdefault(
-            self._current_oem_path, RecentFileSettings()
+        settings = self._saved_state.file_settings.setdefault(
+            self._current_oem_path, FileSettings()
         )
         settings.plot_range = self.plot_time_range
 
-    def _restore_recent_file_playback_range(
+    def _restore_file_playback_range(
         self, target_clock: clock.PlaybackClock, path: str
     ) -> None:
         if self._saved_state is None:
             return
-        settings = self._saved_state.recent_file_settings.get(path)
+        settings = self._saved_state.file_settings.get(path)
         if settings is None or settings.playback_range is None:
             return
         try:
@@ -1083,10 +1083,10 @@ class PlayerApp(
             return
         target_clock.set_playback_bounds(bounds.start_s, bounds.end_s)
 
-    def _restore_recent_file_plot_range(self, path: str) -> None:
+    def _restore_file_plot_range(self, path: str) -> None:
         if self._saved_state is None:
             return
-        settings = self._saved_state.recent_file_settings.get(path)
+        settings = self._saved_state.file_settings.get(path)
         if settings is None or settings.plot_range is None:
             return
         try:
@@ -1214,7 +1214,7 @@ class PlayerApp(
                 )
             self._pending_file_playback_bounds = None
             if self._saved_state is not None:
-                settings = self._saved_state.recent_file_settings.get(
+                settings = self._saved_state.file_settings.get(
                     normalize_recent_path(path)
                 )
                 if settings is not None:
@@ -1225,7 +1225,7 @@ class PlayerApp(
             if not self._oem_loaded:
                 if self._pending_file_playback_bounds is not None:
                     self._playback_handle_bounds = self._pending_file_playback_bounds
-                self._restore_recent_file_plot_range(normalize_recent_path(path))
+                self._restore_file_plot_range(normalize_recent_path(path))
             self._incremental_loader.start(path, store=store)
         except Exception:
             store.close()
@@ -1463,7 +1463,7 @@ class PlayerApp(
         self.workspace.set_oem_loaded(True)
         self._current_oem_path = normalize_recent_path(path)
         self.plot_time_range = playback_range_plot_rule()
-        self._restore_recent_file_plot_range(self._current_oem_path)
+        self._restore_file_plot_range(self._current_oem_path)
         self._pending_playback_bounds = self._pending_file_playback_bounds
         self._playback_handle_bounds = (
             self._pending_playback_bounds
@@ -1613,7 +1613,7 @@ class PlayerApp(
         )
         pending_bounds = self._pending_playback_bounds
         if pending_bounds is None:
-            self._restore_recent_file_playback_range(
+            self._restore_file_playback_range(
                 self.clock, normalize_recent_path(self._active_load_path or "")
             )
         else:

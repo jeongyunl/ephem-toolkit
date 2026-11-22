@@ -7,10 +7,11 @@ import warnings
 import pytest
 
 from ephem_toolkit.play_oem.saved_state import (
-    RecentFileSettings,
+    FileSettings,
     SavedAppState,
     STATE_VERSION,
     load_saved_state,
+    remember_recent_file,
     serialize_saved_state,
 )
 from ephem_toolkit.play_oem.ground_stations import GroundStation
@@ -117,24 +118,26 @@ def test_legacy_saved_fps_is_ignored_and_not_serialized_again(tmp_path) -> None:
     assert "[playback]" not in serialize_saved_state(load_saved_state(path))
 
 
-def test_recent_file_playback_ranges_round_trip(tmp_path) -> None:
+def test_file_playback_ranges_round_trip(tmp_path) -> None:
     path = tmp_path / "play-oem-state.toml"
     file_path = str(tmp_path / "orbit.oem")
     state = SavedAppState(
-        recent_files=[file_path],
-        recent_file_settings={
-            file_path: RecentFileSettings((123.5, 456.75)),
+        file_settings={
+            file_path: FileSettings(playback_range=(123.5, 456.75)),
         },
     )
-    path.write_text(serialize_saved_state(state))
+    serialized = serialize_saved_state(state)
+    assert f'[files."{file_path}".playback]' in serialized
+    assert "range_tt = [123.5, 456.75]" in serialized
+    assert "[recent_files.settings]" not in serialized
+    path.write_text(serialized)
 
     loaded = load_saved_state(path)
 
-    assert loaded.recent_files == [file_path]
-    assert loaded.recent_file_settings[file_path].playback_range == (123.5, 456.75)
+    assert loaded.file_settings[file_path].playback_range == (123.5, 456.75)
 
 
-def test_recent_file_plot_ranges_round_trip(tmp_path) -> None:
+def test_file_plot_ranges_round_trip(tmp_path) -> None:
     path = tmp_path / "play-oem-state.toml"
     file_path = str(tmp_path / "orbit.oem")
     plot_range = PlotTimeRange(
@@ -143,16 +146,30 @@ def test_recent_file_plot_ranges_round_trip(tmp_path) -> None:
         end=TimeRangeEndpoint("offset", 45.0),
     )
     state = SavedAppState(
-        recent_files=[file_path],
-        recent_file_settings={
-            file_path: RecentFileSettings(plot_range=plot_range),
+        file_settings={
+            file_path: FileSettings(plot_range=plot_range),
         },
     )
     path.write_text(serialize_saved_state(state))
 
     loaded = load_saved_state(path)
 
-    assert loaded.recent_file_settings[file_path].plot_range == plot_range
+    assert loaded.file_settings[file_path].plot_range == plot_range
+
+
+def test_file_settings_survive_when_file_is_not_recent(tmp_path) -> None:
+    path = tmp_path / "play-oem-state.toml"
+    file_path = str(tmp_path / "older-orbit.oem")
+    state = SavedAppState(
+        file_settings={file_path: FileSettings(playback_range=(123.5, 456.75))}
+    )
+    remember_recent_file(state, tmp_path / "new-orbit.oem")
+    path.write_text(serialize_saved_state(state))
+
+    loaded = load_saved_state(path)
+
+    assert file_path not in loaded.recent_files
+    assert loaded.file_settings[file_path].playback_range == (123.5, 456.75)
 
 
 def test_state_version_one_migrates_with_ground_track_default(tmp_path) -> None:
@@ -193,43 +210,39 @@ def test_legacy_saved_fps_is_ignored(tmp_path) -> None:
     assert not observed
 
 
-def test_invalid_recent_file_playback_range_falls_back(tmp_path) -> None:
+def test_invalid_file_playback_range_falls_back(tmp_path) -> None:
     path = tmp_path / "play-oem-state.toml"
     file_path = str(tmp_path / "orbit.oem")
     path.write_text(
         "state_version = 4\n"
-        "[recent_files]\n"
-        f'paths = ["{file_path}"]\n'
-        "[recent_files.settings]\n"
-        f'"{file_path}" = {{ playback_range = [20.0, 10.0] }}\n'
+        f'[files."{file_path}".playback]\n'
+        "range_tt = [20.0, 10.0]\n"
     )
 
     with warnings.catch_warnings(record=True) as observed:
         warnings.simplefilter("always")
         state = load_saved_state(path)
 
-    assert state.recent_file_settings == {}
+    assert state.file_settings == {}
     assert observed
 
 
-def test_invalid_recent_file_plot_range_falls_back(tmp_path) -> None:
+def test_invalid_file_plot_range_falls_back(tmp_path) -> None:
     path = tmp_path / "play-oem-state.toml"
     file_path = str(tmp_path / "orbit.oem")
     path.write_text(
         "state_version = 6\n"
-        "[recent_files]\n"
-        f'paths = ["{file_path}"]\n'
-        "[recent_files.settings]\n"
-        f'"{file_path}" = {{ plot_range = {{ enabled = true, '
-        'start = { mode = "unknown", value_s = 10.0 }, '
-        'end = { mode = "follow", value_s = 0.0 } } }\n'
+        f'[files."{file_path}".plot_range]\n'
+        "enabled = true\n"
+        'start = { mode = "unknown", value_s = 10.0 }\n'
+        'end = { mode = "follow", value_s = 0.0 }\n'
     )
 
     with warnings.catch_warnings(record=True) as observed:
         warnings.simplefilter("always")
         state = load_saved_state(path)
 
-    assert state.recent_file_settings == {}
+    assert state.file_settings == {}
     assert observed
 
 

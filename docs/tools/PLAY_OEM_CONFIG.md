@@ -80,7 +80,7 @@ leave it at `1` unless a later version of this guide says otherwise.
 separately from your user-edited defaults. You normally do not need to edit it.
 
 ```toml
-state_version = 8
+state_version = 9
 
 [window]
 width = 1400
@@ -94,9 +94,16 @@ paths = [
     "/home/alex/orbits/transfer.oem",
 ]
 
-[recent_files.settings]
-"/home/alex/orbits/iss.oem" = { playback_range = [806400000.0, 806400600.0], plot_range = { enabled = true, start = { mode = "follow", value_s = 0.0 }, end = { mode = "offset", value_s = 300.0 } } }
-"/home/alex/orbits/transfer.oem" = { playback_range = [806400120.0, 806400480.0] }
+[files."/home/alex/orbits/iss.oem".playback]
+range_tt = [806400000.0, 806400600.0]
+
+[files."/home/alex/orbits/iss.oem".plot_range]
+enabled = true
+start = { mode = "follow", value_s = 0.0 }
+end = { mode = "offset", value_s = 300.0 }
+
+[files."/home/alex/orbits/transfer.oem".playback]
+range_tt = [806400120.0, 806400480.0]
 
 [workspace]
 open_plots = ["trajectory-3d", "speed-altitude"]
@@ -120,14 +127,15 @@ again moves it to the top without creating a duplicate. Paths are stored as abso
 the recent-file list works regardless of the directory from which you launch `play-oem`.
 Unavailable paths remain in the list in case a removable drive or mounted directory becomes
 available again. Choose a path from **File → Open Recent** to reopen it.
-The `recent_files.settings` table associates per-file settings with those absolute paths. The
-playback range is saved as two absolute TT timestamps when a file is replaced or the application
-exits, and is restored when that file is opened again. If the saved range no longer fits the
-file's coverage, the application reports a warning and uses the full coverage instead. The plot
-range rule is also saved and restored per file, including whether filtering is enabled and each
-endpoint's mode and value. Follow endpoints track their corresponding playback bound, offset
-values are seconds from current playback time, and fixed values are absolute TT timestamps.
-This path-keyed table can hold additional per-file settings in future versions.
+The top-level `files` table stores settings by absolute file path, independently of the bounded
+recent-file list. Settings are grouped into feature tables such as `playback` and `plot_range`;
+future per-file view preferences can use their own nested tables. The playback range is saved as
+two absolute TT timestamps when a file is replaced or the application exits, and is restored
+when that file is opened again. If the saved range no longer fits the file's coverage, the
+application reports a warning and uses the full coverage instead. The plot range rule is also
+saved and restored per file, including whether filtering is enabled and each endpoint's mode and
+value. Follow endpoints track their corresponding playback bound, offset values are seconds
+from current playback time, and fixed values are absolute TT timestamps.
 
 The state file also remembers Ground Track settings, including projection, background, center
 longitude, map extent, and minimum elevation, and restores them on the next launch. It also

@@ -2602,7 +2602,7 @@ def test_incremental_timeline_uses_declared_domain_and_defers_drag_redraws(
 def test_incremental_load_preserves_and_restores_saved_file_ranges(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
-    from ephem_toolkit.play_oem.saved_state import RecentFileSettings
+    from ephem_toolkit.play_oem.saved_state import FileSettings
 
     second_row_started = Event()
     release_second_row = Event()
@@ -2650,8 +2650,8 @@ def test_incremental_load_preserves_and_restores_saved_file_ranges(
     path = app.normalize_recent_path(source)
     saved_state = app.SavedAppState(
         recent_files=[path],
-        recent_file_settings={
-            path: RecentFileSettings(playback_range, plot_range)
+        file_settings={
+            path: FileSettings(playback_range, plot_range)
         },
     )
     monkeypatch.setattr(app, "save_saved_state", lambda _state: None)
@@ -2695,7 +2695,7 @@ def test_incremental_load_preserves_and_restores_saved_file_ranges(
         assert TimeSlider._time_for(slider_state, "plot_start") == playback_range[0]
         assert TimeSlider._time_for(slider_state, "plot_end") == playback_range[1]
         player._save_current_playback_range()
-        assert saved_state.recent_file_settings[path].playback_range == playback_range
+        assert saved_state.file_settings[path].playback_range == playback_range
         assert player.plot_time_range == plot_range
 
         release_second_row.set()
@@ -2745,8 +2745,8 @@ def test_initial_recent_file_ranges_are_applied_and_saved(
     )
     saved_state = app.SavedAppState(
         recent_files=[file_path],
-        recent_file_settings={
-            file_path: app.RecentFileSettings((110.0, 190.0), plot_range),
+        file_settings={
+            file_path: app.FileSettings((110.0, 190.0), plot_range),
         },
     )
     monkeypatch.setattr(app, "save_saved_state", lambda _state: None)
@@ -2761,7 +2761,7 @@ def test_initial_recent_file_ranges_are_applied_and_saved(
 
     player._apply_playback_bounds(120.0, 180.0)
     player._save_application_state(save_geometry=False)
-    assert saved_state.recent_file_settings[file_path].playback_range == (
+    assert saved_state.file_settings[file_path].playback_range == (
         120.0,
         180.0,
     )
