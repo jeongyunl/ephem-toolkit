@@ -175,7 +175,7 @@ once, supplies `R(t)` and `D` to all live views, then updates cursor/marker stat
 redraws. Adapt `_OpenView` cleanup so there is only one update path. On opening a panel,
 call `build`, apply current bounds, and update overlays before its first visible draw.
 
-Implement `TimeRangeSlider(wx.Slider)` in `workspace/time_range_slider.py`, preserving the
+Implement `TimeSlider(wx.Slider)` in `workspace/time_slider.py`, preserving the
 standard current-time thumb and integer slider API used by timeline synchronization. Add
 four custom draggable handles in reserved upper space, all at the same vertical center.
 Playback start/end use solid rounded grips; plot start/end use outlined diamonds. No text

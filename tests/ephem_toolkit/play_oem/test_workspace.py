@@ -150,7 +150,7 @@ class FakeSlider(FakeWidget):
             self.bindings["slider"](FakeEvent(value))
 
 
-class FakeTimeRangeSlider(FakeSlider):
+class FakeTimeSlider(FakeSlider):
     def __init__(self, parent, **kwargs) -> None:
         super().__init__(parent, -1, 0, 0, 10_000, **kwargs)
         self.client_size = FakeSize(600, 74)
@@ -619,7 +619,7 @@ def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(features, "set_tooltip", set_fake_tooltip)
     monkeypatch.setattr(graph_stack, "set_tooltip", set_fake_tooltip)
     monkeypatch.setattr(timeline, "set_tooltip", set_fake_tooltip)
-    monkeypatch.setattr(core, "TimeRangeSlider", FakeTimeRangeSlider)
+    monkeypatch.setattr(core, "TimeSlider", FakeTimeSlider)
     FakeWidget.instances = []
     FakeCallLater.calls = []
     for name, value in {

@@ -36,7 +36,7 @@ from ephem_toolkit.play_oem import time_range
 from ephem_toolkit.play_oem.play_oem_cli import build_arg_parser, parse_arguments
 from ephem_toolkit.play_oem.series import compute_orbit_series
 from ephem_toolkit.play_oem.time_unit import TimeUnit
-from ephem_toolkit.play_oem.workspace.time_range_slider import TimeRangeSlider
+from ephem_toolkit.play_oem.workspace.time_slider import TimeSlider
 from ephem_toolkit.play_oem.views.registry import VIEW_LABELS
 
 
@@ -2692,8 +2692,8 @@ def test_incremental_load_preserves_and_restores_saved_file_ranges(
             _plot_rule=controls[2],
             _now=controls[3],
         )
-        assert TimeRangeSlider._time_for(slider_state, "plot_start") == playback_range[0]
-        assert TimeRangeSlider._time_for(slider_state, "plot_end") == playback_range[1]
+        assert TimeSlider._time_for(slider_state, "plot_start") == playback_range[0]
+        assert TimeSlider._time_for(slider_state, "plot_end") == playback_range[1]
         player._save_current_playback_range()
         assert saved_state.recent_file_settings[path].playback_range == playback_range
         assert player.plot_time_range == plot_range

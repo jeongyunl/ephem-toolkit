@@ -16,7 +16,7 @@ without updating or drawing plot views. Apply the latest state once the drag end
 The incremental reader publishes generation-tagged segment metadata, raw appends, parser
 progress, and completion events. The controller combines valid UTC metadata bounds with observed
 sample bounds for the slider domain, while playback remains bounded by committed playable
-coverage. The `TimeRangeSlider` keeps the domain, loaded coverage, playback bounds, plot
+coverage. The `TimeSlider` keeps the domain, loaded coverage, playback bounds, plot
 endpoints, and current time distinct; it marks the unread remainder and reports unloaded time in
 its hover text.
 

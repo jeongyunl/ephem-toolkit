@@ -11,7 +11,7 @@ from .constants import CONTROLS_PANE_NAME
 from ..tooltips import set_tooltip
 
 if TYPE_CHECKING:
-    from .time_range_slider import TimeRangeSlider
+    from .time_slider import TimeSlider
 
 
 class _FeatureNavigationState(Protocol):
@@ -31,7 +31,7 @@ class _FeatureNavigationState(Protocol):
     file_info_scroll: wx.ScrolledWindow
     settings_page: wx.Panel
     state_page: wx.Panel
-    timeline_slider: TimeRangeSlider
+    timeline_slider: TimeSlider
 
     def select_feature(self, index: int) -> None: ...
 

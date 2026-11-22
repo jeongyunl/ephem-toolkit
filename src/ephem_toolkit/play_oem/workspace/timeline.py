@@ -11,7 +11,7 @@ from .constants import TIMELINE_SLIDER_MAX
 from ..tooltips import SuperToolTip, position_tooltip_at_pointer, set_tooltip
 
 if TYPE_CHECKING:
-    from .time_range_slider import TimeRangeSlider
+    from .time_slider import TimeSlider
 
 
 class _TimelineState(Protocol):
@@ -31,7 +31,7 @@ class _TimelineState(Protocol):
     _playback_playing: bool
     _playback_rate: float
     timeline_panel: wx.ScrolledWindow
-    timeline_slider: TimeRangeSlider
+    timeline_slider: TimeSlider
     timeline_time_entry: wx.TextCtrl
     time_error_label: wx.StaticText
     playback_forward_play_button: wx.Button

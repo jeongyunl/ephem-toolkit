@@ -23,7 +23,7 @@ from .features import FeatureNavigationMixin
 from .ground_stations import GroundStationsManager
 from .graph_stack import GraphStackMixin
 from .timeline import TimelineMixin
-from .time_range_slider import TimeRangeSlider
+from .time_slider import TimeSlider
 from .. import time_range as range_model
 from ..ground_stations import GroundStation
 from ..display_time import UTC_DISPLAY, format_tt
@@ -198,7 +198,7 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             range_model.TimeRangeEndpoint("fixed", coverage[1]),
         )
         current_time = now_s or (lambda: coverage[0])
-        self.timeline_slider = TimeRangeSlider(
+        self.timeline_slider = TimeSlider(
             self.timeline_track_row,
             on_playback=on_playback_bounds or (lambda _start, _end: None),
             on_plot_endpoint=on_plot_endpoint or (lambda _name, _value: None),

@@ -61,11 +61,16 @@ def _plot_grip_y(slider_height: int, playback_grip_y: int, grip_height: int) -> 
     return slider_height - playback_grip_y - grip_height
 
 
+def _timestamp_is_visible(timestamp: float, visible_range: tuple[float, float]) -> bool:
+    start, end = visible_range
+    return start <= timestamp <= end
+
+
 class _RangeGrip(wx.Control):
     def __init__(
         self,
         parent: wx.Window,
-        slider: TimeRangeSlider,
+        slider: TimeSlider,
         name: str,
         kind: str,
         color: str,
@@ -173,7 +178,7 @@ class _RangeGrip(wx.Control):
 class _SeekGrip(wx.Control):
     """Input target for the central current-time marker."""
 
-    def __init__(self, parent: wx.Window, slider: TimeRangeSlider) -> None:
+    def __init__(self, parent: wx.Window, slider: TimeSlider) -> None:
         super().__init__(parent, wx.ID_ANY, style=wx.WANTS_CHARS | wx.TAB_TRAVERSAL)
         self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
         self.slider = slider
@@ -231,7 +236,7 @@ class _SeekGrip(wx.Control):
         event.Skip()
 
 
-class TimeRangeSlider(wx.Control):
+class TimeSlider(wx.Control):
     """A portable painted seek slider with playback and plot range grips."""
 
     _KINDS = (
@@ -346,13 +351,15 @@ class TimeRangeSlider(wx.Control):
         dc.SetBrush(wx.Brush(track_color))
         dc.DrawRoundedRectangle(left, center_y - 4, right - left, 8, 4)
 
-        playback_start_x, playback_end_x = self._playable_segment_x()
-        range_left, range_right = sorted((playback_start_x, playback_end_x))
-        range_width = max(4, range_right - range_left)
-        playback_color = wx.Colour("#197765")
-        dc.SetPen(wx.Pen(playback_color, 1))
-        dc.SetBrush(wx.Brush(playback_color))
-        dc.DrawRoundedRectangle(range_left, center_y - 4, range_width, 8, 4)
+        playable_segment = self._playable_segment_x()
+        if playable_segment is not None:
+            playback_start_x, playback_end_x = playable_segment
+            range_left, range_right = sorted((playback_start_x, playback_end_x))
+            range_width = max(4, range_right - range_left)
+            playback_color = wx.Colour("#197765")
+            dc.SetPen(wx.Pen(playback_color, 1))
+            dc.SetBrush(wx.Brush(playback_color))
+            dc.DrawRoundedRectangle(range_left, center_y - 4, range_width, 8, 4)
 
         unloaded_segment = self._unloaded_segment_x()
         if unloaded_segment is not None:
@@ -365,16 +372,23 @@ class TimeRangeSlider(wx.Control):
                     unloaded_left, center_y - 4, unloaded_right - unloaded_left, 8, 4
                 )
 
-        progress_x = self._x_for(self._now)
-        highlight = wx.SystemSettings.GetColour(wx.SYS_COLOUR_HIGHLIGHT)
-        dc.SetPen(wx.Pen(highlight, 2))
-        dc.DrawLine(left, center_y, progress_x, center_y)
-        dc.SetPen(wx.Pen(highlight, 2))
-        dc.SetBrush(wx.Brush(background))
-        dc.DrawCircle(progress_x, center_y, 6)
+        if _timestamp_is_visible(self._now, self._slider_bounds):
+            progress_x = self._x_for(self._now)
+            highlight = wx.SystemSettings.GetColour(wx.SYS_COLOUR_HIGHLIGHT)
+            dc.SetPen(wx.Pen(highlight, 2))
+            dc.DrawLine(left, center_y, progress_x, center_y)
+            dc.SetPen(wx.Pen(highlight, 2))
+            dc.SetBrush(wx.Brush(background))
+            dc.DrawCircle(progress_x, center_y, 6)
 
-    def _playable_segment_x(self) -> tuple[int, int]:
-        return self._x_for(self._playback[0]), self._x_for(self._playback[1])
+    def _playable_segment_x(self) -> tuple[int, int] | None:
+        visible_start, visible_end = self._slider_bounds
+        playback_start, playback_end = sorted(self._playback)
+        clipped_start = max(playback_start, visible_start)
+        clipped_end = min(playback_end, visible_end)
+        if clipped_start > clipped_end:
+            return None
+        return self._x_for(clipped_start), self._x_for(clipped_end)
 
     def _unloaded_segment_x(self) -> tuple[int, int] | None:
         if self._unloaded_from_s is None:
@@ -572,6 +586,10 @@ class TimeRangeSlider(wx.Control):
             ):
                 grip.Hide()
                 continue
+            timestamp = self._time_for(key)
+            if not _timestamp_is_visible(timestamp, self._slider_bounds):
+                grip.Hide()
+                continue
             grip.Show()
             slider_position = self.GetPosition()
             grip_y = (
@@ -620,7 +638,10 @@ class TimeRangeSlider(wx.Control):
                 - seek_grip_size // 2,
             )
         )
-        self._seek_grip.Show()
+        if _timestamp_is_visible(self._now, self._slider_bounds):
+            self._seek_grip.Show()
+        else:
+            self._seek_grip.Hide()
         if _event is not None:
             _event.Skip()
 

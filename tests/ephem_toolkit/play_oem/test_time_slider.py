@@ -1,16 +1,18 @@
 """Tests for playback timeline handle geometry."""
 
 from types import SimpleNamespace
+from typing import Optional
 
 import pytest
 
 from ephem_toolkit.play_oem.time_range import EndpointMode
-from ephem_toolkit.play_oem.workspace.time_range_slider import (
+from ephem_toolkit.play_oem.workspace.time_slider import (
     _SeekGrip,
-    TimeRangeSlider,
+    TimeSlider,
     _plot_grip_y,
     _plot_handle_vertices,
     _plot_tooltip_text,
+    _timestamp_is_visible,
     _triangle_vertices,
 )
 
@@ -72,6 +74,17 @@ def test_plot_grip_is_as_close_to_the_track_as_the_playback_grip() -> None:
         assert slider_track_y - plot_center_y == playback_center_y - slider_track_y
 
 
+@pytest.mark.parametrize(
+    ("timestamp", "visible"),
+    [(-1.0, False), (0.0, True), (50.0, True), (100.0, True), (101.0, False)],
+)
+def test_grips_and_seek_marker_only_render_inside_visible_range(
+    timestamp: float,
+    visible: bool,
+) -> None:
+    assert _timestamp_is_visible(timestamp, (0.0, 100.0)) is visible
+
+
 def test_follow_plot_handle_ignores_dragging_and_keyboard_nudging() -> None:
     grip = object()
     slider = SimpleNamespace(
@@ -81,8 +94,8 @@ def test_follow_plot_handle_ignores_dragging_and_keyboard_nudging() -> None:
         _coverage=(0.0, 100.0),
     )
 
-    TimeRangeSlider._drag(slider, grip, None)
-    TimeRangeSlider._nudge(slider, grip, 1)
+    TimeSlider._drag(slider, grip, None)
+    TimeSlider._nudge(slider, grip, 1)
 
 
 @pytest.mark.parametrize(
@@ -97,7 +110,7 @@ def test_timeline_tooltip_hotspot_is_limited_to_track_band(
     )
 
     assert (
-        TimeRangeSlider.is_pointer_over_timeline_track(
+        TimeSlider.is_pointer_over_timeline_track(
             slider, SimpleNamespace(y=pointer_y)
         )
         is expected
@@ -111,9 +124,34 @@ def test_playable_track_segment_uses_metadata_bounds_as_slider_scale() -> None:
         _playback=(25.0, 75.0),
         GetClientSize=lambda: SimpleNamespace(width=100),
     )
-    slider._x_for = lambda value: TimeRangeSlider._x_for(slider, value)
+    slider._x_for = lambda value: TimeSlider._x_for(slider, value)
 
-    assert TimeRangeSlider._playable_segment_x(slider) == (20, 40)
+    assert TimeSlider._playable_segment_x(slider) == (20, 40)
+
+
+@pytest.mark.parametrize(
+    ("playback", "visible", "expected"),
+    [
+        ((25.0, 75.0), (0.0, 100.0), (30, 70)),
+        ((25.0, 75.0), (50.0, 100.0), (10, 50)),
+        ((25.0, 75.0), (100.0, 200.0), None),
+        ((125.0, 175.0), (0.0, 200.0), (60, 80)),
+    ],
+)
+def test_playable_track_segment_is_clipped_to_visible_range(
+    playback: tuple[float, float],
+    visible: tuple[float, float],
+    expected: Optional[tuple[int, int]],
+) -> None:
+    slider = SimpleNamespace(
+        _coverage=visible,
+        _slider_bounds=visible,
+        _playback=playback,
+        GetClientSize=lambda: SimpleNamespace(width=100),
+    )
+    slider._x_for = lambda value: TimeSlider._x_for(slider, value)
+
+    assert TimeSlider._playable_segment_x(slider) == expected
 
 
 def test_unloaded_track_segment_uses_metadata_bounds_as_slider_scale() -> None:
@@ -122,9 +160,9 @@ def test_unloaded_track_segment_uses_metadata_bounds_as_slider_scale() -> None:
         _unloaded_from_s=100.0,
         GetClientSize=lambda: SimpleNamespace(width=100),
     )
-    slider._x_for = lambda value: TimeRangeSlider._x_for(slider, value)
+    slider._x_for = lambda value: TimeSlider._x_for(slider, value)
 
-    assert TimeRangeSlider._unloaded_segment_x(slider) == (50, 90)
+    assert TimeSlider._unloaded_segment_x(slider) == (50, 90)
 
 
 def test_seek_grip_reports_drag_end_and_capture_loss() -> None:
@@ -165,10 +203,10 @@ def test_track_scrubbing_reports_drag_end_and_capture_loss() -> None:
     )
     event = SimpleNamespace(GetX=lambda: 50, Skip=lambda: None)
 
-    TimeRangeSlider._left_down(slider, event)
-    TimeRangeSlider._left_up(slider, event)
-    TimeRangeSlider._left_down(slider, event)
-    TimeRangeSlider._capture_lost(slider, event)
+    TimeSlider._left_down(slider, event)
+    TimeSlider._left_up(slider, event)
+    TimeSlider._left_down(slider, event)
+    TimeSlider._capture_lost(slider, event)
 
     assert dragging == [True, False, True, False]
 
@@ -179,7 +217,7 @@ def test_slider_seek_position_uses_metadata_domain() -> None:
         GetClientSize=lambda: SimpleNamespace(width=100),
     )
 
-    assert TimeRangeSlider._timestamp_at(slider, 50) == 100.0
+    assert TimeSlider._timestamp_at(slider, 50) == 100.0
 
 
 @pytest.mark.parametrize(
@@ -193,4 +231,4 @@ def test_custom_slider_maps_pointer_to_seek_value(x: int, expected: int) -> None
         GetClientSize=lambda: SimpleNamespace(width=100),
     )
 
-    assert TimeRangeSlider._value_at_x(slider, x) == expected
+    assert TimeSlider._value_at_x(slider, x) == expected

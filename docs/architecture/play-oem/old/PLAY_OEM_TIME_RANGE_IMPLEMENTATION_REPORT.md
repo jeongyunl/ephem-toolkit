@@ -37,7 +37,7 @@ is in [PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md).
   plot range follow playback bounds by default. Plot-range customizations persist per OEM file.
 - The timeline no longer has a separate plot-range editor row, value inputs, enable checkbox, or
   All OEM data button. Plot filtering remains enabled and is managed through the timeline handles.
-  `TimeRangeSlider` uses a custom-painted track and seek thumb, colors the playable interval
+  `TimeSlider` uses a custom-painted track and seek thumb, colors the playable interval
   separately from seek progress, and uses four sibling grip controls with tooltips, pointer
   dragging, capture-loss handling, collision fan-out, and keyboard nudging. The playback footer
   stacks dedicated time-readout, timeline, and playback-control row panels vertically, with
