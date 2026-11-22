@@ -35,8 +35,8 @@ class _TimelineState(Protocol):
     timeline_slider: TimeSlider | TimeScrubber
     timeline_time_entry: wx.TextCtrl
     time_error_label: wx.StaticText
-    playback_forward_play_button: wx.Button
-    playback_reverse_play_button: wx.Button
+    playback_forward_play_button: wx.ToggleButton
+    playback_reverse_play_button: wx.ToggleButton
     playback_speed_buttons: dict[float, wx.ToggleButton]
 
     def _on_timeline_slider(self, event: wx.CommandEvent) -> None: ...
@@ -124,6 +124,7 @@ class TimelineMixin:
                 label = self._playback_button_labels[selected_rate]
             button.SetLabel(label)
         reverse_active = playing and rate < 0.0
+        self.playback_reverse_play_button.SetValue(reverse_active)
         self.playback_reverse_play_button.SetLabel("Ⅱ" if reverse_active else "◀")
         self.playback_reverse_play_button.SetName(
             "Pause reverse playback"
@@ -139,6 +140,7 @@ class TimelineMixin:
             ),
         )
         forward_active = playing and rate > 0.0
+        self.playback_forward_play_button.SetValue(forward_active)
         self.playback_forward_play_button.SetLabel("Ⅱ" if forward_active else "▶")
         self.playback_forward_play_button.SetName(
             "Pause forward playback"

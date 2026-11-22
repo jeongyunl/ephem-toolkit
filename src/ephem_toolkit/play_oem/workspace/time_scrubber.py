@@ -20,8 +20,8 @@ WHEEL_GESTURE_LOCK_SECONDS = 0.25
 TIMESCRUBBER_TRACK_HEIGHT = 74
 
 
-class TimeScrubberChevronButton(wx.Control):
-    """Compact painted chevron button for TimeScrubber pan controls."""
+class TimeScrubberChevronButton(wx.ToggleButton):
+    """Compact toggle-styled chevron button for TimeScrubber pan controls."""
 
     def __init__(
         self,
@@ -33,53 +33,35 @@ class TimeScrubberChevronButton(wx.Control):
         super().__init__(
             parent,
             wx.ID_ANY,
+            label,
             size=wx.Size(30, TIMESCRUBBER_TRACK_HEIGHT),
-            style=wx.WANTS_CHARS,
+            style=wx.BU_EXACTFIT,
         )
-        self._label = label
         self._callback = callback
         self._scrollable = True
         self.SetName(tooltip)
         set_tooltip(self, tooltip)
         self.SetCursor(wx.Cursor(wx.CURSOR_HAND))
-        self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
-        self.Bind(wx.EVT_PAINT, self._paint)
-        self.Bind(wx.EVT_LEFT_UP, self._click)
+        font = self.GetFont()
+        font.SetPointSize(max(font.GetPointSize(), 18))
+        self.SetFont(font)
+        self.SetValue(True)
+        self.Bind(wx.EVT_TOGGLEBUTTON, self._click)
         self.Bind(wx.EVT_ENTER_WINDOW, self._on_pointer_boundary)
         self.Bind(wx.EVT_LEAVE_WINDOW, self._on_pointer_boundary)
 
     def set_scrollable(self, scrollable: bool) -> None:
         self._scrollable = scrollable
+        self.Enable(scrollable)
+        self.SetValue(scrollable)
         self.Refresh()
 
     def _on_pointer_boundary(self, event: wx.MouseEvent) -> None:
         self.Refresh()
         event.Skip()
 
-    def _paint(self, _event: wx.PaintEvent) -> None:
-        dc = wx.AutoBufferedPaintDC(self)
-        dc.SetBackground(wx.Brush(self.GetParent().GetBackgroundColour()))
-        dc.Clear()
-        width, height = self.GetClientSize()
-        enabled = self._scrollable
-        if enabled:
-            dc.SetBrush(wx.Brush(wx.Colour("#dfe7ef")))
-            dc.SetPen(wx.Pen(wx.Colour("#dfe7ef"), 1))
-            dc.DrawRoundedRectangle(3, 8, width - 6, height - 16, 5)
-            dc.SetTextForeground(wx.Colour("#263746"))
-        else:
-            dc.SetTextForeground(wx.Colour("#abb3bc"))
-        font = dc.GetFont()
-        font.SetPointSize(max(font.GetPointSize(), 18))
-        dc.SetFont(font)
-        text_width, text_height = dc.GetTextExtent(self._label)
-        dc.DrawText(
-            self._label,
-            (width - text_width) // 2,
-            (height - text_height) // 2,
-        )
-
-    def _click(self, event: wx.MouseEvent) -> None:
+    def _click(self, event: wx.CommandEvent) -> None:
+        self.SetValue(self._scrollable)
         if self._scrollable:
             self._callback()
         event.Skip(False)

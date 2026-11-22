@@ -408,7 +408,7 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             self._playback_button_labels[rate] = glyph
             playback_sizer.Add(speed_button, 0, wx.RIGHT, 4)
 
-        self.playback_reverse_play_button = wx.Button(
+        self.playback_reverse_play_button = wx.ToggleButton(
             self.playback_controls_row, wx.ID_ANY, "◀"
         )
         self.playback_reverse_play_button.SetName("Play reverse at current speed")
@@ -422,7 +422,7 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             and on_play_forward is not None
         ):
             self.playback_reverse_play_button.Bind(
-                wx.EVT_BUTTON,
+                wx.EVT_TOGGLEBUTTON,
                 lambda _event: (
                     on_toggle_play()
                     if self._playback_playing and self._playback_rate < 0.0
@@ -430,7 +430,7 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
                 ),
             )
         playback_sizer.Add(self.playback_reverse_play_button, 0, wx.RIGHT, 2)
-        self.playback_forward_play_button = wx.Button(
+        self.playback_forward_play_button = wx.ToggleButton(
             self.playback_controls_row, wx.ID_ANY, "▶"
         )
         self.playback_forward_play_button.SetName("Play forward at current speed")
@@ -444,7 +444,7 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             and on_play_forward is not None
         ):
             self.playback_forward_play_button.Bind(
-                wx.EVT_BUTTON,
+                wx.EVT_TOGGLEBUTTON,
                 lambda _event: (
                     on_toggle_play()
                     if self._playback_playing and self._playback_rate > 0.0

@@ -179,10 +179,14 @@ def test_chevron_height_matches_combined_track() -> None:
         )
         assert chevron.GetSize().height == TIMESCRUBBER_TRACK_HEIGHT
         assert TIMESCRUBBER_TRACK_HEIGHT == 56 + 18
-        chevron.Enable(True)
+        assert chevron.GetValue()
         assert chevron.IsEnabled()
-        chevron.Enable(False)
+        chevron.set_scrollable(False)
+        assert not chevron.GetValue()
         assert not chevron.IsEnabled()
+        chevron.set_scrollable(True)
+        assert chevron.GetValue()
+        assert chevron.IsEnabled()
     finally:
         frame.Destroy()
         app.Destroy()
@@ -196,6 +200,24 @@ def test_chevron_hover_refresh_does_not_consume_tooltip_events() -> None:
     TimeScrubberChevronButton._on_pointer_boundary(chevron, event)
 
     assert calls == ["refresh", "skip"]
+
+
+def test_chevron_toggle_keeps_scrollable_state_and_pans_only_when_enabled() -> None:
+    calls = []
+    selected_values = []
+    chevron = SimpleNamespace(
+        _scrollable=True,
+        _callback=lambda: calls.append("pan"),
+        SetValue=selected_values.append,
+    )
+    event = SimpleNamespace(Skip=lambda _skip: None)
+
+    TimeScrubberChevronButton._click(chevron, event)
+    chevron._scrollable = False
+    TimeScrubberChevronButton._click(chevron, event)
+
+    assert calls == ["pan"]
+    assert selected_values == [True, False]
 
 
 def test_scrubber_is_compact_with_tick_rail_attachment() -> None:

@@ -1044,26 +1044,30 @@ def test_playback_controls_dispatch_signed_rates_and_track_play_state(
     assert rates == [-1000.0, 100.0, -1.0, 1.0]
     assert sample_steps == [-1, 1]
     assert result.playback_speed_buttons[1.0].value
-    result.playback_reverse_play_button.trigger(workspace.wx.EVT_BUTTON)
+    result.playback_reverse_play_button.trigger(workspace.wx.EVT_TOGGLEBUTTON)
     assert reverse_plays == [True]
     result.update_playback_state(True, -100.0)
     assert result.playback_speed_buttons[-100.0].value
     assert not result.playback_speed_buttons[100.0].value
     assert result.playback_reverse_play_button.label == "Ⅱ"
+    assert result.playback_reverse_play_button.value
+    assert not result.playback_forward_play_button.value
     assert result.playback_reverse_play_button.name == "Pause reverse playback"
     assert result.playback_reverse_play_button.tooltip == "Pause reverse playback."
     assert result.playback_forward_play_button.label == "▶"
     assert (
         result.playback_forward_play_button.tooltip == "Play forward at current speed."
     )
-    result.playback_reverse_play_button.trigger(workspace.wx.EVT_BUTTON)
+    result.playback_reverse_play_button.trigger(workspace.wx.EVT_TOGGLEBUTTON)
     assert toggles == [True]
-    result.playback_forward_play_button.trigger(workspace.wx.EVT_BUTTON)
+    result.playback_forward_play_button.trigger(workspace.wx.EVT_TOGGLEBUTTON)
     assert forward_plays == [True]
     result.update_playback_state(True, 10.0)
+    assert result.playback_forward_play_button.value
+    assert not result.playback_reverse_play_button.value
     assert result.playback_forward_play_button.label == "Ⅱ"
     assert result.playback_reverse_play_button.label == "◀"
-    result.playback_forward_play_button.trigger(workspace.wx.EVT_BUTTON)
+    result.playback_forward_play_button.trigger(workspace.wx.EVT_TOGGLEBUTTON)
     assert toggles == [True, True]
     result.update_playback_state(False, 10.0)
     assert result.playback_reverse_play_button.label == "◀"
