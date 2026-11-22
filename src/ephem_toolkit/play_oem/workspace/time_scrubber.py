@@ -384,6 +384,11 @@ class TimeScrubber(TimeSlider):
     def set_viewport(self, viewport: tuple[float, float]) -> None:
         self._apply_viewport(viewport)
 
+    @property
+    def viewport(self) -> tuple[float, float]:
+        """Return the visible TT interval."""
+        return self._viewport
+
     def set_ranges(
         self,
         coverage: tuple[float, float],

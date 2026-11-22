@@ -60,6 +60,7 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         oem_coverage: tuple[float, float] | None = None,
         slider_bounds: tuple[float, float] | None = None,
         playback_handle_bounds: tuple[float, float] | None = None,
+        time_scrubber_viewport: tuple[float, float] | None = None,
         plot_time_range: range_model.PlotTimeRange | None = None,
         now_s: Callable[[], float] | None = None,
         on_playback_bounds: Callable[[float, float], None] | None = None,
@@ -199,7 +200,7 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         self.time_readout_row.SetSizer(time_label_sizer)
 
         coverage = oem_coverage or playback_bounds or (0.0, 1.0)
-        display_bounds = coverage
+        display_bounds = time_scrubber_viewport or coverage
         initial_playback = playback_bounds or coverage
         initial_playback_handles = playback_handle_bounds or initial_playback
         initial_plot_rule = plot_time_range or range_model.PlotTimeRange(

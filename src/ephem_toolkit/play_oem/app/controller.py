@@ -61,6 +61,7 @@ from ..saved_state import (
     MIN_STORED_WINDOW_POSITION,
     FileSettings,
     SavedAppState,
+    TimeScrubberSettings,
     normalize_recent_path,
     remember_recent_file,
     save_saved_state,
@@ -315,16 +316,22 @@ class PlayerApp(
             if initial_file_path is not None and oem_loaded
             else None
         )
-        if self._current_oem_path is not None:
-            self._restore_file_playback_range(self.clock, self._current_oem_path)
+        self.plot_time_range = playback_range_plot_rule()
+        self._oem_loaded = oem_loaded
+        if self._oem_loaded and self._current_oem_path is not None:
+            self._restore_file_plot_range(self._current_oem_path)
+        self._initial_time_scrubber_viewport = (
+            self._restore_file_timeline(
+                self._current_oem_path,
+                self.clock,
+            )
+            if self._oem_loaded and self._current_oem_path is not None
+            else None
+        )
         self._playback_handle_bounds = (
             self.clock.playback_start,
             self.clock.playback_end,
         )
-        self.plot_time_range = playback_range_plot_rule()
-        if self._current_oem_path is not None:
-            self._restore_file_plot_range(self._current_oem_path)
-        self._oem_loaded = oem_loaded
         self._requested_3d_backend = three_d_backend
         self._selected_3d_backend: str | None = (
             "matplotlib" if three_d_backend == "matplotlib" else None
@@ -430,6 +437,7 @@ class PlayerApp(
             oem_coverage=(self.clock.t_start, self.clock.t_end),
             slider_bounds=self._slider_bounds,
             playback_handle_bounds=self._playback_handle_bounds,
+            time_scrubber_viewport=self._initial_time_scrubber_viewport,
             plot_time_range=self.plot_time_range,
             now_s=lambda: self.clock.t_now,
             on_playback_bounds=self._apply_playback_bounds,
@@ -868,8 +876,7 @@ class PlayerApp(
         if not self._persist_saved_state or self._saved_state is None:
             return
         if save_file_ranges:
-            self._save_current_playback_range()
-            self._save_current_plot_range()
+            self._capture_current_file_settings()
         if save_geometry:
             self._saved_state.maximized = self.frame.IsMaximized()
             if not self._saved_state.maximized:
@@ -1027,70 +1034,47 @@ class PlayerApp(
         else:
             self._ground_stations_config_dirty = False
 
-    def _save_current_playback_range(self) -> None:
+    def _capture_current_file_settings(self) -> None:
+        timeline_slider = getattr(
+            getattr(self, "workspace", None),
+            "timeline_slider",
+            None,
+        )
         if (
             self._saved_state is None
             or not self._oem_loaded
             or self._current_oem_path is None
-            or self._pending_playback_bounds is not None
-            or (
-                not self._oem_coverage_complete
-                and self._active_load_path is not None
-                and normalize_recent_path(self._active_load_path)
-                == self._current_oem_path
+        ):
+            return
+        settings = self._saved_state.file_settings.setdefault(
+            self._current_oem_path, FileSettings()
+        )
+        loading_current_file = (
+            not self._oem_coverage_complete
+            and self._active_load_path is not None
+            and normalize_recent_path(self._active_load_path) == self._current_oem_path
+        )
+        if self._pending_playback_bounds is None and not loading_current_file:
+            settings.playback_range = (
+                self.clock.playback_start,
+                self.clock.playback_end,
             )
-        ):
-            return
-        settings = self._saved_state.file_settings.setdefault(
-            self._current_oem_path, FileSettings()
-        )
-        settings.playback_range = (
-            self.clock.playback_start,
-            self.clock.playback_end,
-        )
-
-    def _save_current_plot_range(self) -> None:
-        if (
-            self._saved_state is None
-            or not self._oem_loaded
-            or self._current_oem_path is None
-        ):
-            return
-        settings = self._saved_state.file_settings.setdefault(
-            self._current_oem_path, FileSettings()
-        )
         settings.plot_range = self.plot_time_range
-
-    def _restore_file_playback_range(
-        self, target_clock: clock.PlaybackClock, path: str
-    ) -> None:
-        if self._saved_state is None:
-            return
-        settings = self._saved_state.file_settings.get(path)
-        if settings is None or settings.playback_range is None:
-            return
-        try:
-            bounds = time_range.validate_playback_range(
-                settings.playback_range, (target_clock.t_start, target_clock.t_end)
+        if timeline_slider is not None and not loading_current_file:
+            settings.time_scrubber = TimeScrubberSettings(
+                current_time_tt=self.clock.t_now,
+                viewport_tt=timeline_slider.viewport,
             )
-        except ValueError as error:
-            settings.playback_range = None
-            warnings.warn(
-                f"Ignoring saved playback range for {path}: {error}",
-                RuntimeWarning,
-                stacklevel=2,
-            )
-            return
-        target_clock.set_playback_bounds(bounds.start_s, bounds.end_s)
 
     def _restore_file_plot_range(self, path: str) -> None:
+        """Restore the plot rule, which does not depend on loaded coverage."""
         if self._saved_state is None:
             return
         settings = self._saved_state.file_settings.get(path)
         if settings is None or settings.plot_range is None:
             return
         try:
-            plot_range = time_range.validate_plot_range(settings.plot_range)
+            self.plot_time_range = time_range.validate_plot_range(settings.plot_range)
         except ValueError as error:
             settings.plot_range = None
             warnings.warn(
@@ -1098,8 +1082,65 @@ class PlayerApp(
                 RuntimeWarning,
                 stacklevel=2,
             )
-            return
-        self.plot_time_range = plot_range
+
+    def _restore_file_timeline(
+        self, path: str, target_clock: clock.PlaybackClock
+    ) -> tuple[float, float] | None:
+        """Restore time bounds, playhead, and viewport once OEM coverage is known."""
+        if self._saved_state is None:
+            return None
+        settings = self._saved_state.file_settings.get(path)
+        if settings is None:
+            return None
+
+        if settings.playback_range is not None:
+            try:
+                bounds = time_range.validate_playback_range(
+                    settings.playback_range,
+                    (target_clock.t_start, target_clock.t_end),
+                )
+            except ValueError as error:
+                settings.playback_range = None
+                warnings.warn(
+                    f"Ignoring saved playback range for {path}: {error}",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+            else:
+                target_clock.set_playback_bounds(bounds.start_s, bounds.end_s)
+
+        if settings.time_scrubber is None:
+            return None
+        scrubber = settings.time_scrubber
+        current_time = scrubber.current_time_tt
+        if current_time is not None:
+            if not (
+                target_clock.playback_start
+                <= current_time
+                <= target_clock.playback_end
+            ):
+                scrubber.current_time_tt = None
+                warnings.warn(
+                    f"Ignoring saved time scrubber current time for {path}: "
+                    "it is outside the playback range",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+            else:
+                target_clock.seek(current_time)
+        viewport = scrubber.viewport_tt
+        if viewport is not None and not (
+            target_clock.t_start <= viewport[0] < viewport[1] <= target_clock.t_end
+        ):
+            scrubber.viewport_tt = None
+            warnings.warn(
+                f"Ignoring saved time scrubber viewport for {path}: "
+                "it is outside OEM coverage",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            return None
+        return viewport
 
     def _set_ground_track_minimum_elevation(self, value: int) -> None:
         """Apply the shared mask setting to every open Ground Track panel."""
@@ -1203,6 +1244,9 @@ class PlayerApp(
         """Start a replacement session while keeping the active OEM installed."""
         if self._range_dragging:
             self._set_range_dragging(False)
+        if self._current_oem_path is not None:
+            self._capture_current_file_settings()
+        normalized_path = normalize_recent_path(path)
         previous_pending_store = self._pending_oem_store
         store = OemDataStore()
         try:
@@ -1225,7 +1269,6 @@ class PlayerApp(
             if not self._oem_loaded:
                 if self._pending_file_playback_bounds is not None:
                     self._playback_handle_bounds = self._pending_file_playback_bounds
-                self._restore_file_plot_range(normalize_recent_path(path))
             self._incremental_loader.start(path, store=store)
         except Exception:
             store.close()
@@ -1339,14 +1382,25 @@ class PlayerApp(
                 else:
                     self._finish_incremental_metadata(event.completion)
                     self._oem_coverage_complete = True
-                    self._loading_progress_s = None
-                    self._loading_cursor_anchor_s = None
-                    self._active_load_failed = False
-                    if not self._playback_handles_fixed_during_load:
+                    if self._current_oem_path is not None:
+                        viewport = self._restore_file_timeline(
+                            self._current_oem_path, self.clock
+                        )
+                        self._pending_playback_bounds = None
                         self._playback_handle_bounds = (
                             self.clock.playback_start,
                             self.clock.playback_end,
                         )
+                        if viewport is not None:
+                            timeline_slider = getattr(
+                                self.workspace, "timeline_slider", None
+                            )
+                            if timeline_slider is not None:
+                                timeline_slider.set_viewport(viewport)
+                                self._update_time_display()
+                    self._loading_progress_s = None
+                    self._loading_cursor_anchor_s = None
+                    self._active_load_failed = False
                     if self._pending_oem_store is self._oem_store:
                         self._pending_oem_store = None
                     self.status_bar.set_message("")
@@ -1424,6 +1478,11 @@ class PlayerApp(
             None if interpolation_degree is None else int(interpolation_degree)
         )
         self._update_time_display()
+        if first_append:
+            timeline_slider = getattr(self.workspace, "timeline_slider", None)
+            if timeline_slider is not None:
+                timeline_slider.set_viewport((self.clock.t_start, self.clock.t_end))
+                self._update_time_display()
         self._remember_recent_oem(path, save_file_ranges=False)
 
     def _install_first_store_snapshot(
@@ -1611,18 +1670,6 @@ class PlayerApp(
         self.control_window.update_active_interpolation(
             self._active_interpolation_summary()
         )
-        pending_bounds = self._pending_playback_bounds
-        if pending_bounds is None:
-            self._restore_file_playback_range(
-                self.clock, normalize_recent_path(self._active_load_path or "")
-            )
-        else:
-            if (
-                self.clock.t_start <= pending_bounds[0]
-                and pending_bounds[1] <= self.clock.t_end
-            ):
-                self._pending_playback_bounds = None
-                self.clock.set_playback_bounds(*pending_bounds)
         if self._store_view_context is not None:
             self._store_view_context = self._store_view_context.refresh()
             self._publish_range_hint()
@@ -1931,7 +1978,7 @@ class PlayerApp(
         )
         slider_start, slider_end = getattr(
             visible_slider,
-            "_viewport",
+            "viewport",
             self._slider_bounds,
         )
         span_s = slider_end - slider_start

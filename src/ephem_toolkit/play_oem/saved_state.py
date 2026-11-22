@@ -26,7 +26,7 @@ from .time_range import (
 from .views.registry import parse_plot_selection
 
 STATE_FILENAME = "play-oem-state.toml"
-STATE_VERSION = 9
+STATE_VERSION = 10
 MAX_RECENT_FILES = 15
 MIN_STORED_WINDOW_DIMENSION = 320
 MAX_STORED_WINDOW_DIMENSION = 10000
@@ -49,11 +49,20 @@ GROUND_TRACK_EXTENT_KEYS = ("xlim", "ylim")
 
 
 @dataclass
+class TimeScrubberSettings:
+    """Saved current time and visible viewport for one OEM timeline."""
+
+    current_time_tt: float | None = None
+    viewport_tt: tuple[float, float] | None = None
+
+
+@dataclass
 class FileSettings:
     """Settings associated with one OEM path."""
 
     playback_range: tuple[float, float] | None = None
     plot_range: PlotTimeRange | None = None
+    time_scrubber: TimeScrubberSettings | None = None
 
 
 @dataclass
@@ -260,8 +269,10 @@ def load_saved_state(path: str | Path | None = None) -> SavedAppState:
                 state_path,
                 f"files[{file_path!r}] must be a TOML table",
             )
-        if set(settings) - {"playback", "plot_range"}:
-            unknown = sorted(set(settings) - {"playback", "plot_range"})[0]
+        if set(settings) - {"playback", "plot_range", "time_scrubber"}:
+            unknown = sorted(
+                set(settings) - {"playback", "plot_range", "time_scrubber"}
+            )[0]
             return _state_error(
                 state_path,
                 f"unknown key files[{file_path!r}].{unknown}",
@@ -300,8 +311,49 @@ def load_saved_state(path: str | Path | None = None) -> SavedAppState:
                 )
         else:
             parsed_plot_range = None
+        time_scrubber = settings.get("time_scrubber", {})
+        if not isinstance(time_scrubber, dict):
+            return _state_error(
+                state_path,
+                f"files[{file_path!r}].time_scrubber must be a TOML table",
+            )
+        if set(time_scrubber) - {"current_time_tt", "viewport_tt"}:
+            unknown = sorted(set(time_scrubber) - {"current_time_tt", "viewport_tt"})[0]
+            return _state_error(
+                state_path,
+                f"unknown key files[{file_path!r}].time_scrubber.{unknown}",
+            )
+        current_time_tt = time_scrubber.get("current_time_tt")
+        if current_time_tt is not None:
+            try:
+                current_time_tt = _validated_playback_range(
+                    (current_time_tt, current_time_tt)
+                )[0]
+            except ValueError as error:
+                return _state_error(
+                    state_path,
+                    f"invalid files[{file_path!r}].time_scrubber.current_time_tt: "
+                    f"{error}",
+                )
+        viewport_tt = time_scrubber.get("viewport_tt")
+        if viewport_tt is not None:
+            try:
+                viewport_tt = _validated_playback_range(viewport_tt)
+                if viewport_tt[0] >= viewport_tt[1]:
+                    raise ValueError("start must be before end")
+            except ValueError as error:
+                return _state_error(
+                    state_path,
+                    f"invalid files[{file_path!r}].time_scrubber.viewport_tt: "
+                    f"{error}",
+                )
+        parsed_time_scrubber = (
+            TimeScrubberSettings(current_time_tt, viewport_tt)
+            if current_time_tt is not None or viewport_tt is not None
+            else None
+        )
         file_settings[normalized_path] = FileSettings(
-            parsed_range, parsed_plot_range
+            parsed_range, parsed_plot_range, parsed_time_scrubber
         )
 
     workspace = document.get("workspace", {})
@@ -508,6 +560,29 @@ def serialize_saved_state(state: SavedAppState) -> str:
                     "",
                 )
             )
+        if settings.time_scrubber is not None:
+            scrubber = settings.time_scrubber
+            scrubber_values: list[str] = []
+            if scrubber.current_time_tt is not None:
+                current_time_tt = _validated_playback_range(
+                    (scrubber.current_time_tt, scrubber.current_time_tt)
+                )[0]
+                scrubber_values.append(f"current_time_tt = {current_time_tt!r}")
+            if scrubber.viewport_tt is not None:
+                viewport_tt = _validated_playback_range(scrubber.viewport_tt)
+                if viewport_tt[0] >= viewport_tt[1]:
+                    raise ValueError("time scrubber viewport must have positive width")
+                scrubber_values.append(
+                    f"viewport_tt = [{viewport_tt[0]!r}, {viewport_tt[1]!r}]"
+                )
+            if scrubber_values:
+                encoded_file_settings.extend(
+                    (
+                        f"[files.{_toml_string(path)}.time_scrubber]",
+                        *scrubber_values,
+                        "",
+                    )
+                )
     file_settings_body = "\n".join(encoded_file_settings)
     position_line = (
         f"position = [{state.position[0]}, {state.position[1]}]\n"

@@ -94,7 +94,7 @@ def test_full_coverage_fit_expands_with_incremental_oem_loading() -> None:
             50.0,
         )
 
-        assert scrubber._viewport == (0.0, 100.0)
+        assert scrubber.viewport == (0.0, 100.0)
     finally:
         frame.Destroy()
         app.Destroy()

@@ -10,6 +10,7 @@ from ephem_toolkit.play_oem.saved_state import (
     FileSettings,
     SavedAppState,
     STATE_VERSION,
+    TimeScrubberSettings,
     load_saved_state,
     remember_recent_file,
     serialize_saved_state,
@@ -155,6 +156,58 @@ def test_file_plot_ranges_round_trip(tmp_path) -> None:
     loaded = load_saved_state(path)
 
     assert loaded.file_settings[file_path].plot_range == plot_range
+
+
+def test_time_scrubber_settings_round_trip(tmp_path) -> None:
+    path = tmp_path / "play-oem-state.toml"
+    file_path = str(tmp_path / "orbit.oem")
+    state = SavedAppState(
+        file_settings={
+            file_path: FileSettings(
+                time_scrubber=TimeScrubberSettings(
+                    current_time_tt=150.0,
+                    viewport_tt=(120.0, 180.0),
+                )
+            )
+        }
+    )
+    serialized = serialize_saved_state(state)
+    assert f'[files."{file_path}".time_scrubber]' in serialized
+    assert "current_time_tt = 150.0" in serialized
+    assert "viewport_tt = [120.0, 180.0]" in serialized
+    path.write_text(serialized)
+
+    loaded = load_saved_state(path)
+
+    assert loaded.file_settings[file_path].time_scrubber == TimeScrubberSettings(
+        current_time_tt=150.0,
+        viewport_tt=(120.0, 180.0),
+    )
+
+
+@pytest.mark.parametrize(
+    "contents",
+    [
+        'current_time_tt = inf\n',
+        'viewport_tt = [20.0, 20.0]\n',
+        'viewport_tt = [30.0, 20.0]\n',
+    ],
+)
+def test_invalid_time_scrubber_settings_fall_back(tmp_path, contents: str) -> None:
+    path = tmp_path / "play-oem-state.toml"
+    file_path = str(tmp_path / "orbit.oem")
+    path.write_text(
+        "state_version = 10\n"
+        f'[files."{file_path}".time_scrubber]\n'
+        f"{contents}"
+    )
+
+    with warnings.catch_warnings(record=True) as observed:
+        warnings.simplefilter("always")
+        state = load_saved_state(path)
+
+    assert state.file_settings == {}
+    assert observed
 
 
 def test_file_settings_survive_when_file_is_not_recent(tmp_path) -> None:

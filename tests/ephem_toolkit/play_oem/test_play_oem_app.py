@@ -545,6 +545,7 @@ class FakeWorkspace:
         self.graph_panels = []
         self.progress = 0.0
         self.current_utc = ""
+        self.time_scrubber_viewport = _kwargs.get("time_scrubber_viewport")
         self.timeline_time_entry = object()
         self.callbacks = {"seek_to_time": _kwargs["on_seek_to_time"]}
         self.time_errors: list[str] = []
@@ -2602,7 +2603,10 @@ def test_incremental_timeline_uses_declared_domain_and_defers_drag_redraws(
 def test_incremental_load_preserves_and_restores_saved_file_ranges(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
-    from ephem_toolkit.play_oem.saved_state import FileSettings
+    from ephem_toolkit.play_oem.saved_state import (
+        FileSettings,
+        TimeScrubberSettings,
+    )
 
     second_row_started = Event()
     release_second_row = Event()
@@ -2651,7 +2655,14 @@ def test_incremental_load_preserves_and_restores_saved_file_ranges(
     saved_state = app.SavedAppState(
         recent_files=[path],
         file_settings={
-            path: FileSettings(playback_range, plot_range)
+            path: FileSettings(
+                playback_range,
+                plot_range,
+                TimeScrubberSettings(
+                    current_time_tt=start_s + 10.0,
+                    viewport_tt=(start_s + 5.0, start_s + 15.0),
+                ),
+            )
         },
     )
     monkeypatch.setattr(app, "save_saved_state", lambda _state: None)
@@ -2694,7 +2705,7 @@ def test_incremental_load_preserves_and_restores_saved_file_ranges(
         )
         assert TimeSlider._time_for(slider_state, "plot_start") == playback_range[0]
         assert TimeSlider._time_for(slider_state, "plot_end") == playback_range[1]
-        player._save_current_playback_range()
+        player._capture_current_file_settings()
         assert saved_state.file_settings[path].playback_range == playback_range
         assert player.plot_time_range == plot_range
 
@@ -2709,6 +2720,11 @@ def test_incremental_load_preserves_and_restores_saved_file_ranges(
         assert player.clock.t_now == playback_range[0]
         assert player.workspace.time_range_controls[3] == playback_range[0]
 
+        timeline_slider = SimpleNamespace(viewport=None)
+        timeline_slider.set_viewport = lambda viewport: setattr(
+            timeline_slider, "viewport", viewport
+        )
+        player.workspace.timeline_slider = timeline_slider
         release_third_row.set()
         while time.monotonic() < deadline:
             player._poll_incremental_load()
@@ -2716,6 +2732,11 @@ def test_incremental_load_preserves_and_restores_saved_file_ranges(
                 break
             time.sleep(0.005)
         assert player._oem_coverage_complete
+        assert player.clock.t_now == start_s + 10.0
+        assert timeline_slider.viewport == (
+            start_s + 5.0,
+            start_s + 15.0,
+        )
         assert player._slider_bounds == (
             datetime_to_tt_s(datetime(2025, 12, 31, 23, 59, tzinfo=timezone.utc)),
             datetime_to_tt_s(datetime(2026, 1, 1, 0, 1, tzinfo=timezone.utc)),
@@ -2734,7 +2755,7 @@ def test_incremental_load_preserves_and_restores_saved_file_ranges(
         player.close()
 
 
-def test_initial_recent_file_ranges_are_applied_and_saved(
+def test_initial_file_settings_are_applied_and_saved(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     file_path = "/tmp/first.oem"
@@ -2743,10 +2764,14 @@ def test_initial_recent_file_ranges_are_applied_and_saved(
         app.time_range.TimeRangeEndpoint("fixed", 125.0),
         app.time_range.TimeRangeEndpoint("offset", 40.0),
     )
+    time_scrubber = app.TimeScrubberSettings(
+        current_time_tt=150.0,
+        viewport_tt=(120.0, 180.0),
+    )
     saved_state = app.SavedAppState(
         recent_files=[file_path],
         file_settings={
-            file_path: app.FileSettings((110.0, 190.0), plot_range),
+            file_path: app.FileSettings((110.0, 190.0), plot_range, time_scrubber),
         },
     )
     monkeypatch.setattr(app, "save_saved_state", lambda _state: None)
@@ -2758,12 +2783,21 @@ def test_initial_recent_file_ranges_are_applied_and_saved(
 
     assert (player.clock.playback_start, player.clock.playback_end) == (110.0, 190.0)
     assert player.plot_time_range == plot_range
+    assert player.clock.t_now == 150.0
+    assert player.workspace.time_scrubber_viewport == (120.0, 180.0)
 
+    player.workspace.timeline_slider = SimpleNamespace(viewport=(120.0, 180.0))
     player._apply_playback_bounds(120.0, 180.0)
     player._save_application_state(save_geometry=False)
     assert saved_state.file_settings[file_path].playback_range == (
         120.0,
         180.0,
+    )
+    assert saved_state.file_settings[file_path].time_scrubber == (
+        app.TimeScrubberSettings(
+            current_time_tt=150.0,
+            viewport_tt=(120.0, 180.0),
+        )
     )
     player.close()
 

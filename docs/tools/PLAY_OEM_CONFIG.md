@@ -80,7 +80,7 @@ leave it at `1` unless a later version of this guide says otherwise.
 separately from your user-edited defaults. You normally do not need to edit it.
 
 ```toml
-state_version = 9
+state_version = 10
 
 [window]
 width = 1400
@@ -101,6 +101,10 @@ range_tt = [806400000.0, 806400600.0]
 enabled = true
 start = { mode = "follow", value_s = 0.0 }
 end = { mode = "offset", value_s = 300.0 }
+
+[files."/home/alex/orbits/iss.oem".time_scrubber]
+current_time_tt = 806400240.0
+viewport_tt = [806400120.0, 806400420.0]
 
 [files."/home/alex/orbits/transfer.oem".playback]
 range_tt = [806400120.0, 806400480.0]
@@ -135,7 +139,10 @@ when that file is opened again. If the saved range no longer fits the file's cov
 application reports a warning and uses the full coverage instead. The plot range rule is also
 saved and restored per file, including whether filtering is enabled and each endpoint's mode and
 value. Follow endpoints track their corresponding playback bound, offset values are seconds
-from current playback time, and fixed values are absolute TT timestamps.
+from current playback time, and fixed values are absolute TT timestamps. The `time_scrubber`
+table saves the current TT time and the visible viewport's TT start and end. The viewport is
+restored when file coverage is available; if a saved time is outside the file's playback range
+or the viewport is outside its coverage, that value is ignored.
 
 The state file also remembers Ground Track settings, including projection, background, center
 longitude, map extent, and minimum elevation, and restores them on the next launch. It also
