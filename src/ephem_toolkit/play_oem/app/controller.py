@@ -203,6 +203,13 @@ class PlayerApp(
         self._playback_handle_bounds = (clock.playback_start, clock.playback_end)
         self._playback_handles_fixed_during_load = False
         self._pending_file_playback_bounds: tuple[float, float] | None = None
+        self._pending_file_current_time_s: float | None = None
+        self._pending_file_viewport_tt: tuple[float, float] | None = None
+        self._scrubber_metadata_restored = False
+        self._scrubber_metadata_coverage: tuple[float, float] | None = None
+        self._scrubber_metadata_playback: tuple[float, float] | None = None
+        self._scrubber_metadata_viewport: tuple[float, float] | None = None
+        self._scrubber_loading_locked = False
         self._pending_playback_bounds: tuple[float, float] | None = None
         self._loading_cursor_anchor_s: float | None = None
         if display_time_zone not in DISPLAY_TIME_ZONES:
@@ -1083,6 +1090,101 @@ class PlayerApp(
                 stacklevel=2,
             )
 
+    def _restore_scrubber_from_metadata(
+        self, path: str, coverage: tuple[float, float]
+    ) -> None:
+        """Apply saved scrubber state as soon as its OEM domain is known."""
+        if self._scrubber_loading_locked:
+            return
+        settings = (
+            self._saved_state.file_settings.get(normalize_recent_path(path))
+            if self._saved_state is not None
+            else None
+        )
+
+        playback = coverage
+        scrubber = settings.time_scrubber if settings is not None else None
+        if scrubber is not None and settings is not None and settings.playback_range is not None:
+            try:
+                validated = time_range.validate_playback_range(
+                    settings.playback_range, coverage
+                )
+            except ValueError:
+                return
+            else:
+                playback = (validated.start_s, validated.end_s)
+
+        current_time = coverage[0]
+        viewport = coverage
+        if scrubber is not None:
+            if (
+                scrubber.current_time_tt is not None
+                and not playback[0] <= scrubber.current_time_tt <= playback[1]
+            ):
+                return
+            if (
+                scrubber.viewport_tt is not None
+                and not (
+                    coverage[0]
+                    <= scrubber.viewport_tt[0]
+                    < scrubber.viewport_tt[1]
+                    <= coverage[1]
+                )
+            ):
+                return
+        if scrubber is not None and scrubber.current_time_tt is not None:
+            current_time = scrubber.current_time_tt
+            self._pending_file_current_time_s = current_time
+            self._loading_cursor_anchor_s = current_time
+        else:
+            self._loading_cursor_anchor_s = current_time
+        if scrubber is not None and scrubber.viewport_tt is not None:
+            viewport = scrubber.viewport_tt
+            self._pending_file_viewport_tt = viewport
+        else:
+            self._pending_file_viewport_tt = viewport
+        if settings is not None and settings.playback_range is not None:
+            self._pending_file_playback_bounds = playback
+            self._playback_handles_fixed_during_load = True
+            self._playback_handle_bounds = playback
+        plot_rule = self.plot_time_range
+        if settings is not None and settings.plot_range is not None:
+            try:
+                plot_rule = time_range.validate_plot_range(settings.plot_range)
+            except ValueError:
+                pass
+            else:
+                self.plot_time_range = plot_rule
+        self.workspace.set_time_range_controls(
+            coverage,
+            playback,
+            plot_rule,
+            current_time,
+            viewport,
+            playback,
+            unloaded_from_s=coverage[0],
+        )
+        timeline_slider = getattr(self.workspace, "timeline_slider", None)
+        set_viewport = getattr(timeline_slider, "set_viewport", None)
+        if callable(set_viewport):
+            set_viewport(viewport)
+        span = viewport[1] - viewport[0]
+        progress = (
+            0.0
+            if span == 0.0
+            else (current_time - viewport[0]) / span
+        )
+        self.workspace.update_timeline(
+            progress,
+            format_tt(current_time, self._display_time_zone),
+            playing=False,
+        )
+        self._scrubber_metadata_restored = True
+        self._scrubber_metadata_coverage = coverage
+        self._scrubber_metadata_playback = playback
+        self._scrubber_metadata_viewport = viewport
+        self._scrubber_loading_locked = True
+
     def _restore_file_timeline(
         self, path: str, target_clock: clock.PlaybackClock
     ) -> tuple[float, float] | None:
@@ -1093,7 +1195,7 @@ class PlayerApp(
         if settings is None:
             return None
 
-        if settings.playback_range is not None:
+        if settings is not None and settings.playback_range is not None:
             try:
                 bounds = time_range.validate_playback_range(
                     settings.playback_range,
@@ -1285,6 +1387,13 @@ class PlayerApp(
         self._active_load_failed = False
         self._loading_cursor_anchor_s = None
         self._pending_oem_slider_bounds = None
+        self._pending_file_current_time_s = None
+        self._pending_file_viewport_tt = None
+        self._scrubber_metadata_restored = False
+        self._scrubber_metadata_coverage = None
+        self._scrubber_metadata_playback = None
+        self._scrubber_metadata_viewport = None
+        self._scrubber_loading_locked = False
         self._last_incremental_view_refresh_monotonic_s = None
         if (
             previous_pending_store is self._oem_store
@@ -1325,7 +1434,10 @@ class PlayerApp(
                             min(self._slider_bounds[0], declared_bounds[0]),
                             max(self._slider_bounds[1], declared_bounds[1]),
                         )
-                        self._update_time_display()
+                        if not self._scrubber_metadata_restored:
+                            self._restore_scrubber_from_metadata(
+                                path, self._slider_bounds
+                            )
                     elif self._pending_oem_slider_bounds is None:
                         self._pending_oem_slider_bounds = declared_bounds
                     else:
@@ -1339,6 +1451,8 @@ class PlayerApp(
                                 declared_bounds[1],
                             ),
                         )
+                    if not self._active_load_first_batch:
+                        coverage = self._pending_oem_slider_bounds or declared_bounds
                 continue
             if event.kind is LoadEventKind.RAW_APPEND:
                 store = self._pending_oem_store
@@ -1382,7 +1496,11 @@ class PlayerApp(
                 else:
                     self._finish_incremental_metadata(event.completion)
                     self._oem_coverage_complete = True
-                    if self._current_oem_path is not None:
+                    self._scrubber_loading_locked = False
+                    if (
+                        self._current_oem_path is not None
+                        and not self._scrubber_metadata_restored
+                    ):
                         viewport = self._restore_file_timeline(
                             self._current_oem_path, self.clock
                         )
@@ -1398,6 +1516,21 @@ class PlayerApp(
                             if timeline_slider is not None:
                                 timeline_slider.set_viewport(viewport)
                                 self._update_time_display()
+                    elif self._scrubber_metadata_restored:
+                        target = self._pending_file_current_time_s
+                        if (
+                            target is not None
+                            and self.clock.t_start <= target <= self.clock.t_end
+                            and self.clock.playback_start
+                            <= target
+                            <= self.clock.playback_end
+                        ):
+                            with self._installing_incremental_update():
+                                self.clock.seek(target)
+                            self._pending_file_current_time_s = None
+                            self._loading_cursor_anchor_s = None
+                    self._pending_file_current_time_s = None
+                    self._pending_file_viewport_tt = None
                     self._loading_progress_s = None
                     self._loading_cursor_anchor_s = None
                     self._active_load_failed = False
@@ -1478,7 +1611,7 @@ class PlayerApp(
             None if interpolation_degree is None else int(interpolation_degree)
         )
         self._update_time_display()
-        if first_append:
+        if first_append and self._pending_file_viewport_tt is None:
             timeline_slider = getattr(self.workspace, "timeline_slider", None)
             if timeline_slider is not None:
                 timeline_slider.set_viewport((self.clock.t_start, self.clock.t_end))
@@ -1536,6 +1669,8 @@ class PlayerApp(
         ):
             self._loading_cursor_anchor_s = self._pending_playback_bounds[0]
         self._apply_pending_playback_bounds()
+        if self._pending_file_current_time_s is not None:
+            self._loading_cursor_anchor_s = self._pending_file_current_time_s
         self._pending_file_playback_bounds = None
         self._slider_bounds = playback_data.oem_slider_bounds(
             str(meta.get("START_TIME", "")),
@@ -1549,6 +1684,7 @@ class PlayerApp(
                 max(self._slider_bounds[1], self._pending_oem_slider_bounds[1]),
             )
         self._pending_oem_slider_bounds = None
+        self._restore_scrubber_from_metadata(path, self._slider_bounds)
         self._loaded_file_name = os.path.basename(path)
         self.status_bar.set_file_name(self._loaded_file_name)
         self._active_load_first_batch = True
@@ -1588,7 +1724,8 @@ class PlayerApp(
             and bounds[1] <= self.clock.t_end
         ):
             self._pending_playback_bounds = None
-            self._loading_cursor_anchor_s = None
+            if self._pending_file_current_time_s is None:
+                self._loading_cursor_anchor_s = None
             self._playback_handle_bounds = bounds
             with self._installing_incremental_update():
                 self.clock.set_playback_bounds(*bounds)
@@ -1598,7 +1735,8 @@ class PlayerApp(
         ):
             with self._installing_incremental_update():
                 self.clock.seek(bounds[0])
-            self._loading_cursor_anchor_s = None
+            if self._pending_file_current_time_s is None:
+                self._loading_cursor_anchor_s = None
 
     def _close_pending_oem_store(self) -> None:
         store = self._pending_oem_store
@@ -1977,11 +2115,30 @@ class PlayerApp(
             "timeline_slider",
             None,
         )
-        slider_start, slider_end = getattr(
-            visible_slider,
-            "viewport",
-            self._slider_bounds,
+        viewport = getattr(visible_slider, "viewport", None)
+        if (
+            isinstance(viewport, tuple)
+            and len(viewport) == 2
+            and isinstance(viewport[0], (int, float))
+            and isinstance(viewport[1], (int, float))
+        ):
+            slider_start, slider_end = viewport
+        else:
+            slider_start, slider_end = self._slider_bounds
+        timeline_coverage = (self.clock.t_start, self.clock.t_end)
+        timeline_playback = (
+            self.clock.playback_start,
+            self.clock.playback_end,
         )
+        if self._scrubber_loading_locked:
+            timeline_coverage = (
+                self._scrubber_metadata_coverage or timeline_coverage
+            )
+            timeline_playback = (
+                self._scrubber_metadata_playback or timeline_playback
+            )
+            if self._scrubber_metadata_viewport is not None:
+                slider_start, slider_end = self._scrubber_metadata_viewport
         span_s = slider_end - slider_start
         progress = (
             0.0 if span_s == 0.0 else (display_time_s - slider_start) / span_s
@@ -1990,12 +2147,16 @@ class PlayerApp(
             progress, timestamp, playing=self.clock.playing
         )
         self.workspace.set_time_range_controls(
-            (self.clock.t_start, self.clock.t_end),
-            (self.clock.playback_start, self.clock.playback_end),
+            timeline_coverage,
+            timeline_playback,
             self.plot_time_range,
             display_time_s,
             (slider_start, slider_end),
-            self._playback_handle_bounds,
+            (
+                timeline_playback
+                if self._scrubber_loading_locked
+                else self._playback_handle_bounds
+            ),
             unloaded_from_s=(
                 self._loading_progress_s
                 if self._active_load_first_batch and not self._oem_coverage_complete

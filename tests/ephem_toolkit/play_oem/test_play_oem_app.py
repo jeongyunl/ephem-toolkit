@@ -579,6 +579,10 @@ class FakeWorkspace:
     def set_time_range_controls(self, *controls, **options) -> None:
         self.time_range_controls = controls
         self.time_range_control_options = options
+        slider = getattr(self, "timeline_slider", None)
+        set_viewport = getattr(slider, "set_viewport", None)
+        if callable(set_viewport) and len(controls) >= 5:
+            set_viewport(controls[4])
 
     def update_timeline(
         self, progress: float, current_utc: str, *, playing: bool = False
@@ -2587,7 +2591,11 @@ def test_incremental_timeline_uses_declared_domain_and_defers_drag_redraws(
             player.clock.playback_start,
             player.clock.playback_end,
         )
-        assert player.workspace.time_range_controls[4] == expected_domain
+        first_segment_domain = (
+            datetime_to_tt_s(datetime(2025, 12, 31, 23, 59, tzinfo=timezone.utc)),
+            datetime_to_tt_s(datetime(2026, 1, 1, 0, 2, tzinfo=timezone.utc)),
+        )
+        assert player.workspace.time_range_controls[4] == first_segment_domain
         assert player.workspace.time_range_control_options["unloaded_from_s"] == (
             player.clock.t_end
         )
@@ -2728,8 +2736,8 @@ def test_incremental_load_preserves_and_restores_saved_file_ranges(
         player._poll_incremental_load()
 
         assert player._playback_handle_bounds == playback_range
-        assert player._loading_cursor_anchor_s == playback_range[0]
-        assert player.workspace.time_range_controls[3] == playback_range[0]
+        assert player._loading_cursor_anchor_s == start_s + 10.0
+        assert player.workspace.time_range_controls[3] == start_s + 10.0
         assert player._loading_progress_s == start_s
         assert player.workspace.time_range_controls[2] == plot_range
         assert player.workspace.time_range_controls[-1] == playback_range
@@ -2753,9 +2761,9 @@ def test_incremental_load_preserves_and_restores_saved_file_ranges(
         assert third_row_started.is_set()
         player._poll_incremental_load()
         assert player._loading_progress_s == start_s + 10.0
-        assert player._loading_cursor_anchor_s is None
+        assert player._loading_cursor_anchor_s == start_s + 10.0
         assert player.clock.t_now == playback_range[0]
-        assert player.workspace.time_range_controls[3] == playback_range[0]
+        assert player.workspace.time_range_controls[3] == start_s + 10.0
 
         timeline_slider = SimpleNamespace(viewport=None)
         timeline_slider.set_viewport = lambda viewport: setattr(
@@ -2824,7 +2832,12 @@ def test_initial_file_settings_are_applied_and_saved(
     assert player.workspace.time_scrubber_viewport == (120.0, 180.0)
 
     player.workspace.timeline_slider = SimpleNamespace(viewport=(120.0, 180.0))
+    player._scrubber_loading_locked = True
+    player._scrubber_metadata_playback = (120.0, 180.0)
+    player._scrubber_metadata_viewport = (120.0, 180.0)
     player._apply_playback_bounds(120.0, 180.0)
+    assert not player._scrubber_loading_locked
+    assert player.workspace.time_range_controls[-1] == (120.0, 180.0)
     player._save_application_state(save_geometry=False)
     assert saved_state.file_settings[file_path].playback_range == (
         120.0,
@@ -2837,6 +2850,248 @@ def test_initial_file_settings_are_applied_and_saved(
         )
     )
     player.close()
+
+
+def test_metadata_without_stored_scrubber_uses_defaults_once(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    source = tmp_path / "default-scrubber.oem"
+    source.write_text(
+        "CCSDS_OEM_VERS = 2.0\n"
+        "META_START\n"
+        "OBJECT_NAME = DEFAULT SCRUBBER\n"
+        "CENTER_NAME = EARTH\n"
+        "REF_FRAME = GCRF\n"
+        "TIME_SYSTEM = UTC\n"
+        "START_TIME = 2026-01-01T00:00:00\n"
+        "STOP_TIME = 2026-01-01T00:04:00\n"
+        "META_STOP\n"
+        "2026-01-01T00:00:10 7000 0 0 0 7.5 0\n",
+        encoding="utf-8",
+    )
+    row_started = Event()
+    release_row = Event()
+    original_validate = odm.validate_odm_line
+
+    def block_row(line: str, label: str) -> None:
+        if line.startswith("2026-01-01T00:00:10"):
+            row_started.set()
+            if not release_row.wait(3.0):
+                raise TimeoutError("row parser was not released")
+        original_validate(line, label)
+
+    monkeypatch.setattr(odm, "validate_odm_line", block_row)
+    old_path = "/tmp/old.oem"
+    player, _views, _canvases, _frames = make_app(
+        monkeypatch,
+        saved_state=app.SavedAppState(),
+        initial_file_path=old_path,
+    )
+    player._incremental_loader = app.IncrementalLoader(batch_size=1)
+    slider = SimpleNamespace(viewport=(player.clock.t_start, player.clock.t_end))
+    slider.set_viewport = lambda viewport: setattr(slider, "viewport", viewport)
+    player.workspace.timeline_slider = slider
+    range_control_calls: list[tuple[object, ...]] = []
+    set_time_range_controls = player.workspace.set_time_range_controls
+
+    def record_time_range_controls(*controls, **options) -> None:
+        range_control_calls.append(controls)
+        set_time_range_controls(*controls, **options)
+
+    player.workspace.set_time_range_controls = record_time_range_controls
+    session = None
+    try:
+        player._load_oem_file(str(source))
+        session = player._incremental_loader.session
+        assert session is not None
+        deadline = time.monotonic() + 3.0
+        while not row_started.is_set() and time.monotonic() < deadline:
+            player._poll_incremental_load()
+            row_started.wait(0.005)
+        assert row_started.is_set()
+        release_row.set()
+        deadline = time.monotonic() + 3.0
+        while not player._active_load_first_batch and time.monotonic() < deadline:
+            player._poll_incremental_load()
+            time.sleep(0.005)
+
+        domain = (
+            datetime_to_tt_s(datetime(2026, 1, 1, tzinfo=timezone.utc)),
+            datetime_to_tt_s(datetime(2026, 1, 1, 0, 4, tzinfo=timezone.utc)),
+        )
+        assert player._scrubber_metadata_restored
+        assert slider.viewport == domain
+        assert any(
+            call[3] == domain[0] and call[4] == domain
+            for call in range_control_calls
+        )
+    finally:
+        release_row.set()
+        if session is not None:
+            deadline = time.monotonic() + 3.0
+            while (
+                (not session.finished or session._events.qsize())
+                and time.monotonic() < deadline
+            ):
+                player._poll_incremental_load()
+                time.sleep(0.005)
+        player.close()
+
+
+def test_incremental_load_previews_saved_timeline_from_metadata(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    source = tmp_path / "metadata-preview.oem"
+    source.write_text(
+        "CCSDS_OEM_VERS = 2.0\n"
+        "META_START\n"
+        "OBJECT_NAME = METADATA PREVIEW\n"
+        "CENTER_NAME = EARTH\n"
+        "REF_FRAME = GCRF\n"
+        "TIME_SYSTEM = UTC\n"
+        "START_TIME = 2026-01-01T00:00:00\n"
+        "STOP_TIME = 2026-01-01T00:01:00\n"
+        "META_STOP\n"
+        "2026-01-01T00:00:10 7000 0 0 0 7.5 0\n"
+        "META_START\n"
+        "OBJECT_NAME = METADATA PREVIEW\n"
+        "CENTER_NAME = EARTH\n"
+        "REF_FRAME = GCRF\n"
+        "TIME_SYSTEM = UTC\n"
+        "START_TIME = 2026-01-01T00:02:00\n"
+        "STOP_TIME = 2026-01-01T00:04:00\n"
+        "META_STOP\n"
+        "2026-01-01T00:03:00 7000 1 0 0 7.5 0\n",
+        encoding="utf-8",
+    )
+    domain = (
+        datetime_to_tt_s(datetime(2026, 1, 1, tzinfo=timezone.utc)),
+        datetime_to_tt_s(datetime(2026, 1, 1, 0, 4, tzinfo=timezone.utc)),
+    )
+    playback = (domain[0] + 30.0, domain[0] + 150.0)
+    current_time = domain[0] + 60.0
+    viewport = (domain[0] + 40.0, domain[0] + 100.0)
+    plot_rule = time_range.PlotTimeRange(
+        True,
+        time_range.TimeRangeEndpoint("fixed", current_time - 10.0),
+        time_range.TimeRangeEndpoint("fixed", current_time + 10.0),
+    )
+    saved_state = app.SavedAppState(
+        file_settings={
+            str(source): app.FileSettings(
+                playback,
+                plot_rule,
+                app.TimeScrubberSettings(current_time, viewport),
+            )
+        }
+    )
+    row_started = Event()
+    release_row = Event()
+    second_row_started = Event()
+    release_second_row = Event()
+    original_validate = odm.validate_odm_line
+
+    def block_row(line: str, label: str) -> None:
+        if line.startswith("2026-01-01T00:00:10"):
+            row_started.set()
+            if not release_row.wait(3.0):
+                raise TimeoutError("row parser was not released")
+        elif line.startswith("2026-01-01T00:03:00"):
+            second_row_started.set()
+            if not release_second_row.wait(3.0):
+                raise TimeoutError("second row parser was not released")
+        original_validate(line, label)
+
+    monkeypatch.setattr(odm, "validate_odm_line", block_row)
+    old_path = "/tmp/old.oem"
+    player, _views, _canvases, _frames = make_app(
+        monkeypatch,
+        saved_state=saved_state,
+        initial_file_path=old_path,
+    )
+    player._incremental_loader = app.IncrementalLoader(batch_size=1)
+    slider = SimpleNamespace(viewport=(player.clock.t_start, player.clock.t_end))
+    slider.set_viewport = lambda value: setattr(slider, "viewport", value)
+    player.workspace.timeline_slider = slider
+    range_control_calls: list[tuple[object, ...]] = []
+    set_time_range_controls = player.workspace.set_time_range_controls
+
+    def record_time_range_controls(*controls, **options) -> None:
+        range_control_calls.append(controls)
+        set_time_range_controls(*controls, **options)
+
+    player.workspace.set_time_range_controls = record_time_range_controls
+    old_clock_time = player.clock.t_now
+    session = None
+    try:
+        player._load_oem_file(str(source))
+        session = player._incremental_loader.session
+        assert session is not None
+        deadline = time.monotonic() + 3.0
+        while not row_started.is_set() and time.monotonic() < deadline:
+            player._poll_incremental_load()
+            row_started.wait(0.005)
+        assert row_started.is_set()
+        player._poll_incremental_load()
+
+        assert not player._active_load_first_batch
+        assert player._current_oem_path == old_path
+        assert player.clock.t_now == old_clock_time
+        assert not any(
+            call[4] == viewport
+            for call in range_control_calls
+        )
+        assert not player._scrubber_metadata_restored
+        assert slider.viewport == (player.clock.t_start, player.clock.t_end)
+
+        release_row.set()
+        deadline = time.monotonic() + 3.0
+        while not second_row_started.is_set() and time.monotonic() < deadline:
+            player._poll_incremental_load()
+            second_row_started.wait(0.005)
+        assert second_row_started.is_set()
+        player._poll_incremental_load()
+        assert player._scrubber_metadata_restored
+        assert any(
+            call == (
+                domain,
+                playback,
+                plot_rule,
+                current_time,
+                viewport,
+                playback,
+            )
+            for call in range_control_calls
+        )
+        assert player._active_load_first_batch
+        assert slider.viewport == viewport
+        player._slider_bounds = (domain[0], domain[0] + 100.0)
+        player._update_time_display()
+        assert player.workspace.time_range_controls[0] == domain
+        assert player.workspace.time_range_controls[4] == viewport
+        release_second_row.set()
+        deadline = time.monotonic() + 3.0
+        while (
+            (not session.finished or session._events.qsize())
+            and time.monotonic() < deadline
+        ):
+            player._poll_incremental_load()
+            time.sleep(0.005)
+        assert player._oem_coverage_complete
+        assert player.clock.t_now == current_time
+        assert slider.viewport == viewport
+    finally:
+        release_row.set()
+        release_second_row.set()
+        if session is not None:
+            deadline = time.monotonic() + 3.0
+            while (
+                (not session.finished or session._events.qsize())
+                and time.monotonic() < deadline
+            ):
+                player._poll_incremental_load()
+                time.sleep(0.005)
+        player.close()
 
 
 def test_window_position_is_restored_clamped_and_saved(

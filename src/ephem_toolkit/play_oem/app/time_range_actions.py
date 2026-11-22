@@ -36,6 +36,7 @@ class TimeRangeActionsMixin:
         bounds = time_range.validate_playback_range(
             (start_s, end_s), (self.clock.t_start, self.clock.t_end)
         )
+        self._scrubber_loading_locked = False
         self._begin_time_range_edit()
         self._pending_playback_bounds = None
         self._loading_cursor_anchor_s = None

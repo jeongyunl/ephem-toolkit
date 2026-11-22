@@ -70,6 +70,7 @@ class PlayerAppState(Protocol):
     _pending_playback_bounds: tuple[float, float] | None
     _loading_cursor_anchor_s: float | None
     _pending_file_playback_bounds: tuple[float, float] | None
+    _scrubber_loading_locked: bool
     _open_panels: dict[str, _OpenView]
     _open_views: dict[str, _OpenView]
     _clock_unsubscribe: Callable[[], None]

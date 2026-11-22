@@ -140,9 +140,13 @@ application reports a warning and uses the full coverage instead. The plot range
 saved and restored per file, including whether filtering is enabled and each endpoint's mode and
 value. Follow endpoints track their corresponding playback bound, offset values are seconds
 from current playback time, and fixed values are absolute TT timestamps. The `time_scrubber`
-table saves the current TT time and the visible viewport's TT start and end. The viewport is
-restored when file coverage is available; if a saved time is outside the file's playback range
-or the viewport is outside its coverage, that value is ignored.
+table saves the current TT time and the visible viewport's TT start and end. When OEM metadata
+declares a time domain, the scrubber previews the file's saved time and viewport as soon as that
+metadata arrives, before its first state row; the preview is read-only until data is installed.
+While loading, the declared domain keeps the viewport from collapsing to the loaded prefix, and
+a saved current time is held until its samples are available. Final coverage validates the saved
+state. If a saved time is outside the file's playback range or the viewport is outside its
+coverage, that value is ignored.
 
 The state file also remembers Ground Track settings, including projection, background, center
 longitude, map extent, and minimum elevation, and restores them on the next launch. It also
