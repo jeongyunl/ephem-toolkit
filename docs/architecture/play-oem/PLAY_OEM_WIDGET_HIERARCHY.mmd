@@ -77,7 +77,9 @@ flowchart TB
         timeline_panel --> timeline_separator["wx.StaticLine<br/>visual boundary above timeline"]
         timeline_panel --> time_row["self.timeline_start_label, self.timeline_current_prefix,<br/>self.timeline_time_entry, self.time_error_label,<br/>self.timeline_end_label<br/>(timestamps in selected zone; UTC default)"]
         timeline_panel --> playback_controls_row["playback_sizer<br/>reverse speed presets, reverse play, forward play,<br/>forward speed presets, focus sink"]
-        timeline_panel --> timeline_slider["self.timeline_slider<br/>TimeSlider (custom wx.Control)<br/>painted track and seek marker"]
+        timeline_panel --> timeline_track_row["self.timeline_track_row<br/>wx.Panel, vertical TimeScrubber track"]
+        timeline_track_row --> timeline_slider["self.timeline_slider<br/>TimeScrubber (custom wx.Control)<br/>zoomable track and seek marker"]
+        timeline_track_row --> timeline_tick_rail["self.timeline_tick_rail<br/>TimeScrubberTickRail<br/>adaptive major and minor ticks"]
         timeline_panel --> timeline_grips["Sibling pointer/keyboard grips<br/>playback bounds, plot endpoints,<br/>current-time marker"]
     end
 

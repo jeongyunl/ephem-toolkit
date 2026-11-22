@@ -4,16 +4,85 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import timedelta
+import time
 
 import wx
 
 from ephem_toolkit.core import time_utils
 from ephem_toolkit.play_oem import time_range
 
+from ..tooltips import set_tooltip
 from .time_slider import TimeSlider
 
 
 MINIMUM_VIEWPORT_SECONDS = 10.0
+WHEEL_GESTURE_LOCK_SECONDS = 0.25
+TIMESCRUBBER_TRACK_HEIGHT = 74
+
+
+class TimeScrubberChevronButton(wx.Control):
+    """Compact painted chevron button for TimeScrubber pan controls."""
+
+    def __init__(
+        self,
+        parent: wx.Window,
+        label: str,
+        tooltip: str,
+        callback: Callable[[], None],
+    ) -> None:
+        super().__init__(
+            parent,
+            wx.ID_ANY,
+            size=wx.Size(30, TIMESCRUBBER_TRACK_HEIGHT),
+            style=wx.WANTS_CHARS,
+        )
+        self._label = label
+        self._callback = callback
+        self._scrollable = True
+        self.SetName(tooltip)
+        set_tooltip(self, tooltip)
+        self.SetCursor(wx.Cursor(wx.CURSOR_HAND))
+        self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
+        self.Bind(wx.EVT_PAINT, self._paint)
+        self.Bind(wx.EVT_LEFT_UP, self._click)
+        self.Bind(wx.EVT_ENTER_WINDOW, self._on_pointer_boundary)
+        self.Bind(wx.EVT_LEAVE_WINDOW, self._on_pointer_boundary)
+
+    def set_scrollable(self, scrollable: bool) -> None:
+        self._scrollable = scrollable
+        self.Refresh()
+
+    def _on_pointer_boundary(self, event: wx.MouseEvent) -> None:
+        self.Refresh()
+        event.Skip()
+
+    def _paint(self, _event: wx.PaintEvent) -> None:
+        dc = wx.AutoBufferedPaintDC(self)
+        dc.SetBackground(wx.Brush(self.GetParent().GetBackgroundColour()))
+        dc.Clear()
+        width, height = self.GetClientSize()
+        enabled = self._scrollable
+        if enabled:
+            dc.SetBrush(wx.Brush(wx.Colour("#dfe7ef")))
+            dc.SetPen(wx.Pen(wx.Colour("#dfe7ef"), 1))
+            dc.DrawRoundedRectangle(3, 8, width - 6, height - 16, 5)
+            dc.SetTextForeground(wx.Colour("#263746"))
+        else:
+            dc.SetTextForeground(wx.Colour("#abb3bc"))
+        font = dc.GetFont()
+        font.SetPointSize(max(font.GetPointSize(), 18))
+        dc.SetFont(font)
+        text_width, text_height = dc.GetTextExtent(self._label)
+        dc.DrawText(
+            self._label,
+            (width - text_width) // 2,
+            (height - text_height) // 2,
+        )
+
+    def _click(self, event: wx.MouseEvent) -> None:
+        if self._scrollable:
+            self._callback()
+        event.Skip(False)
 
 
 def _consume_vertical_wheel_notches(
@@ -92,17 +161,84 @@ def _aligned_tick_start(start_s: float, step_s: float) -> float:
 class TimeScrubberTickRail(wx.Control):
     """Painted adaptive major and minor ticks for a TimeScrubber."""
 
-    def __init__(self, parent: wx.Window) -> None:
+    def __init__(
+        self,
+        parent: wx.Window,
+        on_wheel: Callable[[wx.MouseEvent], None] | None = None,
+        on_pan: Callable[[float], None] | None = None,
+    ) -> None:
         super().__init__(parent, wx.ID_ANY)
         self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
-        self.SetMinSize(wx.Size(-1, 26))
+        self.SetMinSize(wx.Size(-1, 18))
+        font = wx.Font(self.GetFont())
+        font.SetPointSize(font.GetPointSize() + 1)
+        self.SetFont(font)
         self._viewport = (0.0, 1.0)
         self._middle_tick_s: float | None = None
+        self._on_wheel = on_wheel
+        self._on_pan = on_pan
+        self._drag_start_x: int | None = None
+        self.SetCursor(wx.Cursor(wx.CURSOR_HAND))
         self.Bind(wx.EVT_PAINT, self._paint)
+        self.Bind(wx.EVT_MOUSEWHEEL, self._mouse_wheel)
+        self.Bind(wx.EVT_LEFT_DOWN, self._left_down)
+        self.Bind(wx.EVT_LEFT_UP, self._left_up)
+        self.Bind(wx.EVT_MOTION, self._motion)
+        self.Bind(wx.EVT_MOUSE_CAPTURE_LOST, self._capture_lost)
 
     def set_viewport(self, viewport: tuple[float, float]) -> None:
         self._viewport = viewport
         self.Refresh()
+
+    def set_wheel_handler(
+        self,
+        on_wheel: Callable[[wx.MouseEvent], None] | None,
+    ) -> None:
+        self._on_wheel = on_wheel
+
+    def set_pan_handler(
+        self,
+        on_pan: Callable[[float], None] | None,
+    ) -> None:
+        self._on_pan = on_pan
+
+    def _mouse_wheel(self, event: wx.MouseEvent) -> None:
+        if self._on_wheel is not None:
+            self._on_wheel(event)
+        event.Skip(False)
+
+    def _left_down(self, event: wx.MouseEvent) -> None:
+        self._drag_start_x = event.GetX()
+        if not self.HasCapture():
+            self.CaptureMouse()
+        event.Skip(False)
+
+    def _left_up(self, event: wx.MouseEvent) -> None:
+        self._drag_start_x = None
+        if self.HasCapture():
+            self.ReleaseMouse()
+        event.Skip(False)
+
+    def _capture_lost(self, _event: wx.MouseCaptureLostEvent) -> None:
+        self._drag_start_x = None
+
+    def _motion(self, event: wx.MouseEvent) -> None:
+        if (
+            self._drag_start_x is None
+            or not event.Dragging()
+            or not event.LeftIsDown()
+            or self._on_pan is None
+        ):
+            event.Skip(False)
+            return
+        x = event.GetX()
+        delta_x = x - self._drag_start_x
+        self._drag_start_x = x
+        usable_width = max(1, self.GetClientSize().width - 20)
+        fraction = -delta_x / usable_width
+        if abs(fraction) > 1e-6:
+            self._on_pan(fraction)
+        event.Skip(False)
 
     def _paint(self, _event: wx.PaintEvent) -> None:
         dc = wx.AutoBufferedPaintDC(self)
@@ -113,6 +249,7 @@ class TimeScrubberTickRail(wx.Control):
             return
         left, right = 10, width - 10
         dc.SetPen(wx.Pen(wx.Colour("#bfc8d4"), 1))
+        dc.SetFont(self.GetFont())
         dc.SetTextForeground(wx.Colour("#607188"))
         start_s, end_s = self._viewport
         duration_s = max(1.0, end_s - start_s)
@@ -153,7 +290,7 @@ class TimeScrubberTickRail(wx.Control):
                         continue
                     fraction = (minor_s - start_s) / duration_s
                     x = round(left + fraction * (right - left))
-                    dc.DrawLine(x, 0, x, 2)
+                    dc.DrawLine(x, 0, x, 1)
                 timestamp += step_s
         timestamp = first_tick
         middle_s = (start_s + end_s) / 2.0
@@ -167,7 +304,7 @@ class TimeScrubberTickRail(wx.Control):
                 nearest_middle_tick = timestamp
             fraction = (timestamp - start_s) / duration_s
             x = round(left + fraction * (right - left))
-            dc.DrawLine(x, 0, x, 8)
+            dc.DrawLine(x, 0, x, 5)
             moment = time_utils.tt_s_to_datetime(timestamp)
             hour = moment.hour
             if step_s >= 86400.0:
@@ -197,7 +334,7 @@ class TimeScrubberTickRail(wx.Control):
                 if (index - label_offset) % label_stride != 0:
                     continue
                 label_left = max(left, min(x - text_width // 2, right - text_width))
-                dc.DrawText(label, label_left, 7)
+                dc.DrawText(label, label_left, 5)
         if nearest_middle_tick is not None:
             self._middle_tick_s = nearest_middle_tick
 
@@ -214,6 +351,7 @@ class TimeScrubber(TimeSlider):
         plot_rule: time_range.PlotTimeRange,
         now_s: float,
         viewport: tuple[float, float] | None = None,
+        playback_handles: tuple[float, float] | None = None,
         on_playback: Callable[[float, float], None],
         on_plot_endpoint: Callable[[str, float], None],
         on_plot_endpoint_mode: Callable[[str, time_range.EndpointMode], None] | None = None,
@@ -226,8 +364,13 @@ class TimeScrubber(TimeSlider):
         self._playback = playback
         self._plot_rule = plot_rule
         self._now = now_s
+        self._playback_handles = playback_handles or playback
+        self._unloaded_from_s = None
         self._on_viewport = on_viewport or (lambda _viewport: None)
         self._vertical_wheel_accumulator = 0
+        self._wheel_gesture_axis: int | None = None
+        self._wheel_gesture_last_at = 0.0
+        self._viewport_fits_coverage = True
         super().__init__(
             parent,
             on_playback=on_playback,
@@ -245,19 +388,72 @@ class TimeScrubber(TimeSlider):
         self._playback = playback
         self._plot_rule = plot_rule
         self._now = now_s
+        self._playback_handles = playback_handles or playback
+        self._unloaded_from_s = None
+        self._vertical_wheel_accumulator = 0
+        self._wheel_gesture_axis: int | None = None
+        self._wheel_gesture_last_at = 0.0
+        self._viewport_fits_coverage = True
         self.SetName("Scrollable TimeScrubber")
-        self.SetMinSize(wx.Size(480, 82))
+        self.SetMinSize(wx.Size(480, 56))
         self.Bind(wx.EVT_LEFT_DCLICK, self._fit)
         self._apply_viewport(self._viewport)
 
     def set_viewport(self, viewport: tuple[float, float]) -> None:
         self._apply_viewport(viewport)
 
+    def set_ranges(
+        self,
+        coverage: tuple[float, float],
+        playback: tuple[float, float],
+        plot_rule: time_range.PlotTimeRange,
+        now_s: float,
+        slider_bounds: tuple[float, float] | None = None,
+        playback_handles: tuple[float, float] | None = None,
+        *,
+        unloaded_from_s: float | None = None,
+    ) -> None:
+        preserve_full_coverage = self._viewport_fits_coverage
+        self._coverage = coverage
+        self._playback = playback
+        self._plot_rule = plot_rule
+        self._now = now_s
+        if playback_handles is not None:
+            self._playback_handles = playback_handles
+        elif not hasattr(self, "_playback_handles"):
+            self._playback_handles = playback
+        self._unloaded_from_s = unloaded_from_s
+        requested_viewport = (
+            coverage
+            if preserve_full_coverage
+            else (slider_bounds or coverage)
+        )
+        self._viewport = _clamp_viewport(
+            requested_viewport[0],
+            requested_viewport[1],
+            coverage,
+        )
+        super().set_ranges(
+            coverage,
+            playback,
+            plot_rule,
+            now_s,
+            self._viewport,
+            self._playback_handles,
+            unloaded_from_s=unloaded_from_s,
+        )
+        self._viewport_fits_coverage = (
+            abs(self._viewport[0] - coverage[0]) <= 1e-6
+            and abs(self._viewport[1] - coverage[1]) <= 1e-6
+        )
+        self._on_viewport(self._viewport)
+
     def set_state(
         self,
         *,
         coverage: tuple[float, float] | None = None,
         playback: tuple[float, float] | None = None,
+        playback_handles: tuple[float, float] | None = None,
         plot_rule: time_range.PlotTimeRange | None = None,
         now_s: float | None = None,
         viewport: tuple[float, float] | None = None,
@@ -266,10 +462,14 @@ class TimeScrubber(TimeSlider):
             self._coverage = coverage
         if playback is not None:
             self._playback = playback
+        if playback_handles is not None:
+            self._playback_handles = playback_handles
         if plot_rule is not None:
             self._plot_rule = plot_rule
         if now_s is not None:
             self._now = now_s
+        if coverage is not None and self._viewport_fits_coverage and viewport is None:
+            viewport = coverage
         self._apply_viewport(viewport or self._viewport)
 
     def seek_to_fraction(self, fraction: float) -> None:
@@ -281,6 +481,10 @@ class TimeScrubber(TimeSlider):
 
     def _apply_viewport(self, viewport: tuple[float, float]) -> None:
         self._viewport = _clamp_viewport(viewport[0], viewport[1], self._coverage)
+        self._viewport_fits_coverage = (
+            abs(self._viewport[0] - self._coverage[0]) <= 1e-6
+            and abs(self._viewport[1] - self._coverage[1]) <= 1e-6
+        )
         self.set_ranges(
             self._coverage,
             self._playback,
@@ -320,7 +524,23 @@ class TimeScrubber(TimeSlider):
         rotation = event.GetWheelRotation()
         if not rotation:
             return
-        if event.GetWheelAxis() == wx.MOUSE_WHEEL_HORIZONTAL:
+        now = time.monotonic()
+        if (
+            now - self._wheel_gesture_last_at
+            > WHEEL_GESTURE_LOCK_SECONDS
+        ):
+            self._wheel_gesture_axis = None
+            self._vertical_wheel_accumulator = 0
+
+        axis = event.GetWheelAxis()
+        if self._wheel_gesture_axis is None:
+            self._wheel_gesture_axis = axis
+        elif axis != self._wheel_gesture_axis:
+            self._wheel_gesture_last_at = now
+            return
+        self._wheel_gesture_last_at = now
+
+        if axis == wx.MOUSE_WHEEL_HORIZONTAL:
             wheel_delta = max(1, event.GetWheelDelta())
             notches = rotation / wheel_delta
             self.pan(max(-1.0, min(1.0, notches * 0.05)))

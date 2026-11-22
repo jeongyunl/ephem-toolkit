@@ -167,6 +167,63 @@ class FakeTimeSlider(FakeSlider):
         self.display_time_zone = display_time_zone
 
 
+class FakeTimeScrubber(FakeTimeSlider):
+    def __init__(self, parent, **kwargs) -> None:
+        super().__init__(parent, **kwargs)
+        self.viewport = kwargs.get("viewport")
+        self._on_viewport = kwargs.get("on_viewport")
+
+    def _mouse_wheel(self, event) -> None:
+        event.Skip(False)
+
+    def pan(self, fraction) -> None:
+        start, end = self.viewport
+        width = end - start
+        shift = width * fraction
+        coverage = (0.0, 100.0)
+        new_start = max(coverage[0], min(start + shift, coverage[1] - width))
+        self.viewport = (new_start, new_start + width)
+        if self._on_viewport is not None:
+            self._on_viewport(self.viewport)
+
+    def set_ranges(self, *ranges, **options) -> None:
+        super().set_ranges(*ranges)
+        if len(ranges) >= 5 and ranges[4] is not None:
+            self.viewport = ranges[4]
+        if self._on_viewport is not None:
+            self._on_viewport(self.viewport)
+
+
+class FakeTimeScrubberTickRail(FakeWidget):
+    def __init__(self, parent) -> None:
+        super().__init__(parent, -1)
+
+    def set_viewport(self, viewport) -> None:
+        self.viewport = viewport
+
+    def set_wheel_handler(self, on_wheel) -> None:
+        self.on_wheel = on_wheel
+
+    def set_pan_handler(self, on_pan) -> None:
+        self.on_pan = on_pan
+
+
+class FakeTimeScrubberChevronButton(FakeWidget):
+    def __init__(self, parent, label, tooltip, callback) -> None:
+        super().__init__(parent, -1, label)
+        self.tooltip = tooltip
+        self.callback = callback
+
+    def SetCursor(self, cursor) -> None:
+        self.cursor = cursor
+
+    def set_scrollable(self, scrollable: bool) -> None:
+        self.scrollable = scrollable
+
+    def Refresh(self) -> None:
+        self.refreshed = True
+
+
 class FakeChoice(FakeWidget):
     def __init__(self, parent, widget_id, choices=(), **kwargs) -> None:
         super().__init__(parent, widget_id, **kwargs)
@@ -619,7 +676,13 @@ def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(features, "set_tooltip", set_fake_tooltip)
     monkeypatch.setattr(graph_stack, "set_tooltip", set_fake_tooltip)
     monkeypatch.setattr(timeline, "set_tooltip", set_fake_tooltip)
-    monkeypatch.setattr(core, "TimeSlider", FakeTimeSlider)
+    monkeypatch.setattr(core, "TimeScrubber", FakeTimeScrubber)
+    monkeypatch.setattr(core, "TimeScrubberTickRail", FakeTimeScrubberTickRail)
+    monkeypatch.setattr(
+        core,
+        "TimeScrubberChevronButton",
+        FakeTimeScrubberChevronButton,
+    )
     FakeWidget.instances = []
     FakeCallLater.calls = []
     for name, value in {
@@ -699,6 +762,7 @@ def make_workspace(
     monkeypatch: pytest.MonkeyPatch,
     *,
     timeline_enabled: bool = True,
+    slider_bounds: tuple[float, float] | None = None,
     on_add_graph=None,
     view_choices=(),
     on_toggle_play=None,
@@ -728,6 +792,7 @@ def make_workspace(
         timeline_enabled=timeline_enabled,
         playback_bounds=(10.0, 90.0),
         oem_coverage=(0.0, 100.0),
+        slider_bounds=slider_bounds,
         on_seek_to_time=time_seeks.append,
         context={
             "object": "TEST",
@@ -752,6 +817,18 @@ def make_workspace(
     )
     result._test_time_seeks = time_seeks
     return result, seeks, frame
+
+
+def test_workspace_default_timescrubber_viewport_shows_full_oem_coverage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result, _seeks, _frame = make_workspace(
+        monkeypatch,
+        slider_bounds=(25.0, 75.0),
+    )
+
+    assert result.timeline_slider.viewport == (0.0, 100.0)
+    assert result.timeline_tick_rail.viewport == (0.0, 100.0)
 
 
 def test_workspace_builds_feature_pages_split_panes_and_global_timeline(
@@ -833,7 +910,11 @@ def test_workspace_builds_feature_pages_split_panes_and_global_timeline(
     assert result.timeline_track_row.sizer.orientation == workspace.wx.HORIZONTAL
     assert result.playback_controls_row.sizer.orientation == workspace.wx.HORIZONTAL
     assert result.time_readout_row.sizer.orientation == workspace.wx.HORIZONTAL
-    assert result.timeline_track_row.sizer.items[0][3] == 2
+    assert result.timeline_track_row.sizer.items[0][0] is result.timeline_left_chevron
+    assert result.timeline_track_row.sizer.items[1][0].sizer.orientation == workspace.wx.VERTICAL
+    assert result.timeline_track_row.sizer.items[1][0].sizer.items[0][0] is result.timeline_slider
+    assert result.timeline_track_row.sizer.items[1][0].sizer.items[1][0] is result.timeline_tick_rail
+    assert result.timeline_track_row.sizer.items[2][0] is result.timeline_right_chevron
     assert result.timeline_panel.sizer.items[2][0] is result.time_readout_row
     assert result.timeline_panel.sizer.items[4][0] is result.timeline_track_row
     assert result.timeline_panel.sizer.items[6][0] is result.playback_controls_row

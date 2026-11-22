@@ -1,11 +1,11 @@
 # `play-oem` - TimeScrubber
 
-> Status: **design proposal validated by the interactive demonstration**.
+> Status: **implemented in the Play-OEM workspace and interactive demonstration**.
 
 This document defines the compact TimeScrubber demonstrated by
-[`play_oem_time_scrubber_demo.py`](../../../examples/play_oem_time_scrubber_demo.py).
+[`play_oem_time_scrubber_demo.py`](../../../../examples/play_oem_time_scrubber_demo.py).
 It retains the shared playback, plot-range, seek, and loading contracts in
-[PLAY_OEM_TIME_RANGE_GUI_DESIGN.md](./old/PLAY_OEM_TIME_RANGE_GUI_DESIGN.md).
+[PLAY_OEM_TIME_RANGE_GUI_DESIGN.md](./PLAY_OEM_TIME_RANGE_GUI_DESIGN.md).
 
 ## Selected direction
 
@@ -23,9 +23,10 @@ zoom toolbar.
 └──────────────────────────────────────────────────────┘
 ```
 
-The edge controls are painted 30×52 chevrons. They use a clear border, large glyph, and
-strongly contrasting foreground so they remain visible independently of native macOS,
-Linux, or Windows button themes.
+The edge controls are custom-painted, 30 px wide chevrons spanning the combined slider
+and tick-rail height. Scrollable chevrons use a subtle filled highlight; boundary chevrons
+are dimmed but remain hoverable so their SuperToolTips are still available. Boundary clicks
+do not pan.
 
 ## Reference layout
 
@@ -49,14 +50,15 @@ Each example contains:
 ## Arrow behavior
 
 The `<` and `>` controls shift the visible time range. They do not move, edit, or seek
-the playback handle. A chevron is disabled and dimmed when the viewport cannot scroll
-further in that direction because it has reached complete OEM coverage.
+the playback handle. A chevron is dimmed and ignores clicks when the viewport cannot scroll
+further in that direction, but remains enabled for hover and its SuperToolTip.
 
 | Action | Visible viewport | Playback handle | Plot range |
 |---|---|---|---|
 | Click `<` | Shift earlier by 10% of viewport width | No change | No change |
 | Click `>` | Shift later by 10% of viewport width | No change | No change |
-| Drag the slider rail | Existing seek behavior | May move to requested playback time | No change |
+| Click or drag the slider track | Seek behavior | May move to requested playback time | No change |
+| Drag the tick rail | Pan visible viewport | No change | No change |
 | Drag a playback grip | No viewport change | Edits playback bound | No change |
 | Drag a plot grip | No viewport change | No change | Edits that plot endpoint |
 
@@ -90,6 +92,8 @@ viewport behavior without replacing the baseline widget:
 
 - playback grips remain solid green;
 - plot grips remain outlined blue;
+- playback and plot handle glyphs are shortened vertically while retaining their existing hit targets;
+- the track, progress line, and current-time marker are shifted up 2 px within the slider;
 - the seek thumb remains orange or the platform highlight;
 - tick density adapts to the visible viewport;
 - major tick intervals use a coarse 1–2–5 seconds/minutes/hours/days ladder;
@@ -125,6 +129,7 @@ The rail may use a narrower viewport, but it does not replace `_coverage`,
 | Double-click the rail | Fit complete OEM coverage |
 | Click `<` | Shift visible range earlier |
 | Click `>` | Shift visible range later |
+| Hover either chevron | Show its SuperToolTip, including at a coverage boundary |
 
 Inside TimeScrubber, vertical wheel scroll zooms the viewport and horizontal
 wheel/trackpad scroll pans it. Vertical and horizontal wheel events never change playback,
@@ -169,6 +174,10 @@ with the demo implementation. Both chevrons expose:
 - keyboard activation with native Enter/Space behavior;
 - visible focus.
 
+Chevron hover events are forwarded to the shared Play-OEM SuperToolTip implementation.
+Tooltips on the timeline slider appear above the track and follow the pointer horizontally;
+this placement is specific to slider tooltips.
+
 The timeline viewport itself exposes an accessible value describing visible start, visible
 end, and OEM coverage.
 
@@ -185,7 +194,9 @@ end, and OEM coverage.
 
 - Card title remains left aligned above the card.
 - The rail occupies the available card width.
-- Each chevron is 30 px wide and 52 px high.
+- The slider is 56 px high and the tick rail is 18 px high.
+- Each chevron is 30 px wide and 74 px high, matching the combined slider and tick rail.
+- Boundary chevrons remain hoverable and show their SuperToolTips while visually dimmed.
 - Tick labels use 12–13 px and center below their time mark.
 - The current-time label sits above the rail and remains centered.
 - Narrow cards retain the chevrons outside the rail and wrap helper text below.
@@ -202,7 +213,7 @@ not match the compact, no-extra-widgets behavior demonstrated by the reference i
 
 - `<` shifts only the visible range earlier.
 - `>` shifts only the visible range later.
-- Both chevrons remain visible and clickable at OEM boundaries.
+- Both chevrons remain visible and show their SuperToolTips at OEM boundaries; boundary clicks do not pan.
 - Arrow presses do not change playback bounds, plot bounds, or current time.
 - The rail can be seeked and dragged using existing `TimeSlider` behavior.
 - Range grips remain independent of chevron viewport navigation.

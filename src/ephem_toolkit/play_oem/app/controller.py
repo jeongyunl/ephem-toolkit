@@ -1924,7 +1924,16 @@ class PlayerApp(
             else self.clock.t_now
         )
         timestamp = format_tt(display_time_s, self._display_time_zone)
-        slider_start, slider_end = self._slider_bounds
+        visible_slider = getattr(
+            getattr(self, "workspace", None),
+            "timeline_slider",
+            None,
+        )
+        slider_start, slider_end = getattr(
+            visible_slider,
+            "_viewport",
+            self._slider_bounds,
+        )
         span_s = slider_end - slider_start
         progress = (
             0.0 if span_s == 0.0 else (display_time_s - slider_start) / span_s
@@ -1937,7 +1946,7 @@ class PlayerApp(
             (self.clock.playback_start, self.clock.playback_end),
             self.plot_time_range,
             display_time_s,
-            self._slider_bounds,
+            (slider_start, slider_end),
             self._playback_handle_bounds,
             unloaded_from_s=(
                 self._loading_progress_s

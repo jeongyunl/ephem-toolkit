@@ -18,17 +18,27 @@ class PlaybackActionsMixin:
         self._update_time_display()
 
     def _seek_to_fraction(self: PlayerAppState, progress: float) -> None:
-        slider_start, slider_end = getattr(
-            self, "_slider_bounds", (self.clock.t_start, self.clock.t_end)
-        )
+        workspace = getattr(self, "workspace", None)
+        timeline_slider = getattr(workspace, "timeline_slider", None)
+        slider_bounds = getattr(timeline_slider, "_viewport", None)
+        if slider_bounds is None:
+            slider_bounds = getattr(
+                self, "_slider_bounds", (self.clock.t_start, self.clock.t_end)
+            )
+        slider_start, slider_end = slider_bounds
         self.clock.seek(slider_start + progress * (slider_end - slider_start))
         self._update_time_display()
 
     def _timeline_tooltip_at(self: PlayerAppState, progress: float) -> str:
         """Format the selected-zone time at a timeline position for its tooltip."""
-        slider_start, slider_end = getattr(
-            self, "_slider_bounds", (self.clock.t_start, self.clock.t_end)
-        )
+        workspace = getattr(self, "workspace", None)
+        timeline_slider = getattr(workspace, "timeline_slider", None)
+        slider_bounds = getattr(timeline_slider, "_viewport", None)
+        if slider_bounds is None:
+            slider_bounds = getattr(
+                self, "_slider_bounds", (self.clock.t_start, self.clock.t_end)
+            )
+        slider_start, slider_end = slider_bounds
         epoch_s = slider_start + progress * (slider_end - slider_start)
         timestamp = format_tt(
             epoch_s, self._display_time_zone, fractional_second_places=0

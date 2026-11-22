@@ -16,9 +16,9 @@ def _triangle_vertices(
 ) -> tuple[tuple[int, int], ...]:
     if kind == "playback":
         return (
-            (center_x, center_y - 5),
-            (center_x + 6, center_y + 3),
-            (center_x - 6, center_y + 3),
+            (center_x, center_y - 4),
+            (center_x + 6, center_y + 2),
+            (center_x - 6, center_y + 2),
         )
     return (
         (center_x, center_y + 3),
@@ -31,19 +31,23 @@ def _plot_handle_vertices(
     mode: time_range.EndpointMode, center_x: int, center_y: int
 ) -> tuple[tuple[int, int], ...]:
     if mode == "follow":
-        return _triangle_vertices("plot", center_x, center_y)
+        return (
+            (center_x, center_y + 2),
+            (center_x + 6, center_y - 4),
+            (center_x - 6, center_y - 4),
+        )
     if mode == "offset":
         return (
-            (center_x, center_y - 5),
+            (center_x, center_y - 4),
             (center_x + 6, center_y),
-            (center_x, center_y + 4),
+            (center_x, center_y + 3),
             (center_x - 6, center_y),
         )
     return (
-        (center_x - 5, center_y - 4),
-        (center_x + 5, center_y - 4),
-        (center_x + 5, center_y + 3),
-        (center_x - 5, center_y + 3),
+        (center_x - 5, center_y - 3),
+        (center_x + 5, center_y - 3),
+        (center_x + 5, center_y + 2),
+        (center_x - 5, center_y + 2),
     )
 
 
@@ -268,7 +272,7 @@ class TimeSlider(wx.Control):
         self._maximum = 10_000
         self._value = 0
         # Leave a small handle-to-track gap without pushing playback controls down.
-        self.SetMinSize(wx.Size(-1, max(58, self.GetBestSize().height + 20)))
+        self.SetMinSize(wx.Size(-1, max(56, self.GetBestSize().height + 20)))
         self._on_playback = on_playback
         self._on_plot_endpoint = on_plot_endpoint
         self._on_plot_endpoint_mode = on_plot_endpoint_mode
@@ -338,7 +342,7 @@ class TimeSlider(wx.Control):
             return
 
         left, right = 10, width - 10
-        center_y = height // 2
+        center_y = height // 2 - 2
         background_luminance = (
             background.Red() * 0.299
             + background.Green() * 0.587
@@ -516,7 +520,7 @@ class TimeSlider(wx.Control):
 
     def is_pointer_over_timeline_track(self, position: wx.Point) -> bool:
         """Restrict the slider tooltip hotspot to the narrow central track band."""
-        track_center_y = self.GetClientSize().height / 2
+        track_center_y = self.GetClientSize().height / 2 - 2
         return abs(position.y - track_center_y) <= 6
 
     def _show_plot_mode_menu(self, grip: _RangeGrip, position: wx.Point) -> None:
@@ -635,6 +639,7 @@ class TimeSlider(wx.Control):
                 self.GetPosition().x + self._x_for(self._now) - seek_grip_size // 2,
                 self.GetPosition().y
                 + self.GetClientSize().height // 2
+                - 2
                 - seek_grip_size // 2,
             )
         )

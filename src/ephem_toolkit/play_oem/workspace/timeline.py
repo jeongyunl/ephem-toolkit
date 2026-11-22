@@ -12,6 +12,7 @@ from ..tooltips import SuperToolTip, position_tooltip_at_pointer, set_tooltip
 
 if TYPE_CHECKING:
     from .time_slider import TimeSlider
+    from .time_scrubber import TimeScrubber
 
 
 class _TimelineState(Protocol):
@@ -31,7 +32,7 @@ class _TimelineState(Protocol):
     _playback_playing: bool
     _playback_rate: float
     timeline_panel: wx.ScrolledWindow
-    timeline_slider: TimeSlider
+    timeline_slider: TimeSlider | TimeScrubber
     timeline_time_entry: wx.TextCtrl
     time_error_label: wx.StaticText
     playback_forward_play_button: wx.Button
@@ -233,5 +234,6 @@ class TimelineMixin:
                 self._timeline_tooltip,
                 self.timeline_slider,
                 event.GetPosition(),
+                above_track=True,
             )
         event.Skip()

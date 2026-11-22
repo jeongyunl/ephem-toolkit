@@ -5,6 +5,8 @@ from __future__ import annotations
 from types import SimpleNamespace
 import weakref
 
+import pytest
+
 from ephem_toolkit.play_oem import tooltips
 
 
@@ -55,6 +57,60 @@ def test_set_tooltip_uses_positive_start_delay(monkeypatch) -> None:
 def test_tooltip_dimensions_scale_padding_and_height_with_content() -> None:
     assert tooltips._tooltip_dimensions([120, 80], 20) == (140, 70, 10, 10)
     assert tooltips._tooltip_dimensions([120], 30) == (150, 60, 15, 15)
+
+
+@pytest.mark.parametrize(
+    ("above_track", "expected_y"),
+    [(True, 79), (False, 130)],
+)
+def test_pointer_tooltip_positioning_is_scoped_to_opted_in_widgets(
+    monkeypatch, above_track: bool, expected_y: int
+) -> None:
+    monkeypatch.setattr(tooltips.wx, "ClientDisplayRect", lambda: (0, 0, 500, 500))
+    positions = []
+    tooltip = SimpleNamespace(
+        _pointer_screen_position=tooltips.wx.Point(200, 150),
+        _position_above_track=above_track,
+        _positioned_for_pointer=False,
+        _widget=SimpleNamespace(GetScreenRect=lambda: SimpleNamespace(y=100)),
+    )
+    tooltip._widget.GetClientSize = lambda: SimpleNamespace(height=58)
+    tip_window = SimpleNamespace(
+        GetSize=lambda: (100, 40),
+        SetPosition=positions.append,
+    )
+
+    tooltips._PlayOemSuperToolTip._position_window(tooltip, tip_window)
+
+    assert positions == [(214, expected_y)]
+
+
+def test_active_slider_tooltip_follows_pointer_horizontally(monkeypatch) -> None:
+    positions = []
+    tip_window = SimpleNamespace(GetSize=lambda: (100, 40))
+
+    class FakePlayOemToolTip:
+        def GetTipWindow(self):
+            return tip_window
+
+        def SetPointerScreenPosition(self, position) -> None:
+            self.pointer_position = position
+
+        def _position_window(self, _tip_window) -> None:
+            positions.append(self.pointer_position.x)
+
+    monkeypatch.setattr(tooltips, "_PlayOemSuperToolTip", FakePlayOemToolTip)
+    tooltip = FakePlayOemToolTip()
+    window = SimpleNamespace(ClientToScreen=lambda position: position)
+
+    tooltips.position_tooltip_at_pointer(
+        tooltip, window, tooltips.wx.Point(100, 50), above_track=True
+    )
+    tooltips.position_tooltip_at_pointer(
+        tooltip, window, tooltips.wx.Point(125, 50), above_track=True
+    )
+
+    assert positions == [100, 125]
 
 
 def test_dismiss_tooltip_hides_attached_popup() -> None:

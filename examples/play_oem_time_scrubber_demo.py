@@ -195,7 +195,8 @@ class TimeScrubberCard(wx.Panel):
 
         self.ticks = TimeScrubberTickRail(self)
         self.ticks.set_viewport(initial_viewport)
-        self.ticks.Bind(wx.EVT_MOUSEWHEEL, lambda event: self.slider._mouse_wheel(event))
+        self.ticks.set_wheel_handler(self.slider._mouse_wheel)
+        self.ticks.set_pan_handler(self.slider.pan)
         center.Add(self.ticks, 0, wx.EXPAND)
 
         rail_row.Add(self.left_button, 0, wx.ALIGN_CENTER_VERTICAL)

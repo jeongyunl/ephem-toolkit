@@ -106,6 +106,7 @@ class _PlayOemSuperToolTip(SuperToolTip):
     _center_message: bool = False
     _pointer_screen_position: wx.Point | None = None
     _positioned_for_pointer: bool = False
+    _position_above_track: bool = False
 
     def SetTarget(self, widget: wx.Window) -> None:
         super().SetTarget(widget)
@@ -152,11 +153,20 @@ class _PlayOemSuperToolTip(SuperToolTip):
         tip_width, tip_height = tip_window.GetSize()
         screen_x, screen_y, screen_width, screen_height = wx.ClientDisplayRect()
         x = pointer_x + 14
-        y = pointer_y - tip_height // 2
+        if self._position_above_track:
+            track_top = (
+                self._widget.GetScreenRect().y
+                + self._widget.GetClientSize().height // 2
+                - 4
+            )
+            y = track_top - tip_height - 6
+        else:
+            y = pointer_y - tip_height // 2
         if x + tip_width > screen_x + screen_width:
             x = pointer_x - tip_width - 14
         x = min(max(x, screen_x), screen_x + screen_width - tip_width)
-        y = min(max(y, screen_y), screen_y + screen_height - tip_height)
+        if not self._position_above_track:
+            y = min(max(y, screen_y), screen_y + screen_height - tip_height)
         tip_window.SetPosition((x, y))
         self._positioned_for_pointer = True
 
@@ -291,7 +301,11 @@ def dismiss_tooltip(window: wx.Window) -> None:
 
 
 def position_tooltip_at_pointer(
-    tooltip: SuperToolTip, window: wx.Window, pointer_position: wx.Point
+    tooltip: SuperToolTip,
+    window: wx.Window,
+    pointer_position: wx.Point,
+    *,
+    above_track: bool = False,
 ) -> None:
     """Create a tooltip beside the pointer, keeping it inside the display."""
     tip_window = tooltip.GetTipWindow()
@@ -305,8 +319,12 @@ def position_tooltip_at_pointer(
         tip_window = None
 
     if isinstance(tooltip, _PlayOemSuperToolTip):
+        tooltip._position_above_track = above_track
         tooltip.SetPointerScreenPosition(window.ClientToScreen(pointer_position))
     if tip_window is None:
         tooltip.DoShowNow()
     elif isinstance(tooltip, _PlayOemSuperToolTip):
-        tooltip.PositionPopupNearPointer(tip_window)
+        if above_track:
+            tooltip._position_window(tip_window)
+        else:
+            tooltip.PositionPopupNearPointer(tip_window)

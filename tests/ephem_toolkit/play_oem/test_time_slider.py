@@ -25,7 +25,8 @@ def test_plot_triangle_points_down_and_matches_playback_size() -> None:
         xs, ys = zip(*vertices)
         return max(xs) - min(xs), max(ys) - min(ys)
 
-    assert dimensions(plot) == dimensions(playback) == (12, 8)
+    assert dimensions(plot) == (12, 8)
+    assert dimensions(playback) == (12, 6)
     assert plot[0][1] == max(y for _x, y in plot)
     assert playback[0][1] == min(y for _x, y in playback)
 
@@ -39,9 +40,9 @@ def test_plot_handle_shape_distinguishes_each_mode() -> None:
     assert len(offset) == len(fixed) == 4
     assert offset != fixed
     assert max(x for x, _y in offset) - min(x for x, _y in offset) == 12
-    assert max(y for _x, y in offset) - min(y for _x, y in offset) == 9
+    assert max(y for _x, y in offset) - min(y for _x, y in offset) == 7
     assert max(x for x, _y in fixed) - min(x for x, _y in fixed) == 10
-    assert max(y for _x, y in fixed) - min(y for _x, y in fixed) == 7
+    assert max(y for _x, y in fixed) - min(y for _x, y in fixed) == 5
 
 
 @pytest.mark.parametrize(
@@ -100,7 +101,7 @@ def test_follow_plot_handle_ignores_dragging_and_keyboard_nudging() -> None:
 
 @pytest.mark.parametrize(
     ("pointer_y", "expected"),
-    [(37, True), (31, True), (30, False), (43, True), (44, False)],
+    [(35, True), (29, True), (28, False), (41, True), (42, False)],
 )
 def test_timeline_tooltip_hotspot_is_limited_to_track_band(
     pointer_y: int, expected: bool

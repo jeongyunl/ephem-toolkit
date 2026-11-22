@@ -12,6 +12,7 @@ from ..tooltips import set_tooltip
 
 if TYPE_CHECKING:
     from .time_slider import TimeSlider
+    from .time_scrubber import TimeScrubber
 
 
 class _FeatureNavigationState(Protocol):
@@ -31,7 +32,7 @@ class _FeatureNavigationState(Protocol):
     file_info_scroll: wx.ScrolledWindow
     settings_page: wx.Panel
     state_page: wx.Panel
-    timeline_slider: TimeSlider
+    timeline_slider: TimeSlider | TimeScrubber
 
     def select_feature(self, index: int) -> None: ...
 
