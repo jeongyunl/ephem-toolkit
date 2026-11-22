@@ -295,6 +295,7 @@ class TimeSlider(wx.Control):
         self._pointer_position: wx.Point | None = None
         self._range_drag_origin: tuple[float, float, float] | None = None
         self._range_seek_origin: tuple[float, float] | None = None
+        self._ranges_ready = False
         self._grips: dict[str, _RangeGrip] = {}
         self._seek_grip = _SeekGrip(self.GetParent(), self)
         self._seek_grip.Hide()
@@ -699,6 +700,15 @@ class TimeSlider(wx.Control):
         self._playback_handles = playback_handles or playback
         self._unloaded_from_s = unloaded_from_s
         self._plot_rule, self._now = plot_rule, now_s
+        slider_start, slider_end = self._slider_bounds
+        playback_start, playback_end = self._playback_handles
+        coverage_start, coverage_end = coverage
+        self._ranges_ready = (
+            unloaded_from_s is None
+            and coverage_end > coverage_start
+            and slider_end > slider_start
+            and playback_end >= playback_start
+        )
         self.Refresh()
         self._position_grips()
         for key, grip in self._grips.items():
@@ -775,6 +785,13 @@ class TimeSlider(wx.Control):
         return 10 + round(fraction * max(0, width - 20))
 
     def _position_grips(self, _event: wx.Event | None = None) -> None:
+        if not getattr(self, "_ranges_ready", False):
+            for grip in self._grips.values():
+                grip.Hide()
+            self._seek_grip.Hide()
+            if _event is not None:
+                _event.Skip()
+            return
         if not self._grips or self._plot_rule is None:
             if _event is not None:
                 _event.Skip()

@@ -580,6 +580,61 @@ def test_seek_grip_reports_drag_end_and_capture_loss() -> None:
     assert len(refreshes) == 4
 
 
+def test_range_grips_wait_until_span_and_ranges_are_ready() -> None:
+    hidden = []
+    grip = SimpleNamespace(Hide=lambda: hidden.append("range"))
+    seek_grip = SimpleNamespace(Hide=lambda: hidden.append("seek"))
+    slider = SimpleNamespace(
+        _coverage=(0.0, 100.0),
+        _playback=(20.0, 80.0),
+        _slider_bounds=(0.0, 100.0),
+        _playback_handles=(20.0, 80.0),
+        _unloaded_from_s=None,
+        _plot_rule=object(),
+        _now=50.0,
+        _ranges_ready=False,
+        _grips={"playback_start": grip},
+        _seek_grip=seek_grip,
+        Refresh=lambda: None,
+        _position_grips=lambda: None,
+    )
+
+    plot_rule = SimpleNamespace()
+    TimeSlider.set_ranges(
+        slider,
+        (0.0, 100.0),
+        (20.0, 80.0),
+        plot_rule,
+        50.0,
+        unloaded_from_s=25.0,
+    )
+    assert not slider._ranges_ready
+
+    TimeSlider.set_ranges(
+        slider,
+        (0.0, 100.0),
+        (20.0, 80.0),
+        plot_rule,
+        50.0,
+    )
+    assert slider._ranges_ready
+
+
+def test_unready_range_grips_hide_without_positioning(monkeypatch) -> None:
+    hidden = []
+    grip = SimpleNamespace(Hide=lambda: hidden.append("range"))
+    seek_grip = SimpleNamespace(Hide=lambda: hidden.append("seek"))
+    slider = SimpleNamespace(
+        _ranges_ready=False,
+        _grips={"playback_start": grip},
+        _seek_grip=seek_grip,
+    )
+
+    TimeSlider._position_grips(slider)
+
+    assert hidden == ["range", "seek"]
+
+
 def test_seek_grip_tooltip_is_a_plain_timestamp(monkeypatch) -> None:
     from ephem_toolkit.play_oem.workspace import time_slider as time_slider_module
 
@@ -618,6 +673,7 @@ def test_seek_grip_tooltip_is_a_plain_timestamp(monkeypatch) -> None:
     seek_grip = FakeGrip()
     slider = SimpleNamespace(
         _grips={"playback_start": grip},
+        _ranges_ready=True,
         _plot_rule=object(),
         _playback_handles=(10.0, 90.0),
         _slider_bounds=(0.0, 100.0),
