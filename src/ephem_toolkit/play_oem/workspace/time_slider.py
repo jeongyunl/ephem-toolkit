@@ -103,12 +103,22 @@ class _RangeGrip(wx.Control):
         dc.Clear()
         w, h = self.GetClientSize()
         cx, cy = w // 2, h // 2
-        dc.SetPen(wx.Pen(self.color, 2))
+        color = (
+            wx.SystemSettings.GetColour(wx.SYS_COLOUR_HIGHLIGHT)
+            if self._dragging
+            else self.color
+        )
+        dc.SetPen(wx.Pen(color, 3 if self._dragging else 2))
         if self.kind == "playback":
-            dc.SetBrush(wx.Brush(self.color))
+            dc.SetBrush(wx.Brush(color))
             vertices = _triangle_vertices(self.kind, cx, cy)
         else:
-            dc.SetBrush(wx.Brush(self.GetParent().GetBackgroundColour()))
+            brush_color = (
+                color
+                if self._dragging
+                else self.GetParent().GetBackgroundColour()
+            )
+            dc.SetBrush(wx.Brush(brush_color))
             vertices = _plot_handle_vertices(self.slider._plot_mode(self), cx, cy)
         dc.DrawPolygon([wx.Point(x, y) for x, y in vertices])
         if self.HasFocus():
@@ -127,6 +137,7 @@ class _RangeGrip(wx.Control):
         if self.kind == "plot" and self.slider._plot_mode(self) == "follow":
             return
         self._dragging = True
+        self.Refresh()
         self.slider._on_range_dragging(True)
         if not self.HasCapture():
             self.CaptureMouse()
@@ -148,6 +159,8 @@ class _RangeGrip(wx.Control):
     def _up(self, _event: wx.MouseEvent) -> None:
         was_dragging = self._dragging
         self._dragging = False
+        if was_dragging:
+            self.Refresh()
         if self.HasCapture():
             self.ReleaseMouse()
         if was_dragging:
@@ -157,6 +170,7 @@ class _RangeGrip(wx.Control):
         was_dragging = self._dragging
         self._dragging = False
         if was_dragging:
+            self.Refresh()
             self.slider._on_range_dragging(False)
         event.Skip()
 
@@ -200,15 +214,17 @@ class _SeekGrip(wx.Control):
         dc.SetBackground(wx.Brush(background))
         dc.Clear()
         width, height = self.GetClientSize()
-        dc.SetPen(wx.Pen(wx.SystemSettings.GetColour(wx.SYS_COLOUR_HIGHLIGHT), 2))
-        dc.SetBrush(wx.Brush(background))
-        dc.DrawCircle(width // 2, height // 2, 6)
+        highlight = wx.SystemSettings.GetColour(wx.SYS_COLOUR_HIGHLIGHT)
+        dc.SetPen(wx.Pen(highlight, 3 if self._dragging else 2))
+        dc.SetBrush(wx.Brush(highlight if self._dragging else background))
+        dc.DrawCircle(width // 2, height // 2, 7 if self._dragging else 6)
 
     def _down(self, event: wx.MouseEvent) -> None:
         if not self.slider.IsEnabled():
             return
         self.slider.SetFocus()
         self._dragging = True
+        self.Refresh()
         self.slider._on_range_dragging(True)
         if not self.HasCapture():
             self.CaptureMouse()
@@ -217,6 +233,8 @@ class _SeekGrip(wx.Control):
     def _up(self, _event: wx.MouseEvent) -> None:
         was_dragging = self._dragging
         self._dragging = False
+        if was_dragging:
+            self.Refresh()
         if self.HasCapture():
             self.ReleaseMouse()
         if was_dragging:
@@ -236,6 +254,7 @@ class _SeekGrip(wx.Control):
         was_dragging = self._dragging
         self._dragging = False
         if was_dragging:
+            self.Refresh()
             self.slider._on_range_dragging(False)
         event.Skip()
 

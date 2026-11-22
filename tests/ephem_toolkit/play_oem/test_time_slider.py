@@ -4,9 +4,11 @@ from types import SimpleNamespace
 from typing import Optional
 
 import pytest
+import wx
 
 from ephem_toolkit.play_oem.time_range import EndpointMode
 from ephem_toolkit.play_oem.workspace.time_slider import (
+    _RangeGrip,
     _SeekGrip,
     TimeSlider,
     _plot_grip_y,
@@ -168,6 +170,7 @@ def test_unloaded_track_segment_uses_metadata_bounds_as_slider_scale() -> None:
 
 def test_seek_grip_reports_drag_end_and_capture_loss() -> None:
     dragging: list[bool] = []
+    refreshes: list[bool] = []
     slider = SimpleNamespace(
         IsEnabled=lambda: True,
         SetFocus=lambda: None,
@@ -177,6 +180,7 @@ def test_seek_grip_reports_drag_end_and_capture_loss() -> None:
     grip = SimpleNamespace(
         slider=slider,
         _dragging=False,
+        Refresh=lambda: refreshes.append(True),
         HasCapture=lambda: False,
         CaptureMouse=lambda: None,
     )
@@ -188,6 +192,101 @@ def test_seek_grip_reports_drag_end_and_capture_loss() -> None:
     _SeekGrip._capture_lost(grip, event)
 
     assert dragging == [True, False, True, False]
+    assert len(refreshes) == 4
+
+
+def test_seek_grip_looks_filled_and_larger_while_dragging(monkeypatch) -> None:
+    highlight, background = object(), object()
+    drawing: dict[str, object] = {}
+
+    class FakeDC:
+        def SetBackground(self, brush: object) -> None:
+            drawing["background"] = brush
+
+        def Clear(self) -> None:
+            pass
+
+        def SetPen(self, pen: object) -> None:
+            drawing["pen"] = pen
+
+        def SetBrush(self, brush: object) -> None:
+            drawing["brush"] = brush
+
+        def DrawCircle(self, x: int, y: int, radius: int) -> None:
+            drawing["circle"] = (x, y, radius)
+
+    monkeypatch.setattr(wx, "AutoBufferedPaintDC", lambda _window: FakeDC())
+    monkeypatch.setattr(wx, "Brush", lambda color: ("brush", color))
+    monkeypatch.setattr(wx, "Pen", lambda color, width: ("pen", color, width))
+    monkeypatch.setattr(wx.SystemSettings, "GetColour", lambda _id: highlight)
+    grip = SimpleNamespace(
+        slider=SimpleNamespace(GetBackgroundColour=lambda: background),
+        GetClientSize=lambda: (16, 16),
+        _dragging=False,
+    )
+
+    _SeekGrip._paint(grip, None)
+    assert drawing["pen"] == ("pen", highlight, 2)
+    assert drawing["brush"] == ("brush", background)
+    assert drawing["circle"] == (8, 8, 6)
+
+    grip._dragging = True
+    _SeekGrip._paint(grip, None)
+    assert drawing["pen"] == ("pen", highlight, 3)
+    assert drawing["brush"] == ("brush", highlight)
+    assert drawing["circle"] == (8, 8, 7)
+
+
+@pytest.mark.parametrize(
+    ("kind", "color"),
+    [("playback", "#197765"), ("plot", "#2864c8")],
+)
+def test_endpoint_grip_appearance_changes_while_dragging(
+    monkeypatch, kind: str, color: str
+) -> None:
+    highlight, background = object(), object()
+    drawing: dict[str, object] = {}
+
+    class FakeDC:
+        def SetBackground(self, brush: object) -> None:
+            pass
+
+        def Clear(self) -> None:
+            pass
+
+        def SetPen(self, pen: object) -> None:
+            drawing["pen"] = pen
+
+        def SetBrush(self, brush: object) -> None:
+            drawing["brush"] = brush
+
+        def DrawPolygon(self, _vertices: object) -> None:
+            pass
+
+    monkeypatch.setattr(wx, "AutoBufferedPaintDC", lambda _window: FakeDC())
+    monkeypatch.setattr(wx, "Brush", lambda value: ("brush", value))
+    monkeypatch.setattr(wx, "Pen", lambda value, width: ("pen", value, width))
+    monkeypatch.setattr(wx, "Point", lambda x, y: (x, y))
+    monkeypatch.setattr(wx.SystemSettings, "GetColour", lambda _id: highlight)
+    grip = SimpleNamespace(
+        kind=kind,
+        color=color,
+        slider=SimpleNamespace(_plot_mode=lambda _grip: "fixed"),
+        GetParent=lambda: SimpleNamespace(GetBackgroundColour=lambda: background),
+        GetClientSize=lambda: (18, 18),
+        HasFocus=lambda: False,
+        _dragging=False,
+    )
+
+    _RangeGrip._paint(grip, None)
+    idle_pen, idle_brush = drawing["pen"], drawing["brush"]
+    grip._dragging = True
+    _RangeGrip._paint(grip, None)
+
+    assert drawing["pen"] == ("pen", highlight, 3)
+    assert drawing["pen"] != idle_pen
+    assert drawing["brush"] == ("brush", highlight)
+    assert drawing["brush"] != idle_brush
 
 
 def test_track_scrubbing_reports_drag_end_and_capture_loss() -> None:
