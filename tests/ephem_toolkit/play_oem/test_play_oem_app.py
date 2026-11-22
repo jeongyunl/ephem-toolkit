@@ -2199,6 +2199,43 @@ def test_start_shows_workspace_before_initial_oem_batch(
     player.close()
 
 
+def test_new_oem_defaults_playback_to_first_24_hours(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    source = tmp_path / "two-days.oem"
+    start = datetime(2026, 1, 1)
+    end = start + timedelta(days=2)
+    source.write_text(
+        "CCSDS_OEM_VERS = 2.0\n"
+        "META_START\n"
+        "OBJECT_NAME = TWO DAYS\n"
+        "CENTER_NAME = EARTH\n"
+        "REF_FRAME = GCRF\n"
+        "TIME_SYSTEM = UTC\n"
+        "META_STOP\n"
+        f"{start:%Y-%m-%dT%H:%M:%S} 7000 0 0 0 7.5 0\n"
+        f"{end:%Y-%m-%dT%H:%M:%S} 7000 1 0 0 7.5 0\n",
+        encoding="utf-8",
+    )
+    player, _views, _canvases, _frames = make_app(
+        monkeypatch, plots=("speed-altitude",), oem_loaded=False
+    )
+
+    player._load_oem_file(str(source))
+    session = player._incremental_loader.session
+    assert session is not None
+    deadline = time.monotonic() + 3.0
+    while time.monotonic() < deadline:
+        player._poll_incremental_load()
+        if session.finished and not session._events.qsize():
+            break
+        time.sleep(0.005)
+
+    assert player.clock.playback_start == player.clock.t_start
+    assert player.clock.playback_end - player.clock.playback_start == 86_400.0
+    player.close()
+
+
 def test_failed_incremental_replacement_leaves_current_oem_installed(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:

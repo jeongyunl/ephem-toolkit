@@ -1502,10 +1502,11 @@ class PlayerApp(
             float(snapshot.raw[0, 0]),
             float(snapshot.raw[-1, 0]),
             sample_times=store.sample_times,
+            default_playback_span_s=clock.PlaybackClock.DEFAULT_PLAYBACK_SPAN_S,
         )
         self.clock.set_playback_bounds(
             self.clock.t_start,
-            self.clock.t_end,
+            self.clock.playback_end,
             follow_coverage=True,
         )
         self.clock.set_speed(abs(rate))

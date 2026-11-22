@@ -78,7 +78,7 @@ class PlaybackClock:
 
     MIN_SPEED = 1.0
     MAX_SPEED = 9000.0
-    DEFAULT_PLAYBACK_SPAN_S = 2.0 * 86_400.0
+    DEFAULT_PLAYBACK_SPAN_S = 86_400.0
 
     def __init__(
         self,
