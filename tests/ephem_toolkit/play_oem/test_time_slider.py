@@ -146,6 +146,30 @@ def test_track_highlight_follows_hover_and_seek_drag() -> None:
     assert len(refreshes) == 2
 
 
+def test_playback_connector_highlights_only_between_handles() -> None:
+    slider = SimpleNamespace(
+        _pointer_position=SimpleNamespace(x=50, y=54),
+        _drag_source=None,
+        _playback_handles=(20.0, 80.0),
+        _slider_bounds=(0.0, 100.0),
+        GetClientSize=lambda: SimpleNamespace(height=74),
+        _x_for=lambda value: int(value),
+        _pointer_between_playback_handles=lambda position: (
+            TimeSlider._pointer_between_playback_handles(slider, position)
+        ),
+    )
+
+    assert TimeSlider._playback_connector_hovered.__get__(slider)
+
+    slider._pointer_position = SimpleNamespace(x=15, y=54)
+    assert not TimeSlider._playback_connector_hovered.__get__(slider)
+    slider._pointer_position = SimpleNamespace(x=50, y=45)
+    assert not TimeSlider._playback_connector_hovered.__get__(slider)
+    slider._pointer_position = SimpleNamespace(x=50, y=54)
+    slider._drag_source = object()
+    assert not TimeSlider._playback_connector_hovered.__get__(slider)
+
+
 def test_track_highlight_uses_outline_without_changing_track_fill(monkeypatch) -> None:
     highlight, transparent = object(), object()
     rectangles: list[tuple[tuple[int, ...], object, object]] = []
@@ -183,6 +207,7 @@ def test_track_highlight_uses_outline_without_changing_track_fill(monkeypatch) -
         ),
         GetClientSize=lambda: (100, 74),
         _track_is_highlighted=False,
+        _playback_connector_hovered=False,
         _playable_segment_x=lambda: None,
         _unloaded_segment_x=lambda: None,
         _now=101.0,
@@ -197,6 +222,255 @@ def test_track_highlight_uses_outline_without_changing_track_fill(monkeypatch) -
     assert rectangles[-2] == idle_track
     assert rectangles[-1][1] == ("pen", highlight, 2)
     assert rectangles[-1][2] is transparent
+
+
+def test_hovered_playback_connector_draws_line_between_handles(monkeypatch) -> None:
+    highlight = object()
+    lines = []
+
+    class FakeDC:
+        def SetBackground(self, _brush: object) -> None:
+            pass
+
+        def Clear(self) -> None:
+            pass
+
+        def SetPen(self, pen: object) -> None:
+            self.pen = pen
+
+        def SetBrush(self, _brush: object) -> None:
+            pass
+
+        def DrawRoundedRectangle(
+            self, _x: int, _y: int, _width: int, _height: int, _radius: int
+        ) -> None:
+            pass
+
+        def DrawLine(self, x1: int, y1: int, x2: int, y2: int) -> None:
+            lines.append((x1, y1, x2, y2, self.pen))
+
+    monkeypatch.setattr(wx, "AutoBufferedPaintDC", lambda _window: FakeDC())
+    monkeypatch.setattr(wx, "Brush", lambda color: ("brush", color))
+    monkeypatch.setattr(wx, "Pen", lambda color, width: ("pen", color, width))
+    monkeypatch.setattr(wx, "Colour", lambda color: color)
+    monkeypatch.setattr(wx.SystemSettings, "GetColour", lambda _id: highlight)
+    slider = SimpleNamespace(
+        GetBackgroundColour=lambda: SimpleNamespace(
+            Red=lambda: 0,
+            Green=lambda: 0,
+            Blue=lambda: 0,
+        ),
+        GetClientSize=lambda: (100, 74),
+        _track_is_highlighted=False,
+        _playback_connector_hovered=True,
+        _playback_handles=(20.0, 80.0),
+        _x_for=lambda value: int(value),
+        _playable_segment_x=lambda: None,
+        _unloaded_segment_x=lambda: None,
+        _now=101.0,
+        _slider_bounds=(0.0, 100.0),
+    )
+
+    TimeSlider._paint_track(slider, None)
+
+    assert lines == [(20, 54, 80, 54, ("pen", "#197765", 2))]
+
+
+@pytest.mark.parametrize(
+    ("control_down", "command_down", "expected_seeks"),
+    [
+        (False, False, []),
+        (True, False, [6250, 7000]),
+        (False, True, [6250, 7000]),
+    ],
+)
+def test_dragging_playback_connector_moves_range_without_resizing(
+    control_down: bool,
+    command_down: bool,
+    expected_seeks: list[int],
+) -> None:
+    class SliderHarness(SimpleNamespace):
+        @property
+        def _playback_connector_hovered(self) -> bool:
+            return TimeSlider._playback_connector_hovered.__get__(self)
+
+    ranges: list[tuple[float, float]] = []
+    seeks: list[int] = []
+    drag_states: list[bool] = []
+    slider = SliderHarness(
+        IsEnabled=lambda: True,
+        SetFocus=lambda: None,
+        GetClientSize=lambda: SimpleNamespace(width=100, height=74),
+        _drag_source=None,
+        _pointer_position=None,
+        _range_drag_origin=None,
+        _now=50.0,
+        _playback_handles=(20.0, 80.0),
+        _coverage=(0.0, 100.0),
+        _slider_bounds=(0.0, 100.0),
+        _x_for=lambda timestamp: 10 + round(timestamp * 0.8),
+        _seek_grip=SimpleNamespace(Refresh=lambda: None),
+        _on_playback=lambda start, end: ranges.append((start, end)),
+        _on_begin_edit=lambda: None,
+        _on_range_dragging=drag_states.append,
+        _set_pointer_position=lambda position: (
+            TimeSlider._set_pointer_position(slider, position)
+        ),
+        _pointer_between_playback_handles=lambda position: (
+            TimeSlider._pointer_between_playback_handles(slider, position)
+        ),
+        _set_track_hover=lambda _hovered: None,
+        _begin_pointer_drag=lambda source: TimeSlider._begin_pointer_drag(
+            slider, source
+        ),
+        _end_pointer_drag=lambda source: TimeSlider._end_pointer_drag(
+            slider, source
+        ),
+        _timestamp_at=lambda x: TimeSlider._timestamp_at(slider, x),
+        _move_playback_range=lambda x, *, move_seek: (
+            TimeSlider._move_playback_range(slider, x, move_seek=move_seek)
+        ),
+        _range_drag_modifier_changed=lambda move_seek, seek_start_s=None: (
+            TimeSlider._range_drag_modifier_changed(
+                slider, move_seek, seek_start_s
+            )
+        ),
+        _minimum=0,
+        _maximum=10_000,
+        _value_at_x=lambda x: TimeSlider._value_at_x(slider, x),
+        _set_value_from_user=seeks.append,
+        is_pointer_over_timeline_track=lambda _position: False,
+        HasCapture=lambda: False,
+        CaptureMouse=lambda: None,
+        _on_playback_handles_changed=lambda: None,
+        Refresh=lambda: None,
+    )
+    def motion_event(x: int) -> SimpleNamespace:
+        return SimpleNamespace(
+            GetPosition=lambda: SimpleNamespace(x=x, y=54),
+            GetX=lambda: x,
+            Dragging=lambda: True,
+            LeftIsDown=lambda: True,
+            ControlDown=lambda: control_down,
+            CmdDown=lambda: command_down,
+            Skip=lambda: None,
+        )
+
+    event = SimpleNamespace(
+        GetPosition=lambda: SimpleNamespace(x=50, y=54),
+        GetX=lambda: 50,
+        ControlDown=lambda: control_down,
+        CmdDown=lambda: command_down,
+        Skip=lambda: None,
+    )
+    TimeSlider._left_down(slider, event)
+    TimeSlider._motion(slider, motion_event(60))
+    TimeSlider._motion(slider, motion_event(95))
+    TimeSlider._left_up(slider, event)
+
+    assert ranges == [(32.5, 92.5), (40.0, 100.0)]
+    assert seeks == expected_seeks
+    assert all(end - start == 60.0 for start, end in ranges)
+    assert drag_states == [True, False]
+    assert slider._range_drag_origin is None
+
+
+def test_toggling_modifier_during_range_drag_does_not_jump_seek() -> None:
+    seeks = []
+    ranges = []
+
+    def set_value(value: int) -> None:
+        if value == slider._value:
+            return
+        slider._value = value
+        slider._now = value / 100.0
+        seeks.append(value)
+
+    slider = SimpleNamespace(
+        _range_drag_origin=(50.0, 20.0, 80.0),
+        _range_seek_origin=None,
+        _now=50.0,
+        _coverage=(0.0, 100.0),
+        _slider_bounds=(0.0, 100.0),
+        _minimum=0,
+        _maximum=10_000,
+        _value=5000,
+        _playback=(20.0, 80.0),
+        _playback_handles=(20.0, 80.0),
+        _seek_grip=SimpleNamespace(Refresh=lambda: None),
+        _range_drag_modifier_changed=lambda move_seek, seek_start_s=None: (
+            TimeSlider._range_drag_modifier_changed(
+                slider, move_seek, seek_start_s
+            )
+        ),
+        _timestamp_at=lambda x: TimeSlider._timestamp_at(slider, x),
+        _x_for=lambda time_s: TimeSlider._x_for(slider, time_s),
+        _value_at_x=lambda x: TimeSlider._value_at_x(slider, x),
+        GetClientSize=lambda: SimpleNamespace(width=100),
+        _on_playback=lambda start, end: ranges.append((start, end)),
+        _set_value_from_user=set_value,
+    )
+
+    TimeSlider._move_playback_range(slider, 60, move_seek=False)
+    TimeSlider._move_playback_range(slider, 60, move_seek=True)
+    TimeSlider._move_playback_range(slider, 65, move_seek=True)
+    TimeSlider._move_playback_range(slider, 65, move_seek=False)
+    TimeSlider._move_playback_range(slider, 65, move_seek=True)
+    TimeSlider._move_playback_range(slider, 70, move_seek=True)
+
+    assert seeks == [5625, 5750]
+    assert ranges == [
+        (32.5, 92.5),
+        (32.5, 92.5),
+        (38.75, 98.75),
+        (38.75, 98.75),
+        (38.75, 98.75),
+        (40.0, 100.0),
+    ]
+
+
+def test_modifier_key_events_immediately_update_seek_grip_highlight() -> None:
+    refreshes = []
+    slider = SimpleNamespace(
+        _range_drag_origin=(50.0, 32.5, 92.5),
+        _range_seek_origin=None,
+        _playback_handles=(32.5, 92.5),
+        _now=50.0,
+        _seek_grip=SimpleNamespace(Refresh=lambda: refreshes.append(True)),
+        _range_drag_modifier_changed=lambda move_seek, seek_start_s=None: (
+            TimeSlider._range_drag_modifier_changed(
+                slider, move_seek, seek_start_s
+            )
+        ),
+    )
+
+    def key_event(*, control_down: bool, command_down: bool = False):
+        return SimpleNamespace(
+            GetKeyCode=lambda: wx.WXK_CONTROL,
+            ControlDown=lambda: control_down,
+            CmdDown=lambda: command_down,
+            Skip=lambda: None,
+        )
+
+    TimeSlider._key_down(slider, key_event(control_down=True))
+    assert slider._range_seek_origin is not None
+    assert slider._range_seek_origin == (32.5, 50.0)
+    assert refreshes == [True]
+
+    TimeSlider._key_up(slider, key_event(control_down=False))
+    assert slider._range_seek_origin is None
+    assert slider._range_seek_origin is None
+    assert refreshes == [True, True]
+
+    TimeSlider._key_down(slider, key_event(control_down=False, command_down=True))
+    assert slider._range_seek_origin is not None
+    assert slider._range_seek_origin == (32.5, 50.0)
+    TimeSlider._key_up(
+        slider, key_event(control_down=False, command_down=False)
+    )
+    assert slider._range_seek_origin is None
+    assert slider._range_seek_origin is None
+    assert refreshes == [True, True, True, True]
 
 
 def test_playable_track_segment_uses_metadata_bounds_as_slider_scale() -> None:
@@ -411,6 +685,17 @@ def test_seek_grip_looks_filled_and_larger_while_dragging(monkeypatch) -> None:
     assert drawing["brush"] == ("brush", highlight)
     assert drawing["circle"] == (8, 8, 7)
 
+    grip.slider._range_drag_origin = (50.0, 20.0, 80.0)
+    grip.slider._range_seek_origin = None
+    _SeekGrip._paint(grip, None)
+    assert drawing["pen"] == ("pen", highlight, 2)
+    assert drawing["brush"] == ("brush", background)
+
+    grip.slider._range_seek_origin = (20.0, 50.0)
+    _SeekGrip._paint(grip, None)
+    assert drawing["pen"] == ("pen", highlight, 3)
+    assert drawing["brush"] == ("brush", highlight)
+
 
 @pytest.mark.parametrize(
     ("kind", "color"),
@@ -484,6 +769,7 @@ def test_track_scrubbing_reports_drag_end_and_capture_loss() -> None:
             )
         ),
         _on_range_dragging=dragging.append,
+        _pointer_between_playback_handles=lambda _position: False,
         _value_at_x=lambda x: x,
         _set_value_from_user=lambda _value: None,
         _set_track_hover=lambda _hovered: None,
@@ -518,6 +804,7 @@ def test_track_click_outside_track_band_does_not_start_seeking() -> None:
     slider = SimpleNamespace(
         IsEnabled=lambda: True,
         GetClientSize=lambda: SimpleNamespace(height=74),
+        _pointer_between_playback_handles=lambda _position: False,
         is_pointer_over_timeline_track=lambda position: (
             TimeSlider.is_pointer_over_timeline_track(slider, position)
         ),
