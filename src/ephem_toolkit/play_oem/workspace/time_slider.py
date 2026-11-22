@@ -278,6 +278,7 @@ class TimeSlider(wx.Control):
         self._display_time_zone = UTC_DISPLAY
         self._now = 0.0
         self._drag_source: wx.Window | None = None
+        self._pointer_over_track = False
         self._grips: dict[str, _RangeGrip] = {}
         self._seek_grip = _SeekGrip(self.GetParent(), self)
         self._seek_grip.Hide()
@@ -285,6 +286,8 @@ class TimeSlider(wx.Control):
         self.Bind(wx.EVT_LEFT_DOWN, self._left_down)
         self.Bind(wx.EVT_LEFT_UP, self._left_up)
         self.Bind(wx.EVT_MOTION, self._motion)
+        self.Bind(wx.EVT_ENTER_WINDOW, self._pointer_motion)
+        self.Bind(wx.EVT_LEAVE_WINDOW, self._pointer_leave)
         self.Bind(wx.EVT_MOUSE_CAPTURE_LOST, self._capture_lost)
         self.Bind(wx.EVT_KEY_DOWN, self._key_down)
         self.Bind(wx.EVT_MOUSEWHEEL, self._mouse_wheel)
@@ -323,6 +326,28 @@ class TimeSlider(wx.Control):
     def is_dragging(self) -> bool:
         return self._drag_source is not None
 
+    @property
+    def _track_is_highlighted(self) -> bool:
+        return self._pointer_over_track or self._drag_source in (
+            self,
+            self._seek_grip,
+        )
+
+    def _set_track_hover(self, hovered: bool) -> None:
+        if self._pointer_over_track != hovered:
+            self._pointer_over_track = hovered
+            self.Refresh()
+
+    def _pointer_motion(self, event: wx.MouseEvent) -> None:
+        self._set_track_hover(
+            self.is_pointer_over_timeline_track(event.GetPosition())
+        )
+        event.Skip()
+
+    def _pointer_leave(self, event: wx.MouseEvent) -> None:
+        self._set_track_hover(False)
+        event.Skip()
+
     def _begin_pointer_drag(self, source: wx.Window) -> None:
         self._drag_source = source
         dismiss_tooltip(self)
@@ -331,6 +356,8 @@ class TimeSlider(wx.Control):
         source.Refresh()
         if source is self:
             self._seek_grip.Refresh()
+        elif source is self._seek_grip:
+            self.Refresh()
         self._on_range_dragging(True)
 
     def _end_pointer_drag(
@@ -345,6 +372,8 @@ class TimeSlider(wx.Control):
             source.Refresh()
             if source is self:
                 self._seek_grip.Refresh()
+            elif source is self._seek_grip:
+                self.Refresh()
         if release_capture and source.HasCapture():
             source.ReleaseMouse()
         if was_dragging:
@@ -370,8 +399,11 @@ class TimeSlider(wx.Control):
             + background.Green() * 0.587
             + background.Blue() * 0.114
         )
+        highlight = wx.SystemSettings.GetColour(wx.SYS_COLOUR_HIGHLIGHT)
         track_color = (
-            wx.Colour("#55585d") if background_luminance < 128 else wx.Colour("#c9cdd2")
+            wx.Colour("#55585d")
+            if background_luminance < 128
+            else wx.Colour("#c9cdd2")
         )
         dc.SetPen(wx.Pen(track_color, 1))
         dc.SetBrush(wx.Brush(track_color))
@@ -398,9 +430,15 @@ class TimeSlider(wx.Control):
                     unloaded_left, center_y - 4, unloaded_right - unloaded_left, 8, 4
                 )
 
+        if self._track_is_highlighted:
+            dc.SetPen(wx.Pen(highlight, 2))
+            dc.SetBrush(wx.TRANSPARENT_BRUSH)
+            dc.DrawRoundedRectangle(
+                left, center_y - 5, right - left, 10, 5
+            )
+
         if _timestamp_is_visible(self._now, self._slider_bounds):
             progress_x = self._x_for(self._now)
-            highlight = wx.SystemSettings.GetColour(wx.SYS_COLOUR_HIGHLIGHT)
             dc.SetPen(wx.Pen(highlight, 2))
             dc.DrawLine(left, center_y, progress_x, center_y)
             dc.SetPen(wx.Pen(highlight, 2))
@@ -443,6 +481,10 @@ class TimeSlider(wx.Control):
     def _left_down(self, event: wx.MouseEvent) -> None:
         if not self.IsEnabled():
             return
+        if not self.is_pointer_over_timeline_track(event.GetPosition()):
+            event.Skip()
+            return
+        self._set_track_hover(True)
         self.SetFocus()
         self._begin_pointer_drag(self)
         if not self.HasCapture():
@@ -453,6 +495,9 @@ class TimeSlider(wx.Control):
         self._end_pointer_drag(self)
 
     def _motion(self, event: wx.MouseEvent) -> None:
+        self._set_track_hover(
+            self.is_pointer_over_timeline_track(event.GetPosition())
+        )
         if self._drag_source is self and event.Dragging() and event.LeftIsDown():
             self._set_value_from_user(self._value_at_x(event.GetX()))
         event.Skip()

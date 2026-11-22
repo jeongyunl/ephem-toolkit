@@ -120,6 +120,85 @@ def test_timeline_tooltip_hotspot_is_limited_to_track_band(
     )
 
 
+def test_track_highlight_follows_hover_and_seek_drag() -> None:
+    refreshes: list[bool] = []
+    seek_grip = object()
+    slider = SimpleNamespace(
+        _pointer_over_track=False,
+        _drag_source=None,
+        _seek_grip=seek_grip,
+        Refresh=lambda: refreshes.append(True),
+    )
+    highlighted = TimeSlider._track_is_highlighted.__get__
+
+    assert not highlighted(slider)
+    TimeSlider._set_track_hover(slider, True)
+    assert highlighted(slider)
+    TimeSlider._set_track_hover(slider, False)
+    assert not highlighted(slider)
+
+    slider._drag_source = seek_grip
+    assert highlighted(slider)
+    slider._drag_source = slider
+    assert highlighted(slider)
+    slider._drag_source = object()
+    assert not highlighted(slider)
+    assert len(refreshes) == 2
+
+
+def test_track_highlight_uses_outline_without_changing_track_fill(monkeypatch) -> None:
+    highlight, transparent = object(), object()
+    rectangles: list[tuple[tuple[int, ...], object, object]] = []
+
+    class FakeDC:
+        def SetBackground(self, _brush: object) -> None:
+            pass
+
+        def Clear(self) -> None:
+            pass
+
+        def SetPen(self, pen: object) -> None:
+            self.pen = pen
+
+        def SetBrush(self, brush: object) -> None:
+            self.brush = brush
+
+        def DrawRoundedRectangle(
+            self, x: int, y: int, width: int, height: int, radius: int
+        ) -> None:
+            rectangles.append(((x, y, width, height, radius), self.pen, self.brush))
+
+    dc = FakeDC()
+    monkeypatch.setattr(wx, "AutoBufferedPaintDC", lambda _window: dc)
+    monkeypatch.setattr(wx, "Brush", lambda color: ("brush", color))
+    monkeypatch.setattr(wx, "Pen", lambda color, width: ("pen", color, width))
+    monkeypatch.setattr(wx, "Colour", lambda color: color)
+    monkeypatch.setattr(wx, "TRANSPARENT_BRUSH", transparent)
+    monkeypatch.setattr(wx.SystemSettings, "GetColour", lambda _id: highlight)
+    slider = SimpleNamespace(
+        GetBackgroundColour=lambda: SimpleNamespace(
+            Red=lambda: 0,
+            Green=lambda: 0,
+            Blue=lambda: 0,
+        ),
+        GetClientSize=lambda: (100, 74),
+        _track_is_highlighted=False,
+        _playable_segment_x=lambda: None,
+        _unloaded_segment_x=lambda: None,
+        _now=101.0,
+        _slider_bounds=(0.0, 100.0),
+    )
+
+    TimeSlider._paint_track(slider, None)
+    idle_track = rectangles[-1]
+    slider._track_is_highlighted = True
+    TimeSlider._paint_track(slider, None)
+
+    assert rectangles[-2] == idle_track
+    assert rectangles[-1][1] == ("pen", highlight, 2)
+    assert rectangles[-1][2] is transparent
+
+
 def test_playable_track_segment_uses_metadata_bounds_as_slider_scale() -> None:
     slider = SimpleNamespace(
         _coverage=(0.0, 100.0),
@@ -175,6 +254,7 @@ def test_seek_grip_reports_drag_end_and_capture_loss() -> None:
         IsEnabled=lambda: True,
         SetFocus=lambda: None,
         _drag_source=None,
+        Refresh=lambda: None,
         _on_range_dragging=dragging.append,
         _begin_pointer_drag=lambda source: TimeSlider._begin_pointer_drag(
             slider, source
@@ -188,11 +268,11 @@ def test_seek_grip_reports_drag_end_and_capture_loss() -> None:
     )
     grip = SimpleNamespace(
         slider=slider,
-        _dragging=False,
         Refresh=lambda: refreshes.append(True),
         HasCapture=lambda: False,
         CaptureMouse=lambda: None,
     )
+    slider._seek_grip = grip
     event = SimpleNamespace(GetPosition=lambda: None, Skip=lambda: None)
 
     _SeekGrip._down(grip, event)
@@ -332,12 +412,20 @@ def test_track_scrubbing_reports_drag_end_and_capture_loss() -> None:
         _on_range_dragging=dragging.append,
         _value_at_x=lambda x: x,
         _set_value_from_user=lambda _value: None,
-        _dragging=False,
+        _set_track_hover=lambda _hovered: None,
         _seek_grip=SimpleNamespace(Refresh=lambda: refreshes.append(True)),
+        GetClientSize=lambda: SimpleNamespace(height=74),
+        is_pointer_over_timeline_track=lambda position: (
+            TimeSlider.is_pointer_over_timeline_track(slider, position)
+        ),
         HasCapture=lambda: False,
         CaptureMouse=lambda: None,
     )
-    event = SimpleNamespace(GetX=lambda: 50, Skip=lambda: None)
+    event = SimpleNamespace(
+        GetX=lambda: 50,
+        GetPosition=lambda: SimpleNamespace(y=35),
+        Skip=lambda: None,
+    )
 
     TimeSlider._left_down(slider, event)
     assert TimeSlider.is_dragging.__get__(slider)
@@ -349,6 +437,28 @@ def test_track_scrubbing_reports_drag_end_and_capture_loss() -> None:
     assert dragging == [True, False, True, False]
     assert not TimeSlider.is_dragging.__get__(slider)
     assert len(refreshes) == 4
+
+
+def test_track_click_outside_track_band_does_not_start_seeking() -> None:
+    calls = []
+    slider = SimpleNamespace(
+        IsEnabled=lambda: True,
+        GetClientSize=lambda: SimpleNamespace(height=74),
+        is_pointer_over_timeline_track=lambda position: (
+            TimeSlider.is_pointer_over_timeline_track(slider, position)
+        ),
+        SetFocus=lambda: calls.append("focus"),
+        _begin_pointer_drag=lambda _source: calls.append("drag"),
+        _set_value_from_user=lambda _value: calls.append("seek"),
+    )
+    event = SimpleNamespace(
+        GetPosition=lambda: SimpleNamespace(y=28),
+        Skip=lambda: calls.append("skip"),
+    )
+
+    TimeSlider._left_down(slider, event)
+
+    assert calls == ["skip"]
 
 
 def test_slider_seek_position_uses_metadata_domain() -> None:
