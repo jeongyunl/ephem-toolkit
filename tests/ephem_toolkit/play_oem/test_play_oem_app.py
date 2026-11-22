@@ -2587,15 +2587,8 @@ def test_incremental_timeline_uses_declared_domain_and_defers_drag_redraws(
         )
         assert not player._oem_coverage_complete
         assert player._slider_bounds == expected_domain
-        assert player._playback_handle_bounds == (
-            player.clock.playback_start,
-            player.clock.playback_end,
-        )
-        first_segment_domain = (
-            datetime_to_tt_s(datetime(2025, 12, 31, 23, 59, tzinfo=timezone.utc)),
-            datetime_to_tt_s(datetime(2026, 1, 1, 0, 2, tzinfo=timezone.utc)),
-        )
-        assert player.workspace.time_range_controls[4] == first_segment_domain
+        assert player._playback_handle_bounds == expected_domain
+        assert player.workspace.time_range_controls[4] == expected_domain
         assert player.workspace.time_range_control_options["unloaded_from_s"] == (
             player.clock.t_end
         )
@@ -2925,6 +2918,22 @@ def test_metadata_without_stored_scrubber_uses_defaults_once(
             call[3] == domain[0] and call[4] == domain
             for call in range_control_calls
         )
+        assert player._scrubber_loading_locked
+        release_row.set()
+        deadline = time.monotonic() + 3.0
+        while (
+            (not session.finished or session._events.qsize())
+            and time.monotonic() < deadline
+        ):
+            player._poll_incremental_load()
+            time.sleep(0.005)
+        assert player._oem_coverage_complete
+        assert player._scrubber_loading_locked
+        assert slider.viewport == domain
+        assert player.workspace.time_range_controls[0] == domain
+        assert player.workspace.time_range_controls[1] == domain
+        assert player.workspace.time_range_controls[4] == domain
+        assert player.workspace.time_range_controls[-1] == domain
     finally:
         release_row.set()
         if session is not None:

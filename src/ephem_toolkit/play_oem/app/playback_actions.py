@@ -19,7 +19,13 @@ def _timeline_viewport(player: PlayerAppState) -> tuple[float, float]:
     viewport = getattr(timeline_slider, "viewport", None)
     if viewport is not None:
         return viewport
-    return player._slider_bounds
+    slider_bounds = getattr(player, "_slider_bounds", None)
+    if (
+        isinstance(slider_bounds, tuple)
+        and len(slider_bounds) == 2
+    ):
+        return slider_bounds
+    return (player.clock.t_start, player.clock.t_end)
 
 
 class PlaybackActionsMixin:
