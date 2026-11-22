@@ -50,9 +50,9 @@ def test_plot_handle_shape_distinguishes_each_mode() -> None:
 @pytest.mark.parametrize(
     ("mode", "mode_label"),
     [
-        ("follow", "Follow playback"),
-        ("offset", "Playback offset"),
-        ("fixed", "Fixed time"),
+        ("follow", "Automatically follows playback start time"),
+        ("offset", "Follows current time, keeping the same time gap"),
+        ("fixed", "Stays at this time; does not follow"),
     ],
 )
 def test_plot_handle_tooltip_is_two_lines(mode: EndpointMode, mode_label: str) -> None:
@@ -60,7 +60,7 @@ def test_plot_handle_tooltip_is_two_lines(mode: EndpointMode, mode_label: str) -
 
     assert tooltip.splitlines() == [
         "Plot start: 2026-05-21T04:36:45",
-        f"{mode_label} | Right-click for mode",
+        f"{mode_label} | Right-click to change",
     ]
 
 

@@ -52,12 +52,14 @@ def _plot_handle_vertices(
 
 
 def _plot_tooltip_text(name: str, timestamp: str, mode: time_range.EndpointMode) -> str:
-    mode_label = {
-        "follow": "Follow playback",
-        "fixed": "Fixed time",
-        "offset": "Playback offset",
-    }[mode]
-    return f"{name}: {timestamp}\n{mode_label} | Right-click for mode"
+    if mode == "follow":
+        matched_bound = "start" if name.endswith("start") else "end"
+        mode_label = f"Automatically follows playback {matched_bound} time"
+    elif mode == "offset":
+        mode_label = "Follows current time, keeping the same time gap"
+    else:
+        mode_label = "Stays at this time; does not follow"
+    return f"{name}: {timestamp}\n{mode_label} | Right-click to change"
 
 
 def _plot_grip_y(slider_height: int, playback_grip_y: int, grip_height: int) -> int:
@@ -547,10 +549,11 @@ class TimeSlider(wx.Control):
         name = "start" if key.endswith("start") else "end"
         assert self._plot_rule is not None
         endpoint = self._plot_rule.start if name == "start" else self._plot_rule.end
+        matched_bound = "start" if name == "start" else "end"
         labels: tuple[tuple[str, time_range.EndpointMode], ...] = (
-            ("Follow playback", "follow"),
-            ("Offset from playback", "offset"),
-            ("Fixed timepoint", "fixed"),
+            (f"Follow playback {matched_bound}", "follow"),
+            ("Follow current time (same gap)", "offset"),
+            ("Stay fixed", "fixed"),
         )
         menu = wx.Menu()
         try:

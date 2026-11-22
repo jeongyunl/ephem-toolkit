@@ -947,14 +947,16 @@ def test_workspace_builds_feature_pages_split_panes_and_global_timeline(
     assert frame.sizer.items[0][0] is result.main_splitter
     assert frame.sizer.items[1][0] is result.timeline_panel
     assert result.playback_start_label.label == (
-        f"Start: {core.format_tt(10.0, 'UTC')}"
+        f"Playback start: {core.format_tt(10.0, 'UTC')}"
     )
     assert result.timeline_current_prefix.label == "Current time:"
     assert result.timeline_time_entry.name == "Current time or elapsed time"
     assert (
         result.timeline_time_entry.hint == "Timestamp or elapsed time, e.g. 1h30m"
     )
-    assert result.playback_end_label.label == f"End: {core.format_tt(90.0, 'UTC')}"
+    assert result.playback_end_label.label == (
+        f"Playback end: {core.format_tt(90.0, 'UTC')}"
+    )
 
 
 def test_workspace_preset_and_comparison_follow_controls_dispatch_callbacks(
@@ -1002,8 +1004,10 @@ def test_playback_range_labels_track_current_playback_bounds() -> None:
     core.Workspace.set_time_range_controls(
         result, (0.0, 100.0), (20.0, 80.0), plot_rule, 50.0
     )
-    assert start_label.label == f"Start: {core.format_tt(20.0, 'UTC')}"
-    assert end_label.label == f"End: {core.format_tt(80.0, 'UTC')}"
+    assert start_label.label == (
+        f"Playback start: {core.format_tt(20.0, 'UTC')}"
+    )
+    assert end_label.label == f"Playback end: {core.format_tt(80.0, 'UTC')}"
     assert slider_states == [
         (
             ((0.0, 100.0), (20.0, 80.0), plot_rule, 50.0, None, None),

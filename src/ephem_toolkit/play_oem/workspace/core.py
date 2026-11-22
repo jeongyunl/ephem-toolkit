@@ -319,9 +319,9 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         self.playback_start_label = wx.StaticText(self.time_readout_row, wx.ID_ANY, "")
         set_timestamp_label(
             self.playback_start_label,
-            f"Start: {format_tt(initial_playback[0], self._display_time_zone)}",
+            f"Playback start: {format_tt(initial_playback[0], self._display_time_zone)}",
         )
-        self.playback_start_label.SetName("Playback range start time")
+        self.playback_start_label.SetName("Playback start time")
         current_time_sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.timeline_current_prefix = wx.StaticText(
             self.time_readout_row, wx.ID_ANY, "Current time:"
@@ -362,9 +362,9 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         self.playback_end_label = wx.StaticText(self.time_readout_row, wx.ID_ANY, "")
         set_timestamp_label(
             self.playback_end_label,
-            f"End: {format_tt(initial_playback[1], self._display_time_zone)}",
+            f"Playback end: {format_tt(initial_playback[1], self._display_time_zone)}",
         )
-        self.playback_end_label.SetName("Playback range end time")
+        self.playback_end_label.SetName("Playback end time")
         time_label_sizer.Add(
             self.playback_start_label,
             0,
@@ -555,11 +555,11 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         """Synchronize playback labels and range grips."""
         set_timestamp_label(
             self.playback_start_label,
-            f"Start: {format_tt((playback_handle_bounds or playback)[0], self._display_time_zone)}",
+            f"Playback start: {format_tt((playback_handle_bounds or playback)[0], self._display_time_zone)}",
         )
         set_timestamp_label(
             self.playback_end_label,
-            f"End: {format_tt((playback_handle_bounds or playback)[1], self._display_time_zone)}",
+            f"Playback end: {format_tt((playback_handle_bounds or playback)[1], self._display_time_zone)}",
         )
         self.timeline_slider.set_ranges(
             coverage,
