@@ -6,16 +6,16 @@ import warnings
 
 import pytest
 
+from ephem_toolkit.play_oem.ground_stations import GroundStation
 from ephem_toolkit.play_oem.saved_state import (
+    STATE_VERSION,
     FileSettings,
     SavedAppState,
-    STATE_VERSION,
     TimeScrubberSettings,
     load_saved_state,
     remember_recent_file,
     serialize_saved_state,
 )
-from ephem_toolkit.play_oem.ground_stations import GroundStation
 from ephem_toolkit.play_oem.time_range import (
     PlotTimeRange,
     TimeRangeEndpoint,
@@ -173,7 +173,14 @@ def test_time_scrubber_settings_round_trip(tmp_path) -> None:
     )
     serialized = serialize_saved_state(state)
     assert f'[files."{file_path}"]' in serialized
-    assert "time_scrubber = { current_time_tt = 150.0, viewport_tt = [120.0, 180.0] }" in serialized
+    assert (
+        "time_scrubber = { current_time_tt = 150.0, viewport_tt = [120.0, 180.0] }"
+        in serialized
+    )
+    assert serialized.index("[ground_track]") < serialized.index("[recent_files]")
+    assert serialized.index("[recent_files]") < serialized.index(
+        f'[files."{file_path}"]'
+    )
     path.write_text(serialized)
 
     loaded = load_saved_state(path)
@@ -187,18 +194,16 @@ def test_time_scrubber_settings_round_trip(tmp_path) -> None:
 @pytest.mark.parametrize(
     "contents",
     [
-        'time_scrubber = { current_time_tt = inf }\n',
-        'time_scrubber = { viewport_tt = [20.0, 20.0] }\n',
-        'time_scrubber = { viewport_tt = [30.0, 20.0] }\n',
+        "time_scrubber = { current_time_tt = inf }\n",
+        "time_scrubber = { viewport_tt = [20.0, 20.0] }\n",
+        "time_scrubber = { viewport_tt = [30.0, 20.0] }\n",
     ],
 )
 def test_invalid_time_scrubber_settings_fall_back(tmp_path, contents: str) -> None:
     path = tmp_path / "play-oem-state.toml"
     file_path = str(tmp_path / "orbit.oem")
     path.write_text(
-        f"state_version = {STATE_VERSION}\n"
-        f'[files."{file_path}"]\n'
-        f"{contents}"
+        f'state_version = {STATE_VERSION}\n[files."{file_path}"]\n{contents}'
     )
 
     with warnings.catch_warnings(record=True) as observed:
@@ -285,7 +290,7 @@ def test_invalid_file_plot_range_falls_back(tmp_path) -> None:
     path.write_text(
         f"state_version = {STATE_VERSION}\n"
         f'[files."{file_path}"]\n'
-        'plot_range = { enabled = true, '
+        "plot_range = { enabled = true, "
         'start = { mode = "unknown", value_s = 10.0 }, '
         'end = { mode = "follow", value_s = 0.0 } }\n'
     )
@@ -308,8 +313,7 @@ def test_legacy_ground_stations_are_read_but_not_written_to_state(tmp_path) -> N
     )
     path.write_text(serialize_saved_state(state))
     path.write_text(
-        path.read_text()
-        + "\n[ground_stations]\n"
+        path.read_text() + "\n[ground_stations]\n"
         'stations = [{ id = "stable-id", name = "North Site", '
         "latitude_deg = 64.1, longitude_deg = -180.0, altitude_m = 45.0, "
         "minimum_elevation_deg = 12 }]\n"
@@ -342,8 +346,7 @@ def test_state_version_seven_migrates_legacy_ground_stations(tmp_path) -> None:
         for station in stations
     )
     path.write_text(
-        "state_version = 7\n[ground_stations]\n"
-        f"stations = [{station_records}]\n"
+        f"state_version = 7\n[ground_stations]\nstations = [{station_records}]\n"
     )
 
     assert load_saved_state(path).ground_stations == stations
@@ -362,18 +365,19 @@ def test_version_six_state_migrates_without_stations(tmp_path) -> None:
 @pytest.mark.parametrize(
     "stations",
     [
-        '[{ id = "one", name = "", latitude_deg = 0.0, longitude_deg = 0.0, altitude_m = 0.0, minimum_elevation_deg = 10 }]',
-        '[{ id = "one", name = "Site", latitude_deg = 91.0, longitude_deg = 0.0, altitude_m = 0.0, minimum_elevation_deg = 10 }]',
-        '[{ id = "one", name = "Site", latitude_deg = 0.0, longitude_deg = 0.0, altitude_m = inf, minimum_elevation_deg = 10 }]',
-        '[{ id = "one", name = "Site", latitude_deg = 0.0, longitude_deg = 0.0, altitude_m = 0.0, minimum_elevation_deg = 91 }]',
+        '[{ id = "one", name = "", latitude_deg = 0.0, longitude_deg = 0.0,'
+        " altitude_m = 0.0, minimum_elevation_deg = 10 }]",
+        '[{ id = "one", name = "Site", latitude_deg = 91.0,'
+        " longitude_deg = 0.0, altitude_m = 0.0, minimum_elevation_deg = 10 }]",
+        '[{ id = "one", name = "Site", latitude_deg = 0.0,'
+        " longitude_deg = 0.0, altitude_m = inf, minimum_elevation_deg = 10 }]",
+        '[{ id = "one", name = "Site", latitude_deg = 0.0,'
+        " longitude_deg = 0.0, altitude_m = 0.0, minimum_elevation_deg = 91 }]",
     ],
 )
 def test_invalid_ground_station_state_falls_back(tmp_path, stations: str) -> None:
     path = tmp_path / "play-oem-state.toml"
-    path.write_text(
-        "state_version = 7\n[ground_stations]\n"
-        f"stations = {stations}\n"
-    )
+    path.write_text(f"state_version = 7\n[ground_stations]\nstations = {stations}\n")
 
     with warnings.catch_warnings(record=True) as observed:
         warnings.simplefilter("always")

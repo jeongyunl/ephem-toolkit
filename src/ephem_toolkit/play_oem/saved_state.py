@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import json
 import math
 import os
-from pathlib import Path
 import tempfile
 import warnings
+from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, cast
 
 try:
@@ -256,9 +256,7 @@ def load_saved_state(path: str | Path | None = None) -> SavedAppState:
     file_settings: dict[str, FileSettings] = {}
     for file_path, settings in file_section.items():
         if not Path(file_path).is_absolute():
-            return _state_error(
-                state_path, "files keys must be absolute paths"
-            )
+            return _state_error(state_path, "files keys must be absolute paths")
         normalized_path = normalize_recent_path(file_path)
         if normalized_path in file_settings:
             return _state_error(
@@ -283,8 +281,7 @@ def load_saved_state(path: str | Path | None = None) -> SavedAppState:
             except ValueError as error:
                 return _state_error(
                     state_path,
-                    f"invalid files[{file_path!r}].playback_range: "
-                    f"{error}",
+                    f"invalid files[{file_path!r}].playback_range: {error}",
                 )
         else:
             parsed_range = None
@@ -332,8 +329,7 @@ def load_saved_state(path: str | Path | None = None) -> SavedAppState:
             except ValueError as error:
                 return _state_error(
                     state_path,
-                    f"invalid files[{file_path!r}].time_scrubber.viewport_tt: "
-                    f"{error}",
+                    f"invalid files[{file_path!r}].time_scrubber.viewport_tt: {error}",
                 )
         parsed_time_scrubber = (
             TimeScrubberSettings(current_time_tt, viewport_tt)
@@ -566,6 +562,7 @@ def serialize_saved_state(state: SavedAppState) -> str:
                 )
             )
     file_settings_body = "\n".join(encoded_file_settings)
+    file_settings_separator = "\n" if file_settings_body else ""
     position_line = (
         f"position = [{state.position[0]}, {state.position[1]}]\n"
         if state.position is not None
@@ -579,9 +576,6 @@ def serialize_saved_state(state: SavedAppState) -> str:
         f"maximized = {str(bool(state.maximized)).lower()}\n"
         f"{position_line}"
         "\n"
-        "[recent_files]\n"
-        f"paths = [{path_body}]\n\n"
-        f"{file_settings_body}"
         "[workspace]\n"
         f"open_plots = [{', '.join(_toml_string(name) for name in plots)}]\n\n"
         "[ground_track]\n"
@@ -591,6 +585,11 @@ def serialize_saved_state(state: SavedAppState) -> str:
         f"center_longitude_deg = {state.ground_track_center_longitude_deg}\n"
         f"xlim = {list(state.ground_track_xlim) if state.ground_track_xlim else '[]'}\n"
         f"ylim = {list(state.ground_track_ylim) if state.ground_track_ylim else '[]'}\n"
+        "\n"
+        "[recent_files]\n"
+        f"paths = [{path_body}]\n"
+        f"{file_settings_separator}"
+        f"{file_settings_body}"
     )
 
 
