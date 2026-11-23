@@ -285,7 +285,7 @@ class TimeSlider(wx.Control):
         self._maximum = 10_000
         self._value = 0
         # Leave a small handle-to-track gap without pushing playback controls down.
-        self.SetMinSize(wx.Size(-1, max(52, self.GetBestSize().height + 16)))
+        self.SetMinSize(wx.Size(-1, max(50, self.GetBestSize().height + 14)))
         self._on_playback = on_playback
         self._on_plot_endpoint = on_plot_endpoint
         self._on_plot_endpoint_mode = on_plot_endpoint_mode
@@ -867,10 +867,11 @@ class TimeSlider(wx.Control):
             if _event is not None:
                 _event.Skip()
             return
-        width = height = 18
-        # Keep endpoint hitboxes clear of the seek marker and mirror them around
-        # the track so each handle has a separate mouse target.
-        playback_grip_y = self.GetClientSize().height // 2 + 8
+        width = 18
+        playback_grip_height = 18
+        plot_grip_height = 14
+        # Keep endpoint hitboxes clear of the seek marker and on separate rows.
+        playback_grip_y = self.GetClientSize().height // 2 + 7
         centers: list[tuple[str, int]] = [
             (key, self._x_for(self._time_for(key))) for key in self._grips
         ]
@@ -895,12 +896,10 @@ class TimeSlider(wx.Control):
                 continue
             grip.Show()
             slider_position = self.GetPosition()
-            grip_y = (
-                _plot_grip_y(self.GetClientSize().height, playback_grip_y, height)
-                if key.startswith("plot")
-                else playback_grip_y
-            )
-            grip.SetSize((width, height))
+            is_plot_grip = key.startswith("plot")
+            grip_height = plot_grip_height if is_plot_grip else playback_grip_height
+            grip_y = 0 if is_plot_grip else playback_grip_y
+            grip.SetSize((width, grip_height))
             grip_x = positions[key] - grip.GetSize().width // 2
             grip.SetPosition(
                 (

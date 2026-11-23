@@ -243,7 +243,7 @@ class TimeScrubberTickRail(wx.Control):
     ) -> None:
         super().__init__(parent, wx.ID_ANY)
         self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
-        self.SetMinSize(wx.Size(-1, 18))
+        self.SetMinSize(wx.Size(-1, 20))
         font = wx.Font(self.GetFont())
         font.SetPointSize(max(8, font.GetPointSize() - 1))
         self.SetFont(font)
@@ -484,7 +484,7 @@ class TimeScrubber(TimeSlider):
         self._wheel_gesture_last_at = 0.0
         self._viewport_fits_coverage = True
         self.SetName("Scrollable TimeScrubber")
-        self.SetMinSize(wx.Size(480, 52))
+        self.SetMinSize(wx.Size(480, 50))
         self._apply_viewport(self._viewport)
 
     def set_viewport(self, viewport: tuple[float, float]) -> None:
