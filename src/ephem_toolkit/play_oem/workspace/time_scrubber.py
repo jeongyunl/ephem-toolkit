@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import timedelta
+from datetime import datetime, timedelta
 import time
 
 import wx
@@ -11,6 +11,7 @@ import wx
 from ephem_toolkit.core import time_utils
 from ephem_toolkit.play_oem import time_range
 
+from ..display_time import LOCAL_DISPLAY, UTC_DISPLAY
 from ..tooltips import set_tooltip
 from .time_slider import TimeSlider
 
@@ -96,8 +97,22 @@ def _clamp_viewport(
     return start_s, start_s + width
 
 
-def _aligned_tick_start(start_s: float, step_s: float) -> float:
-    moment = time_utils.tt_s_to_datetime(start_s)
+def _datetime_in_display_zone(
+    timestamp_s: float,
+    display_time_zone: str,
+) -> datetime:
+    moment = time_utils.tt_s_to_datetime(timestamp_s)
+    if display_time_zone == LOCAL_DISPLAY:
+        return moment.astimezone()
+    return moment
+
+
+def _aligned_tick_start(
+    start_s: float,
+    step_s: float,
+    display_time_zone: str = UTC_DISPLAY,
+) -> float:
+    moment = _datetime_in_display_zone(start_s, display_time_zone)
     if step_s >= 86400.0:
         midnight = moment.replace(hour=0, minute=0, second=0, microsecond=0)
         if step_s == 604800.0:
@@ -159,6 +174,7 @@ class TimeScrubberTickRail(wx.Control):
         font.SetPointSize(font.GetPointSize() + 1)
         self.SetFont(font)
         self._viewport = (0.0, 1.0)
+        self._display_time_zone = UTC_DISPLAY
         self._middle_tick_s: float | None = None
         self._on_wheel = on_wheel
         self._on_pan = on_pan
@@ -173,6 +189,11 @@ class TimeScrubberTickRail(wx.Control):
 
     def set_viewport(self, viewport: tuple[float, float]) -> None:
         self._viewport = viewport
+        self.Refresh()
+
+    def set_display_time_zone(self, display_time_zone: str) -> None:
+        self._display_time_zone = display_time_zone
+        self._middle_tick_s = None
         self.Refresh()
 
     def set_wheel_handler(
@@ -251,7 +272,11 @@ class TimeScrubberTickRail(wx.Control):
             (candidate for candidate in candidates if candidate >= desired_step),
             candidates[-1],
         )
-        first_tick = _aligned_tick_start(start_s, step_s)
+        first_tick = _aligned_tick_start(
+            start_s,
+            step_s,
+            self._display_time_zone,
+        )
         if self._middle_tick_s is not None:
             anchor_s = self._middle_tick_s
             if start_s <= anchor_s <= end_s:
@@ -290,7 +315,7 @@ class TimeScrubberTickRail(wx.Control):
             fraction = (timestamp - start_s) / duration_s
             x = round(left + fraction * (right - left))
             dc.DrawLine(x, 0, x, 5)
-            moment = time_utils.tt_s_to_datetime(timestamp)
+            moment = _datetime_in_display_zone(timestamp, self._display_time_zone)
             hour = moment.hour
             if step_s >= 86400.0:
                 label = moment.strftime("%Y-%m-%d")
@@ -474,6 +499,7 @@ class TimeScrubber(TimeSlider):
             abs(self._viewport[0] - self._coverage[0]) <= 1e-6
             and abs(self._viewport[1] - self._coverage[1]) <= 1e-6
         )
+        assert self._plot_rule is not None
         self.set_ranges(
             self._coverage,
             self._playback,
@@ -552,8 +578,12 @@ class TimeScrubber(TimeSlider):
         command_down = getattr(event, "CmdDown", lambda: False)()
         if control_down or command_down:
             key = event.GetKeyCode()
-            unicode_key = getattr(event, "GetUnicodeKey", lambda: "")()
-            character = chr(unicode_key) if isinstance(unicode_key, str) else ""
+            unicode_key = getattr(event, "GetUnicodeKey", lambda: 0)()
+            character = (
+                chr(unicode_key)
+                if isinstance(unicode_key, int) and 32 <= unicode_key <= 126
+                else ""
+            )
             if key == ord("0") or character == "0":
                 self.fit()
             elif key in (ord("+"), ord("="), wx.WXK_ADD) or character in ("+", "="):

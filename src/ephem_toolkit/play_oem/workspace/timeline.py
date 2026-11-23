@@ -16,7 +16,6 @@ from ..tooltips import (
 )
 
 if TYPE_CHECKING:
-    from .time_slider import TimeSlider
     from .time_scrubber import TimeScrubber
 
 
@@ -37,7 +36,7 @@ class _TimelineState(Protocol):
     _playback_playing: bool
     _playback_rate: float
     timeline_panel: wx.ScrolledWindow
-    timeline_slider: TimeSlider | TimeScrubber
+    timeline_slider: TimeScrubber
     timeline_time_entry: wx.TextCtrl
     time_error_label: wx.StaticText
     playback_forward_play_button: wx.ToggleButton

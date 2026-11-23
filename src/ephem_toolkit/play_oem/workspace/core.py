@@ -211,6 +211,13 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         current_time = now_s or (lambda: coverage[0])
         self.timeline_tick_rail = TimeScrubberTickRail(timeline_scrubber_column)
         self.timeline_tick_rail.set_viewport(display_bounds)
+        set_tick_time_zone = getattr(
+            self.timeline_tick_rail,
+            "set_display_time_zone",
+            None,
+        )
+        if set_tick_time_zone is not None:
+            set_tick_time_zone(display_time_zone)
         self.timeline_slider = TimeScrubber(
             timeline_scrubber_column,
             coverage=coverage,
@@ -578,6 +585,13 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
     def set_display_time_zone(self, display_time_zone: str) -> None:
         self._display_time_zone = display_time_zone
         self.timeline_slider.set_display_time_zone(display_time_zone)
+        set_tick_time_zone = getattr(
+            self.timeline_tick_rail,
+            "set_display_time_zone",
+            None,
+        )
+        if set_tick_time_zone is not None:
+            set_tick_time_zone(display_time_zone)
 
     def close(self) -> None:
         """Stop pending graph redraw work during workspace shutdown."""

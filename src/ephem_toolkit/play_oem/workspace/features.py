@@ -11,7 +11,6 @@ from .constants import CONTROLS_PANE_NAME
 from ..tooltips import set_tooltip
 
 if TYPE_CHECKING:
-    from .time_slider import TimeSlider
     from .time_scrubber import TimeScrubber
 
 
@@ -30,9 +29,10 @@ class _FeatureNavigationState(Protocol):
     feature_rail_buttons: list[wx.BitmapToggleButton]
     file_info_page: wx.Panel
     file_info_scroll: wx.ScrolledWindow
+    ground_stations_page: wx.Panel
     settings_page: wx.Panel
     state_page: wx.Panel
-    timeline_slider: TimeSlider | TimeScrubber
+    timeline_slider: TimeScrubber
 
     def select_feature(self, index: int) -> None: ...
 
