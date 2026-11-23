@@ -517,8 +517,22 @@ def serialize_saved_state(state: SavedAppState) -> str:
         if normalized_path in normalized_file_settings:
             raise ValueError(f"duplicate normalized file settings key {path!r}")
         normalized_file_settings[normalized_path] = settings
+    recent_paths = set(paths)
+    ordered_paths = [
+        path
+        for path in reversed(paths)
+        if path in normalized_file_settings
+    ]
+    ordered_paths.extend(
+        sorted(
+            path
+            for path in normalized_file_settings
+            if path not in recent_paths
+        )
+    )
     encoded_file_settings: list[str] = []
-    for path, settings in sorted(normalized_file_settings.items()):
+    for path in ordered_paths:
+        settings = normalized_file_settings[path]
         file_values: list[str] = []
         if settings.playback_range is not None:
             start, end = _validated_playback_range(settings.playback_range)

@@ -229,6 +229,29 @@ def test_file_settings_survive_when_file_is_not_recent(tmp_path) -> None:
     assert loaded.file_settings[file_path].playback_range == (123.5, 456.75)
 
 
+def test_file_settings_are_stored_oldest_to_latest(tmp_path) -> None:
+    oldest = str(tmp_path / "oldest.oem")
+    middle = str(tmp_path / "middle.oem")
+    latest = str(tmp_path / "latest.oem")
+    state = SavedAppState(
+        recent_files=[latest, middle, oldest],
+        file_settings={
+            oldest: FileSettings(playback_range=(1.0, 2.0)),
+            latest: FileSettings(playback_range=(5.0, 6.0)),
+            middle: FileSettings(playback_range=(3.0, 4.0)),
+        },
+    )
+
+    serialized = serialize_saved_state(state)
+
+    assert serialized.index(f'[files."{oldest}"]') < serialized.index(
+        f'[files."{middle}"]'
+    )
+    assert serialized.index(f'[files."{middle}"]') < serialized.index(
+        f'[files."{latest}"]'
+    )
+
+
 def test_state_version_one_migrates_with_ground_track_default(tmp_path) -> None:
     path = tmp_path / "play-oem-state.toml"
     path.write_text(
