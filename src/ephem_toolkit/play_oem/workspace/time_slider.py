@@ -192,6 +192,7 @@ class _SeekGrip(wx.Control):
         self.Bind(wx.EVT_LEFT_DOWN, self._down)
         self.Bind(wx.EVT_LEFT_UP, self._up)
         self.Bind(wx.EVT_MOTION, self._motion)
+        self.Bind(wx.EVT_LEAVE_WINDOW, self._leave)
         self.Bind(wx.EVT_MOUSE_CAPTURE_LOST, self._capture_lost)
 
     def _paint(self, _event: wx.PaintEvent) -> None:
@@ -232,12 +233,17 @@ class _SeekGrip(wx.Control):
         self.slider._end_pointer_drag(source)
 
     def _motion(self, event: wx.MouseEvent) -> None:
-        if (
-            self.slider.IsEnabled()
-            and self.slider._drag_source is self
-        ):
+        if not self.slider.IsEnabled():
+            dismiss_tooltip(self)
+        elif self.slider._drag_source is self:
             self.slider._seek_from_grip(self, event.GetPosition())
             self.slider._position_seek_tooltip(event.GetPosition())
+        elif not self.slider.is_dragging:
+            self.slider._position_seek_tooltip(event.GetPosition())
+        event.Skip()
+
+    def _leave(self, event: wx.MouseEvent) -> None:
+        dismiss_tooltip(self)
         event.Skip()
 
     def _capture_lost(self, event: wx.MouseCaptureLostEvent) -> None:
@@ -265,6 +271,7 @@ class TimeSlider(wx.Control):
         on_plot_endpoint_mode: Callable[[str, time_range.EndpointMode], None],
         on_begin_edit: Callable[[], None],
         on_range_dragging: Callable[[bool], None] | None = None,
+        timeline_tooltip_at: Callable[[float], str] | None = None,
     ) -> None:
         super().__init__(
             parent,
@@ -291,6 +298,9 @@ class TimeSlider(wx.Control):
         self._unloaded_from_s: float | None = None
         self._plot_rule: time_range.PlotTimeRange | None = None
         self._display_time_zone = UTC_DISPLAY
+        self._timeline_tooltip_at = (
+            timeline_tooltip_at or self._default_timeline_tooltip_at
+        )
         self._now = 0.0
         self._drag_source: wx.Window | None = None
         self._pointer_over_track = False
@@ -301,6 +311,8 @@ class TimeSlider(wx.Control):
         self._grips: dict[str, _RangeGrip] = {}
         self._seek_grip = _SeekGrip(self.GetParent(), self)
         self._seek_grip.Hide()
+        self._timeline_tooltip = set_tooltip(self, self._timeline_tooltip_at(0.0))
+        self._timeline_tooltip.SetStartDelay(1)
         self.Bind(wx.EVT_PAINT, self._paint_track)
         self.Bind(wx.EVT_LEFT_DOWN, self._left_down)
         self.Bind(wx.EVT_LEFT_UP, self._left_up)
@@ -388,16 +400,54 @@ class TimeSlider(wx.Control):
 
     def _pointer_motion(self, event: wx.MouseEvent) -> None:
         position = event.GetPosition()
+        self._update_pointer_state(position)
+        event.Skip()
+
+    def _update_pointer_state(self, position: wx.Point) -> None:
         self._set_pointer_position(position)
         self._set_track_hover(
             self.is_pointer_over_timeline_track(position)
         )
-        event.Skip()
+        if (
+            not self.IsEnabled()
+            or self.is_dragging
+            or not self.is_pointer_over_timeline_track(position)
+        ):
+            self._timeline_tooltip.DoHideNow()
+        else:
+            width = self.GetClientSize().width
+            if width > 0:
+                fraction = min(max(position.x / width, 0.0), 1.0)
+                self._timeline_tooltip.SetMessage(self._timeline_tooltip_at(fraction))
+                position_tooltip_at_pointer(
+                    self._timeline_tooltip,
+                    self,
+                    position,
+                    above_track=True,
+                )
 
     def _pointer_leave(self, event: wx.MouseEvent) -> None:
         self._set_pointer_position(None)
         self._set_track_hover(False)
+        self.hide_tooltips()
         event.Skip()
+
+    def hide_tooltips(self) -> None:
+        """Hide the track and seek marker tooltips."""
+        dismiss_tooltip(self)
+        dismiss_tooltip(self._seek_grip)
+
+    def _default_timeline_tooltip_at(self, fraction: float) -> str:
+        start, end = self._slider_bounds
+        timestamp = start + min(max(fraction, 0.0), 1.0) * (end - start)
+        try:
+            return format_tt(
+                timestamp,
+                self._display_time_zone,
+                fractional_second_places=0,
+            )
+        except (AttributeError, TypeError, OverflowError, ValueError):
+            return ""
 
     def _position_seek_tooltip(self, position: wx.Point) -> None:
         tooltip = getattr(self._seek_grip, "_play_oem_tooltip", None)
@@ -598,10 +648,7 @@ class TimeSlider(wx.Control):
 
     def _motion(self, event: wx.MouseEvent) -> None:
         position = event.GetPosition()
-        self._set_pointer_position(position)
-        self._set_track_hover(
-            self.is_pointer_over_timeline_track(position)
-        )
+        self._update_pointer_state(position)
         if (
             self._drag_source is self
             and self._range_drag_origin is not None
@@ -729,6 +776,15 @@ class TimeSlider(wx.Control):
     def set_display_time_zone(self, display_time_zone: str) -> None:
         self._display_time_zone = display_time_zone
         self._position_grips()
+        if self._pointer_position is not None:
+            position = self._pointer_position
+            if self.is_pointer_over_timeline_track(position):
+                width = self.GetClientSize().width
+                if width > 0:
+                    fraction = min(max(position.x / width, 0.0), 1.0)
+                    self._timeline_tooltip.SetMessage(
+                        self._timeline_tooltip_at(fraction)
+                    )
 
     def _time_for(self, key: str) -> float:
         if key.startswith("playback"):

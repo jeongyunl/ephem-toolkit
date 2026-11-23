@@ -8,12 +8,7 @@ from typing import TYPE_CHECKING, Protocol
 import wx
 
 from .constants import TIMELINE_SLIDER_MAX
-from ..tooltips import (
-    SuperToolTip,
-    dismiss_tooltip,
-    position_tooltip_at_pointer,
-    set_tooltip,
-)
+from ..tooltips import set_tooltip
 
 if TYPE_CHECKING:
     from .time_scrubber import TimeScrubber, TimeScrubberWidget
@@ -29,8 +24,6 @@ class _TimelineState(Protocol):
     _on_seek_to_time: Callable[[str], None] | None
     _syncing_timeline: bool
     _timeline_enabled: bool
-    _timeline_tooltip: SuperToolTip
-    _timeline_tooltip_at: Callable[[float], str]
     _playback_button_labels: dict[float, str]
     playback_controls_row: wx.Panel
     _playback_playing: bool
@@ -47,8 +40,6 @@ class _TimelineState(Protocol):
     def _on_timeline_slider(self, event: wx.CommandEvent) -> None: ...
 
     def _on_timeline_time_focus(self, event: wx.FocusEvent) -> None: ...
-
-    def _on_timeline_motion(self, event: wx.MouseEvent) -> None: ...
 
     def _submit_timeline_time(self, _event: wx.CommandEvent) -> None: ...
 
@@ -190,8 +181,8 @@ class TimelineMixin:
         ):
             button.Enable(loaded)
         self.time_scrubber.set_enabled(loaded and self._timeline_enabled)
-        if not self.timeline_slider.IsEnabled() and hasattr(self, "_timeline_tooltip"):
-            self._timeline_tooltip.DoHideNow()
+        if not self.timeline_slider.IsEnabled():
+            self.timeline_slider.hide_tooltips()
         for button in self._add_buttons.values():
             button.Enable(loaded)
 
@@ -223,51 +214,3 @@ class TimelineMixin:
         """Select the current value once when the timeline editor gains focus."""
         event.Skip()
         wx.CallAfter(self.timeline_time_entry.SelectAll)
-
-    def _on_timeline_motion(self: _TimelineState, event: wx.MouseEvent) -> None:
-        if (
-            not self._timeline_enabled
-            or not self.timeline_slider.IsEnabled()
-            or self.timeline_slider.is_dragging
-        ):
-            self._timeline_tooltip.DoHideNow()
-            event.Skip()
-            return
-        if not self.timeline_slider.is_pointer_over_timeline_track(event.GetPosition()):
-            self._timeline_tooltip.DoHideNow()
-            event.Skip()
-            return
-        width = self.timeline_slider.GetClientSize().GetWidth()
-        if width > 0:
-            fraction = min(max(event.GetX() / width, 0.0), 1.0)
-            self._timeline_tooltip.SetMessage(self._timeline_tooltip_at(fraction))
-            position_tooltip_at_pointer(
-                self._timeline_tooltip,
-                self.timeline_slider,
-                event.GetPosition(),
-                above_track=True,
-            )
-        event.Skip()
-
-    def _on_timeline_seek_grip_motion(
-        self: _TimelineState, event: wx.MouseEvent
-    ) -> None:
-        slider = self.timeline_slider
-        seek_grip = slider._seek_grip
-        if (
-            not self._timeline_enabled
-            or not slider.IsEnabled()
-        ):
-            dismiss_tooltip(seek_grip)
-            event.Skip()
-            return
-        if not slider.is_dragging:
-            tooltip = getattr(seek_grip, "_play_oem_tooltip", None)
-            if tooltip is not None:
-                position_tooltip_at_pointer(
-                    tooltip,
-                    seek_grip,
-                    event.GetPosition(),
-                    above_track=True,
-                )
-        event.Skip()

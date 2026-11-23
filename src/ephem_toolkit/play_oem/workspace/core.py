@@ -214,6 +214,7 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             on_plot_endpoint_mode=on_plot_endpoint_mode or (lambda _name, _mode: None),
             on_begin_edit=on_begin_time_range_edit or (lambda: None),
             on_range_dragging=on_time_range_dragging or (lambda _dragging: None),
+            timeline_tooltip_at=timeline_tooltip_at,
         )
         self.timeline_slider = self.time_scrubber.slider
         self.timeline_tick_rail = self.time_scrubber.tick_rail
@@ -226,19 +227,6 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         )
         self.timeline_slider.SetName("TimeScrubber")
         self.timeline_slider.Bind(wx.EVT_SLIDER, self._on_timeline_slider)
-        if timeline_tooltip_at is not None:
-            self._timeline_tooltip_at = timeline_tooltip_at
-            self._timeline_tooltip = set_tooltip(
-                self.timeline_slider,
-                timeline_tooltip_at(0.0),
-            )
-            # Let the motion handler position the first popup before the
-            # automatic hover timer can place it at the slider edge.
-            self._timeline_tooltip.SetStartDelay(1)
-            self.timeline_slider.Bind(wx.EVT_MOTION, self._on_timeline_motion)
-            self.timeline_slider._seek_grip.Bind(
-                wx.EVT_MOTION, self._on_timeline_seek_grip_motion
-            )
         # Show playback bounds, not OEM coverage; shrink only displayed fractions.
         self.playback_start_label = wx.StaticText(self.time_readout_row, wx.ID_ANY, "")
         set_timestamp_label(

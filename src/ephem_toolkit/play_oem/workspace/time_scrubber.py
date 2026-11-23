@@ -444,6 +444,7 @@ class TimeScrubber(TimeSlider):
         on_begin_edit: Callable[[], None] | None = None,
         on_range_dragging: Callable[[bool], None] | None = None,
         on_viewport: Callable[[tuple[float, float]], None] | None = None,
+        timeline_tooltip_at: Callable[[float], str] | None = None,
     ) -> None:
         self._coverage = coverage
         self._viewport = _clamp_viewport(viewport[0], viewport[1], coverage) if viewport else coverage
@@ -464,6 +465,7 @@ class TimeScrubber(TimeSlider):
             on_plot_endpoint_mode=on_plot_endpoint_mode or (lambda _name, _mode: None),
             on_begin_edit=on_begin_edit or (lambda: None),
             on_range_dragging=on_range_dragging,
+            timeline_tooltip_at=timeline_tooltip_at,
         )
         self._coverage = coverage
         self._viewport = _clamp_viewport(
@@ -693,6 +695,7 @@ class TimeScrubberWidget(wx.Panel):
         on_begin_edit: Callable[[], None] | None = None,
         on_range_dragging: Callable[[bool], None] | None = None,
         on_viewport: Callable[[tuple[float, float]], None] | None = None,
+        timeline_tooltip_at: Callable[[float], str] | None = None,
         display_time_zone: str = UTC_DISPLAY,
         timeline_enabled: bool = True,
     ) -> None:
@@ -735,7 +738,9 @@ class TimeScrubberWidget(wx.Panel):
             on_begin_edit=on_begin_edit,
             on_range_dragging=on_range_dragging,
             on_viewport=self._viewport_changed,
+            timeline_tooltip_at=timeline_tooltip_at,
         )
+        self.slider.set_display_time_zone(display_time_zone)
         self.slider.Enable(timeline_enabled)
         self.tick_rail.Enable(timeline_enabled)
         self.tick_rail.set_wheel_handler(self.slider._mouse_wheel)
