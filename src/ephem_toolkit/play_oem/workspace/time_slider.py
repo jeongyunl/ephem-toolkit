@@ -563,8 +563,6 @@ class TimeSlider(wx.Control):
         if _timestamp_is_visible(self._now, self._slider_bounds):
             progress_x = self._x_for(self._now)
             dc.SetPen(wx.Pen(highlight, 2))
-            dc.DrawLine(left, center_y, progress_x, center_y)
-            dc.SetPen(wx.Pen(highlight, 2))
             dc.SetBrush(wx.Brush(background))
             dc.DrawCircle(progress_x, center_y, 6)
 
