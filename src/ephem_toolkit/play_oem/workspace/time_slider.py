@@ -16,6 +16,9 @@ from ..tooltips import (
 from ..display_time import UTC_DISPLAY, format_tt
 
 
+PLAYBACK_RANGE_HIT_TOLERANCE = 8
+
+
 def _triangle_vertices(
     kind: str, center_x: int, center_y: int
 ) -> tuple[tuple[int, int], ...]:
@@ -373,7 +376,10 @@ class TimeSlider(wx.Control):
             return False
         start_x, end_x = sorted(segment)
         connector_y = self.GetClientSize().height // 2 + 17
-        return start_x < position.x < end_x and abs(position.y - connector_y) <= 3
+        return (
+            start_x < position.x < end_x
+            and abs(position.y - connector_y) <= PLAYBACK_RANGE_HIT_TOLERANCE
+        )
 
     def _set_track_hover(self, hovered: bool) -> None:
         if self._pointer_over_track != hovered:
