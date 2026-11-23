@@ -61,7 +61,7 @@ class TimelineMixin:
             glyph,
             style=wx.BU_EXACTFIT,
         )
-        speed_button.SetMinSize(wx.Size(speed_button.GetBestSize().width + 4, -1))
+        speed_button.SetMinSize(wx.Size(speed_button.GetBestSize().width, -1))
         magnitude = abs(rate)
         speed_button.SetName(f"Set {direction} playback speed to {magnitude:g}x")
         if magnitude == 1.0:

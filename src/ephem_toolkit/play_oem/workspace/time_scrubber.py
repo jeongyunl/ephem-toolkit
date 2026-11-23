@@ -36,7 +36,7 @@ class TimeScrubberChevronButton(wx.Control):
             parent,
             wx.ID_ANY,
             size=wx.Size(TIMESCRUBBER_CHEVRON_WIDTH, TIMESCRUBBER_TRACK_HEIGHT),
-            style=wx.WANTS_CHARS,
+            style=wx.BORDER_THEME | wx.WANTS_CHARS,
         )
         self.SetMinSize(
             self.FromDIP(wx.Size(TIMESCRUBBER_CHEVRON_WIDTH, TIMESCRUBBER_TRACK_HEIGHT))
@@ -87,13 +87,12 @@ class TimeScrubberChevronButton(wx.Control):
         face = wx.Colour(
             "#e7ebf0" if self._pressed else "#f2f3f5" if self._hovered else "#eeeeee"
         )
-        border = wx.Colour("#c2c6cc" if enabled else "#d5d7da")
         foreground = wx.Colour("#34383d" if enabled else "#a5a8ac")
         dc.SetBackground(wx.Brush(self.GetParent().GetBackgroundColour()))
         dc.Clear()
-        dc.SetPen(wx.Pen(border, 1))
+        dc.SetPen(wx.TRANSPARENT_PEN)
         dc.SetBrush(wx.Brush(face))
-        dc.DrawRoundedRectangle(1, 1, width - 2, height - 2, 4)
+        dc.DrawRectangle(0, 0, width, height)
         font = dc.GetFont()
         font.SetPointSize(max(font.GetPointSize(), 16))
         dc.SetFont(font)
@@ -104,10 +103,6 @@ class TimeScrubberChevronButton(wx.Control):
             (width - text_width) // 2,
             (height - text_height) // 2,
         )
-        if self.HasFocus():
-            dc.SetPen(wx.Pen(wx.Colour("#4477bb"), 1, wx.PENSTYLE_DOT))
-            dc.SetBrush(wx.TRANSPARENT_BRUSH)
-            dc.DrawRoundedRectangle(3, 3, width - 6, height - 6, 3)
 
     def _left_down(self, event: wx.MouseEvent) -> None:
         if self._scrollable:

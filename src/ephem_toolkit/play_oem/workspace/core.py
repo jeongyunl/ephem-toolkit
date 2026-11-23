@@ -166,7 +166,7 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             wx.EXPAND | wx.LEFT | wx.RIGHT,
             8,
         )
-        timeline_sizer.Add((0, 6), 0)
+        timeline_sizer.Add((0, 4), 0)
         self.timeline_track_row = wx.Panel(self.timeline_panel, wx.ID_ANY)
         self.timeline_track_row.SetName("Playback timeline row")
         self.timeline_track_row.SetBackgroundColour(
@@ -231,9 +231,9 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         self.playback_start_label = wx.StaticText(self.time_readout_row, wx.ID_ANY, "")
         set_timestamp_label(
             self.playback_start_label,
-            f"Playback start: {format_tt(initial_playback[0], self._display_time_zone)}",
+            f"Start: {format_tt(initial_playback[0], self._display_time_zone)}",
         )
-        self.playback_start_label.SetName("Playback start time")
+        self.playback_start_label.SetName("Start time")
         current_time_sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.timeline_current_prefix = wx.StaticText(
             self.time_readout_row, wx.ID_ANY, "Current time:"
@@ -248,6 +248,13 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         self.timeline_time_entry.SetName("Current time or elapsed time")
         self.timeline_time_entry.SetHint("Timestamp or elapsed time, e.g. 1h30m")
         self.timeline_time_entry.SetMinSize(wx.Size(220, -1))
+        preferred_entry_height = self.timeline_time_entry.GetBestSize().height
+        self.timeline_time_entry.SetMaxSize(
+            wx.Size(
+                -1,
+                max(20, preferred_entry_height - 8),
+            )
+        )
         if on_seek_to_time is not None:
             self.timeline_time_entry.Bind(
                 wx.EVT_TEXT_ENTER,
@@ -274,9 +281,12 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         self.playback_end_label = wx.StaticText(self.time_readout_row, wx.ID_ANY, "")
         set_timestamp_label(
             self.playback_end_label,
-            f"Playback end: {format_tt(initial_playback[1], self._display_time_zone)}",
+            f"End: {format_tt(initial_playback[1], self._display_time_zone)}",
         )
-        self.playback_end_label.SetName("Playback end time")
+        self.playback_end_label.SetName("End time")
+        self.timeline_time_entry.SetBackgroundColour(
+            self.time_readout_row.GetBackgroundColour()
+        )
         time_label_sizer.Add(
             self.playback_start_label,
             0,
@@ -296,11 +306,11 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             wx.EXPAND | wx.LEFT | wx.RIGHT,
             8,
         )
-        timeline_sizer.Add((0, 8), 0)
+        timeline_sizer.Add((0, 6), 0)
         timeline_sizer.Add(
             self.timeline_track_row, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 8
         )
-        timeline_sizer.Add((0, 8), 0)
+        timeline_sizer.Add((0, 12), 0)
         self.playback_speed_buttons: dict[float, wx.ToggleButton] = {}
         self._playback_button_labels: dict[float, str] = {}
         for rate, glyph, direction in (
@@ -391,6 +401,16 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             self.playback_speed_buttons[rate] = speed_button
             self._playback_button_labels[rate] = glyph
             playback_sizer.Add(speed_button, 0, wx.RIGHT, 4)
+        for button in (
+            *self.playback_speed_buttons.values(),
+            self.playback_reverse_play_button,
+            self.playback_forward_play_button,
+        ):
+            preferred_button_size = button.GetBestSize()
+            button.SetMinSize(wx.Size(preferred_button_size.width, -1))
+            button.SetMaxSize(
+                wx.Size(-1, max(20, preferred_button_size.height - 8))
+            )
         timeline_sizer.Add(
             self.playback_controls_row,
             0,
@@ -467,11 +487,11 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         """Synchronize playback labels and range grips."""
         set_timestamp_label(
             self.playback_start_label,
-            f"Playback start: {format_tt((playback_handle_bounds or playback)[0], self._display_time_zone)}",
+            f"Start: {format_tt((playback_handle_bounds or playback)[0], self._display_time_zone)}",
         )
         set_timestamp_label(
             self.playback_end_label,
-            f"Playback end: {format_tt((playback_handle_bounds or playback)[1], self._display_time_zone)}",
+            f"End: {format_tt((playback_handle_bounds or playback)[1], self._display_time_zone)}",
         )
         self.timeline_slider.set_ranges(
             coverage,

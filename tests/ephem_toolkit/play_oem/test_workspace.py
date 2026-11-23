@@ -946,8 +946,8 @@ def test_workspace_builds_feature_pages_split_panes_and_global_timeline(
     assert result.timeline_panel.sizer.items[2][0] is result.time_readout_row
     assert result.timeline_panel.sizer.items[4][0] is result.timeline_track_row
     assert result.timeline_panel.sizer.items[6][0] is result.playback_controls_row
-    assert result.timeline_panel.sizer.items[3][0] == (0, 8)
-    assert result.timeline_panel.sizer.items[5][0] == (0, 8)
+    assert result.timeline_panel.sizer.items[3][0] == (0, 6)
+    assert result.timeline_panel.sizer.items[5][0] == (0, 12)
     assert result.playback_controls_row.sizer.items[4][0] is (
         result.playback_reverse_play_button
     )
@@ -969,13 +969,13 @@ def test_workspace_builds_feature_pages_split_panes_and_global_timeline(
         for button in result.playback_speed_buttons.values()
     )
     assert all(
-        button.minimum_size == (44, -1)
+        button.minimum_size == (40, -1)
         for button in result.playback_speed_buttons.values()
     )
     assert frame.sizer.items[0][0] is result.main_splitter
     assert frame.sizer.items[1][0] is result.timeline_panel
     assert result.playback_start_label.label == (
-        f"Playback start: {core.format_tt(10.0, 'UTC')}"
+        f"Start: {core.format_tt(10.0, 'UTC')}"
     )
     assert result.timeline_current_prefix.label == "Current time:"
     assert result.timeline_time_entry.name == "Current time or elapsed time"
@@ -983,7 +983,7 @@ def test_workspace_builds_feature_pages_split_panes_and_global_timeline(
         result.timeline_time_entry.hint == "Timestamp or elapsed time, e.g. 1h30m"
     )
     assert result.playback_end_label.label == (
-        f"Playback end: {core.format_tt(90.0, 'UTC')}"
+        f"End: {core.format_tt(90.0, 'UTC')}"
     )
 
 
@@ -1033,9 +1033,9 @@ def test_playback_range_labels_track_current_playback_bounds() -> None:
         result, (0.0, 100.0), (20.0, 80.0), plot_rule, 50.0
     )
     assert start_label.label == (
-        f"Playback start: {core.format_tt(20.0, 'UTC')}"
+        f"Start: {core.format_tt(20.0, 'UTC')}"
     )
-    assert end_label.label == f"Playback end: {core.format_tt(80.0, 'UTC')}"
+    assert end_label.label == f"End: {core.format_tt(80.0, 'UTC')}"
     assert slider_states == [
         (
             ((0.0, 100.0), (20.0, 80.0), plot_rule, 50.0, None, None),
