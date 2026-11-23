@@ -34,9 +34,12 @@ class TimeScrubberChevronButton(wx.ToggleButton):
             parent,
             wx.ID_ANY,
             label,
-            size=wx.Size(30, TIMESCRUBBER_TRACK_HEIGHT),
+            size=wx.Size(40, TIMESCRUBBER_TRACK_HEIGHT),
             style=wx.BU_EXACTFIT,
         )
+        # GTK's native toggle-button borders can consume more than 30 px,
+        # leaving a negative content width for this icon-sized control.
+        self.SetMinSize(self.FromDIP(wx.Size(40, TIMESCRUBBER_TRACK_HEIGHT)))
         self._callback = callback
         self._scrollable = True
         self.SetName(tooltip)
