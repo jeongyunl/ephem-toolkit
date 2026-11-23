@@ -284,9 +284,7 @@ class PlayerAppPreferencesMixin:
             settings.playback_range = playback
         settings.plot_range = self.plot_time_range
         if timeline_slider is not None and not loading_current_file:
-            viewport = self._timeline_restore_state.metadata_viewport
-            if not self._timeline_restore_state.loading_locked or viewport is None:
-                viewport = timeline_slider.viewport
+            viewport = timeline_slider.viewport
             settings.time_scrubber = TimeScrubberSettings(
                 current_time_tt=self.clock.t_now,
                 viewport_tt=viewport,

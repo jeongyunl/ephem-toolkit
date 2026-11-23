@@ -2862,6 +2862,43 @@ def test_initial_file_settings_are_applied_and_saved(
     player.close()
 
 
+def test_live_time_scrubber_zoom_is_saved_during_restore_lock(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    file_path = "/tmp/zoomed.oem"
+    saved_state = SavedAppState(
+        recent_files=[file_path],
+        file_settings={
+            file_path: FileSettings(
+                (110.0, 190.0),
+                None,
+                TimeScrubberSettings(
+                    current_time_tt=150.0,
+                    viewport_tt=(120.0, 180.0),
+                ),
+            )
+        },
+    )
+    monkeypatch.setattr(player_app_preferences, "save_saved_state", lambda _state: None)
+    player, _views, _canvases, _frames = make_app(
+        monkeypatch,
+        saved_state=saved_state,
+        initial_file_path=file_path,
+    )
+
+    player.workspace.timeline_slider = SimpleNamespace(viewport=(130.0, 170.0))
+    player._timeline_restore_state.loading_locked = True
+    player._timeline_restore_state.metadata_viewport = (120.0, 180.0)
+
+    player._save_application_state(save_geometry=False)
+
+    assert saved_state.file_settings[file_path].time_scrubber == TimeScrubberSettings(
+        current_time_tt=150.0,
+        viewport_tt=(130.0, 170.0),
+    )
+    player.close()
+
+
 def test_metadata_without_stored_scrubber_uses_defaults_once(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
