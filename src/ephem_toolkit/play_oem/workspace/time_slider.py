@@ -220,27 +220,32 @@ class _SeekGrip(wx.Control):
         if not self.slider.IsEnabled():
             return
         self.slider.SetFocus()
-        self.slider._begin_pointer_drag(self)
-        if not self.HasCapture():
-            self.CaptureMouse()
+        # Capture on the slider so drag coordinates stay in the slider's
+        # client space across wx ports, especially GTK.
+        capture_window = self.slider
+        if not hasattr(capture_window, "CaptureMouse"):
+            capture_window = self
+        self.slider._begin_pointer_drag(capture_window)
+        if not capture_window.HasCapture():
+            capture_window.CaptureMouse()
         self.slider._position_seek_tooltip(event.GetPosition())
 
     def _up(self, _event: wx.MouseEvent) -> None:
-        self.slider._end_pointer_drag(self)
+        source = self.slider if self.slider._drag_source is self.slider else self
+        self.slider._end_pointer_drag(source)
 
     def _motion(self, event: wx.MouseEvent) -> None:
         if (
             self.slider.IsEnabled()
             and self.slider._drag_source is self
-            and event.Dragging()
-            and event.LeftIsDown()
         ):
             self.slider._seek_from_grip(self, event.GetPosition())
             self.slider._position_seek_tooltip(event.GetPosition())
         event.Skip()
 
     def _capture_lost(self, event: wx.MouseCaptureLostEvent) -> None:
-        self.slider._end_pointer_drag(self, release_capture=False)
+        source = self.slider if self.slider._drag_source is self.slider else self
+        self.slider._end_pointer_drag(source, release_capture=False)
         event.Skip()
 
 
@@ -600,8 +605,6 @@ class TimeSlider(wx.Control):
         if (
             self._drag_source is self
             and self._range_drag_origin is not None
-            and event.Dragging()
-            and event.LeftIsDown()
         ):
             command_down = getattr(event, "CmdDown", lambda: False)()
             self._move_playback_range(
@@ -610,8 +613,6 @@ class TimeSlider(wx.Control):
             )
         elif (
             self._drag_source is self
-            and event.Dragging()
-            and event.LeftIsDown()
         ):
             self._set_value_from_user(self._value_at_x(event.GetX()))
         event.Skip()
@@ -651,12 +652,15 @@ class TimeSlider(wx.Control):
         )
         end_s = start_s + duration_s
         self._range_drag_modifier_changed(move_seek, start_s)
+        current_time_s: float | None = None
         if move_seek:
-            seek_start_s, seek_time_s = self._range_seek_origin
+            seek_origin = self._range_seek_origin
+            assert seek_origin is not None
+            seek_start_s, seek_time_s = seek_origin
             current_time_s = seek_time_s + start_s - seek_start_s
             current_time_s = min(max(current_time_s, start_s), end_s)
         self._on_playback(start_s, end_s)
-        if move_seek:
+        if current_time_s is not None:
             self._set_value_from_user(
                 self._value_at_x(self._x_for(current_time_s))
             )
@@ -880,6 +884,9 @@ class TimeSlider(wx.Control):
         )
         if _timestamp_is_visible(self._now, self._slider_bounds):
             self._seek_grip.Show()
+            # Range grips are sibling windows and may overlap the seek marker.
+            # Keep the seek target on top after all of them are repositioned.
+            self._seek_grip.Raise()
             try:
                 timestamp = format_tt(
                     self._now,
