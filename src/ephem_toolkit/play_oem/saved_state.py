@@ -26,7 +26,7 @@ from .time_range import (
 from .views.registry import parse_plot_selection
 
 STATE_FILENAME = "play-oem-state.toml"
-STATE_VERSION = 10
+STATE_VERSION = 11
 MAX_RECENT_FILES = 15
 MIN_STORED_WINDOW_DIMENSION = 320
 MAX_STORED_WINDOW_DIMENSION = 10000
@@ -269,33 +269,21 @@ def load_saved_state(path: str | Path | None = None) -> SavedAppState:
                 state_path,
                 f"files[{file_path!r}] must be a TOML table",
             )
-        if set(settings) - {"playback", "plot_range", "time_scrubber"}:
-            unknown = sorted(
-                set(settings) - {"playback", "plot_range", "time_scrubber"}
-            )[0]
+        allowed_file_keys = {"playback_range", "plot_range", "time_scrubber"}
+        if set(settings) - allowed_file_keys:
+            unknown = sorted(set(settings) - allowed_file_keys)[0]
             return _state_error(
                 state_path,
                 f"unknown key files[{file_path!r}].{unknown}",
             )
-        playback = settings.get("playback", {})
-        if not isinstance(playback, dict):
-            return _state_error(
-                state_path, f"files[{file_path!r}].playback must be a TOML table"
-            )
-        if set(playback) - {"range_tt"}:
-            unknown = sorted(set(playback) - {"range_tt"})[0]
-            return _state_error(
-                state_path,
-                f"unknown key files[{file_path!r}].playback.{unknown}",
-            )
-        playback_range = playback.get("range_tt")
-        if playback_range is not None:
+        if "playback_range" in settings:
+            playback_range = settings["playback_range"]
             try:
                 parsed_range = _validated_playback_range(playback_range)
             except ValueError as error:
                 return _state_error(
                     state_path,
-                    f"invalid files[{file_path!r}].playback.range_tt: "
+                    f"invalid files[{file_path!r}].playback_range: "
                     f"{error}",
                 )
         else:
@@ -536,29 +524,19 @@ def serialize_saved_state(state: SavedAppState) -> str:
         normalized_file_settings[normalized_path] = settings
     encoded_file_settings: list[str] = []
     for path, settings in sorted(normalized_file_settings.items()):
+        file_values: list[str] = []
         if settings.playback_range is not None:
             start, end = _validated_playback_range(settings.playback_range)
-            encoded_file_settings.extend(
-                (
-                    f"[files.{_toml_string(path)}.playback]",
-                    f"range_tt = [{start!r}, {end!r}]",
-                    "",
-                )
-            )
+            file_values.append(f"playback_range = [{start!r}, {end!r}]")
         if settings.plot_range is not None:
             plot_range = validate_plot_range(settings.plot_range)
-            encoded_file_settings.extend(
-                (
-                    f"[files.{_toml_string(path)}.plot_range]",
-                    f"enabled = {str(plot_range.enabled).lower()}",
-                    "start = { "
-                    f"mode = {_toml_string(plot_range.start.mode)}, "
-                    f"value_s = {plot_range.start.value_s!r} }}",
-                    "end = { "
-                    f"mode = {_toml_string(plot_range.end.mode)}, "
-                    f"value_s = {plot_range.end.value_s!r} }}",
-                    "",
-                )
+            file_values.append(
+                f"plot_range = {{ "
+                f"enabled = {str(plot_range.enabled).lower()}, "
+                f"start = {{ mode = {_toml_string(plot_range.start.mode)}, "
+                f"value_s = {plot_range.start.value_s!r} }}, "
+                f"end = {{ mode = {_toml_string(plot_range.end.mode)}, "
+                f"value_s = {plot_range.end.value_s!r} }} }}"
             )
         if settings.time_scrubber is not None:
             scrubber = settings.time_scrubber
@@ -576,13 +554,17 @@ def serialize_saved_state(state: SavedAppState) -> str:
                     f"viewport_tt = [{viewport_tt[0]!r}, {viewport_tt[1]!r}]"
                 )
             if scrubber_values:
-                encoded_file_settings.extend(
-                    (
-                        f"[files.{_toml_string(path)}.time_scrubber]",
-                        *scrubber_values,
-                        "",
-                    )
+                file_values.append(
+                    f"time_scrubber = {{ {', '.join(scrubber_values)} }}"
                 )
+        if file_values:
+            encoded_file_settings.extend(
+                (
+                    f"[files.{_toml_string(path)}]",
+                    *file_values,
+                    "",
+                )
+            )
     file_settings_body = "\n".join(encoded_file_settings)
     position_line = (
         f"position = [{state.position[0]}, {state.position[1]}]\n"

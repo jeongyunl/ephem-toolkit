@@ -128,8 +128,8 @@ def test_file_playback_ranges_round_trip(tmp_path) -> None:
         },
     )
     serialized = serialize_saved_state(state)
-    assert f'[files."{file_path}".playback]' in serialized
-    assert "range_tt = [123.5, 456.75]" in serialized
+    assert f'[files."{file_path}"]' in serialized
+    assert "playback_range = [123.5, 456.75]" in serialized
     assert "[recent_files.settings]" not in serialized
     path.write_text(serialized)
 
@@ -172,9 +172,8 @@ def test_time_scrubber_settings_round_trip(tmp_path) -> None:
         }
     )
     serialized = serialize_saved_state(state)
-    assert f'[files."{file_path}".time_scrubber]' in serialized
-    assert "current_time_tt = 150.0" in serialized
-    assert "viewport_tt = [120.0, 180.0]" in serialized
+    assert f'[files."{file_path}"]' in serialized
+    assert "time_scrubber = { current_time_tt = 150.0, viewport_tt = [120.0, 180.0] }" in serialized
     path.write_text(serialized)
 
     loaded = load_saved_state(path)
@@ -188,17 +187,17 @@ def test_time_scrubber_settings_round_trip(tmp_path) -> None:
 @pytest.mark.parametrize(
     "contents",
     [
-        'current_time_tt = inf\n',
-        'viewport_tt = [20.0, 20.0]\n',
-        'viewport_tt = [30.0, 20.0]\n',
+        'time_scrubber = { current_time_tt = inf }\n',
+        'time_scrubber = { viewport_tt = [20.0, 20.0] }\n',
+        'time_scrubber = { viewport_tt = [30.0, 20.0] }\n',
     ],
 )
 def test_invalid_time_scrubber_settings_fall_back(tmp_path, contents: str) -> None:
     path = tmp_path / "play-oem-state.toml"
     file_path = str(tmp_path / "orbit.oem")
     path.write_text(
-        "state_version = 10\n"
-        f'[files."{file_path}".time_scrubber]\n'
+        f"state_version = {STATE_VERSION}\n"
+        f'[files."{file_path}"]\n'
         f"{contents}"
     )
 
@@ -267,9 +266,9 @@ def test_invalid_file_playback_range_falls_back(tmp_path) -> None:
     path = tmp_path / "play-oem-state.toml"
     file_path = str(tmp_path / "orbit.oem")
     path.write_text(
-        "state_version = 4\n"
-        f'[files."{file_path}".playback]\n'
-        "range_tt = [20.0, 10.0]\n"
+        f"state_version = {STATE_VERSION}\n"
+        f'[files."{file_path}"]\n'
+        "playback_range = [20.0, 10.0]\n"
     )
 
     with warnings.catch_warnings(record=True) as observed:
@@ -284,11 +283,11 @@ def test_invalid_file_plot_range_falls_back(tmp_path) -> None:
     path = tmp_path / "play-oem-state.toml"
     file_path = str(tmp_path / "orbit.oem")
     path.write_text(
-        "state_version = 6\n"
-        f'[files."{file_path}".plot_range]\n'
-        "enabled = true\n"
-        'start = { mode = "unknown", value_s = 10.0 }\n'
-        'end = { mode = "follow", value_s = 0.0 }\n'
+        f"state_version = {STATE_VERSION}\n"
+        f'[files."{file_path}"]\n'
+        'plot_range = { enabled = true, '
+        'start = { mode = "unknown", value_s = 10.0 }, '
+        'end = { mode = "follow", value_s = 0.0 } }\n'
     )
 
     with warnings.catch_warnings(record=True) as observed:

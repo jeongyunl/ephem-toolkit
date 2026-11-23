@@ -94,20 +94,13 @@ paths = [
     "/home/alex/orbits/transfer.oem",
 ]
 
-[files."/home/alex/orbits/iss.oem".playback]
-range_tt = [806400000.0, 806400600.0]
+[files."/home/alex/orbits/iss.oem"]
+playback_range = [806400000.0, 806400600.0]
+plot_range = { enabled = true, start = { mode = "follow", value_s = 0.0 }, end = { mode = "offset", value_s = 300.0 } }
+time_scrubber = { current_time_tt = 806400240.0, viewport_tt = [806400120.0, 806400420.0] }
 
-[files."/home/alex/orbits/iss.oem".plot_range]
-enabled = true
-start = { mode = "follow", value_s = 0.0 }
-end = { mode = "offset", value_s = 300.0 }
-
-[files."/home/alex/orbits/iss.oem".time_scrubber]
-current_time_tt = 806400240.0
-viewport_tt = [806400120.0, 806400420.0]
-
-[files."/home/alex/orbits/transfer.oem".playback]
-range_tt = [806400120.0, 806400480.0]
+[files."/home/alex/orbits/transfer.oem"]
+playback_range = [806400120.0, 806400480.0]
 
 [workspace]
 open_plots = ["trajectory-3d", "speed-altitude"]
