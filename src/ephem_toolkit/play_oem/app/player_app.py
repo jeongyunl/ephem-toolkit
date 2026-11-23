@@ -288,6 +288,7 @@ class PlayerApp(
         oem_loaded: bool,
         plots: Sequence[str],
         three_d_backend: str,
+        theme: str,
         loaded_file_name: str | None,
     ) -> None:
         """Initialize file state, timeline restoration, views, and wx UI."""
@@ -313,6 +314,7 @@ class PlayerApp(
         try:
             self._initialize_wx_ui(
                 three_d_backend,
+                theme,
                 loaded_file_name,
                 oem_loaded,
             )
@@ -333,6 +335,7 @@ class PlayerApp(
         metadata_details: Sequence[tuple[str, str]] = (),
         plots: Sequence[str] = ("overview",),
         three_d_backend: str = "auto",
+        theme: str = "system",
         tick_interval_ms: int = DEFAULT_TICK_INTERVAL_MS,
         render_rate_fps: int | None = None,
         display_time_zone: str = "UTC",
@@ -426,6 +429,7 @@ class PlayerApp(
             oem_loaded=oem_loaded,
             plots=plots,
             three_d_backend=three_d_backend,
+            theme=theme,
             loaded_file_name=loaded_file_name,
         )
 

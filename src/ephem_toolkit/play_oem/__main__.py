@@ -80,6 +80,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         metadata_details=initial_data.metadata_details,
         plots=selected_plots,
         three_d_backend=selected_backend,
+        theme=cli_args.theme,
         tick_interval_ms=math.ceil(1000 / initial_render_rate_fps),
         render_rate_fps=initial_render_rate_fps,
         display_time_zone=user_config.display_time_zone,

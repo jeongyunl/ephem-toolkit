@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from typing import cast
 
 import wx
@@ -22,6 +23,7 @@ class PlayerWxUiMixin:
     def _initialize_player_frame(
         self: PlayerAppState,
         three_d_backend: str,
+        theme: str,
         loaded_file_name: str | None,
         oem_loaded: bool,
     ) -> None:
@@ -29,6 +31,27 @@ class PlayerWxUiMixin:
         self.wx_app = cast(wx.App, wx.GetApp())
         if self.wx_app is None:
             self.wx_app = wx.App(False)
+        set_appearance = getattr(self.wx_app, "SetAppearance", None)
+        appearance_enum = getattr(wx.PyApp, "Appearance", None)
+        appearance_result = getattr(wx.PyApp, "AppearanceResult", None)
+        if set_appearance is None or appearance_enum is None:
+            if theme != "system":
+                warnings.warn(
+                    f"wxPython does not support forcing the {theme!r} theme; "
+                    "using the system appearance.",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+        else:
+            result = set_appearance(getattr(appearance_enum, theme.capitalize()))
+            if appearance_result is not None and result != appearance_result.Ok:
+                if theme != "system":
+                    warnings.warn(
+                        f"wxPython could not apply the {theme!r} theme; "
+                        "using the system appearance.",
+                        RuntimeWarning,
+                        stacklevel=2,
+                    )
         self.frame = wx.Frame(
             None,
             title=f"play-oem (3D backend: {three_d_backend})",
@@ -116,10 +139,13 @@ class PlayerWxUiMixin:
     def _initialize_wx_ui(
         self: PlayerAppState,
         three_d_backend: str,
+        theme: str,
         loaded_file_name: str | None,
         oem_loaded: bool,
     ) -> None:
-        self._initialize_player_frame(three_d_backend, loaded_file_name, oem_loaded)
+        self._initialize_player_frame(
+            three_d_backend, theme, loaded_file_name, oem_loaded
+        )
         self._initialize_workspace_and_controls()
         self.frame.SetMinSize(PLAYER_FRAME_MIN_SIZE)
         self._restore_saved_window_size()

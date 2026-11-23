@@ -23,7 +23,7 @@ from .. import (
 )
 from ..ground_stations import GroundStation
 from ..incremental_loader import IncrementalLoader, LoadEvent
-from ..oem_data_store import OemDataStore, StoreSnapshot
+from ..oem_data_store import OemDataStore, StoreNotice, StoreSnapshot
 from ..saved_state import SavedAppState
 from ..station_analysis import StationAnalysisContext
 from ..views import base, registry
@@ -208,7 +208,7 @@ class StoreState:
 class StorePlayerState(Protocol):
     """Store ownership and notice state required by player mixins."""
 
-    _store_notice_queue: SimpleQueue[tuple[OemDataStore, object]]
+    _store_notice_queue: SimpleQueue[tuple[OemDataStore, StoreNotice]]
     _store_notice_unsubscribe: Callable[[], None]
     _store_state: StoreState
 
@@ -244,8 +244,8 @@ class PreferencesPlayerState(Protocol):
     _saved_state: SavedAppState | None
     _persist_saved_state: bool
     _recent_oem_paths: list[str]
-    _config_path: object
-    _state_path: object
+    _config_path: str | Path | None
+    _state_path: str | Path | None
     _render_rate_config_dirty: bool
     _display_time_zone_config_dirty: bool
     _interpolation_config_dirty: bool
@@ -271,6 +271,7 @@ class PlayerAppState(
     _ground_stations: list[GroundStation]
     _station_analysis_contexts: dict[str, StationAnalysisContext]
     object_name: str
+    object_id: str
     series: series.OrbitSeries
     time_unit: time_unit.TimeUnit
     workspace: workspace.Workspace
@@ -300,6 +301,13 @@ class PlayerAppState(
     _tick_interval_ms: int
     _timer: wx.Timer
     _view_registry: registry.ViewRegistry
+    _recent_oem_menu: wx.Menu
+    _recent_menu_parent: wx.Menu
+    _recent_menu_item_ids: list[int]
+    _initial_time_scrubber_viewport: tuple[float, float] | None
+    _dashboard_context: dict[str, str]
+    _metadata_details: tuple[tuple[str, str], ...]
+    _follow_selection_unsubscribe: Callable[[], None]
 
     def _open_view(
         self,
@@ -380,7 +388,31 @@ class PlayerAppState(
     def _set_3d_backend(self, backend_name: str) -> None: ...
     def _update_time_display(self) -> None: ...
     def _publish_range_hint(self) -> None: ...
-    def _queue_store_view_refresh(self, view_ids: set[str] | None = None) -> None: ...
+    def _refresh_recent_files_menu(self) -> None: ...
+    def _on_open_file(self, _event: wx.CommandEvent) -> None: ...
+    def _formatted_dashboard_context(self) -> dict[str, str]: ...
+    def _formatted_metadata_details(self) -> tuple[tuple[str, str], ...]: ...
+    def _add_graph_panel(self, stack: str) -> None: ...
+    def _open_station_preset(self, name: str) -> None: ...
+    def _set_follow_station_selection(self, enabled: bool) -> None: ...
+    def _set_range_dragging(self, dragging: bool) -> None: ...
+    def _drag_plot_endpoint(self, name: str, requested_s: float) -> None: ...
+    def _set_interpolation_settings(
+        self, use_oem_metadata: bool, method: str, degree: int
+    ) -> None: ...
+    def _active_interpolation_summary(self) -> str: ...
+    def _set_display_time_zone(self, display_time_zone: str) -> None: ...
+    def _on_frame_close(self, event: wx.CloseEvent) -> None: ...
+    def _on_timer(self, _event: wx.TimerEvent) -> None: ...
+    def _on_clock_time_changed(self, time_s: float) -> None: ...
+    def _initialize_player_frame(
+        self,
+        three_d_backend: str,
+        theme: str,
+        loaded_file_name: str | None,
+        oem_loaded: bool,
+    ) -> None: ...
+    def _initialize_workspace_and_controls(self) -> None: ...
     def open_trajectory_view(
         self,
         panel_id: str | None = None,

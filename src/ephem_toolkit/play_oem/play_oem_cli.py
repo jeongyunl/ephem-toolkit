@@ -15,6 +15,7 @@ THREE_D_BACKEND_OPTION = "--3d-backend"
 CONFIG_FILE_OPTION = "--config-file"
 STATE_FILE_OPTION = "--state-file"
 CONFIG_DIR_OPTION = "--config-dir"
+THEME_OPTION = "--theme"
 CONFIG_OPTION_DESTINATIONS = {
     PLOTS_OPTION: "plots",
     THREE_D_BACKEND_OPTION: "three_d_backend",
@@ -38,6 +39,8 @@ class PlayOemArgs(argparse.Namespace):
     """Optional path to an initial CCSDS OEM file."""
     three_d_backend: str
     """3D trajectory rendering backend."""
+    theme: str
+    """Application appearance: system, light, or dark."""
     plots: tuple[str, ...]
     """View names selected for launch."""
     config_file: str | None
@@ -81,6 +84,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
             "available, vtk requires VTK, and matplotlib forces Matplotlib "
             "(default: auto)."
         ),
+    )
+    parser.add_argument(
+        THEME_OPTION,
+        choices=("system", "light", "dark"),
+        default="system",
+        help="Application theme (default: system).",
     )
     parser.add_argument(
         PLOTS_OPTION,
