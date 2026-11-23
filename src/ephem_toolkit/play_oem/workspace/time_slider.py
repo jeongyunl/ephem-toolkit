@@ -72,7 +72,7 @@ def _plot_tooltip_text(name: str, timestamp: str, mode: time_range.EndpointMode)
 
 def _plot_grip_y(slider_height: int, playback_grip_y: int, grip_height: int) -> int:
     """Mirror the plot grip across the slider track from the playback grip."""
-    return slider_height - playback_grip_y - grip_height
+    return max(0, slider_height - playback_grip_y - grip_height)
 
 
 def _timestamp_is_visible(timestamp: float, visible_range: tuple[float, float]) -> bool:
@@ -285,7 +285,7 @@ class TimeSlider(wx.Control):
         self._maximum = 10_000
         self._value = 0
         # Leave a small handle-to-track gap without pushing playback controls down.
-        self.SetMinSize(wx.Size(-1, max(56, self.GetBestSize().height + 20)))
+        self.SetMinSize(wx.Size(-1, max(52, self.GetBestSize().height + 16)))
         self._on_playback = on_playback
         self._on_plot_endpoint = on_plot_endpoint
         self._on_plot_endpoint_mode = on_plot_endpoint_mode
@@ -518,7 +518,7 @@ class TimeSlider(wx.Control):
         )
         dc.SetPen(wx.Pen(track_color, 1))
         dc.SetBrush(wx.Brush(track_color))
-        dc.DrawRoundedRectangle(left, center_y - 4, right - left, 8, 4)
+        dc.DrawRoundedRectangle(left, center_y - 5, right - left, 10, 5)
 
         playable_segment = self._playable_segment_x()
         if playable_segment is not None:
@@ -528,7 +528,7 @@ class TimeSlider(wx.Control):
             playback_color = wx.Colour("#197765")
             dc.SetPen(wx.Pen(playback_color, 1))
             dc.SetBrush(wx.Brush(playback_color))
-            dc.DrawRoundedRectangle(range_left, center_y - 4, range_width, 8, 4)
+            dc.DrawRoundedRectangle(range_left, center_y - 5, range_width, 10, 5)
 
         unloaded_segment = self._unloaded_segment_x()
         if unloaded_segment is not None:
@@ -538,14 +538,18 @@ class TimeSlider(wx.Control):
                 dc.SetPen(wx.Pen(unloaded_color, 1))
                 dc.SetBrush(wx.Brush(unloaded_color))
                 dc.DrawRoundedRectangle(
-                    unloaded_left, center_y - 4, unloaded_right - unloaded_left, 8, 4
+                    unloaded_left,
+                    center_y - 5,
+                    unloaded_right - unloaded_left,
+                    10,
+                    5,
                 )
 
         if self._track_is_highlighted:
             dc.SetPen(wx.Pen(highlight, 2))
             dc.SetBrush(wx.TRANSPARENT_BRUSH)
             dc.DrawRoundedRectangle(
-                left, center_y - 5, right - left, 10, 5
+                left, center_y - 6, right - left, 12, 6
             )
 
         if self._playback_connector_hovered:
@@ -866,7 +870,7 @@ class TimeSlider(wx.Control):
         width = height = 18
         # Keep endpoint hitboxes clear of the seek marker and mirror them around
         # the track so each handle has a separate mouse target.
-        playback_grip_y = self.GetClientSize().height // 2 + 9
+        playback_grip_y = self.GetClientSize().height // 2 + 8
         centers: list[tuple[str, int]] = [
             (key, self._x_for(self._time_for(key))) for key in self._grips
         ]

@@ -19,7 +19,7 @@ from .time_slider import TimeSlider
 MINIMUM_VIEWPORT_SECONDS = 10.0
 WHEEL_GESTURE_LOCK_SECONDS = 0.25
 TIMESCRUBBER_CHEVRON_WIDTH = 28
-TIMESCRUBBER_TRACK_HEIGHT = 74
+TIMESCRUBBER_TRACK_HEIGHT = 70
 
 
 class TimeScrubberChevronButton(wx.Control):
@@ -418,7 +418,8 @@ class TimeScrubberTickRail(wx.Control):
             for index, (_timestamp, x, label, text_width) in enumerate(major_ticks):
                 if (index - label_offset) % label_stride != 0:
                     continue
-                label_y = max(3, min(5, height - dc.GetTextExtent(label).height))
+                text_height = dc.GetTextExtent(label).height
+                label_y = max(1, min(5, height - text_height - 3))
                 dc.DrawText(label, x - text_width // 2, label_y)
             dc.DestroyClippingRegion()
         if nearest_middle_tick is not None:
@@ -483,7 +484,7 @@ class TimeScrubber(TimeSlider):
         self._wheel_gesture_last_at = 0.0
         self._viewport_fits_coverage = True
         self.SetName("Scrollable TimeScrubber")
-        self.SetMinSize(wx.Size(480, 56))
+        self.SetMinSize(wx.Size(480, 52))
         self._apply_viewport(self._viewport)
 
     def set_viewport(self, viewport: tuple[float, float]) -> None:
