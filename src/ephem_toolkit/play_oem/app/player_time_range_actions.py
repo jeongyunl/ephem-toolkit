@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from .. import time_range
-from .state import PlayerAppState
+from .player_app_state import PlayerAppState
 
 
 def playback_range_plot_rule() -> time_range.PlotTimeRange:
@@ -36,10 +36,10 @@ class TimeRangeActionsMixin:
         bounds = time_range.validate_playback_range(
             (start_s, end_s), (self.clock.t_start, self.clock.t_end)
         )
-        self._scrubber_loading_locked = False
+        self._timeline_restore_state.loading_locked = False
         self._begin_time_range_edit()
-        self._pending_playback_bounds = None
-        self._loading_cursor_anchor_s = None
+        self._timeline_restore_state.playback_bounds = None
+        self._load_state.cursor_anchor_s = None
         self._playback_handle_bounds = (bounds.start_s, bounds.end_s)
         self._playback_handles_fixed_during_load = True
         self.clock.set_playback_bounds(bounds.start_s, bounds.end_s)
@@ -76,8 +76,8 @@ class TimeRangeActionsMixin:
         self._begin_time_range_edit()
         self.plot_time_range = checked
         self._dispatch_time_range(resolved, self.clock.t_now, dragging=dragging)
-        if self._active_load_first_batch and not self._oem_coverage_complete:
-            self._incremental_view_refresh_pending = True
+        if self._load_state.first_batch and not self._load_state.coverage_complete:
+            self._refresh_state.incremental_view_refresh_pending = True
         self._update_time_display()
 
     def _focus_ground_station_pass(
@@ -141,17 +141,17 @@ class TimeRangeActionsMixin:
         """Apply range and cursor state to visible views, deferring hidden panels."""
         coverage = (self.clock.t_start, self.clock.t_end)
         selected_time = self.clock.t_now if time_s is None else time_s
-        context = self._store_view_context
+        context = self._store_state.view_context
         if context is not None and (
             context.plot_range != resolved or context.coverage != coverage
         ):
-            self._store_view_context = context.with_range(resolved, coverage)
+            self._store_state.view_context = context.with_range(resolved, coverage)
             self._queue_store_view_refresh()
         if dragging is not None:
             self._range_dragging = dragging
         self._publish_range_hint()
         if self._should_defer_incremental_view_refresh():
-            self._incremental_view_refresh_pending = True
+            self._refresh_state.incremental_view_refresh_pending = True
             return
         for opened in tuple(self._open_panels.values()):
             if not self._is_time_range_panel_visible(opened.panel):

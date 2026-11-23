@@ -1,7 +1,7 @@
 """Play-oem wx application package."""
 
-from .controller import PlayerApp
-from .support import (
+from .player_app import PlayerApp
+from .player_app_support import (
     DEFAULT_TICK_INTERVAL_MS,
     ELAPSED_TIME_DECIMAL_PLACES,
     EMPTY_GRAPH_LABEL,

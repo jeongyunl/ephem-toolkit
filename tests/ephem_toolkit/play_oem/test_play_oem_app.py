@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import signal
 import time
-from datetime import datetime, timedelta, timezone
 from collections.abc import Callable
 from contextlib import nullcontext
+from datetime import datetime, timedelta, timezone
 from threading import Event
 from types import SimpleNamespace
 from typing import Any, cast
@@ -17,11 +17,19 @@ from matplotlib.backend_bases import MouseButton
 from matplotlib.figure import Figure
 
 import ephem_toolkit.core.ccsds.odm as odm
+import ephem_toolkit.play_oem.config as config
 from ephem_toolkit.core.time_utils import datetime_to_tt_s, tt_s_to_datetime
-from ephem_toolkit.play_oem.app import controller as app
-from ephem_toolkit.play_oem.app import panel_management
-from ephem_toolkit.play_oem.app import support as app_support
-from ephem_toolkit.play_oem.app import view_factory
+from ephem_toolkit.play_oem import time_range
+from ephem_toolkit.play_oem.app import player_3d_view_factory as trajectory_view_factory
+from ephem_toolkit.play_oem.app import player_app as app
+from ephem_toolkit.play_oem.app import (
+    player_app_preferences,
+    player_incremental_loader,
+    player_wx_ui,
+)
+from ephem_toolkit.play_oem.app import player_app_support as app_support
+from ephem_toolkit.play_oem.app import player_panel_management as panel_management
+from ephem_toolkit.play_oem.app import player_standard_plot_factory as view_factory
 from ephem_toolkit.play_oem.clock import PlaybackClock
 from ephem_toolkit.play_oem.cursor import StoreCursor
 from ephem_toolkit.play_oem.ground_stations import GroundStation
@@ -30,14 +38,19 @@ from ephem_toolkit.play_oem.incremental_loader import (
     LoadEvent,
     LoadEventKind,
 )
-from tests.ephem_toolkit.play_oem.cursor_helpers import make_store_cursor
 from ephem_toolkit.play_oem.oem_data_store import LoadStatus, TierNotice
-from ephem_toolkit.play_oem import time_range
 from ephem_toolkit.play_oem.play_oem_cli import build_arg_parser, parse_arguments
+from ephem_toolkit.play_oem.saved_state import (
+    FileSettings,
+    SavedAppState,
+    TimeScrubberSettings,
+    normalize_recent_path,
+)
 from ephem_toolkit.play_oem.series import compute_orbit_series
 from ephem_toolkit.play_oem.time_unit import TimeUnit
-from ephem_toolkit.play_oem.workspace.time_slider import TimeSlider
 from ephem_toolkit.play_oem.views.registry import VIEW_LABELS
+from ephem_toolkit.play_oem.workspace.time_slider import TimeSlider
+from tests.ephem_toolkit.play_oem.cursor_helpers import make_store_cursor
 
 
 @pytest.mark.parametrize(
@@ -658,7 +671,7 @@ def make_app(
     clock: PlaybackClock | None = None,
     tick_interval_ms: int = 33,
     render_rate_fps: int | None = None,
-    saved_state: app.SavedAppState | None = None,
+    saved_state: SavedAppState | None = None,
     config_path=None,
     initial_file_path: str | None = None,
     oem_loaded: bool = True,
@@ -672,7 +685,11 @@ def make_app(
     monkeypatch.setattr(
         app.wx, "Frame", lambda *args, **kwargs: _frame(*args, **kwargs)
     )
-    monkeypatch.setattr(app, "PlaybackStatusBar", FakePlaybackStatusBar)
+    monkeypatch.setattr(
+        player_wx_ui,
+        "PlaybackStatusBar",
+        FakePlaybackStatusBar,
+    )
     monkeypatch.setattr(app.wx, "MenuBar", FakeMenuBar)
     monkeypatch.setattr(app.wx, "Menu", FakeMenu)
     monkeypatch.setattr(app.wx, "StaticText", FakeStaticText)
@@ -720,7 +737,11 @@ def make_app(
     monkeypatch.setattr(
         view_factory.state_components, "StateComponentsView", create_view
     )
-    monkeypatch.setattr(view_factory.trajectory3d, "Trajectory3DView", create_view)
+    monkeypatch.setattr(
+        trajectory_view_factory.trajectory3d,
+        "Trajectory3DView",
+        create_view,
+    )
     timestamps = [100.0, 200.0]
     series = compute_orbit_series(timestamps, make_states(), TimeUnit.MINUTES)
     # PlayerApp is typed against native wx controls; these tests replace them
@@ -749,18 +770,16 @@ def test_ground_station_edits_persist_to_selected_user_config(
 ) -> None:
     config_path = tmp_path / "play-oem.toml"
     config_path.write_text("config_version = 1\n")
-    player, _views, _canvases, _frames = make_app(
-        monkeypatch, config_path=config_path
-    )
+    player, _views, _canvases, _frames = make_app(monkeypatch, config_path=config_path)
     station = GroundStation("station", "Site", 10.0, 20.0, 30.0)
 
     player._update_ground_stations([station])
 
-    assert app.config.load_config(config_path).ground_stations == (station,)
+    assert config.load_config(config_path).ground_stations == (station,)
 
     player._update_ground_stations([])
 
-    loaded = app.config.load_config(config_path)
+    loaded = config.load_config(config_path)
     assert loaded.ground_stations == ()
     assert loaded.ground_stations_configured
 
@@ -806,12 +825,8 @@ def test_legacy_saved_panel_names_open_focused_station_panels(
         lambda name, _create_view, **_kwargs: opened.append(name),
     )
 
-    player.open_panel_view(
-        "ground-station-access", panel_id="legacy-access"
-    )
-    player.open_panel_view(
-        "ground-station-passes", panel_id="legacy-passes"
-    )
+    player.open_panel_view("ground-station-access", panel_id="legacy-access")
+    player.open_panel_view("ground-station-passes", panel_id="legacy-passes")
 
     assert opened == ["elevation-profile", "pass-list"]
 
@@ -911,12 +926,8 @@ def test_focus_ground_station_pass_changes_plot_range_without_seeking(
 
     assert player.clock.t_now == initial_time
     assert player.plot_time_range.enabled
-    assert player.plot_time_range.start == time_range.TimeRangeEndpoint(
-        "fixed", 120.0
-    )
-    assert player.plot_time_range.end == time_range.TimeRangeEndpoint(
-        "fixed", 180.0
-    )
+    assert player.plot_time_range.start == time_range.TimeRangeEndpoint("fixed", 120.0)
+    assert player.plot_time_range.end == time_range.TimeRangeEndpoint("fixed", 180.0)
 
 
 def test_open_file_dialog_accepts_lower_and_uppercase_oem_extensions(
@@ -1015,7 +1026,7 @@ def test_wx_timer_advances_clock_and_updates_timeline_and_views(
 
     assert not config_path.exists()
     player.close()
-    assert app.config.load_config(config_path).render_rate_fps == 2
+    assert config.load_config(config_path).render_rate_fps == 2
 
 
 def test_start_moves_focus_out_of_settings_controls(
@@ -1055,10 +1066,10 @@ def test_interpolation_settings_update_cursor_and_save_to_config(
     assert player.control_window.active_interpolation == "Lagrange, degree 3 (Settings)"
     player.close()
 
-    config = app.config.load_config(config_path)
-    assert not config.use_oem_interpolation
-    assert config.interpolation_method == "lagrange"
-    assert config.interpolation_degree == 3
+    loaded_config = config.load_config(config_path)
+    assert not loaded_config.use_oem_interpolation
+    assert loaded_config.interpolation_method == "lagrange"
+    assert loaded_config.interpolation_degree == 3
 
 
 def test_active_interpolation_summary_identifies_oem_metadata_source(
@@ -1105,7 +1116,9 @@ def test_invalid_render_rate_does_not_mutate_supplied_playback_state(
     monkeypatch.setattr(
         cursor,
         "set_interpolation",
-        lambda interpolation, degree: interpolation_calls.append((interpolation, degree)),
+        lambda interpolation, degree: interpolation_calls.append(
+            (interpolation, degree)
+        ),
     )
 
     with pytest.raises(ValueError, match="render_rate_fps"):
@@ -1161,9 +1174,7 @@ def test_workspace_initialization_failure_destroys_created_frame_and_preserves_w
         destroyed_frames.append(frame)
         original_destroy(frame)
 
-    def fail_workspace_init(
-        _workspace: FakeWorkspace, *_args, **_kwargs
-    ) -> None:
+    def fail_workspace_init(_workspace: FakeWorkspace, *_args, **_kwargs) -> None:
         raise RuntimeError("workspace initialization failed")
 
     monkeypatch.setattr(FakeFrame, "Destroy", track_destroy)
@@ -1228,14 +1239,16 @@ def test_control_content_attachment_failure_closes_workspace_and_frame(
     def track_workspace_close(workspace: FakeWorkspace) -> None:
         closed_workspaces.append(workspace)
 
-    def fail_set_settings_content(
-        _workspace: FakeWorkspace, _panel
-    ) -> None:
+    def fail_set_settings_content(_workspace: FakeWorkspace, _panel) -> None:
         raise RuntimeError("control content attachment failed")
 
     monkeypatch.setattr(FakeFrame, "Destroy", track_destroy)
     monkeypatch.setattr(FakeWorkspace, "close", track_workspace_close)
-    monkeypatch.setattr(FakeWorkspace, "set_settings_content", fail_set_settings_content)
+    monkeypatch.setattr(
+        FakeWorkspace,
+        "set_settings_content",
+        fail_set_settings_content,
+    )
 
     with pytest.raises(RuntimeError, match="control content attachment failed"):
         make_app(monkeypatch)
@@ -1368,18 +1381,14 @@ def test_native_partial_startup_cleanup_destroys_real_wx_frame(
     monkeypatch.setattr(wx, "Frame", create_frame)
     monkeypatch.setattr(wx, "Timer", create_timer)
     monkeypatch.setattr(app.workspace.Workspace, "close", track_workspace_close)
-    monkeypatch.setattr(
-        app.workspace.Workspace, "set_oem_loaded", fail_set_oem_loaded
-    )
+    monkeypatch.setattr(app.workspace.Workspace, "set_oem_loaded", fail_set_oem_loaded)
     monkeypatch.setattr(clock, "subscribe", track_subscription)
 
     try:
         with pytest.raises(RuntimeError, match="native workspace setup failed"):
             app.PlayerApp(
                 clock,
-                compute_orbit_series(
-                    [100.0, 200.0], make_states(), TimeUnit.MINUTES
-                ),
+                compute_orbit_series([100.0, 200.0], make_states(), TimeUnit.MINUTES),
                 TimeUnit.MINUTES,
                 StoreCursor.empty(),
                 "TEST",
@@ -2012,9 +2021,7 @@ def test_panel_instances_can_duplicate_views_and_keep_independent_lifecycles(
     default = player._open_views["speed-altitude"]
 
     player.open_panel_view("speed-altitude", panel_id="duplicate-middle")
-    player.open_panel_view(
-        "speed-altitude", panel_id="duplicate-right", stack="right"
-    )
+    player.open_panel_view("speed-altitude", panel_id="duplicate-right", stack="right")
     middle_duplicate = player._open_panels["duplicate-middle"]
     right_duplicate = player._open_panels["duplicate-right"]
 
@@ -2058,7 +2065,9 @@ def test_panel_instances_can_duplicate_views_and_keep_independent_lifecycles(
 def test_incremental_replacement_keeps_old_oem_until_first_batch(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
-    player, _views, _canvases, _frames = make_app(monkeypatch, plots=("speed-altitude",))
+    player, _views, _canvases, _frames = make_app(
+        monkeypatch, plots=("speed-altitude",)
+    )
     old_clock = player.clock
     source = tmp_path / "replacement.oem"
     source.write_text(
@@ -2090,14 +2099,14 @@ def test_incremental_replacement_keeps_old_oem_until_first_batch(
 
     assert player.clock is not old_clock
     assert player.object_name == "REPLACEMENT"
-    assert player._current_oem_path == app.normalize_recent_path(str(source))
-    assert player._recent_oem_paths[0] == app.normalize_recent_path(str(source))
-    active_store = player._oem_store
+    assert player._current_oem_path == normalize_recent_path(str(source))
+    assert player._recent_oem_paths[0] == normalize_recent_path(str(source))
+    active_store = player._store_state.active
     assert active_store is not None
-    assert player._pending_oem_store is None
+    assert player._store_state.pending is None
 
     player._load_oem_file(str(source))
-    assert player._oem_store is active_store
+    assert player._store_state.active is active_store
     replacement_session = player._incremental_loader.session
     assert replacement_session is not None
     deadline = time.monotonic() + 3.0
@@ -2107,7 +2116,7 @@ def test_incremental_replacement_keeps_old_oem_until_first_batch(
             break
         time.sleep(0.005)
 
-    assert player._oem_store is not active_store
+    assert player._store_state.active is not active_store
     assert active_store._scheduler_closed
     player.close()
 
@@ -2141,23 +2150,23 @@ def test_replacement_refreshes_cancelled_active_store_context(
 
     player._load_oem_file(str(source))
     deadline = time.monotonic() + 3.0
-    while not player._active_load_first_batch and time.monotonic() < deadline:
+    while not player._load_state.first_batch and time.monotonic() < deadline:
         player._poll_incremental_load()
         time.sleep(0.005)
 
-    assert player._active_load_first_batch
-    active_store = player._oem_store
+    assert player._load_state.first_batch
+    active_store = player._store_state.active
     assert active_store is not None
-    assert player._store_view_context is not None
-    assert player._store_view_context.snapshot.status is LoadStatus.LOADING
+    assert player._store_state.view_context is not None
+    assert player._store_state.view_context.snapshot.status is LoadStatus.LOADING
 
     player._load_oem_file(str(source))
 
     assert active_store.snapshot().status is LoadStatus.CANCELLED
-    assert player._store_view_context is not None
-    assert player._store_view_context.snapshot.status is LoadStatus.CANCELLED
-    assert player._oem_store is active_store
-    assert player._pending_oem_store is not active_store
+    assert player._store_state.view_context is not None
+    assert player._store_state.view_context.snapshot.status is LoadStatus.CANCELLED
+    assert player._store_state.active is active_store
+    assert player._store_state.pending is not active_store
     player.close()
 
 
@@ -2243,7 +2252,9 @@ def test_new_oem_defaults_playback_to_first_24_hours(
 def test_failed_incremental_replacement_leaves_current_oem_installed(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
-    player, _views, _canvases, _frames = make_app(monkeypatch, plots=("speed-altitude",))
+    player, _views, _canvases, _frames = make_app(
+        monkeypatch, plots=("speed-altitude",)
+    )
     old_clock = player.clock
     bad_source = tmp_path / "bad.oem"
     bad_source.write_text("CCSDS_OEM_VERS = 2.0\nCOVARIANCE_STOP\n", encoding="utf-8")
@@ -2284,8 +2295,8 @@ def test_terminal_load_events_end_active_range_drag(
         "drain",
         lambda limit=None: [event],
     )
-    player._active_load_generation = event.generation
-    player._active_load_path = "test.oem"
+    player._load_state.generation = event.generation
+    player._load_state.path = "test.oem"
     player._set_range_dragging(True)
 
     player._poll_incremental_load()
@@ -2304,6 +2315,8 @@ def test_controller_ignores_stale_incremental_events() -> None:
         _incremental_loader=SimpleNamespace(drain=lambda limit=None: events[:limit]),
         _active_load_generation=2,
         _incremental_view_refresh_pending=False,
+        _load_state=app.LoadState(generation=2),
+        _refresh_state=app.RefreshState(incremental_view_refresh_pending=False),
     )
     app.PlayerApp._poll_incremental_load(controller)
     assert not controller._incremental_view_refresh_pending
@@ -2312,7 +2325,9 @@ def test_controller_ignores_stale_incremental_events() -> None:
 def test_controller_bounds_incremental_load_events_per_tick() -> None:
     events = [
         LoadEvent(1, LoadEventKind.RAW_APPEND, index)
-        for index in range(app.MAX_INCREMENTAL_LOAD_EVENTS_PER_TICK + 1)
+        for index in range(
+            player_incremental_loader.MAX_INCREMENTAL_LOAD_EVENTS_PER_TICK + 1
+        )
     ]
     drain_limits = []
 
@@ -2326,11 +2341,15 @@ def test_controller_bounds_incremental_load_events_per_tick() -> None:
         _incremental_loader=SimpleNamespace(drain=drain),
         _active_load_generation=2,
         _incremental_view_refresh_pending=False,
+        _load_state=app.LoadState(generation=2),
+        _refresh_state=app.RefreshState(incremental_view_refresh_pending=False),
     )
 
     app.PlayerApp._poll_incremental_load(controller)
 
-    assert drain_limits == [app.MAX_INCREMENTAL_LOAD_EVENTS_PER_TICK]
+    assert drain_limits == [
+        player_incremental_loader.MAX_INCREMENTAL_LOAD_EVENTS_PER_TICK
+    ]
     assert len(events) == 1
     app.PlayerApp._poll_incremental_load(controller)
     assert not events
@@ -2403,23 +2422,23 @@ def test_incremental_store_appends_extend_clock_and_complete_full_history(
             break
         time.sleep(0.005)
 
-    assert player._oem_coverage_complete
-    assert player._oem_store is not None
+    assert player._load_state.coverage_complete
+    assert player._store_state.active is not None
     assert not hasattr(player, "_station_access_cache")
-    assert player._oem_store.snapshot().sample_count == 3
-    assert player.clock.t_end == player._oem_store.sample_times[-1]
+    assert player._store_state.active.snapshot().sample_count == 3
+    assert player.clock.t_end == player._store_state.active.sample_times[-1]
     assert isinstance(player.cursor, app.cursor.StoreCursor)
-    assert player._store_view_context is not None
-    assert player._store_view_context.store is player._oem_store
-    assert player._store_view_context.snapshot.sample_count == 3
+    assert player._store_state.view_context is not None
+    assert player._store_state.view_context.store is player._store_state.active
+    assert player._store_state.view_context.snapshot.sample_count == 3
     assert len(player.series.elapsed_time) == 1
     assert player._dashboard_context["sample_count"] == "3"
-    assert not player._incremental_view_refresh_pending
-    store = player._oem_store
+    assert not player._refresh_state.incremental_view_refresh_pending
+    store = player._store_state.active
     hint = store._range_hint
     assert hint is not None
     assert hint.playback == (player.clock.playback_start, player.clock.playback_end)
-    plot_range = player._store_view_context.plot_range
+    plot_range = player._store_state.view_context.plot_range
     assert plot_range is not None
     assert hint.plot == (plot_range.start_s, plot_range.end_s)
     player._set_range_dragging(True)
@@ -2434,9 +2453,7 @@ def test_incremental_store_appends_extend_clock_and_complete_full_history(
     )
     updated_contexts = []
     opened.view.update_from_store = updated_contexts.append
-    notice = TierNotice(
-        store.snapshot().epoch, "series", "kinematics", None, 0, 1
-    )
+    notice = TierNotice(store.snapshot().epoch, "series", "kinematics", None, 0, 1)
     player._store_notice_queue.put((store, notice))
     player._store_notice_queue.put((store, notice))
     player._store_notice_queue.put(
@@ -2444,7 +2461,7 @@ def test_incremental_store_appends_extend_clock_and_complete_full_history(
     )
     player._drain_store_notices()
     assert len(updated_contexts) == 1
-    assert updated_contexts[0].snapshot is player._store_view_context.snapshot
+    assert updated_contexts[0].snapshot is player._store_state.view_context.snapshot
     player.close()
 
 
@@ -2503,12 +2520,10 @@ def test_store_refresh_rebuilds_panels_opened_before_the_store(
         requires_store_rebuild=True,
     )
     player._open_panels[opened.panel_id] = opened
-    player._pending_store_view_ids.add(opened.panel_id)
-    player._store_view_context = object()
+    player._refresh_state.pending_store_view_ids.add(opened.panel_id)
+    player._store_state.view_context = object()
     replacements = []
-    player.open_panel_view = lambda *args, **kwargs: replacements.append(
-        (args, kwargs)
-    )
+    player.open_panel_view = lambda *args, **kwargs: replacements.append((args, kwargs))
 
     player._refresh_store_views()
 
@@ -2585,7 +2600,7 @@ def test_incremental_timeline_uses_declared_domain_and_defers_drag_redraws(
             datetime_to_tt_s(datetime(2025, 12, 31, 23, 59, tzinfo=timezone.utc)),
             datetime_to_tt_s(datetime(2026, 1, 1, 0, 3, tzinfo=timezone.utc)),
         )
-        assert not player._oem_coverage_complete
+        assert not player._load_state.coverage_complete
         assert player._slider_bounds == expected_domain
         assert player._playback_handle_bounds == expected_domain
         assert player.workspace.time_range_controls[4] == expected_domain
@@ -2627,7 +2642,7 @@ def test_incremental_timeline_uses_declared_domain_and_defers_drag_redraws(
 
         player._set_range_dragging(False)
         assert refresh_calls == [True]
-        assert not player._incremental_view_refresh_pending
+        assert not player._refresh_state.incremental_view_refresh_pending
     finally:
         release_second_row.set()
         if session is not None:
@@ -2689,8 +2704,8 @@ def test_incremental_load_preserves_and_restores_saved_file_ranges(
         time_range.TimeRangeEndpoint("follow", 0.0),
         time_range.TimeRangeEndpoint("follow", 0.0),
     )
-    path = app.normalize_recent_path(source)
-    saved_state = app.SavedAppState(
+    path = normalize_recent_path(source)
+    saved_state = SavedAppState(
         recent_files=[path],
         file_settings={
             path: FileSettings(
@@ -2703,7 +2718,7 @@ def test_incremental_load_preserves_and_restores_saved_file_ranges(
             )
         },
     )
-    monkeypatch.setattr(app, "save_saved_state", lambda _state: None)
+    monkeypatch.setattr(player_app_preferences, "save_saved_state", lambda _state: None)
     player, _views, _canvases, _frames = make_app(
         monkeypatch,
         plots=("speed-altitude",),
@@ -2719,19 +2734,18 @@ def test_incremental_load_preserves_and_restores_saved_file_ranges(
 
         deadline = time.monotonic() + 3.0
         while (
-            (not player._active_load_first_batch or not second_row_started.is_set())
-            and time.monotonic() < deadline
-        ):
+            not player._load_state.first_batch or not second_row_started.is_set()
+        ) and time.monotonic() < deadline:
             player._poll_incremental_load()
             time.sleep(0.005)
-        assert player._active_load_first_batch
+        assert player._load_state.first_batch
         assert second_row_started.is_set()
         player._poll_incremental_load()
 
         assert player._playback_handle_bounds == playback_range
-        assert player._loading_cursor_anchor_s == start_s + 10.0
+        assert player._load_state.cursor_anchor_s == start_s + 10.0
         assert player.workspace.time_range_controls[3] == start_s + 10.0
-        assert player._loading_progress_s == start_s
+        assert player._load_state.loading_progress_s == start_s
         assert player.workspace.time_range_controls[2] == plot_range
         assert player.workspace.time_range_controls[-1] == playback_range
         controls = player.workspace.time_range_controls
@@ -2753,8 +2767,8 @@ def test_incremental_load_preserves_and_restores_saved_file_ranges(
             time.sleep(0.005)
         assert third_row_started.is_set()
         player._poll_incremental_load()
-        assert player._loading_progress_s == start_s + 10.0
-        assert player._loading_cursor_anchor_s == start_s + 10.0
+        assert player._load_state.loading_progress_s == start_s + 10.0
+        assert player._load_state.cursor_anchor_s == start_s + 10.0
         assert player.clock.t_now == playback_range[0]
         assert player.workspace.time_range_controls[3] == start_s + 10.0
 
@@ -2769,7 +2783,7 @@ def test_incremental_load_preserves_and_restores_saved_file_ranges(
             if session.finished and not session._events.qsize():
                 break
             time.sleep(0.005)
-        assert player._oem_coverage_complete
+        assert player._load_state.coverage_complete
         assert player.clock.t_now == start_s + 10.0
         assert timeline_slider.viewport == (
             start_s + 5.0,
@@ -2779,7 +2793,10 @@ def test_incremental_load_preserves_and_restores_saved_file_ranges(
             datetime_to_tt_s(datetime(2025, 12, 31, 23, 59, tzinfo=timezone.utc)),
             datetime_to_tt_s(datetime(2026, 1, 1, 0, 1, tzinfo=timezone.utc)),
         )
-        assert (player.clock.playback_start, player.clock.playback_end) == playback_range
+        assert (
+            player.clock.playback_start,
+            player.clock.playback_end,
+        ) == playback_range
         assert player._playback_handle_bounds == playback_range
         assert player.plot_time_range == plot_range
     finally:
@@ -2802,17 +2819,17 @@ def test_initial_file_settings_are_applied_and_saved(
         app.time_range.TimeRangeEndpoint("fixed", 125.0),
         app.time_range.TimeRangeEndpoint("offset", 40.0),
     )
-    time_scrubber = app.TimeScrubberSettings(
+    time_scrubber = TimeScrubberSettings(
         current_time_tt=150.0,
         viewport_tt=(120.0, 180.0),
     )
-    saved_state = app.SavedAppState(
+    saved_state = SavedAppState(
         recent_files=[file_path],
         file_settings={
-            file_path: app.FileSettings((110.0, 190.0), plot_range, time_scrubber),
+            file_path: FileSettings((110.0, 190.0), plot_range, time_scrubber),
         },
     )
-    monkeypatch.setattr(app, "save_saved_state", lambda _state: None)
+    monkeypatch.setattr(player_app_preferences, "save_saved_state", lambda _state: None)
     player, _views, _canvases, _frames = make_app(
         monkeypatch,
         saved_state=saved_state,
@@ -2825,11 +2842,11 @@ def test_initial_file_settings_are_applied_and_saved(
     assert player.workspace.time_scrubber_viewport == (120.0, 180.0)
 
     player.workspace.timeline_slider = SimpleNamespace(viewport=(120.0, 180.0))
-    player._scrubber_loading_locked = True
-    player._scrubber_metadata_playback = (120.0, 180.0)
-    player._scrubber_metadata_viewport = (120.0, 180.0)
+    player._timeline_restore_state.loading_locked = True
+    player._timeline_restore_state.metadata_playback = (120.0, 180.0)
+    player._timeline_restore_state.metadata_viewport = (120.0, 180.0)
     player._apply_playback_bounds(120.0, 180.0)
-    assert not player._scrubber_loading_locked
+    assert not player._timeline_restore_state.loading_locked
     assert player.workspace.time_range_controls[-1] == (120.0, 180.0)
     player._save_application_state(save_geometry=False)
     assert saved_state.file_settings[file_path].playback_range == (
@@ -2837,7 +2854,7 @@ def test_initial_file_settings_are_applied_and_saved(
         180.0,
     )
     assert saved_state.file_settings[file_path].time_scrubber == (
-        app.TimeScrubberSettings(
+        TimeScrubberSettings(
             current_time_tt=150.0,
             viewport_tt=(120.0, 180.0),
         )
@@ -2877,7 +2894,7 @@ def test_metadata_without_stored_scrubber_uses_defaults_once(
     old_path = "/tmp/old.oem"
     player, _views, _canvases, _frames = make_app(
         monkeypatch,
-        saved_state=app.SavedAppState(),
+        saved_state=SavedAppState(),
         initial_file_path=old_path,
     )
     player._incremental_loader = app.IncrementalLoader(batch_size=1)
@@ -2904,7 +2921,7 @@ def test_metadata_without_stored_scrubber_uses_defaults_once(
         assert row_started.is_set()
         release_row.set()
         deadline = time.monotonic() + 3.0
-        while not player._active_load_first_batch and time.monotonic() < deadline:
+        while not player._load_state.first_batch and time.monotonic() < deadline:
             player._poll_incremental_load()
             time.sleep(0.005)
 
@@ -2912,23 +2929,21 @@ def test_metadata_without_stored_scrubber_uses_defaults_once(
             datetime_to_tt_s(datetime(2026, 1, 1, tzinfo=timezone.utc)),
             datetime_to_tt_s(datetime(2026, 1, 1, 0, 4, tzinfo=timezone.utc)),
         )
-        assert player._scrubber_metadata_restored
+        assert player._timeline_restore_state.metadata_restored
         assert slider.viewport == domain
         assert any(
-            call[3] == domain[0] and call[4] == domain
-            for call in range_control_calls
+            call[3] == domain[0] and call[4] == domain for call in range_control_calls
         )
-        assert player._scrubber_loading_locked
+        assert player._timeline_restore_state.loading_locked
         release_row.set()
         deadline = time.monotonic() + 3.0
         while (
-            (not session.finished or session._events.qsize())
-            and time.monotonic() < deadline
-        ):
+            not session.finished or session._events.qsize()
+        ) and time.monotonic() < deadline:
             player._poll_incremental_load()
             time.sleep(0.005)
-        assert player._oem_coverage_complete
-        assert player._scrubber_loading_locked
+        assert player._load_state.coverage_complete
+        assert player._timeline_restore_state.loading_locked
         assert slider.viewport == domain
         assert player.workspace.time_range_controls[0] == domain
         assert player.workspace.time_range_controls[1] == domain
@@ -2939,9 +2954,8 @@ def test_metadata_without_stored_scrubber_uses_defaults_once(
         if session is not None:
             deadline = time.monotonic() + 3.0
             while (
-                (not session.finished or session._events.qsize())
-                and time.monotonic() < deadline
-            ):
+                not session.finished or session._events.qsize()
+            ) and time.monotonic() < deadline:
                 player._poll_incremental_load()
                 time.sleep(0.005)
         player.close()
@@ -2985,12 +2999,12 @@ def test_incremental_load_previews_saved_timeline_from_metadata(
         time_range.TimeRangeEndpoint("fixed", current_time - 10.0),
         time_range.TimeRangeEndpoint("fixed", current_time + 10.0),
     )
-    saved_state = app.SavedAppState(
+    saved_state = SavedAppState(
         file_settings={
-            str(source): app.FileSettings(
+            str(source): FileSettings(
                 playback,
                 plot_rule,
-                app.TimeScrubberSettings(current_time, viewport),
+                TimeScrubberSettings(current_time, viewport),
             )
         }
     )
@@ -3043,14 +3057,11 @@ def test_incremental_load_previews_saved_timeline_from_metadata(
         assert row_started.is_set()
         player._poll_incremental_load()
 
-        assert not player._active_load_first_batch
+        assert not player._load_state.first_batch
         assert player._current_oem_path == old_path
         assert player.clock.t_now == old_clock_time
-        assert not any(
-            call[4] == viewport
-            for call in range_control_calls
-        )
-        assert not player._scrubber_metadata_restored
+        assert not any(call[4] == viewport for call in range_control_calls)
+        assert not player._timeline_restore_state.metadata_restored
         assert slider.viewport == (player.clock.t_start, player.clock.t_end)
 
         release_row.set()
@@ -3060,9 +3071,10 @@ def test_incremental_load_previews_saved_timeline_from_metadata(
             second_row_started.wait(0.005)
         assert second_row_started.is_set()
         player._poll_incremental_load()
-        assert player._scrubber_metadata_restored
+        assert player._timeline_restore_state.metadata_restored
         assert any(
-            call == (
+            call
+            == (
                 domain,
                 playback,
                 plot_rule,
@@ -3072,7 +3084,7 @@ def test_incremental_load_previews_saved_timeline_from_metadata(
             )
             for call in range_control_calls
         )
-        assert player._active_load_first_batch
+        assert player._load_state.first_batch
         assert slider.viewport == viewport
         player._slider_bounds = (domain[0], domain[0] + 100.0)
         player._update_time_display()
@@ -3081,12 +3093,11 @@ def test_incremental_load_previews_saved_timeline_from_metadata(
         release_second_row.set()
         deadline = time.monotonic() + 3.0
         while (
-            (not session.finished or session._events.qsize())
-            and time.monotonic() < deadline
-        ):
+            not session.finished or session._events.qsize()
+        ) and time.monotonic() < deadline:
             player._poll_incremental_load()
             time.sleep(0.005)
-        assert player._oem_coverage_complete
+        assert player._load_state.coverage_complete
         assert player.clock.t_now == current_time
         assert slider.viewport == viewport
     finally:
@@ -3095,9 +3106,8 @@ def test_incremental_load_previews_saved_timeline_from_metadata(
         if session is not None:
             deadline = time.monotonic() + 3.0
             while (
-                (not session.finished or session._events.qsize())
-                and time.monotonic() < deadline
-            ):
+                not session.finished or session._events.qsize()
+            ) and time.monotonic() < deadline:
                 player._poll_incremental_load()
                 time.sleep(0.005)
         player.close()
@@ -3118,8 +3128,8 @@ def test_window_position_is_restored_clamped_and_saved(
             return SimpleNamespace(x=0, y=0, width=1920, height=1080)
 
     monkeypatch.setattr(app.wx, "Display", FakeDisplay)
-    monkeypatch.setattr(app, "save_saved_state", lambda _state: None)
-    saved_state = app.SavedAppState(position=(1800, 900))
+    monkeypatch.setattr(player_app_preferences, "save_saved_state", lambda _state: None)
+    saved_state = SavedAppState(position=(1800, 900))
     player, _views, _canvases, frames = make_app(
         monkeypatch,
         saved_state=saved_state,
@@ -3328,7 +3338,7 @@ def test_closing_while_oem_parse_is_blocked_cancels_without_waiting(
         session = player._incremental_loader.session
         assert session is not None
         assert parsing_started.wait(3.0)
-        store = player._pending_oem_store
+        store = player._store_state.pending
         assert store is not None
 
         player.close()
@@ -3408,9 +3418,7 @@ def test_native_wx_close_during_oem_parse_cancels_and_destroys_resources(
     try:
         player = app.PlayerApp(
             make_clock(),
-            compute_orbit_series(
-                [100.0, 200.0], make_states(), TimeUnit.MINUTES
-            ),
+            compute_orbit_series([100.0, 200.0], make_states(), TimeUnit.MINUTES),
             TimeUnit.MINUTES,
             StoreCursor.empty(),
             "TEST",
@@ -3423,7 +3431,7 @@ def test_native_wx_close_during_oem_parse_cancels_and_destroys_resources(
         session = player._incremental_loader.session
         assert session is not None
         assert parsing_started.wait(3.0)
-        store = player._pending_oem_store
+        store = player._store_state.pending
         assert store is not None
 
         player.close()
@@ -3521,7 +3529,11 @@ def test_existing_wx_app_is_reused_instead_of_created_twice(
     existing_app = FakeWxApp(False)
     monkeypatch.setattr(app.wx, "GetApp", lambda: existing_app)
     monkeypatch.setattr(app.wx, "Frame", FakeFrame)
-    monkeypatch.setattr(app, "PlaybackStatusBar", FakePlaybackStatusBar)
+    monkeypatch.setattr(
+        player_wx_ui,
+        "PlaybackStatusBar",
+        FakePlaybackStatusBar,
+    )
     monkeypatch.setattr(app.wx, "MenuBar", FakeMenuBar)
     monkeypatch.setattr(app.wx, "Menu", FakeMenu)
     monkeypatch.setattr(app.wx, "StaticText", FakeStaticText)

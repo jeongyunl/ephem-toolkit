@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from dataclasses import dataclass
 import os
 import sys
+from collections.abc import Callable
+from dataclasses import dataclass
 
 import wx
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg, NavigationToolbar2WxAgg
@@ -127,6 +127,26 @@ class _PendingDataGraphView:
 
     def close(self) -> None:
         pass
+
+
+@dataclass
+class PanelBuildResources:
+    """Resources created while one graph panel is being opened."""
+
+    panel: GraphPanelHost | None = None
+    """Graph panel host, when construction reached the host stage."""
+    view: base.View | None = None
+    """View instance, when construction reached the view stage."""
+    canvas: FigureCanvasWxAgg | None = None
+    """Matplotlib canvas, when the view uses a Matplotlib figure."""
+    toolbar: NavigationToolbar2WxAgg | None = None
+    """Matplotlib toolbar associated with the canvas."""
+    click_callback_id: int | None = None
+    """Matplotlib click callback identifier."""
+    unsubscribe: Callable[[], None] | None = None
+    """Clock observer unsubscribe callback."""
+    panel_inserted: bool = False
+    """Whether the panel was inserted into or replaced in a graph stack."""
 
 
 @dataclass

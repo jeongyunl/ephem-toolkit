@@ -7,23 +7,33 @@ import sys
 from .. import time_range
 from ..views import (
     angular_velocity,
-    distance,
     direction_change,
-    ground_track as ground_track_view,
-    ground_station_access as ground_station_access_view,
-    ground_station_passes as ground_station_passes_view,
-    ground_station_analysis as ground_station_analysis_view,
-    ground_station_pass_track as ground_station_pass_track_view,
+    distance,
     rtn,
     speed_altitude,
     state_components,
     trajectory3d,
 )
+from ..views import (
+    ground_station_access as ground_station_access_view,
+)
+from ..views import (
+    ground_station_analysis as ground_station_analysis_view,
+)
+from ..views import (
+    ground_station_pass_track as ground_station_pass_track_view,
+)
+from ..views import (
+    ground_station_passes as ground_station_passes_view,
+)
+from ..views import (
+    ground_track as ground_track_view,
+)
 from ..views.trajectory3d import selection as trajectory3d_selection
-from .state import PlayerAppState
+from .player_app_state import PlayerAppState
 
 
-class ViewFactoryMixin:
+class PlayerViewFactoryMixin:
     """Create registered views using the current playback and OEM context."""
 
     _selected_3d_backend: str | None
@@ -57,35 +67,50 @@ class ViewFactoryMixin:
         )
 
     def open_station_status_view(
-        self, panel_id: str | None = None, stack: str = "middle", force_replace: bool = False
+        self,
+        panel_id: str | None = None,
+        stack: str = "middle",
+        force_replace: bool = False,
     ) -> None:
         self._open_station_analysis_panel(
             "station-status", "station-status", panel_id, stack, force_replace
         )
 
     def open_pass_strip_view(
-        self, panel_id: str | None = None, stack: str = "middle", force_replace: bool = False
+        self,
+        panel_id: str | None = None,
+        stack: str = "middle",
+        force_replace: bool = False,
     ) -> None:
         self._open_station_analysis_panel(
             "pass-strip", "pass-strip", panel_id, stack, force_replace
         )
 
     def open_elevation_profile_view(
-        self, panel_id: str | None = None, stack: str = "middle", force_replace: bool = False
+        self,
+        panel_id: str | None = None,
+        stack: str = "middle",
+        force_replace: bool = False,
     ) -> None:
         self._open_station_analysis_panel(
             "elevation-profile", "elevation-profile", panel_id, stack, force_replace
         )
 
     def open_azimuth_profile_view(
-        self, panel_id: str | None = None, stack: str = "middle", force_replace: bool = False
+        self,
+        panel_id: str | None = None,
+        stack: str = "middle",
+        force_replace: bool = False,
     ) -> None:
         self._open_station_analysis_panel(
             "azimuth-profile", "azimuth-profile", panel_id, stack, force_replace
         )
 
     def open_range_profile_view(
-        self, panel_id: str | None = None, stack: str = "middle", force_replace: bool = False
+        self,
+        panel_id: str | None = None,
+        stack: str = "middle",
+        force_replace: bool = False,
     ) -> None:
         self._open_station_analysis_panel(
             "range-profile", "range-profile", panel_id, stack, force_replace

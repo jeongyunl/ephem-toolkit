@@ -87,6 +87,14 @@ playback = ["wxPython", "matplotlib", "pyproj"]
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=7.0"
+ruff = ">=0.9"
+
+[tool.ruff]
+line-length = 88
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
 
 [tool.pytest.ini_options]
 addopts = "--import-mode=importlib -m 'not accuracy'"

@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
 import re
+from datetime import timedelta
 
 import ephem_toolkit.core.time_utils as time_utils
-from .state import PlayerAppState
+
 from ..display_time import format_tt
+from .player_app_state import PlayerAppState
 
 
 def _timeline_viewport(player: PlayerAppState) -> tuple[float, float]:
@@ -20,10 +21,7 @@ def _timeline_viewport(player: PlayerAppState) -> tuple[float, float]:
     if viewport is not None:
         return viewport
     slider_bounds = getattr(player, "_slider_bounds", None)
-    if (
-        isinstance(slider_bounds, tuple)
-        and len(slider_bounds) == 2
-    ):
+    if isinstance(slider_bounds, tuple) and len(slider_bounds) == 2:
         return slider_bounds
     return (player.clock.t_start, player.clock.t_end)
 
@@ -47,16 +45,16 @@ class PlaybackActionsMixin:
         timestamp = format_tt(
             epoch_s, self._display_time_zone, fractional_second_places=0
         )
-        loaded_through = self._loading_progress_s
+        loaded_through = self._load_state.loading_progress_s
         if (
-            self._active_load_first_batch
-            and not self._oem_coverage_complete
+            self._load_state.first_batch
+            and not self._load_state.coverage_complete
             and loaded_through is not None
             and epoch_s > loaded_through
         ):
             availability = (
                 "Not loaded (load incomplete)"
-                if self._active_load_failed
+                if self._load_state.failed
                 else "Not loaded yet"
             )
             return f"{timestamp}\n{availability}"
@@ -124,9 +122,13 @@ class PlaybackActionsMixin:
 
     def _seek_to_time(self: PlayerAppState, time_entry_text: str) -> None:
         try:
-            has_local_suffix = self._display_time_zone == "local" and re.search(
-                r"\s+(?!UTC$)[A-Za-z][A-Za-z0-9+-]*$", time_entry_text.strip()
-            ) is not None
+            has_local_suffix = (
+                self._display_time_zone == "local"
+                and re.search(
+                    r"\s+(?!UTC$)[A-Za-z][A-Za-z0-9+-]*$", time_entry_text.strip()
+                )
+                is not None
+            )
             submitted_time = re.sub(
                 r"\s+(?:UTC|[A-Za-z][A-Za-z0-9+-]*)$", "", time_entry_text.strip()
             )

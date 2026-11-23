@@ -2,30 +2,40 @@
 
 from __future__ import annotations
 
-import pytest
 from types import SimpleNamespace
 
+import pytest
+
+from ephem_toolkit.play_oem.app.player_app_state import (
+    LoadState,
+    RefreshState,
+    TimelineRestoreState,
+)
+from ephem_toolkit.play_oem.app.player_playback_actions import PlaybackActionsMixin
+from ephem_toolkit.play_oem.app.player_time_range_actions import (
+    TimeRangeActionsMixin,
+    playback_range_plot_rule,
+)
 from ephem_toolkit.play_oem.clock import PlaybackClock
-from ephem_toolkit.play_oem.app.playback_actions import PlaybackActionsMixin
+from ephem_toolkit.play_oem.display_time import format_tt
 from ephem_toolkit.play_oem.time_range import (
     PlotTimeRange,
     ResolvedTimeRange,
     TimeRangeEndpoint,
     resolve_plot_range,
 )
-from ephem_toolkit.play_oem.app.time_range_actions import (
-    TimeRangeActionsMixin,
-    playback_range_plot_rule,
-)
-from ephem_toolkit.play_oem.display_time import format_tt
 
 
 class _ActionHost(TimeRangeActionsMixin, PlaybackActionsMixin):
     def __init__(self) -> None:
         self.clock = PlaybackClock(0.0, 100.0, t_now=50.0, playing=True)
         self.plot_time_range = playback_range_plot_rule()
-        self._active_load_first_batch = False
-        self._oem_coverage_complete = True
+        self._load_state = LoadState(
+            first_batch=False,
+            coverage_complete=True,
+        )
+        self._timeline_restore_state = TimelineRestoreState()
+        self._refresh_state = RefreshState()
         self._display_time_zone = "UTC"
         self._last_frame_monotonic_s = 12.0
         self.dispatches: list[ResolvedTimeRange | None] = []
