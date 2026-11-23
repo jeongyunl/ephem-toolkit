@@ -8,10 +8,15 @@ from typing import TYPE_CHECKING, Protocol
 import wx
 
 from .constants import TIMELINE_SLIDER_MAX
+from .widgets.themed_toggle_button import ThemedToggleButton
 from ..tooltips import set_tooltip
 
 if TYPE_CHECKING:
     from .time_scrubber import TimeScrubber, TimeScrubberWidget
+
+
+class PlaybackToggleButton(ThemedToggleButton):
+    """Themed toggle button used for playback rate and direction controls."""
 
 
 class _TimelineState(Protocol):
@@ -33,9 +38,9 @@ class _TimelineState(Protocol):
     time_scrubber: TimeScrubberWidget
     timeline_time_entry: wx.TextCtrl
     time_error_label: wx.StaticText
-    playback_forward_play_button: wx.ToggleButton
-    playback_reverse_play_button: wx.ToggleButton
-    playback_speed_buttons: dict[float, wx.ToggleButton]
+    playback_forward_play_button: PlaybackToggleButton
+    playback_reverse_play_button: PlaybackToggleButton
+    playback_speed_buttons: dict[float, PlaybackToggleButton]
 
     def _on_timeline_slider(self, event: wx.CommandEvent) -> None: ...
 
@@ -54,13 +59,8 @@ class TimelineMixin:
         direction: str,
         on_set_playback_rate: Callable[[float], None] | None,
         on_step_samples: Callable[[int], None] | None,
-    ) -> wx.ToggleButton:
-        speed_button = wx.ToggleButton(
-            self.playback_controls_row,
-            wx.ID_ANY,
-            glyph,
-            style=wx.BU_EXACTFIT,
-        )
+    ) -> PlaybackToggleButton:
+        speed_button = PlaybackToggleButton(self.playback_controls_row, glyph)
         speed_button.SetMinSize(wx.Size(speed_button.GetBestSize().width, -1))
         magnitude = abs(rate)
         speed_button.SetName(f"Set {direction} playback speed to {magnitude:g}x")

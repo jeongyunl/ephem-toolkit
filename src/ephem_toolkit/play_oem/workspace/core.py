@@ -22,7 +22,7 @@ from .constants import (
 from .features import FeatureNavigationMixin
 from .ground_stations import GroundStationsManager
 from .graph_stack import GraphStackMixin
-from .timeline import TimelineMixin
+from .timeline import PlaybackToggleButton, TimelineMixin
 from .time_scrubber import TimeScrubberWidget
 from .. import time_range as range_model
 from ..ground_stations import GroundStation
@@ -311,7 +311,7 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             self.timeline_track_row, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 8
         )
         timeline_sizer.Add((0, 12), 0)
-        self.playback_speed_buttons: dict[float, wx.ToggleButton] = {}
+        self.playback_speed_buttons: dict[float, PlaybackToggleButton] = {}
         self._playback_button_labels: dict[float, str] = {}
         for rate, glyph, direction in (
             (-1000.0, "<<< 1000×", "reverse"),
@@ -328,10 +328,11 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             )
             self.playback_speed_buttons[rate] = speed_button
             self._playback_button_labels[rate] = glyph
-            playback_sizer.Add(speed_button, 0, wx.RIGHT, 4)
+            playback_sizer.Add(speed_button, 0, wx.RIGHT, 7)
 
-        self.playback_reverse_play_button = wx.ToggleButton(
-            self.playback_controls_row, wx.ID_ANY, "◀"
+        playback_sizer.Add((8, 0), 0)
+        self.playback_reverse_play_button = PlaybackToggleButton(
+            self.playback_controls_row, "◀"
         )
         self.playback_reverse_play_button.SetName("Play reverse at current speed")
         set_tooltip(
@@ -351,9 +352,9 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
                     else on_play_reverse()
                 ),
             )
-        playback_sizer.Add(self.playback_reverse_play_button, 0, wx.RIGHT, 2)
-        self.playback_forward_play_button = wx.ToggleButton(
-            self.playback_controls_row, wx.ID_ANY, "▶"
+        playback_sizer.Add(self.playback_reverse_play_button, 0, wx.RIGHT, 5)
+        self.playback_forward_play_button = PlaybackToggleButton(
+            self.playback_controls_row, "▶"
         )
         self.playback_forward_play_button.SetName("Play forward at current speed")
         set_tooltip(
@@ -373,7 +374,7 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
                     else on_play_forward()
                 ),
             )
-        playback_sizer.Add(self.playback_forward_play_button, 0, wx.RIGHT, 2)
+        playback_sizer.Add(self.playback_forward_play_button, 0, wx.RIGHT, 5)
         # A non-text focus target: macOS buttons refuse keyboard focus unless
         # Full Keyboard Access is on, which leaves the text field's focus ring.
         self._focus_sink = wx.Panel(self.playback_controls_row, wx.ID_ANY, size=(1, 1))
@@ -385,6 +386,7 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             wx.EVT_LEFT_DOWN, lambda _event: self._focus_sink.SetFocus()
         )
 
+        playback_sizer.Add((8, 0), 0)
         for rate, glyph, direction in (
             (1.0, "1× >", "forward"),
             (10.0, "10× >", "forward"),
@@ -400,7 +402,7 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             )
             self.playback_speed_buttons[rate] = speed_button
             self._playback_button_labels[rate] = glyph
-            playback_sizer.Add(speed_button, 0, wx.RIGHT, 4)
+            playback_sizer.Add(speed_button, 0, wx.RIGHT, 7)
         for button in (
             *self.playback_speed_buttons.values(),
             self.playback_reverse_play_button,
