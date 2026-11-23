@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest
 
-from ephem_toolkit.play_oem import cli, main
+from ephem_toolkit.play_oem import cli, main, saved_state
 from ephem_toolkit.play_oem.cursor import StoreCursor
 from ephem_toolkit.play_oem.play_oem_cli import (
     CONFIG_DIR_OPTION,
@@ -20,6 +20,32 @@ from ephem_toolkit.play_oem.play_oem_cli import (
     build_arg_parser,
     parse_arguments,
 )
+
+
+@pytest.fixture(autouse=True)
+def isolate_play_oem_app_toml_files(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    (config_dir / "play-oem.toml").write_text("config_version = 1\n")
+    (config_dir / "play-oem-state.toml").write_text(
+        f"state_version = {saved_state.STATE_VERSION}\n"
+    )
+    original_main = main
+
+    def isolated_main(argv=None):
+        argument_list = list(sys.argv[1:] if argv is None else argv)
+        if not any(
+            argument.split("=", 1)[0] == CONFIG_DIR_OPTION
+            for argument in argument_list
+        ):
+            argument_list.extend([CONFIG_DIR_OPTION, str(config_dir)])
+        original_main(argument_list)
+
+    monkeypatch.setitem(globals(), "main", isolated_main)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(config_dir))
 
 
 def test_help_shows_command_and_input(capsys: pytest.CaptureFixture[str]) -> None:
@@ -377,7 +403,9 @@ def test_cli_reports_missing_input_file(
     assert "File not found" in capsys.readouterr().err
 
 
-def test_cli_reports_playback_extra_when_wx_is_missing() -> None:
+def test_cli_reports_playback_extra_when_wx_is_missing(
+    tmp_path: Path,
+) -> None:
     script = """
 import importlib.abc
 import sys
@@ -390,11 +418,15 @@ class BlockWx(importlib.abc.MetaPathFinder):
 
 sys.meta_path.insert(0, BlockWx())
 from ephem_toolkit.play_oem import cli
-raise SystemExit(cli([sys.argv[1]]))
+from ephem_toolkit.play_oem.play_oem_cli import CONFIG_DIR_OPTION
+raise SystemExit(cli([sys.argv[1], CONFIG_DIR_OPTION, sys.argv[2]]))
 """
     oem_path = Path(__file__).resolve().parents[2] / "data" / "ISS_2026-05-20_small.OEM"
+    config_dir = tmp_path / "config"
+    config_dir.mkdir(exist_ok=True)
+    (config_dir / "play-oem.toml").write_text("config_version = 1\n")
     result = subprocess.run(
-        [sys.executable, "-c", script, str(oem_path)],
+        [sys.executable, "-c", script, str(oem_path), str(config_dir)],
         check=False,
         capture_output=True,
         cwd=Path(__file__).resolve().parents[3],

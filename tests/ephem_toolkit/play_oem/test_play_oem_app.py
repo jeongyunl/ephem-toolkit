@@ -57,6 +57,14 @@ from ephem_toolkit.play_oem.workspace.time_slider import TimeSlider
 from tests.ephem_toolkit.play_oem.cursor_helpers import make_store_cursor
 
 
+@pytest.fixture(autouse=True)
+def isolate_play_oem_toml_files(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+
+
 @pytest.mark.parametrize(
     ("initial_rate", "selected_rate", "expected_rate"),
     [
