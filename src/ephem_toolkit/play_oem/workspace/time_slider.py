@@ -284,6 +284,7 @@ class TimeSlider(wx.Control):
         self._minimum = 0
         self._maximum = 10_000
         self._value = 0
+        self._time_slider_state_set = False
         # Leave a small handle-to-track gap without pushing playback controls down.
         self.SetMinSize(wx.Size(-1, max(50, self.GetBestSize().height + 14)))
         self._on_playback = on_playback
@@ -352,7 +353,8 @@ class TimeSlider(wx.Control):
         return self._maximum
 
     def GetValue(self) -> int:
-        return self._value
+        """Return the normalized value, or an unset sentinel before initialization."""
+        return self._value if self._time_slider_state_set else self._minimum - 1
 
     @property
     def is_dragging(self) -> bool:
@@ -492,6 +494,7 @@ class TimeSlider(wx.Control):
 
     def SetValue(self, value: int) -> None:
         self._value = min(max(int(value), self._minimum), self._maximum)
+        self._time_slider_state_set = True
         self.Refresh()
 
     def _paint_track(self, _event: wx.PaintEvent) -> None:
@@ -521,7 +524,7 @@ class TimeSlider(wx.Control):
         dc.DrawRoundedRectangle(left, center_y - 5, right - left, 10, 5)
 
         playable_segment = self._playable_segment_x()
-        if playable_segment is not None:
+        if self._ranges_ready and playable_segment is not None:
             playback_start_x, playback_end_x = playable_segment
             range_left, range_right = sorted((playback_start_x, playback_end_x))
             range_width = max(4, range_right - range_left)
@@ -560,7 +563,9 @@ class TimeSlider(wx.Control):
                 start_x, end_x = sorted(segment)
                 dc.DrawLine(start_x, connector_y, end_x, connector_y)
 
-        if _timestamp_is_visible(self._now, self._slider_bounds):
+        if self._time_slider_state_set and _timestamp_is_visible(
+            self._now, self._slider_bounds
+        ):
             progress_x = self._x_for(self._now)
             dc.SetPen(wx.Pen(highlight, 2))
             dc.SetBrush(wx.Brush(background))
@@ -939,7 +944,9 @@ class TimeSlider(wx.Control):
                 - seek_grip_size // 2,
             )
         )
-        if _timestamp_is_visible(self._now, self._slider_bounds):
+        if self._time_slider_state_set and _timestamp_is_visible(
+            self._now, self._slider_bounds
+        ):
             self._seek_grip.Show()
             # Range grips are sibling windows and may overlap the seek marker.
             # Keep the seek target on top after all of them are repositioned.

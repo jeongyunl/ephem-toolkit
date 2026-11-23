@@ -1,22 +1,28 @@
 """Tests for playback timeline handle geometry."""
 
 from types import SimpleNamespace
-from typing import Optional
+from typing import Any, Optional, cast
 
 import pytest
 import wx
 
 from ephem_toolkit.play_oem.time_range import EndpointMode
 from ephem_toolkit.play_oem.workspace.time_slider import (
-    _RangeGrip,
-    _SeekGrip,
-    TimeSlider,
+    _RangeGrip as _RangeGripClass,
+    _SeekGrip as _SeekGripClass,
+    TimeSlider as _TimeSliderClass,
     _plot_grip_y,
     _plot_handle_vertices,
     _plot_tooltip_text,
     _timestamp_is_visible,
     _triangle_vertices,
 )
+
+# These tests exercise wx handlers with lightweight fakes rather than native
+# widgets, so keep unbound handler calls dynamic at the test boundary.
+_RangeGrip: Any = cast(Any, _RangeGripClass)
+_SeekGrip: Any = cast(Any, _SeekGripClass)
+TimeSlider: Any = cast(Any, _TimeSliderClass)
 
 
 def test_plot_triangle_points_down_and_matches_playback_size() -> None:
@@ -246,6 +252,7 @@ def test_track_highlight_uses_outline_without_changing_track_fill(monkeypatch) -
         GetClientSize=lambda: (100, 74),
         _track_is_highlighted=False,
         _playback_connector_hovered=False,
+        _time_slider_state_set=True,
         _playable_segment_x=lambda: None,
         _unloaded_segment_x=lambda: None,
         _now=101.0,
@@ -301,6 +308,7 @@ def test_hovered_playback_connector_draws_line_between_handles(monkeypatch) -> N
         GetClientSize=lambda: (100, 74),
         _track_is_highlighted=False,
         _playback_connector_hovered=True,
+        _time_slider_state_set=True,
         _playback_handles=(20.0, 80.0),
         _x_for=lambda value: int(value),
         _playable_segment_x=lambda: None,
@@ -712,6 +720,7 @@ def test_seek_grip_tooltip_is_a_plain_timestamp(monkeypatch) -> None:
     slider = SimpleNamespace(
         _grips={"playback_start": grip},
         _ranges_ready=True,
+        _time_slider_state_set=True,
         _plot_rule=object(),
         _playback_handles=(10.0, 90.0),
         _slider_bounds=(0.0, 100.0),
