@@ -11,7 +11,7 @@ from .constants import CONTROLS_PANE_NAME
 from ..tooltips import set_tooltip
 
 if TYPE_CHECKING:
-    from .time_scrubber import TimeScrubber, TimeScrubberWidget
+    from ..widgets.time_scrubber import TimeScrubber, TimeScrubberWidget
 
 
 class _FeatureNavigationState(Protocol):

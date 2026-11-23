@@ -7,7 +7,7 @@ import pytest
 import wx
 
 from ephem_toolkit.play_oem.time_range import EndpointMode
-from ephem_toolkit.play_oem.workspace.time_slider import (
+from ephem_toolkit.play_oem.widgets.time_slider import (
     _RangeGrip as _RangeGripClass,
     _SeekGrip as _SeekGripClass,
     TimeSlider as _TimeSliderClass,
@@ -682,7 +682,7 @@ def test_unready_range_grips_hide_without_positioning(monkeypatch) -> None:
 
 
 def test_seek_grip_tooltip_is_a_plain_timestamp(monkeypatch) -> None:
-    from ephem_toolkit.play_oem.workspace import time_slider as time_slider_module
+    from ephem_toolkit.play_oem.widgets import time_slider as time_slider_module
 
     messages = []
     monkeypatch.setattr(

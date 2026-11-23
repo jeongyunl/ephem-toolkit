@@ -38,7 +38,7 @@ from ephem_toolkit.play_oem.incremental_loader import (
     LoadEvent,
     LoadEventKind,
 )
-from ephem_toolkit.play_oem.oem_data_store import LoadStatus, TierNotice
+from ephem_toolkit.play_oem.oem_data_store import LoadStatus, TierName, TierNotice
 from ephem_toolkit.play_oem.play_oem_cli import (
     PLOTS_OPTION,
     build_arg_parser,
@@ -50,10 +50,10 @@ from ephem_toolkit.play_oem.saved_state import (
     TimeScrubberSettings,
     normalize_recent_path,
 )
-from ephem_toolkit.play_oem.series import compute_orbit_series
+from ephem_toolkit.play_oem.series import SeriesGroupName, compute_orbit_series
 from ephem_toolkit.play_oem.time_unit import TimeUnit
 from ephem_toolkit.play_oem.views.registry import VIEW_LABELS
-from ephem_toolkit.play_oem.workspace.time_slider import TimeSlider
+from ephem_toolkit.play_oem.widgets.time_slider import TimeSlider
 from tests.ephem_toolkit.play_oem.cursor_helpers import make_store_cursor
 
 
@@ -1427,12 +1427,15 @@ def test_native_partial_startup_cleanup_destroys_real_wx_frame(
         frame_id = id(frame)
         wx.YieldIfNeeded()
 
-        assert not any(id(window) == frame_id for window in wx.GetTopLevelWindows())
+        assert not any(
+            id(window) == frame_id
+            for window in cast(Any, wx.GetTopLevelWindows)()
+        )
         with pytest.raises(RuntimeError):
             frame.GetHandle()
     finally:
         frame_ids = {id(frame) for frame in frames}
-        for window in wx.GetTopLevelWindows():
+        for window in cast(Any, wx.GetTopLevelWindows)():
             if id(window) in frame_ids:
                 window.Destroy()
         wx.YieldIfNeeded()
@@ -2332,7 +2335,7 @@ def test_controller_ignores_stale_incremental_events() -> None:
         _load_state=app.LoadState(generation=2),
         _refresh_state=app.RefreshState(incremental_view_refresh_pending=False),
     )
-    app.PlayerApp._poll_incremental_load(controller)
+    app.PlayerApp._poll_incremental_load(cast(Any, controller))
     assert not controller._incremental_view_refresh_pending
 
 
@@ -2359,13 +2362,13 @@ def test_controller_bounds_incremental_load_events_per_tick() -> None:
         _refresh_state=app.RefreshState(incremental_view_refresh_pending=False),
     )
 
-    app.PlayerApp._poll_incremental_load(controller)
+    app.PlayerApp._poll_incremental_load(cast(Any, controller))
 
     assert drain_limits == [
         player_incremental_loader.MAX_INCREMENTAL_LOAD_EVENTS_PER_TICK
     ]
     assert len(events) == 1
-    app.PlayerApp._poll_incremental_load(controller)
+    app.PlayerApp._poll_incremental_load(cast(Any, controller))
     assert not events
 
 
@@ -2396,8 +2399,8 @@ def test_controller_bounds_incremental_load_events_per_tick() -> None:
     ],
 )
 def test_tier_notices_target_only_dependent_views(
-    tier: str,
-    group: str | None,
+    tier: TierName,
+    group: SeriesGroupName | None,
     expected_view_ids: set[str],
 ) -> None:
     notice = TierNotice(1, tier, group, None, 0, 1)
@@ -2769,8 +2772,14 @@ def test_incremental_load_preserves_and_restores_saved_file_ranges(
             _plot_rule=controls[2],
             _now=controls[3],
         )
-        assert TimeSlider._time_for(slider_state, "plot_start") == playback_range[0]
-        assert TimeSlider._time_for(slider_state, "plot_end") == playback_range[1]
+        assert (
+            TimeSlider._time_for(cast(Any, slider_state), "plot_start")
+            == playback_range[0]
+        )
+        assert (
+            TimeSlider._time_for(cast(Any, slider_state), "plot_end")
+            == playback_range[1]
+        )
         player._capture_current_file_settings()
         assert saved_state.file_settings[path].playback_range == playback_range
         assert player.plot_time_range == plot_range
@@ -3523,7 +3532,7 @@ def test_native_wx_close_during_oem_parse_cancels_and_destroys_resources(
         if player is not None and not player._closed:
             player.close()
         frame_ids = {id(frame) for frame in frames}
-        for window in wx.GetTopLevelWindows():
+        for window in cast(Any, wx.GetTopLevelWindows)():
             if id(window) in frame_ids:
                 window.Destroy()
         wx.YieldIfNeeded()
@@ -3534,7 +3543,7 @@ def test_native_wx_close_during_oem_parse_cancels_and_destroys_resources(
     assert store.snapshot().sample_count == 0
     assert not any(
         id(window) in {id(frame) for frame in frames}
-        for window in wx.GetTopLevelWindows()
+        for window in cast(Any, wx.GetTopLevelWindows)()
     )
 
 

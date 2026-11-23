@@ -18,12 +18,12 @@ from .time_slider import TimeSlider
 
 MINIMUM_VIEWPORT_SECONDS = 10.0
 WHEEL_GESTURE_LOCK_SECONDS = 0.25
-TIMESCRUBBER_CHEVRON_WIDTH = 28
-TIMESCRUBBER_TRACK_HEIGHT = 70
+DEFAULT_CHEVRON_WIDTH = 28
+DEFAULT_CHEVRON_HEIGHT = 70
 
 
-class TimeScrubberChevronButton(wx.Control):
-    """Compact toggle-styled chevron button for TimeScrubber pan controls."""
+class ChevronButton(wx.Control):
+    """Compact, keyboard-accessible chevron control that invokes a callback."""
 
     def __init__(
         self,
@@ -31,15 +31,18 @@ class TimeScrubberChevronButton(wx.Control):
         label: str,
         tooltip: str,
         callback: Callable[[], None],
+        *,
+        width: int = DEFAULT_CHEVRON_WIDTH,
+        height: int = DEFAULT_CHEVRON_HEIGHT,
     ) -> None:
         super().__init__(
             parent,
             wx.ID_ANY,
-            size=wx.Size(TIMESCRUBBER_CHEVRON_WIDTH, TIMESCRUBBER_TRACK_HEIGHT),
+            size=wx.Size(width, height),
             style=wx.BORDER_THEME | wx.WANTS_CHARS,
         )
         self.SetMinSize(
-            self.FromDIP(wx.Size(TIMESCRUBBER_CHEVRON_WIDTH, TIMESCRUBBER_TRACK_HEIGHT))
+            self.FromDIP(wx.Size(width, height))
         )
         self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
         self.SetCanFocus(True)
@@ -84,10 +87,23 @@ class TimeScrubberChevronButton(wx.Control):
         dc = wx.AutoBufferedPaintDC(self)
         width, height = self.GetClientSize()
         enabled = self.IsEnabled()
-        face = wx.Colour(
-            "#e7ebf0" if self._pressed else "#f2f3f5" if self._hovered else "#eeeeee"
-        )
-        foreground = wx.Colour("#34383d" if enabled else "#a5a8ac")
+        idle = wx.SystemSettings.GetColour(wx.SYS_COLOUR_BTNFACE)
+        active = wx.SystemSettings.GetColour(wx.SYS_COLOUR_HIGHLIGHT)
+        if self._pressed:
+            face = active
+            foreground = wx.SystemSettings.GetColour(wx.SYS_COLOUR_HIGHLIGHTTEXT)
+        elif self._hovered:
+            face = wx.Colour(
+                (idle.Red() + active.Red()) // 2,
+                (idle.Green() + active.Green()) // 2,
+                (idle.Blue() + active.Blue()) // 2,
+            )
+            foreground = wx.SystemSettings.GetColour(wx.SYS_COLOUR_BTNTEXT)
+        else:
+            face = idle
+            foreground = wx.SystemSettings.GetColour(wx.SYS_COLOUR_BTNTEXT)
+        if not enabled:
+            foreground = wx.SystemSettings.GetColour(wx.SYS_COLOUR_GRAYTEXT)
         dc.SetBackground(wx.Brush(self.GetParent().GetBackgroundColour()))
         dc.Clear()
         dc.SetPen(wx.TRANSPARENT_PEN)
@@ -227,8 +243,8 @@ def _aligned_tick_start(
     return aligned
 
 
-class TimeScrubberTickRail(wx.Control):
-    """Painted adaptive major and minor ticks for a TimeScrubber."""
+class TimeTickRail(wx.Control):
+    """Paint adaptive time ticks and optionally forward wheel and pan input."""
 
     def __init__(
         self,
@@ -701,13 +717,13 @@ class TimeScrubberWidget(wx.Panel):
         self._timeline_enabled = timeline_enabled
         self._on_viewport_callback = on_viewport or (lambda _viewport: None)
 
-        self.left_chevron = TimeScrubberChevronButton(
+        self.left_chevron = ChevronButton(
             self,
             "‹",
             "Pan earlier",
             lambda: self.slider.pan(-0.10),
         )
-        self.right_chevron = TimeScrubberChevronButton(
+        self.right_chevron = ChevronButton(
             self,
             "›",
             "Pan later",
@@ -717,7 +733,7 @@ class TimeScrubberWidget(wx.Panel):
         self.column.SetBackgroundColour(self.GetBackgroundColour())
         column_sizer = wx.BoxSizer(wx.VERTICAL)
         self.column.SetSizer(column_sizer)
-        self.tick_rail = TimeScrubberTickRail(self.column)
+        self.tick_rail = TimeTickRail(self.column)
         self.tick_rail.set_viewport(viewport if viewport is not None else coverage)
         self.tick_rail.set_display_time_zone(display_time_zone)
         self.slider = TimeScrubber(
@@ -779,3 +795,4 @@ class TimeScrubberWidget(wx.Panel):
         self.slider.Enable(enabled)
         self.tick_rail.Enable(enabled)
         self._viewport_changed(self.slider.viewport)
+

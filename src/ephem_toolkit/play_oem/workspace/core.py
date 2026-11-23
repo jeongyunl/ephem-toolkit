@@ -23,7 +23,7 @@ from .features import FeatureNavigationMixin
 from .ground_stations import GroundStationsManager
 from .graph_stack import GraphStackMixin
 from .timeline import PlaybackToggleButton, TimelineMixin
-from .time_scrubber import TimeScrubberWidget
+from ..widgets.time_scrubber import TimeScrubberWidget
 from .. import time_range as range_model
 from ..ground_stations import GroundStation
 from ..display_time import UTC_DISPLAY, format_tt

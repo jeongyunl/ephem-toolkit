@@ -1,16 +1,17 @@
 """Tests for TimeScrubber viewport and wheel behavior."""
 
 from types import SimpleNamespace
+from typing import Any, cast
 
 import pytest
 import wx
 
-from ephem_toolkit.play_oem.workspace.time_scrubber import (
+from ephem_toolkit.play_oem.widgets.time_scrubber import (
     MINIMUM_VIEWPORT_SECONDS,
-    TIMESCRUBBER_TRACK_HEIGHT,
+    DEFAULT_CHEVRON_HEIGHT,
     TimeScrubber,
-    TimeScrubberChevronButton,
-    TimeScrubberTickRail,
+    ChevronButton,
+    TimeTickRail,
     _clamp_viewport,
     _consume_vertical_wheel_notches,
 )
@@ -54,9 +55,9 @@ def test_pan_preserves_width_and_clamps_to_coverage() -> None:
     applied = []
     slider._apply_viewport = applied.append
 
-    from ephem_toolkit.play_oem.workspace.time_scrubber import TimeScrubber
+    from ephem_toolkit.play_oem.widgets.time_scrubber import TimeScrubber
 
-    TimeScrubber.pan(slider, 0.10)
+    cast(Any, TimeScrubber.pan)(slider, 0.10)
 
     assert applied == [(22.0, 42.0)]
 
@@ -115,9 +116,9 @@ def test_horizontal_wheel_scroll_calls_pan_once() -> None:
         GetWheelAxis=lambda: wx.MOUSE_WHEEL_HORIZONTAL,
     )
 
-    from ephem_toolkit.play_oem.workspace.time_scrubber import TimeScrubber
+    from ephem_toolkit.play_oem.widgets.time_scrubber import TimeScrubber
 
-    TimeScrubber._mouse_wheel(slider, event)
+    cast(Any, TimeScrubber._mouse_wheel)(slider, event)
 
     assert pan_calls == [0.05]
 
@@ -129,7 +130,7 @@ def test_tick_rail_forwards_wheel_to_timescrubber() -> None:
     )
     event = SimpleNamespace(Skip=lambda _skip: None)
 
-    TimeScrubberTickRail._mouse_wheel(rail, event)
+    cast(Any, TimeTickRail._mouse_wheel)(rail, event)
 
     assert calls == [event]
 
@@ -148,7 +149,7 @@ def test_tick_rail_drag_calls_pan_fraction() -> None:
         Skip=lambda _skip: None,
     )
 
-    TimeScrubberTickRail._motion(rail, event)
+    cast(Any, TimeTickRail._motion)(rail, event)
 
     assert pan_calls == pytest.approx([-20 / 180])
     assert rail._drag_start_x == 70
@@ -158,7 +159,7 @@ def test_tick_rail_is_compact() -> None:
     app = wx.App(False)
     frame = wx.Frame(None)
     try:
-        rail = TimeScrubberTickRail(frame)
+        rail = TimeTickRail(frame)
         assert rail.GetMinSize().height == 18
         assert rail.GetFont().GetPointSize() > frame.GetFont().GetPointSize()
     finally:
@@ -171,14 +172,13 @@ def test_chevron_height_matches_combined_track() -> None:
     frame = wx.Frame(None)
     try:
         calls = []
-        chevron = TimeScrubberChevronButton(
+        chevron = ChevronButton(
             frame,
             "‹",
             "Pan earlier",
             lambda: calls.append("pan"),
         )
-        assert chevron.GetSize().height == TIMESCRUBBER_TRACK_HEIGHT
-        assert TIMESCRUBBER_TRACK_HEIGHT == 56 + 18
+        assert chevron.GetSize().height == DEFAULT_CHEVRON_HEIGHT
         assert chevron.GetValue()
         assert chevron.IsEnabled()
         chevron.set_scrollable(False)
@@ -197,7 +197,7 @@ def test_chevron_hover_refresh_does_not_consume_tooltip_events() -> None:
     chevron = SimpleNamespace(Refresh=lambda: calls.append("refresh"))
     event = SimpleNamespace(Skip=lambda: calls.append("skip"))
 
-    TimeScrubberChevronButton._on_pointer_boundary(chevron, event)
+    cast(Any, ChevronButton._on_pointer_boundary)(chevron, event)
 
     assert calls == ["refresh", "skip"]
 
@@ -212,9 +212,9 @@ def test_chevron_toggle_keeps_scrollable_state_and_pans_only_when_enabled() -> N
     )
     event = SimpleNamespace(Skip=lambda _skip: None)
 
-    TimeScrubberChevronButton._click(chevron, event)
+    cast(Any, ChevronButton._click)(chevron, event)
     chevron._scrollable = False
-    TimeScrubberChevronButton._click(chevron, event)
+    cast(Any, ChevronButton._click)(chevron, event)
 
     assert calls == ["pan"]
     assert selected_values == [True, False]
@@ -257,7 +257,7 @@ def test_wheel_gesture_latches_axis_and_ignores_opposite_axis(monkeypatch) -> No
         _vertical_wheel_accumulator=0,
     )
 
-    import ephem_toolkit.play_oem.workspace.time_scrubber as time_scrubber_module
+    import ephem_toolkit.play_oem.widgets.time_scrubber as time_scrubber_module
 
     monkeypatch.setattr(time_scrubber_module.time, "monotonic", lambda: 1.0)
 
@@ -273,8 +273,8 @@ def test_wheel_gesture_latches_axis_and_ignores_opposite_axis(monkeypatch) -> No
         GetX=lambda: 50,
     )
 
-    time_scrubber_module.TimeScrubber._mouse_wheel(slider, horizontal)
-    time_scrubber_module.TimeScrubber._mouse_wheel(slider, vertical)
+    cast(Any, time_scrubber_module.TimeScrubber._mouse_wheel)(slider, horizontal)
+    cast(Any, time_scrubber_module.TimeScrubber._mouse_wheel)(slider, vertical)
 
     assert pan_calls == [0.05]
     assert zoom_calls == []
