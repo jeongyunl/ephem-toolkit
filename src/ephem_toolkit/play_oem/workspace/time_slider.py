@@ -89,7 +89,11 @@ class _RangeGrip(wx.Control):
         kind: str,
         color: str,
     ) -> None:
-        super().__init__(parent, wx.ID_ANY, style=wx.WANTS_CHARS | wx.TAB_TRAVERSAL)
+        super().__init__(
+            parent,
+            wx.ID_ANY,
+            style=wx.BORDER_NONE | wx.WANTS_CHARS | wx.TAB_TRAVERSAL,
+        )
         self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
         self.slider = slider
         self.kind = kind
@@ -127,16 +131,6 @@ class _RangeGrip(wx.Control):
             dc.SetBrush(wx.Brush(brush_color))
             vertices = _plot_handle_vertices(self.slider._plot_mode(self), cx, cy)
         dc.DrawPolygon([wx.Point(x, y) for x, y in vertices])
-        if self.HasFocus():
-            dc.SetPen(
-                wx.Pen(
-                    wx.SystemSettings.GetColour(wx.SYS_COLOUR_HIGHLIGHT),
-                    1,
-                    wx.PENSTYLE_DOT,
-                )
-            )
-            dc.SetBrush(wx.TRANSPARENT_BRUSH)
-            dc.DrawRectangle(1, 1, w - 3, h - 3)
 
     def _down(self, event: wx.MouseEvent) -> None:
         self.SetFocus()
