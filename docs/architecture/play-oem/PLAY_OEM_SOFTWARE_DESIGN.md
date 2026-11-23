@@ -413,7 +413,7 @@ snapshots, captures `StoreViewContext` values, and refreshes open panels. No who
 
 ## 5. CLI flow (`__main__.py`)
 
-1. Parse the optional OEM path, `--plots`, `--3d-backend`, and `--config`.
+1. Parse the optional OEM path, `--plots`, `--3d-backend`, `--config-file`, `--state-file`, and `--config-dir`.
 2. Load user configuration and saved workspace state, then construct the `wx.App` and workspace
    with an empty startup model.
 3. Show the workspace and start the selected file's generation-scoped background load. The worker

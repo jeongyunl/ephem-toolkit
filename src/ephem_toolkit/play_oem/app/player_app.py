@@ -170,6 +170,7 @@ class PlayerApp(
         self.frame_context = config.frame_context
         self._tick_interval_ms = config.tick_interval_ms
         self._config_path = config.config_path
+        self._state_path = config.state_path
         self._display_time_zone = config.display_time_zone
         self._dashboard_context = dict(config.dashboard_context)
         self._metadata_details = config.metadata_details
@@ -343,6 +344,7 @@ class PlayerApp(
         ground_stations: Sequence[GroundStation] | None = None,
         saved_state: SavedAppState | None = None,
         config_path: str | Path | None = None,
+        state_path: str | Path | None = None,
         initial_file_path: str | None = None,
         oem_loaded: bool = True,
         loaded_file_name: str | None = None,
@@ -377,6 +379,8 @@ class PlayerApp(
             Station definitions loaded from the user configuration file.
         config_path : str | Path | None, optional
             User configuration file to update when settings or stations change.
+        state_path : str | Path | None, optional
+            Saved-state file to update when window and file settings change.
         initial_file_path : str | None, optional
             Path to the successfully loaded initial OEM, added to recent files.
 
@@ -411,6 +415,7 @@ class PlayerApp(
             oem_loaded=oem_loaded,
             loaded_file_name=loaded_file_name,
             config_path=config_path,
+            state_path=state_path,
             three_d_backend=three_d_backend,
         )
         self._initialize_player_core(config=core_config)

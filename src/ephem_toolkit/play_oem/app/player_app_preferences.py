@@ -182,7 +182,7 @@ class PlayerAppPreferencesMixin:
         self._saved_state.recent_files = list(self._recent_oem_paths[:MAX_RECENT_FILES])
         self._capture_saved_open_views()
         try:
-            save_saved_state(self._saved_state)
+            save_saved_state(self._saved_state, self._state_path)
         except OSError as error:
             warnings.warn(
                 f"Could not save play-oem state: {error}",

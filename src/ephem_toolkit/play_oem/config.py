@@ -28,6 +28,7 @@ from .views.trajectory3d.selection import THREE_D_BACKEND_CHOICES
 
 CONFIG_DIRECTORY = "ephem-toolkit"
 CONFIG_FILENAME = "play-oem.toml"
+STATE_FILENAME = "play-oem-state.toml"
 CONFIG_VERSION = 1
 RENDER_RATE_FPS_MIN = 1
 RENDER_RATE_FPS_MAX = 30
@@ -35,6 +36,37 @@ RENDER_RATE_FPS_MAX = 30
 
 class ConfigError(ValueError):
     """Raised when a selected user configuration cannot be loaded or validated."""
+
+
+@dataclass(frozen=True)
+class ConfigPaths:
+    """Resolved user-config and saved-state paths."""
+
+    config_file: Path | None
+    state_file: Path | None
+
+
+def resolve_config_paths(
+    *,
+    config_file: str | Path | None = None,
+    state_file: str | Path | None = None,
+    config_dir: str | Path | None = None,
+) -> ConfigPaths:
+    """Resolve TOML paths with explicit files taking precedence over a directory."""
+    directory = Path(config_dir).expanduser() if config_dir is not None else None
+    if config_file is not None:
+        config_path = Path(config_file).expanduser()
+    elif directory is not None:
+        config_path = directory / CONFIG_FILENAME
+    else:
+        config_path = None
+    if state_file is not None:
+        state_path = Path(state_file).expanduser()
+    elif directory is not None:
+        state_path = directory / STATE_FILENAME
+    else:
+        state_path = None
+    return ConfigPaths(config_file=config_path, state_file=state_path)
 
 
 @dataclass(frozen=True)
@@ -739,16 +771,3 @@ def _write_config_document(config_path: Path, updated: str) -> None:
             os.unlink(temporary_path)
 
 
-def supplied_options(argv: list[str]) -> set[str]:
-    """Return config-capable CLI destinations explicitly present in ``argv``."""
-    aliases = {
-        "--plots": "plots",
-        "--3d-backend": "three_d_backend",
-        "--config": "config",
-    }
-    provided: set[str] = set()
-    for argument in argv:
-        option = argument.split("=", 1)[0]
-        if option in aliases:
-            provided.add(aliases[option])
-    return provided

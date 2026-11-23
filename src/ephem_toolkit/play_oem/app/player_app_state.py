@@ -76,6 +76,8 @@ class PlayerCoreConfig:
     """Initial loaded OEM file name."""
     config_path: str | Path | None
     """Optional play-oem configuration path."""
+    state_path: str | Path | None
+    """Optional play-oem saved-state path."""
     three_d_backend: str
     """Requested 3D trajectory backend."""
 
@@ -102,6 +104,7 @@ class PlayerCoreConfig:
         oem_loaded: bool,
         loaded_file_name: str | None,
         config_path: str | Path | None,
+        state_path: str | Path | None,
         three_d_backend: str,
     ) -> "PlayerCoreConfig":
         """Normalize constructor values into immutable core configuration."""
@@ -125,6 +128,7 @@ class PlayerCoreConfig:
             oem_loaded=oem_loaded,
             loaded_file_name=loaded_file_name,
             config_path=config_path,
+            state_path=state_path,
             three_d_backend=three_d_backend,
         )
 
@@ -241,6 +245,7 @@ class PreferencesPlayerState(Protocol):
     _persist_saved_state: bool
     _recent_oem_paths: list[str]
     _config_path: object
+    _state_path: object
     _render_rate_config_dirty: bool
     _display_time_zone_config_dirty: bool
     _interpolation_config_dirty: bool

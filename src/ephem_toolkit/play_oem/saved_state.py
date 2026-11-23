@@ -16,7 +16,7 @@ try:
 except ModuleNotFoundError:  # Python 3.9 and 3.10
     import tomli as tomllib  # type: ignore[no-redef]
 
-from .config import default_config_directory
+from .config import STATE_FILENAME, default_config_directory
 from .ground_stations import GroundStation, parse_ground_station_records
 from .time_range import (
     PlotTimeRange,
@@ -25,7 +25,6 @@ from .time_range import (
 )
 from .views.registry import parse_plot_selection
 
-STATE_FILENAME = "play-oem-state.toml"
 STATE_VERSION = 11
 MAX_RECENT_FILES = 15
 MIN_STORED_WINDOW_DIMENSION = 320

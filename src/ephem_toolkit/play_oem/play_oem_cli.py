@@ -10,10 +10,17 @@ import ephem_toolkit.core.cli as cli
 from .views.trajectory3d.selection import THREE_D_BACKEND_CHOICES
 from .views.registry import parse_plot_selection
 
-_CONFIG_OPTIONS = {
-    "--plots": "plots",
-    "--3d-backend": "three_d_backend",
-    "--config": "config",
+PLOTS_OPTION = "--plots"
+THREE_D_BACKEND_OPTION = "--3d-backend"
+CONFIG_FILE_OPTION = "--config-file"
+STATE_FILE_OPTION = "--state-file"
+CONFIG_DIR_OPTION = "--config-dir"
+CONFIG_OPTION_DESTINATIONS = {
+    PLOTS_OPTION: "plots",
+    THREE_D_BACKEND_OPTION: "three_d_backend",
+    CONFIG_FILE_OPTION: "config_file",
+    STATE_FILE_OPTION: "state_file",
+    CONFIG_DIR_OPTION: "config_dir",
 }
 
 
@@ -33,8 +40,12 @@ class PlayOemArgs(argparse.Namespace):
     """3D trajectory rendering backend."""
     plots: tuple[str, ...]
     """View names selected for launch."""
-    config: str | None
+    config_file: str | None
     """Optional path to a user config TOML file."""
+    state_file: str | None
+    """Optional path to a saved-state TOML file."""
+    config_dir: str | None
+    """Optional directory containing the user config and saved-state TOML files."""
     provided_options: frozenset[str]
     """Config-capable destinations explicitly supplied on the command line."""
 
@@ -48,7 +59,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
             "Examples:\n"
             "  play-oem\n"
             "  play-oem orbit.oem\n"
-            "  play-oem orbit.oem --plots overview"
+            f"  play-oem orbit.oem {PLOTS_OPTION} overview"
         ),
     )
     parser.prog = "play-oem"
@@ -61,7 +72,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Optional path to an initial CCSDS OEM file.",
     )
     parser.add_argument(
-        "--3d-backend",
+        THREE_D_BACKEND_OPTION,
         dest="three_d_backend",
         choices=THREE_D_BACKEND_CHOICES,
         default="auto",
@@ -72,7 +83,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
-        "--plots",
+        PLOTS_OPTION,
         type=_parse_plots,
         default=("overview",),
         metavar="<list>",
@@ -83,11 +94,31 @@ def build_arg_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
-        "--config",
+        CONFIG_FILE_OPTION,
+        dest="config_file",
         type=str,
         default=None,
         metavar="<path>",
         help="Load user defaults from this TOML file instead of the default location.",
+    )
+    parser.add_argument(
+        STATE_FILE_OPTION,
+        dest="state_file",
+        type=str,
+        default=None,
+        metavar="<path>",
+        help="Load and save application state from this TOML file instead of the default location.",
+    )
+    parser.add_argument(
+        CONFIG_DIR_OPTION,
+        dest="config_dir",
+        type=str,
+        default=None,
+        metavar="<directory>",
+        help=(
+            "Load and save play-oem configuration and state TOML files from this directory. "
+            f"Explicit {CONFIG_FILE_OPTION} and {STATE_FILE_OPTION} paths take precedence."
+        ),
     )
     return parser
 
@@ -102,7 +133,7 @@ def parse_arguments(
     provided: set[str] = set()
     for argument in argument_list:
         option = argument.split("=", 1)[0]
-        if option in _CONFIG_OPTIONS:
-            provided.add(_CONFIG_OPTIONS[option])
+        if option in CONFIG_OPTION_DESTINATIONS:
+            provided.add(CONFIG_OPTION_DESTINATIONS[option])
     parsed.provided_options = frozenset(provided)
     return parsed

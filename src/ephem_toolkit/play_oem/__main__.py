@@ -15,16 +15,21 @@ def main(argv: Sequence[str] | None = None) -> None:
     if cli_args.input_oem is not None and not Path(cli_args.input_oem).is_file():
         raise FileNotFoundError(f"File not found: {cli_args.input_oem}")
 
-    from .config import load_config, save_ground_stations
+    from .config import load_config, resolve_config_paths, save_ground_stations
     from .playback_data import empty_playback_data
     from .saved_state import load_saved_state
 
-    user_config = load_config(cli_args.config)
-    saved_state = load_saved_state()
+    paths = resolve_config_paths(
+        config_file=cli_args.config_file,
+        state_file=cli_args.state_file,
+        config_dir=cli_args.config_dir,
+    )
+    user_config = load_config(paths.config_file)
+    saved_state = load_saved_state(paths.state_file)
     ground_stations = list(user_config.ground_stations)
     if not user_config.ground_stations_configured and saved_state.ground_stations:
         ground_stations = list(saved_state.ground_stations)
-        save_ground_stations(ground_stations, cli_args.config)
+        save_ground_stations(ground_stations, paths.config_file)
         saved_state.ground_stations = []
     initial_render_rate_fps = user_config.render_rate_fps
     if "plots" in cli_args.provided_options:
@@ -59,8 +64,10 @@ def main(argv: Sequence[str] | None = None) -> None:
         initial_data.clock.seek(initial_data.clock.t_end)
 
     player_options: dict[str, str] = {}
-    if cli_args.config is not None:
-        player_options["config_path"] = cli_args.config
+    if paths.config_file is not None:
+        player_options["config_path"] = str(paths.config_file)
+    if paths.state_file is not None:
+        player_options["state_path"] = str(paths.state_file)
 
     player = PlayerApp(
         initial_data.clock,

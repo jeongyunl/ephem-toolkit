@@ -39,7 +39,11 @@ from ephem_toolkit.play_oem.incremental_loader import (
     LoadEventKind,
 )
 from ephem_toolkit.play_oem.oem_data_store import LoadStatus, TierNotice
-from ephem_toolkit.play_oem.play_oem_cli import build_arg_parser, parse_arguments
+from ephem_toolkit.play_oem.play_oem_cli import (
+    PLOTS_OPTION,
+    build_arg_parser,
+    parse_arguments,
+)
 from ephem_toolkit.play_oem.saved_state import (
     FileSettings,
     SavedAppState,
@@ -673,6 +677,7 @@ def make_app(
     render_rate_fps: int | None = None,
     saved_state: SavedAppState | None = None,
     config_path=None,
+    state_path=None,
     initial_file_path: str | None = None,
     oem_loaded: bool = True,
 ) -> tuple[Any, list[FakeView], list[FakeCanvas], list[FakeFrame]]:
@@ -759,6 +764,7 @@ def make_app(
         render_rate_fps=render_rate_fps,
         saved_state=saved_state,
         config_path=config_path,
+        state_path=state_path,
         initial_file_path=initial_file_path,
         oem_loaded=oem_loaded,
     )
@@ -1576,7 +1582,7 @@ def test_cli_selection_opens_through_the_dashboard_registry(
 ) -> None:
     cli_args = parse_arguments(
         build_arg_parser(),
-        ["orbit.oem", "--plots", "state-vectors"],
+        ["orbit.oem", PLOTS_OPTION, "state-vectors"],
     )
     player, _views, _canvases, frames = make_app(monkeypatch, plots=cli_args.plots)
 
@@ -2718,7 +2724,7 @@ def test_incremental_load_preserves_and_restores_saved_file_ranges(
             )
         },
     )
-    monkeypatch.setattr(player_app_preferences, "save_saved_state", lambda _state: None)
+    monkeypatch.setattr(player_app_preferences, "save_saved_state", lambda _state, _path=None: None)
     player, _views, _canvases, _frames = make_app(
         monkeypatch,
         plots=("speed-altitude",),
@@ -2810,6 +2816,29 @@ def test_incremental_load_preserves_and_restores_saved_file_ranges(
         player.close()
 
 
+def test_custom_state_path_is_used_when_saving(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    state_path = tmp_path / "custom-state.toml"
+    saved_paths: list[object] = []
+    monkeypatch.setattr(
+        player_app_preferences,
+        "save_saved_state",
+        lambda state, path=None: (saved_paths.append(path), state)[1],
+    )
+    player, _views, _canvases, _frames = make_app(
+        monkeypatch,
+        state_path=state_path,
+        saved_state=SavedAppState(),
+    )
+
+    player._save_application_state(save_geometry=False)
+
+    assert saved_paths == [state_path]
+    player.close()
+
+
 def test_initial_file_settings_are_applied_and_saved(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2829,7 +2858,7 @@ def test_initial_file_settings_are_applied_and_saved(
             file_path: FileSettings((110.0, 190.0), plot_range, time_scrubber),
         },
     )
-    monkeypatch.setattr(player_app_preferences, "save_saved_state", lambda _state: None)
+    monkeypatch.setattr(player_app_preferences, "save_saved_state", lambda _state, _path=None: None)
     player, _views, _canvases, _frames = make_app(
         monkeypatch,
         saved_state=saved_state,
@@ -2879,7 +2908,7 @@ def test_live_time_scrubber_zoom_is_saved_during_restore_lock(
             )
         },
     )
-    monkeypatch.setattr(player_app_preferences, "save_saved_state", lambda _state: None)
+    monkeypatch.setattr(player_app_preferences, "save_saved_state", lambda _state, _path=None: None)
     player, _views, _canvases, _frames = make_app(
         monkeypatch,
         saved_state=saved_state,
@@ -3165,7 +3194,7 @@ def test_window_position_is_restored_clamped_and_saved(
             return SimpleNamespace(x=0, y=0, width=1920, height=1080)
 
     monkeypatch.setattr(app.wx, "Display", FakeDisplay)
-    monkeypatch.setattr(player_app_preferences, "save_saved_state", lambda _state: None)
+    monkeypatch.setattr(player_app_preferences, "save_saved_state", lambda _state, _path=None: None)
     saved_state = SavedAppState(position=(1800, 900))
     player, _views, _canvases, frames = make_app(
         monkeypatch,

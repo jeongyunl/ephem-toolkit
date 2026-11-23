@@ -203,10 +203,14 @@ time in the GUI; the playable range grows as samples arrive.
 
 ## Command-line options
 
-`play-oem --config PATH` selects a specific user config TOML file instead of the default location.
-It does not change the location of the app-maintained state file. An explicitly selected config
-file that is missing or cannot be read produces an error. A missing config file at the default
-location is treated as no user configuration.
+`play-oem --config-file PATH` selects a specific user config TOML file instead of the default location.
+It does not change the location of the app-maintained state file unless `--state-file` is also supplied.
+`play-oem --state-file PATH` selects the app-maintained state TOML file for both loading and saving.
+`play-oem --config-dir DIRECTORY` places both TOML files in that directory using
+`play-oem.toml` and `play-oem-state.toml`. Explicit `--config-file` and `--state-file` values
+take precedence. An explicitly selected config file that is missing or cannot
+be read produces an error. A missing state file is created when state is saved. Malformed or invalid
+TOML is reported and ignored safely.
 
 For settings that have a corresponding command-line option, an explicitly supplied value will take
 precedence over the config file, and the config file will take precedence over the built-in
