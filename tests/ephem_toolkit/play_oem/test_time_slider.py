@@ -170,6 +170,44 @@ def test_playback_connector_highlights_only_between_handles() -> None:
     assert not TimeSlider._playback_connector_hovered.__get__(slider)
 
 
+@pytest.mark.parametrize(
+    ("handles", "visible", "pointer", "expected"),
+    [
+        ((-50.0, 50.0), (0.0, 100.0), (30, 54), True),
+        ((50.0, 150.0), (0.0, 100.0), (70, 54), True),
+        ((-50.0, -10.0), (0.0, 100.0), (10, 54), False),
+        ((110.0, 150.0), (0.0, 100.0), (90, 54), False),
+    ],
+)
+def test_playback_connector_intersects_partially_visible_range(
+    handles: tuple[float, float],
+    visible: tuple[float, float],
+    pointer: tuple[int, int],
+    expected: bool,
+) -> None:
+    slider = SimpleNamespace(
+        _pointer_position=SimpleNamespace(x=pointer[0], y=pointer[1]),
+        _drag_source=None,
+        _range_drag_origin=None,
+        _playback_handles=handles,
+        _slider_bounds=visible,
+        GetClientSize=lambda: SimpleNamespace(height=74, width=100),
+        _x_for=lambda value: (
+            10 + round(
+                min(max((value - visible[0]) / (visible[1] - visible[0]), 0.0), 1.0)
+                * 80
+            )
+        ),
+    )
+
+    assert (
+        TimeSlider._pointer_between_playback_handles(
+            slider, slider._pointer_position
+        )
+        is expected
+    )
+
+
 def test_track_highlight_uses_outline_without_changing_track_fill(monkeypatch) -> None:
     highlight, transparent = object(), object()
     rectangles: list[tuple[tuple[int, ...], object, object]] = []

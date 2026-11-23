@@ -363,13 +363,10 @@ class TimeSlider(wx.Control):
             return False
         if range_drag_origin is not None:
             return self._drag_source is self
-        start_s, end_s = self._playback_handles
-        if not (
-            _timestamp_is_visible(start_s, self._slider_bounds)
-            and _timestamp_is_visible(end_s, self._slider_bounds)
-        ):
+        segment = TimeSlider._playback_handle_segment_x(self)
+        if segment is None:
             return False
-        start_x, end_x = sorted((self._x_for(start_s), self._x_for(end_s)))
+        start_x, end_x = sorted(segment)
         connector_y = self.GetClientSize().height // 2 + 17
         return start_x < position.x < end_x and abs(position.y - connector_y) <= 3
 
@@ -497,11 +494,12 @@ class TimeSlider(wx.Control):
             )
 
         if self._playback_connector_hovered:
-            start_s, end_s = self._playback_handles
-            start_x, end_x = sorted((self._x_for(start_s), self._x_for(end_s)))
+            segment = TimeSlider._playback_handle_segment_x(self)
             dc.SetPen(wx.Pen(wx.Colour("#197765"), 2))
             connector_y = height // 2 + 17
-            dc.DrawLine(start_x, connector_y, end_x, connector_y)
+            if segment is not None:
+                start_x, end_x = sorted(segment)
+                dc.DrawLine(start_x, connector_y, end_x, connector_y)
 
         if _timestamp_is_visible(self._now, self._slider_bounds):
             progress_x = self._x_for(self._now)
@@ -516,6 +514,15 @@ class TimeSlider(wx.Control):
         playback_start, playback_end = sorted(self._playback)
         clipped_start = max(playback_start, visible_start)
         clipped_end = min(playback_end, visible_end)
+        if clipped_start > clipped_end:
+            return None
+        return self._x_for(clipped_start), self._x_for(clipped_end)
+
+    def _playback_handle_segment_x(self) -> tuple[int, int] | None:
+        visible_start, visible_end = self._slider_bounds
+        handle_start, handle_end = sorted(self._playback_handles)
+        clipped_start = max(handle_start, visible_start)
+        clipped_end = min(handle_end, visible_end)
         if clipped_start > clipped_end:
             return None
         return self._x_for(clipped_start), self._x_for(clipped_end)
