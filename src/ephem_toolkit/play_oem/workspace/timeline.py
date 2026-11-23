@@ -16,7 +16,7 @@ from ..tooltips import (
 )
 
 if TYPE_CHECKING:
-    from .time_scrubber import TimeScrubber
+    from .time_scrubber import TimeScrubber, TimeScrubberWidget
 
 
 class _TimelineState(Protocol):
@@ -37,6 +37,7 @@ class _TimelineState(Protocol):
     _playback_rate: float
     timeline_panel: wx.ScrolledWindow
     timeline_slider: TimeScrubber
+    time_scrubber: TimeScrubberWidget
     timeline_time_entry: wx.TextCtrl
     time_error_label: wx.StaticText
     playback_forward_play_button: wx.ToggleButton
@@ -188,7 +189,7 @@ class TimelineMixin:
             self.playback_forward_play_button,
         ):
             button.Enable(loaded)
-        self.timeline_slider.Enable(loaded and self._timeline_enabled)
+        self.time_scrubber.set_enabled(loaded and self._timeline_enabled)
         if not self.timeline_slider.IsEnabled() and hasattr(self, "_timeline_tooltip"):
             self._timeline_tooltip.DoHideNow()
         for button in self._add_buttons.values():

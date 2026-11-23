@@ -11,7 +11,7 @@ from .constants import CONTROLS_PANE_NAME
 from ..tooltips import set_tooltip
 
 if TYPE_CHECKING:
-    from .time_scrubber import TimeScrubber
+    from .time_scrubber import TimeScrubber, TimeScrubberWidget
 
 
 class _FeatureNavigationState(Protocol):
@@ -33,6 +33,7 @@ class _FeatureNavigationState(Protocol):
     settings_page: wx.Panel
     state_page: wx.Panel
     timeline_slider: TimeScrubber
+    time_scrubber: TimeScrubberWidget
 
     def select_feature(self, index: int) -> None: ...
 
@@ -85,7 +86,7 @@ class FeatureNavigationMixin:
             label.SetLabel(f"{title}: {_display_file_info_value(context.get(key))}")
         for label, (name, value) in zip(self._file_info_labels[5:], details):
             label.SetLabel(f"{name}: {_display_file_info_value(value)}")
-        self.timeline_slider.Enable(timeline_enabled)
+        self.time_scrubber.set_enabled(timeline_enabled)
         self.file_info_scroll.FitInside()
         self.file_info_scroll.Layout()
 

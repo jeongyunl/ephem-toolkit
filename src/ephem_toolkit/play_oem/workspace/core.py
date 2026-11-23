@@ -23,11 +23,7 @@ from .features import FeatureNavigationMixin
 from .ground_stations import GroundStationsManager
 from .graph_stack import GraphStackMixin
 from .timeline import TimelineMixin
-from .time_scrubber import (
-    TimeScrubber,
-    TimeScrubberChevronButton,
-    TimeScrubberTickRail,
-)
+from .time_scrubber import TimeScrubberWidget
 from .. import time_range as range_model
 from ..ground_stations import GroundStation
 from ..display_time import UTC_DISPLAY, format_tt
@@ -178,12 +174,6 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         )
         timeline_track_sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.timeline_track_row.SetSizer(timeline_track_sizer)
-        timeline_scrubber_column = wx.Panel(self.timeline_track_row, wx.ID_ANY)
-        timeline_scrubber_column.SetBackgroundColour(
-            self.timeline_panel.GetBackgroundColour()
-        )
-        timeline_scrubber_sizer = wx.BoxSizer(wx.VERTICAL)
-        timeline_scrubber_column.SetSizer(timeline_scrubber_sizer)
         self.playback_controls_row = wx.Panel(self.timeline_panel, wx.ID_ANY)
         self.playback_controls_row.SetName("Playback controls row")
         self.playback_controls_row.SetBackgroundColour(
@@ -209,79 +199,32 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             range_model.TimeRangeEndpoint("fixed", coverage[1]),
         )
         current_time = now_s or (lambda: coverage[0])
-        self.timeline_tick_rail = TimeScrubberTickRail(timeline_scrubber_column)
-        self.timeline_tick_rail.set_viewport(display_bounds)
-        set_tick_time_zone = getattr(
-            self.timeline_tick_rail,
-            "set_display_time_zone",
-            None,
-        )
-        if set_tick_time_zone is not None:
-            set_tick_time_zone(display_time_zone)
-        self.timeline_slider = TimeScrubber(
-            timeline_scrubber_column,
+        self.time_scrubber = TimeScrubberWidget(
+            self.timeline_track_row,
             coverage=coverage,
             playback=initial_playback,
             plot_rule=initial_plot_rule,
             now_s=current_time(),
             viewport=display_bounds,
             playback_handles=initial_playback_handles,
+            display_time_zone=display_time_zone,
+            timeline_enabled=timeline_enabled,
             on_playback=on_playback_bounds or (lambda _start, _end: None),
             on_plot_endpoint=on_plot_endpoint or (lambda _name, _value: None),
             on_plot_endpoint_mode=on_plot_endpoint_mode or (lambda _name, _mode: None),
             on_begin_edit=on_begin_time_range_edit or (lambda: None),
             on_range_dragging=on_time_range_dragging or (lambda _dragging: None),
-            on_viewport=self.timeline_tick_rail.set_viewport,
         )
-        self.timeline_left_chevron = TimeScrubberChevronButton(
-            self.timeline_track_row,
-            "‹",
-            "Pan earlier",
-            lambda: self.timeline_slider.pan(-0.10),
+        self.timeline_slider = self.time_scrubber.slider
+        self.timeline_tick_rail = self.time_scrubber.tick_rail
+        self.timeline_left_chevron = self.time_scrubber.left_chevron
+        self.timeline_right_chevron = self.time_scrubber.right_chevron
+        timeline_track_sizer.Add(
+            self.time_scrubber,
+            1,
+            wx.EXPAND,
         )
-        self.timeline_right_chevron = TimeScrubberChevronButton(
-            self.timeline_track_row,
-            "›",
-            "Pan later",
-            lambda: self.timeline_slider.pan(0.10),
-        )
-
-        def update_timeline_chevrons(viewport: tuple[float, float]) -> None:
-            start_s, end_s = viewport
-            coverage_start, coverage_end = getattr(
-                self.timeline_slider,
-                "_coverage",
-                coverage,
-            )
-            epsilon = max(
-                1e-6,
-                (coverage_end - coverage_start) * 1e-9,
-            )
-            left_enabled = start_s > coverage_start + epsilon
-            right_enabled = end_s < coverage_end - epsilon
-            self.timeline_left_chevron.set_scrollable(left_enabled)
-            self.timeline_right_chevron.set_scrollable(right_enabled)
-            self.timeline_left_chevron.SetCursor(
-                wx.Cursor(
-                    wx.CURSOR_HAND if left_enabled else wx.CURSOR_ARROW
-                )
-            )
-            self.timeline_right_chevron.SetCursor(
-                wx.Cursor(
-                    wx.CURSOR_HAND if right_enabled else wx.CURSOR_ARROW
-                )
-            )
-            self.timeline_left_chevron.Refresh()
-            self.timeline_right_chevron.Refresh()
-            self.timeline_tick_rail.set_viewport(viewport)
-
-        self.timeline_slider._on_viewport = update_timeline_chevrons
-        update_timeline_chevrons(display_bounds)
-        self.timeline_tick_rail.set_wheel_handler(self.timeline_slider._mouse_wheel)
-        self.timeline_tick_rail.set_pan_handler(self.timeline_slider.pan)
-        self.timeline_slider.set_display_time_zone(display_time_zone)
         self.timeline_slider.SetName("TimeScrubber")
-        self.timeline_slider.Enable(timeline_enabled)
         self.timeline_slider.Bind(wx.EVT_SLIDER, self._on_timeline_slider)
         if timeline_tooltip_at is not None:
             self._timeline_tooltip_at = timeline_tooltip_at
@@ -296,36 +239,6 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             self.timeline_slider._seek_grip.Bind(
                 wx.EVT_MOTION, self._on_timeline_seek_grip_motion
             )
-        timeline_scrubber_sizer.Add(
-            self.timeline_slider,
-            1,
-            wx.EXPAND,
-            0,
-        )
-        timeline_scrubber_sizer.Add(
-            self.timeline_tick_rail,
-            0,
-            wx.EXPAND,
-            0,
-        )
-        timeline_track_sizer.Add(
-            self.timeline_left_chevron,
-            0,
-            wx.ALIGN_CENTER_VERTICAL,
-            0,
-        )
-        timeline_track_sizer.Add(
-            timeline_scrubber_column,
-            1,
-            wx.EXPAND,
-            0,
-        )
-        timeline_track_sizer.Add(
-            self.timeline_right_chevron,
-            0,
-            wx.ALIGN_CENTER_VERTICAL,
-            0,
-        )
         # Show playback bounds, not OEM coverage; shrink only displayed fractions.
         self.playback_start_label = wx.StaticText(self.time_readout_row, wx.ID_ANY, "")
         set_timestamp_label(
@@ -584,14 +497,7 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
 
     def set_display_time_zone(self, display_time_zone: str) -> None:
         self._display_time_zone = display_time_zone
-        self.timeline_slider.set_display_time_zone(display_time_zone)
-        set_tick_time_zone = getattr(
-            self.timeline_tick_rail,
-            "set_display_time_zone",
-            None,
-        )
-        if set_tick_time_zone is not None:
-            set_tick_time_zone(display_time_zone)
+        self.time_scrubber.set_display_time_zone(display_time_zone)
 
     def close(self) -> None:
         """Stop pending graph redraw work during workspace shutdown."""

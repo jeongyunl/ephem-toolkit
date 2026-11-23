@@ -18,10 +18,11 @@ from .time_slider import TimeSlider
 
 MINIMUM_VIEWPORT_SECONDS = 10.0
 WHEEL_GESTURE_LOCK_SECONDS = 0.25
+TIMESCRUBBER_CHEVRON_WIDTH = 28
 TIMESCRUBBER_TRACK_HEIGHT = 74
 
 
-class TimeScrubberChevronButton(wx.ToggleButton):
+class TimeScrubberChevronButton(wx.Control):
     """Compact toggle-styled chevron button for TimeScrubber pan controls."""
 
     def __init__(
@@ -34,25 +35,36 @@ class TimeScrubberChevronButton(wx.ToggleButton):
         super().__init__(
             parent,
             wx.ID_ANY,
-            label,
-            size=wx.Size(40, TIMESCRUBBER_TRACK_HEIGHT),
-            style=wx.BU_EXACTFIT,
+            size=wx.Size(TIMESCRUBBER_CHEVRON_WIDTH, TIMESCRUBBER_TRACK_HEIGHT),
+            style=wx.WANTS_CHARS,
         )
-        # GTK's native toggle-button borders can consume more than 30 px,
-        # leaving a negative content width for this icon-sized control.
-        self.SetMinSize(self.FromDIP(wx.Size(40, TIMESCRUBBER_TRACK_HEIGHT)))
+        self.SetMinSize(
+            self.FromDIP(wx.Size(TIMESCRUBBER_CHEVRON_WIDTH, TIMESCRUBBER_TRACK_HEIGHT))
+        )
+        self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
+        self.SetCanFocus(True)
+        self._label = label
         self._callback = callback
         self._scrollable = True
+        self._value = True
+        self._hovered = False
+        self._pressed = False
         self.SetName(tooltip)
         set_tooltip(self, tooltip)
         self.SetCursor(wx.Cursor(wx.CURSOR_HAND))
-        font = self.GetFont()
-        font.SetPointSize(max(font.GetPointSize(), 18))
-        self.SetFont(font)
-        self.SetValue(True)
-        self.Bind(wx.EVT_TOGGLEBUTTON, self._click)
+        self.Bind(wx.EVT_PAINT, self._paint)
+        self.Bind(wx.EVT_LEFT_DOWN, self._left_down)
+        self.Bind(wx.EVT_LEFT_UP, self._left_up)
+        self.Bind(wx.EVT_KEY_DOWN, self._key_down)
         self.Bind(wx.EVT_ENTER_WINDOW, self._on_pointer_boundary)
         self.Bind(wx.EVT_LEAVE_WINDOW, self._on_pointer_boundary)
+
+    def SetValue(self, value: bool) -> None:
+        self._value = value
+        self.Refresh()
+
+    def GetValue(self) -> bool:
+        return self._value
 
     def set_scrollable(self, scrollable: bool) -> None:
         self._scrollable = scrollable
@@ -61,10 +73,72 @@ class TimeScrubberChevronButton(wx.ToggleButton):
         self.Refresh()
 
     def _on_pointer_boundary(self, event: wx.MouseEvent) -> None:
+        get_event_type = getattr(event, "GetEventType", lambda: None)
+        enter_event_type = getattr(wx.EVT_ENTER_WINDOW, "typeId", None)
+        if enter_event_type is not None:
+            self._hovered = get_event_type() == enter_event_type
         self.Refresh()
         event.Skip()
 
-    def _click(self, event: wx.CommandEvent) -> None:
+    def _paint(self, _event: wx.PaintEvent) -> None:
+        dc = wx.AutoBufferedPaintDC(self)
+        width, height = self.GetClientSize()
+        enabled = self.IsEnabled()
+        face = wx.Colour(
+            "#e7ebf0" if self._pressed else "#f2f3f5" if self._hovered else "#eeeeee"
+        )
+        border = wx.Colour("#c2c6cc" if enabled else "#d5d7da")
+        foreground = wx.Colour("#34383d" if enabled else "#a5a8ac")
+        dc.SetBackground(wx.Brush(self.GetParent().GetBackgroundColour()))
+        dc.Clear()
+        dc.SetPen(wx.Pen(border, 1))
+        dc.SetBrush(wx.Brush(face))
+        dc.DrawRoundedRectangle(1, 1, width - 2, height - 2, 4)
+        font = dc.GetFont()
+        font.SetPointSize(max(font.GetPointSize(), 16))
+        dc.SetFont(font)
+        dc.SetTextForeground(foreground)
+        text_width, text_height = dc.GetTextExtent(self._label)
+        dc.DrawText(
+            self._label,
+            (width - text_width) // 2,
+            (height - text_height) // 2,
+        )
+        if self.HasFocus():
+            dc.SetPen(wx.Pen(wx.Colour("#4477bb"), 1, wx.PENSTYLE_DOT))
+            dc.SetBrush(wx.TRANSPARENT_BRUSH)
+            dc.DrawRoundedRectangle(3, 3, width - 6, height - 6, 3)
+
+    def _left_down(self, event: wx.MouseEvent) -> None:
+        if self._scrollable:
+            self._pressed = True
+            if not self.HasCapture():
+                self.CaptureMouse()
+            self.Refresh()
+        event.Skip(False)
+
+    def _left_up(self, event: wx.MouseEvent) -> None:
+        was_pressed = self._pressed
+        self._pressed = False
+        if self.HasCapture():
+            self.ReleaseMouse()
+        position = event.GetPosition()
+        inside = 0 <= position.x < self.GetClientSize().width and (
+            0 <= position.y < self.GetClientSize().height
+        )
+        self.Refresh()
+        if was_pressed and inside and self._scrollable:
+            self._click(event)
+        else:
+            event.Skip(False)
+
+    def _key_down(self, event: wx.KeyEvent) -> None:
+        if event.GetKeyCode() in (wx.WXK_SPACE, wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER):
+            self._click(event)
+        else:
+            event.Skip()
+
+    def _click(self, event: wx.Event) -> None:
         self.SetValue(self._scrollable)
         if self._scrollable:
             self._callback()
@@ -171,7 +245,7 @@ class TimeScrubberTickRail(wx.Control):
         self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
         self.SetMinSize(wx.Size(-1, 18))
         font = wx.Font(self.GetFont())
-        font.SetPointSize(font.GetPointSize() + 1)
+        font.SetPointSize(max(8, font.GetPointSize() - 1))
         self.SetFont(font)
         self._viewport = (0.0, 1.0)
         self._display_time_zone = UTC_DISPLAY
@@ -250,7 +324,7 @@ class TimeScrubberTickRail(wx.Control):
         dc = wx.AutoBufferedPaintDC(self)
         dc.SetBackground(wx.Brush(self.GetParent().GetBackgroundColour()))
         dc.Clear()
-        width = self.GetClientSize().width
+        width, height = self.GetClientSize()
         if width <= 20:
             return
         left, right = 10, width - 10
@@ -314,7 +388,7 @@ class TimeScrubberTickRail(wx.Control):
                 nearest_middle_tick = timestamp
             fraction = (timestamp - start_s) / duration_s
             x = round(left + fraction * (right - left))
-            dc.DrawLine(x, 0, x, 5)
+            dc.DrawLine(x, 0, x, 3)
             moment = _datetime_in_display_zone(timestamp, self._display_time_zone)
             hour = moment.hour
             if step_s >= 86400.0:
@@ -340,11 +414,13 @@ class TimeScrubberTickRail(wx.Control):
                     if timestamp == nearest_middle_tick:
                         label_offset = index % label_stride
                         break
+            dc.SetClippingRegion(left, 0, right - left, height)
             for index, (_timestamp, x, label, text_width) in enumerate(major_ticks):
                 if (index - label_offset) % label_stride != 0:
                     continue
-                label_left = max(left, min(x - text_width // 2, right - text_width))
-                dc.DrawText(label, label_left, 5)
+                label_y = max(3, min(5, height - dc.GetTextExtent(label).height))
+                dc.DrawText(label, x - text_width // 2, label_y)
+            dc.DestroyClippingRegion()
         if nearest_middle_tick is not None:
             self._middle_tick_s = nearest_middle_tick
 
@@ -594,3 +670,111 @@ class TimeScrubber(TimeSlider):
                 super()._key_down(event)
             return
         super()._key_down(event)
+
+
+class TimeScrubberWidget(wx.Panel):
+    """Composite time scrubber with its track, tick rail, and pan controls."""
+
+    def __init__(
+        self,
+        parent: wx.Window,
+        *,
+        coverage: tuple[float, float],
+        playback: tuple[float, float],
+        plot_rule: time_range.PlotTimeRange,
+        now_s: float,
+        viewport: tuple[float, float] | None = None,
+        playback_handles: tuple[float, float] | None = None,
+        on_playback: Callable[[float, float], None],
+        on_plot_endpoint: Callable[[str, float], None],
+        on_plot_endpoint_mode: (
+            Callable[[str, time_range.EndpointMode], None] | None
+        ) = None,
+        on_begin_edit: Callable[[], None] | None = None,
+        on_range_dragging: Callable[[bool], None] | None = None,
+        on_viewport: Callable[[tuple[float, float]], None] | None = None,
+        display_time_zone: str = UTC_DISPLAY,
+        timeline_enabled: bool = True,
+    ) -> None:
+        super().__init__(parent, wx.ID_ANY)
+        self.SetBackgroundColour(parent.GetBackgroundColour())
+        self._coverage = coverage
+        self._timeline_enabled = timeline_enabled
+        self._on_viewport_callback = on_viewport or (lambda _viewport: None)
+
+        self.left_chevron = TimeScrubberChevronButton(
+            self,
+            "‹",
+            "Pan earlier",
+            lambda: self.slider.pan(-0.10),
+        )
+        self.right_chevron = TimeScrubberChevronButton(
+            self,
+            "›",
+            "Pan later",
+            lambda: self.slider.pan(0.10),
+        )
+        self.column = wx.Panel(self, wx.ID_ANY)
+        self.column.SetBackgroundColour(self.GetBackgroundColour())
+        column_sizer = wx.BoxSizer(wx.VERTICAL)
+        self.column.SetSizer(column_sizer)
+        self.tick_rail = TimeScrubberTickRail(self.column)
+        self.tick_rail.set_viewport(viewport if viewport is not None else coverage)
+        self.tick_rail.set_display_time_zone(display_time_zone)
+        self.slider = TimeScrubber(
+            self.column,
+            coverage=coverage,
+            playback=playback,
+            plot_rule=plot_rule,
+            now_s=now_s,
+            viewport=viewport,
+            playback_handles=playback_handles,
+            on_playback=on_playback,
+            on_plot_endpoint=on_plot_endpoint,
+            on_plot_endpoint_mode=on_plot_endpoint_mode,
+            on_begin_edit=on_begin_edit,
+            on_range_dragging=on_range_dragging,
+            on_viewport=self._viewport_changed,
+        )
+        self.slider.Enable(timeline_enabled)
+        self.tick_rail.Enable(timeline_enabled)
+        self.tick_rail.set_wheel_handler(self.slider._mouse_wheel)
+        self.tick_rail.set_pan_handler(self.slider.pan)
+        column_sizer.Add(self.slider, 1, wx.EXPAND)
+        column_sizer.Add(self.tick_rail, 0, wx.EXPAND)
+
+        layout = wx.BoxSizer(wx.HORIZONTAL)
+        layout.Add(self.left_chevron, 0, wx.ALIGN_CENTER_VERTICAL)
+        layout.Add(self.column, 1, wx.EXPAND)
+        layout.Add(self.right_chevron, 0, wx.ALIGN_CENTER_VERTICAL)
+        self.SetSizer(layout)
+        self._viewport_changed(self.slider.viewport)
+
+    def _viewport_changed(self, viewport: tuple[float, float]) -> None:
+        self.tick_rail.set_viewport(viewport)
+        start_s, end_s = viewport
+        slider = getattr(self, "slider", None)
+        coverage_start, coverage_end = getattr(slider, "_coverage", self._coverage)
+        epsilon = max(1e-6, (coverage_end - coverage_start) * 1e-9)
+        left_enabled = self._timeline_enabled and start_s > coverage_start + epsilon
+        right_enabled = self._timeline_enabled and end_s < coverage_end - epsilon
+        self.left_chevron.set_scrollable(left_enabled)
+        self.right_chevron.set_scrollable(right_enabled)
+        self.left_chevron.SetCursor(
+            wx.Cursor(wx.CURSOR_HAND if left_enabled else wx.CURSOR_ARROW)
+        )
+        self.right_chevron.SetCursor(
+            wx.Cursor(wx.CURSOR_HAND if right_enabled else wx.CURSOR_ARROW)
+        )
+        self._on_viewport_callback(viewport)
+
+    def set_display_time_zone(self, display_time_zone: str) -> None:
+        self.slider.set_display_time_zone(display_time_zone)
+        self.tick_rail.set_display_time_zone(display_time_zone)
+
+    def set_enabled(self, enabled: bool) -> None:
+        self._timeline_enabled = enabled
+        self.Enable(enabled)
+        self.slider.Enable(enabled)
+        self.tick_rail.Enable(enabled)
+        self._viewport_changed(self.slider.viewport)
