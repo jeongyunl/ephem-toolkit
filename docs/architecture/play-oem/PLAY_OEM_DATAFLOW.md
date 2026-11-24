@@ -38,7 +38,7 @@ follows playback. Saved settings override those defaults.
      direction-rate groups.
    - **3D Orbit** through read-only raw position/time/segment views for the bounded display
      path, and `state_at` for the moving marker and tail.
-   - **Ground Track** through range- and margin-bounded Earth-fixed and WGS-84 tiers.
+   - **Ground Track** through range- and margin-bounded Earth-fixed positions, converted to WGS-84 coordinates.
    - **Station Status, Pass Strip, profiles, Pass List, and Sky View** through shared
      per-station profile and access-interval tiers.
    - **Pass Ground Track** through the selected pass interval and the shared Ground Track
@@ -46,19 +46,21 @@ follows playback. Saved settings override those defaults.
 
    Queries can return partial coverage while loading. The store memoizes requested derived
    chunks and ranges, applies its bounded eviction policy, and recomputes evicted data when
-   requested again. Ground Track uses the store's Earth-fixed tier. Station-access profile rows
-   currently evaluate point states and station metrics independently; they do not consume that
-   Earth-fixed tier.
+   requested again. Ground Track history uses its Earth-fixed position tier. Point consumers use
+   `earth_fixed_state_at()` when they need Earth-fixed values: the store converts exact support
+   samples at their OEM epochs, caches converted six-component states, and applies the active
+   interpolation policy in that frame. Station profiles and access refinement use this path;
+   they do not derive their states from the range-based position tier.
 
 4. **Refresh affected views.** Raw append, reset, and derived-tier notices are drained by the
    controller and routed to relevant panels. Range hints prioritize work for the playback and
    plot ranges. Views retain artists or actors when their structure remains compatible and
    rebuild only when required by a data or view-structure change.
 
-5. **Playback.** The clock advances over the store's sample-time view. `StoreCursor` resolves
-   point states from the same raw snapshot and interpolation policy used by range queries.
-   Current station metrics and footprints are derived at the playback time; they are not
-   lookups into the range-profile results.
+5. **Playback.** The clock advances over the store's sample-time view. Source-frame consumers
+   resolve states through `state_at()` and Earth-fixed consumers use `earth_fixed_state_at()`.
+   Both use the snapshot's interpolation policy and segment boundaries. Current station metrics
+   and footprints are derived at the playback time; they are not lookups into range-profile results.
 
 For the policy lifecycle, stateless point evaluator, gap rules, and every playback/derived
 consumer, see [PLAY_OEM_INTERPOLATION.md](./PLAY_OEM_INTERPOLATION.md).
@@ -72,8 +74,8 @@ and station views do not have non-store data fallbacks. Each load generation own
 
 ## Remaining efficiency considerations
 
-- Station-access analysis remains station-specific and currently evaluates its profile-row point
-  states independently from the Ground Track Earth-fixed tier.
+- Station-access analysis remains station-specific. Its point-state conversion cache is separate
+  from the Ground Track range-based Earth-fixed position tier.
 - Range queries may include interpolation-support margins beyond the visible plot boundaries.
 - Rendering may create bounded display paths or downsampled indices; these are not additional
   full-history owners in the default store path.

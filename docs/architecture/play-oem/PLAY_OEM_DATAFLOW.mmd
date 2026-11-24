@@ -19,19 +19,24 @@ flowchart TD
     subgraph STORE["OemDataStore"]
         direction TB
         RAW["Raw tier<br/>times, states, segments, metadata"]
-        POLICY["Interpolation policy<br/>and point-state evaluator"]
+        POLICY["Interpolation policy<br/>and source-frame evaluator"]
+        FIXED_STATE["Earth-fixed point lookup<br/>converted sample cache + evaluator"]
+        CONVERT["Convert each sample epoch<br/>to configured Earth-fixed frame"]
         SERIES["Lazy series chunks<br/>named 2D history groups"]
-        EARTH_FIXED["Lazy Earth-fixed<br/>ITRF position chunks"]
+        EARTH_FIXED["Lazy range Earth-fixed<br/>position chunks"]
         GROUND_TRACK["Ground Track tier<br/>range-bounded WGS-84 groups"]
         ACCESS["Station-access tier<br/>profiles and intervals"]
         FOOTPRINT["Bounded footprints<br/>from point state and elevation mask"]
         SCHEDULER["Range hints and<br/>prioritized prefetch"]
         RAW --> POLICY
+        RAW --> FIXED_STATE
+        RAW --> CONVERT
+        CONVERT --> FIXED_STATE
         RAW --> SERIES
         RAW --> EARTH_FIXED
         EARTH_FIXED --> GROUND_TRACK
-        POLICY --> ACCESS
-        POLICY --> FOOTPRINT
+        FIXED_STATE --> ACCESS
+        FIXED_STATE --> FOOTPRINT
         SCHEDULER --> SERIES
         SCHEDULER --> EARTH_FIXED
         SCHEDULER --> GROUND_TRACK
@@ -67,6 +72,7 @@ flowchart TD
         STATION_VIEWS["Station Status, Pass Strip,<br/>profiles, Pass List, Sky View"]
         PASS_TRACK["Pass Ground Track"]
         CURRENT_METRICS["Current station metrics"]
+        MARKER["Ground Track playback marker"]
     end
 
     FILE --> CAPACITY
@@ -83,10 +89,12 @@ flowchart TD
     RAW -->|"read-only position, time, segment views"| TRAJECTORY
     CLOCK -->|"state_at(t)"| POLICY
     POLICY --> TRAJECTORY
-    POLICY --> CURRENT_METRICS
-    POLICY --> FOOTPRINT
+    FIXED_STATE --> CURRENT_METRICS
+    FIXED_STATE --> FOOTPRINT
+    FIXED_STATE --> MARKER
     SERIES --> HISTORIES
     GROUND_TRACK --> TRACK_VIEW
+    MARKER --> TRACK_VIEW
     GROUND_TRACK --> PASS_TRACK
     ACCESS --> STATION_VIEWS
     ACCESS -->|"selected access interval"| PASS_TRACK
@@ -95,5 +103,5 @@ flowchart TD
 
     classDef store fill:#e8f1ff,stroke:#2463a6,stroke-width:2px
     classDef view fill:#f4f4f4,stroke:#666
-    class RAW,POLICY,SERIES,EARTH_FIXED,GROUND_TRACK,ACCESS,FOOTPRINT,SCHEDULER store
-    class HISTORIES,TRAJECTORY,TRACK_VIEW,STATION_VIEWS,PASS_TRACK,CURRENT_METRICS view
+    class RAW,POLICY,FIXED_STATE,CONVERT,SERIES,EARTH_FIXED,GROUND_TRACK,ACCESS,FOOTPRINT,SCHEDULER store
+    class HISTORIES,TRAJECTORY,TRACK_VIEW,STATION_VIEWS,PASS_TRACK,CURRENT_METRICS,MARKER view
