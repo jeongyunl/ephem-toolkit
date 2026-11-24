@@ -403,15 +403,21 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             self.playback_speed_buttons[rate] = speed_button
             self._playback_button_labels[rate] = glyph
             playback_sizer.Add(speed_button, 0, wx.RIGHT, 7)
-        for button in (
-            *self.playback_speed_buttons.values(),
-            self.playback_reverse_play_button,
-            self.playback_forward_play_button,
-        ):
+        for button in self.playback_speed_buttons.values():
             preferred_button_size = button.GetBestSize()
             button.SetMinSize(wx.Size(preferred_button_size.width, -1))
             button.SetMaxSize(
                 wx.Size(-1, max(20, preferred_button_size.height - 8))
+            )
+        for button in (
+            self.playback_reverse_play_button,
+            self.playback_forward_play_button,
+        ):
+            preferred_button_size = button.GetBestSize()
+            double_width = preferred_button_size.width * 2
+            button.SetMinSize(wx.Size(double_width, -1))
+            button.SetMaxSize(
+                wx.Size(double_width, max(20, preferred_button_size.height - 8))
             )
         timeline_sizer.Add(
             self.playback_controls_row,

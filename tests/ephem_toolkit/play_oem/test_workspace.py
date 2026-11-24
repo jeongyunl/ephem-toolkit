@@ -931,6 +931,10 @@ def test_workspace_builds_feature_pages_split_panes_and_global_timeline(
     assert result.playback_forward_play_button.name == "Play forward at current speed"
     assert result.playback_reverse_play_button.label == "◀"
     assert result.playback_forward_play_button.label == "▶"
+    assert result.playback_reverse_play_button.minimum_size == (80, -1)
+    assert result.playback_forward_play_button.minimum_size == (80, -1)
+    assert result.playback_reverse_play_button.maximum_size == (80, 16)
+    assert result.playback_forward_play_button.maximum_size == (80, 16)
     assert result.timeline_panel.sizer.orientation == workspace.wx.VERTICAL
     assert result.timeline_track_row.parent is result.timeline_panel
     assert result.playback_controls_row.parent is result.timeline_panel
