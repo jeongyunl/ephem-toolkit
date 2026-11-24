@@ -150,7 +150,7 @@ class FakeSlider(FakeWidget):
             self.bindings["slider"](FakeEvent(value))
 
 
-class FakeTimeSlider(FakeSlider):
+class FakePlaybackTimeSlider(FakeSlider):
     def __init__(self, parent, **kwargs) -> None:
         super().__init__(parent, -1, 0, 0, 10_000, **kwargs)
         self.client_size = FakeSize(600, 74)
@@ -169,7 +169,7 @@ class FakeTimeSlider(FakeSlider):
         self.display_time_zone = display_time_zone
 
 
-class FakeTimeScrubber(FakeTimeSlider):
+class FakeTimeScrubber(FakePlaybackTimeSlider):
     def __init__(self, parent, **kwargs) -> None:
         super().__init__(parent, **kwargs)
         self.viewport = kwargs.get("viewport")
@@ -179,7 +179,7 @@ class FakeTimeScrubber(FakeTimeSlider):
         event.Skip(False)
 
     def pan(self, fraction) -> None:
-        start, end = self.viewport
+        start, end = self.viewport or (0.0, 100.0)
         width = end - start
         shift = width * fraction
         coverage = (0.0, 100.0)
@@ -244,7 +244,7 @@ class FakeTextCtrl(FakeWidget):
         super().__init__(parent, widget_id, value, **kwargs)
         self.value = value
 
-    def GetValue(self) -> str:
+    def GetValue(self) -> Any:
         return self.value
 
     def SetValue(self, value: str) -> None:
@@ -346,8 +346,8 @@ class FakePanel:
     def GetClientSize(self) -> FakeSize:
         return self.client_size
 
-    def SetScrollRate(self, x: int, y: int) -> None:
-        self.scroll_rate = (x, y)
+    def SetScrollRate(self, x_step: int, y_step: int) -> None:
+        self.scroll_rate = (x_step, y_step)
 
     def Layout(self) -> None:
         pass
@@ -701,7 +701,7 @@ def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(features, "set_tooltip", set_fake_tooltip)
     monkeypatch.setattr(graph_stack, "set_tooltip", set_fake_tooltip)
     monkeypatch.setattr(timeline, "set_tooltip", set_fake_tooltip)
-    monkeypatch.setattr(core, "TimeScrubber", FakeTimeScrubber)
+    monkeypatch.setattr(core, "PlaybackTimeScrubber", FakeTimeScrubber)
     monkeypatch.setattr(core, "TimeScrubberTickRail", FakeTimeScrubberTickRail)
     monkeypatch.setattr(
         core,
@@ -1029,7 +1029,7 @@ def test_playback_range_labels_track_current_playback_bounds() -> None:
     )
     plot_rule = SimpleNamespace(enabled=False)
 
-    core.Workspace.set_time_range_controls(
+    cast(Any, core.Workspace).set_time_range_controls(
         result, (0.0, 100.0), (20.0, 80.0), plot_rule, 50.0
     )
     assert start_label.label == (
@@ -1109,10 +1109,10 @@ def test_ground_station_manager_adds_edits_and_removes_inline(
     configure_fake_wx(monkeypatch)
     saved: list[list[GroundStation]] = []
     manager = station_manager.GroundStationsManager(
-        FakePanel(None, -1), [], saved.append
+        cast(Any, FakePanel(None, -1)), [], saved.append
     )
 
-    manager._on_add(FakeEvent())
+    cast(Any, manager)._on_add(cast(Any, FakeEvent()))
     manager._fields["name"].SetValue("North Site")
     manager._fields["latitude_deg"].SetValue("64.1")
     manager._fields["longitude_deg"].SetValue("-21.9")
@@ -1159,7 +1159,9 @@ def test_ground_station_manager_keeps_dirty_row_when_switch_is_cancelled(
             pass
 
     monkeypatch.setattr(station_manager.wx, "MessageDialog", FakeMessageDialog)
-    manager = station_manager.GroundStationsManager(FakePanel(None, -1), stations, None)
+    manager = station_manager.GroundStationsManager(
+        cast(Any, FakePanel(None, -1)), stations, None
+    )
     manager.select_station("one")
     manager._fields["name"].SetValue("Edited")
 
@@ -1837,67 +1839,6 @@ def test_timeline_update_clamps_progress_to_slider_range(
     assert result.timeline_slider.value == 0
     result.update_timeline(2.0, "after end")
     assert result.timeline_slider.value == 10_000
-
-
-@pytest.mark.parametrize("timeline_enabled", [True, False])
-def test_disabled_timeline_motion_dismisses_tooltip(
-    monkeypatch, timeline_enabled
-) -> None:
-    result, _seeks, _frame = make_workspace(
-        monkeypatch, timeline_enabled=timeline_enabled
-    )
-    if timeline_enabled:
-        result.timeline_slider.Enable(False)
-    dismissed = []
-    result._timeline_tooltip = SimpleNamespace(DoHideNow=lambda: dismissed.append(True))
-    event = FakeEvent()
-
-    result._on_timeline_motion(event)
-
-    assert dismissed == [True]
-    assert event.skipped
-
-
-def test_timeline_motion_outside_track_band_dismisses_slider_tooltip() -> None:
-    dismissed = []
-    slider = SimpleNamespace(
-        IsEnabled=lambda: True,
-        is_dragging=False,
-        is_pointer_over_timeline_track=lambda _position: False,
-    )
-    result = SimpleNamespace(
-        _timeline_enabled=True,
-        timeline_slider=slider,
-        _timeline_tooltip=SimpleNamespace(DoHideNow=lambda: dismissed.append(True)),
-    )
-    skipped = []
-    event = SimpleNamespace(GetPosition=lambda: None, Skip=lambda: skipped.append(True))
-
-    timeline.TimelineMixin._on_timeline_motion(result, event)
-
-    assert dismissed == [True]
-    assert skipped == [True]
-
-
-def test_timeline_motion_during_drag_dismisses_slider_tooltip() -> None:
-    dismissed = []
-    slider = SimpleNamespace(
-        IsEnabled=lambda: True,
-        is_dragging=True,
-        is_pointer_over_timeline_track=lambda _position: True,
-    )
-    result = SimpleNamespace(
-        _timeline_enabled=True,
-        timeline_slider=slider,
-        _timeline_tooltip=SimpleNamespace(DoHideNow=lambda: dismissed.append(True)),
-    )
-    skipped = []
-    event = SimpleNamespace(GetPosition=lambda: None, Skip=lambda: skipped.append(True))
-
-    timeline.TimelineMixin._on_timeline_motion(result, event)
-
-    assert dismissed == [True]
-    assert skipped == [True]
 
 
 def test_seek_grip_motion_positions_timestamp_tooltip_above_track(

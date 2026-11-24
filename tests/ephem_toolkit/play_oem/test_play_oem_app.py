@@ -53,7 +53,7 @@ from ephem_toolkit.play_oem.saved_state import (
 from ephem_toolkit.play_oem.series import SeriesGroupName, compute_orbit_series
 from ephem_toolkit.play_oem.time_unit import TimeUnit
 from ephem_toolkit.play_oem.views.registry import VIEW_LABELS
-from ephem_toolkit.play_oem.widgets.time_slider import TimeSlider
+from ephem_toolkit.play_oem.widgets.playback_time_slider import PlaybackTimeSlider
 from tests.ephem_toolkit.play_oem.cursor_helpers import make_store_cursor
 
 
@@ -2773,11 +2773,11 @@ def test_incremental_load_preserves_and_restores_saved_file_ranges(
             _now=controls[3],
         )
         assert (
-            TimeSlider._time_for(cast(Any, slider_state), "plot_start")
+            PlaybackTimeSlider._time_for(cast(Any, slider_state), "plot_start")
             == playback_range[0]
         )
         assert (
-            TimeSlider._time_for(cast(Any, slider_state), "plot_end")
+            PlaybackTimeSlider._time_for(cast(Any, slider_state), "plot_end")
             == playback_range[1]
         )
         player._capture_current_file_settings()

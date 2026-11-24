@@ -1,4 +1,4 @@
-"""Tests for TimeScrubber viewport and wheel behavior."""
+"""Tests for PlaybackTimeScrubber viewport and wheel behavior."""
 
 from types import SimpleNamespace
 from typing import Any, cast
@@ -6,10 +6,10 @@ from typing import Any, cast
 import pytest
 import wx
 
-from ephem_toolkit.play_oem.widgets.time_scrubber import (
+from ephem_toolkit.play_oem.widgets.playback_time_scrubber import (
     MINIMUM_VIEWPORT_SECONDS,
     DEFAULT_CHEVRON_HEIGHT,
-    TimeScrubber,
+    PlaybackTimeScrubber,
     ChevronButton,
     TimeTickRail,
     _clamp_viewport,
@@ -55,9 +55,9 @@ def test_pan_preserves_width_and_clamps_to_coverage() -> None:
     applied = []
     slider._apply_viewport = applied.append
 
-    from ephem_toolkit.play_oem.widgets.time_scrubber import TimeScrubber
+    from ephem_toolkit.play_oem.widgets.playback_time_scrubber import PlaybackTimeScrubber
 
-    cast(Any, TimeScrubber.pan)(slider, 0.10)
+    cast(Any, PlaybackTimeScrubber.pan)(slider, 0.10)
 
     assert applied == [(22.0, 42.0)]
 
@@ -72,7 +72,7 @@ def test_full_coverage_fit_expands_with_incremental_oem_loading() -> None:
             time_range.TimeRangeEndpoint("fixed", 0.0),
             time_range.TimeRangeEndpoint("fixed", 0.0),
         )
-        scrubber = TimeScrubber(
+        scrubber = PlaybackTimeScrubber(
             parent,
             coverage=(0.0, 0.0),
             playback=(0.0, 0.0),
@@ -116,9 +116,9 @@ def test_horizontal_wheel_scroll_calls_pan_once() -> None:
         GetWheelAxis=lambda: wx.MOUSE_WHEEL_HORIZONTAL,
     )
 
-    from ephem_toolkit.play_oem.widgets.time_scrubber import TimeScrubber
+    from ephem_toolkit.play_oem.widgets.playback_time_scrubber import PlaybackTimeScrubber
 
-    cast(Any, TimeScrubber._mouse_wheel)(slider, event)
+    cast(Any, PlaybackTimeScrubber._mouse_wheel)(slider, event)
 
     assert pan_calls == [0.05]
 
@@ -229,7 +229,7 @@ def test_scrubber_is_compact_with_tick_rail_attachment() -> None:
             time_range.TimeRangeEndpoint("fixed", 0.0),
             time_range.TimeRangeEndpoint("fixed", 100.0),
         )
-        scrubber = TimeScrubber(
+        scrubber = PlaybackTimeScrubber(
             frame,
             coverage=(0.0, 100.0),
             playback=(10.0, 90.0),
@@ -257,9 +257,9 @@ def test_wheel_gesture_latches_axis_and_ignores_opposite_axis(monkeypatch) -> No
         _vertical_wheel_accumulator=0,
     )
 
-    import ephem_toolkit.play_oem.widgets.time_scrubber as time_scrubber_module
+    import ephem_toolkit.play_oem.widgets.playback_time_scrubber as playback_time_scrubber_module
 
-    monkeypatch.setattr(time_scrubber_module.time, "monotonic", lambda: 1.0)
+    monkeypatch.setattr(playback_time_scrubber_module.time, "monotonic", lambda: 1.0)
 
     horizontal = SimpleNamespace(
         GetWheelRotation=lambda: 120,
@@ -273,8 +273,8 @@ def test_wheel_gesture_latches_axis_and_ignores_opposite_axis(monkeypatch) -> No
         GetX=lambda: 50,
     )
 
-    cast(Any, time_scrubber_module.TimeScrubber._mouse_wheel)(slider, horizontal)
-    cast(Any, time_scrubber_module.TimeScrubber._mouse_wheel)(slider, vertical)
+    cast(Any, playback_time_scrubber_module.PlaybackTimeScrubber._mouse_wheel)(slider, horizontal)
+    cast(Any, playback_time_scrubber_module.PlaybackTimeScrubber._mouse_wheel)(slider, vertical)
 
     assert pan_calls == [0.05]
     assert zoom_calls == []

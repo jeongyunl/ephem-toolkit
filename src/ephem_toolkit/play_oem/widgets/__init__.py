@@ -1,14 +1,16 @@
 """Reusable custom controls for the play-oem interface."""
 
 from .themed_toggle_button import ThemedToggleButton
-from .time_scrubber import (
+from .playback_time_scrubber import (
     ChevronButton,
     DEFAULT_CHEVRON_HEIGHT,
     DEFAULT_CHEVRON_WIDTH,
-    TimeScrubber,
-    TimeScrubberWidget,
+    PlaybackTimeScrubber,
+    PlaybackTimeScrubberWidget,
     TimeTickRail,
 )
+from .playback_time_slider import PlaybackTimeSlider
+from .track_slider import TrackSlider
 from .time_slider import TimeSlider
 
 __all__ = [
@@ -16,8 +18,10 @@ __all__ = [
     "DEFAULT_CHEVRON_HEIGHT",
     "DEFAULT_CHEVRON_WIDTH",
     "ThemedToggleButton",
-    "TimeScrubber",
-    "TimeScrubberWidget",
+    "PlaybackTimeScrubber",
+    "PlaybackTimeScrubberWidget",
+    "PlaybackTimeSlider",
+    "TrackSlider",
     "TimeSlider",
     "TimeTickRail",
 ]

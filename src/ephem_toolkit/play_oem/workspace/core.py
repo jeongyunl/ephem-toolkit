@@ -23,7 +23,7 @@ from .features import FeatureNavigationMixin
 from .ground_stations import GroundStationsManager
 from .graph_stack import GraphStackMixin
 from .timeline import PlaybackToggleButton, TimelineMixin
-from ..widgets.time_scrubber import TimeScrubberWidget
+from ..widgets.playback_time_scrubber import PlaybackTimeScrubberWidget
 from .. import time_range as range_model
 from ..ground_stations import GroundStation
 from ..display_time import UTC_DISPLAY, format_tt
@@ -199,7 +199,7 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             range_model.TimeRangeEndpoint("fixed", coverage[1]),
         )
         current_time = now_s or (lambda: coverage[0])
-        self.time_scrubber = TimeScrubberWidget(
+        self.time_scrubber = PlaybackTimeScrubberWidget(
             self.timeline_track_row,
             coverage=coverage,
             playback=initial_playback,
@@ -225,7 +225,7 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             1,
             wx.EXPAND,
         )
-        self.timeline_slider.SetName("TimeScrubber")
+        self.timeline_slider.SetName("PlaybackTimeScrubber")
         self.timeline_slider.Bind(wx.EVT_SLIDER, self._on_timeline_slider)
         # Show playback bounds, not OEM coverage; shrink only displayed fractions.
         self.playback_start_label = wx.StaticText(self.time_readout_row, wx.ID_ANY, "")

@@ -1,4 +1,4 @@
-"""Zoomable, pannable time scrubber built on TimeSlider."""
+"""Zoomable, pannable time scrubber built on PlaybackTimeSlider."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from ephem_toolkit.play_oem import time_range
 
 from ..display_time import LOCAL_DISPLAY, UTC_DISPLAY
 from ..tooltips import set_tooltip
-from .time_slider import TimeSlider
+from .playback_time_slider import PlaybackTimeSlider
 
 
 MINIMUM_VIEWPORT_SECONDS = 10.0
@@ -437,7 +437,7 @@ class TimeTickRail(wx.Control):
             self._middle_tick_s = nearest_middle_tick
 
 
-class TimeScrubber(TimeSlider):
+class PlaybackTimeScrubber(PlaybackTimeSlider):
     """Advanced zoomable, pannable time range control."""
 
     def __init__(
@@ -494,7 +494,7 @@ class TimeScrubber(TimeSlider):
         self._wheel_gesture_axis: int | None = None
         self._wheel_gesture_last_at = 0.0
         self._viewport_fits_coverage = True
-        self.SetName("Scrollable TimeScrubber")
+        self.SetName("Scrollable PlaybackTimeScrubber")
         self.SetMinSize(wx.Size(480, 50))
         self._apply_viewport(self._viewport)
 
@@ -686,7 +686,7 @@ class TimeScrubber(TimeSlider):
         super()._key_down(event)
 
 
-class TimeScrubberWidget(wx.Panel):
+class PlaybackTimeScrubberWidget(wx.Panel):
     """Composite time scrubber with its track, tick rail, and pan controls."""
 
     def __init__(
@@ -736,7 +736,7 @@ class TimeScrubberWidget(wx.Panel):
         self.tick_rail = TimeTickRail(self.column)
         self.tick_rail.set_viewport(viewport if viewport is not None else coverage)
         self.tick_rail.set_display_time_zone(display_time_zone)
-        self.slider = TimeScrubber(
+        self.slider = PlaybackTimeScrubber(
             self.column,
             coverage=coverage,
             playback=playback,

@@ -12,7 +12,7 @@ from ..widgets.themed_toggle_button import ThemedToggleButton
 from ..tooltips import set_tooltip
 
 if TYPE_CHECKING:
-    from ..widgets.time_scrubber import TimeScrubber, TimeScrubberWidget
+    from ..widgets.playback_time_scrubber import PlaybackTimeScrubber, PlaybackTimeScrubberWidget
 
 
 class PlaybackToggleButton(ThemedToggleButton):
@@ -34,8 +34,8 @@ class _TimelineState(Protocol):
     _playback_playing: bool
     _playback_rate: float
     timeline_panel: wx.ScrolledWindow
-    timeline_slider: TimeScrubber
-    time_scrubber: TimeScrubberWidget
+    timeline_slider: PlaybackTimeScrubber
+    time_scrubber: PlaybackTimeScrubberWidget
     timeline_time_entry: wx.TextCtrl
     time_error_label: wx.StaticText
     playback_forward_play_button: PlaybackToggleButton

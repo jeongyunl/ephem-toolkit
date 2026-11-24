@@ -11,7 +11,7 @@ from .constants import CONTROLS_PANE_NAME
 from ..tooltips import set_tooltip
 
 if TYPE_CHECKING:
-    from ..widgets.time_scrubber import TimeScrubber, TimeScrubberWidget
+    from ..widgets.playback_time_scrubber import PlaybackTimeScrubber, PlaybackTimeScrubberWidget
 
 
 class _FeatureNavigationState(Protocol):
@@ -32,8 +32,8 @@ class _FeatureNavigationState(Protocol):
     ground_stations_page: wx.Panel
     settings_page: wx.Panel
     state_page: wx.Panel
-    timeline_slider: TimeScrubber
-    time_scrubber: TimeScrubberWidget
+    timeline_slider: PlaybackTimeScrubber
+    time_scrubber: PlaybackTimeScrubberWidget
 
     def select_feature(self, index: int) -> None: ...
 
