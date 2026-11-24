@@ -60,6 +60,9 @@ follows playback. Saved settings override those defaults.
    Current station metrics and footprints are derived at the playback time; they are not
    lookups into the range-profile results.
 
+For the policy lifecycle, stateless point evaluator, gap rules, and every playback/derived
+consumer, see [PLAY_OEM_INTERPOLATION.md](./PLAY_OEM_INTERPOLATION.md).
+
 ## Ownership and performance boundaries
 
 All registered views use store-bound query builders. The application does not retain
@@ -79,6 +82,8 @@ and station views do not have non-store data fallbacks. Each load generation own
 
 ## Related documents
 
+- [PLAY_OEM_INTERPOLATION.md](./PLAY_OEM_INTERPOLATION.md): interpolation policy, lookup rules,
+  consumers, and gap behavior
 - [PLAY_OEM_CONCEPTS.md](./PLAY_OEM_CONCEPTS.md): shipped behavior and requirements
 - [PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md): component and lifecycle design
 - [PLAY_OEM_LOADING_AWARE_TIMELINE_IMPLEMENTATION_PLAN.md](./PLAY_OEM_LOADING_AWARE_TIMELINE_IMPLEMENTATION_PLAN.md):

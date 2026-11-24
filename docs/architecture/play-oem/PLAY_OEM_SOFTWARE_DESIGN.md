@@ -150,6 +150,10 @@ configured or OEM-declared interpolation method and degree, with the documented 
 metadata is absent. Range-derived plot columns and point-state queries share the store's raw
 snapshot and segment boundaries.
 
+The dedicated [interpolation design](./PLAY_OEM_INTERPOLATION.md) documents policy ownership,
+stateless evaluation, exact/gap/out-of-range status, range consumers, settings flow, and test
+requirements.
+
 Random seek and reverse require lookup to be **stateless and direction-independent**: a query
 must not assume monotonically increasing times, and must never interpolate across a segment gap.
 Tests assert `state(t)` is identical when reached forward, backward, or by seek.

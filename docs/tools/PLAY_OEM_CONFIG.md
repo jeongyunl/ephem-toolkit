@@ -195,6 +195,9 @@ OEM metadata** uses the current file's interpolation metadata. Changes are saved
 application exits. The panel also displays the active method, degree, and source; if OEM
 interpolation metadata is absent, it reports the linear fallback.
 
+The implementation, data ownership, gap rules, and derived-data consumers are documented in
+[PLAY_OEM_INTERPOLATION.md](../architecture/play-oem/PLAY_OEM_INTERPOLATION.md).
+
 The input file is selected for an individual run. `play-oem` opens its workspace first, then streams
 the OEM into its data store on a background worker. Playback and views can use committed samples
 while loading continues through EOF validation. The time-axis unit follows the loaded span:
