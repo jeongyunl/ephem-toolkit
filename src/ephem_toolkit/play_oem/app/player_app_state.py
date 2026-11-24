@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
+from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
 from pathlib import Path
 from queue import SimpleQueue
@@ -308,6 +309,9 @@ class PlayerAppState(
     _dashboard_context: dict[str, str]
     _metadata_details: tuple[tuple[str, str], ...]
     _follow_selection_unsubscribe: Callable[[], None]
+    _loaded_file_name: str | None
+    _oem_interpolation: str | None
+    _oem_interpolation_degree: int | None
 
     def _open_view(
         self,
@@ -388,6 +392,11 @@ class PlayerAppState(
     def _set_3d_backend(self, backend_name: str) -> None: ...
     def _update_time_display(self) -> None: ...
     def _publish_range_hint(self) -> None: ...
+    def _resolved_plot_range(self) -> time_range.ResolvedTimeRange | None: ...
+    def _remember_recent_oem(
+        self, path: str, *, save_file_ranges: bool = True
+    ) -> None: ...
+    def _installing_incremental_update(self) -> AbstractContextManager[None]: ...
     def _refresh_recent_files_menu(self) -> None: ...
     def _on_open_file(self, _event: wx.CommandEvent) -> None: ...
     def _formatted_dashboard_context(self) -> dict[str, str]: ...

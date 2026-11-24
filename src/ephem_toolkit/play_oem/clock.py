@@ -5,13 +5,14 @@ from __future__ import annotations
 import math
 from bisect import bisect_left, bisect_right
 from collections.abc import Callable, Sequence
+from typing import Literal, overload
 
 import numpy as np
 
 ClockObserver = Callable[[float], None]
 
 
-class SampleTimes(Sequence[float]):
+class SampleTimes:
     """A read-only view of sample times with a separately published length."""
 
     def __init__(self, values: np.ndarray, sample_count: int) -> None:
@@ -61,12 +62,20 @@ class SampleTimes(Sequence[float]):
             raise ValueError("sample_count must extend the available prefix")
         self._sample_count = sample_count
 
-    def searchsorted(self, value: float, *, side: str = "left") -> int:
+    def searchsorted(
+        self, value: float, *, side: Literal["left", "right"] = "left"
+    ) -> int:
         """Search the published prefix without converting it to a Python list."""
         return int(np.searchsorted(self.values, value, side=side))
 
     def __len__(self) -> int:
         return self._sample_count
+
+    @overload
+    def __getitem__(self, index: int) -> float: ...
+
+    @overload
+    def __getitem__(self, index: slice) -> np.ndarray: ...
 
     def __getitem__(self, index: int | slice) -> float | np.ndarray:
         result = self.values[index]
@@ -89,8 +98,9 @@ class PlaybackClock:
         rate: float = 1.0,
         playing: bool = False,
         loop: bool = False,
-        sample_times: Sequence[float] | None = None,
+        sample_times: Sequence[float] | SampleTimes | None = None,
         default_playback_span_s: float | None = None,
+        time_snapper: Callable[[float], float] | None = None,
     ) -> None:
         self._validate_finite(t_start, "t_start")
         self._validate_finite(t_end, "t_end")
@@ -107,12 +117,18 @@ class PlaybackClock:
         ):
             raise ValueError("default_playback_span_s must be positive and finite")
         self._default_playback_span_s = default_playback_span_s
+        if time_snapper is not None and not callable(time_snapper):
+            raise TypeError("time_snapper must be callable")
+        self._time_snapper = time_snapper
         self._playback_start = self._t_start
         self._playback_end = self._default_playback_end()
         self._playback_end_follows_coverage = True
         self._t_now = self._clamp_time(
             self._t_start if t_now is None else self._validate_time(t_now)
         )
+        # Keep advancement unquantized so a timer interval shorter than the
+        # snap grid still moves playback across grid boundaries over time.
+        self._ideal_time = self._t_now
         # Retain the rounding residual from the previous timestamp addition.
         self._tick_compensation = 0.0
         self._rate = math.copysign(
@@ -176,37 +192,43 @@ class PlaybackClock:
         # across timer ticks instead of letting their error accumulate.
         increment = self._rate * wall_dt
         adjusted_increment = increment - self._tick_compensation
-        next_time = self._t_now + adjusted_increment
-        next_compensation = (next_time - self._t_now) - adjusted_increment
+        next_time = self._ideal_time + adjusted_increment
+        next_compensation = (next_time - self._ideal_time) - adjusted_increment
         if self._rate > 0.0 and next_time >= self._playback_end:
             if self._loop:
-                self._t_now = (
+                wrapped_time = (
                     self._playback_start + (next_time - self._playback_start) % span
                 )
+                self._t_now = self._clamp_time(wrapped_time)
             else:
                 self._t_now = self._playback_end
                 self._playing = False
             # A wrap or clamp establishes a new timestamp for subsequent ticks.
             self._tick_compensation = 0.0
+            self._ideal_time = self._t_now
         elif self._rate < 0.0 and next_time <= self._playback_start:
             if self._loop:
-                self._t_now = (
+                wrapped_time = (
                     self._playback_end - (self._playback_start - next_time) % span
                 )
+                self._t_now = self._clamp_time(wrapped_time)
             else:
                 self._t_now = self._playback_start
                 self._playing = False
             # Apply the same residual reset when crossing the reverse boundary.
             self._tick_compensation = 0.0
+            self._ideal_time = self._t_now
         else:
-            self._t_now = next_time
+            self._ideal_time = next_time
+            self._t_now = self._clamp_time(next_time)
             self._tick_compensation = next_compensation
 
         self._notify_observers()
 
     def seek(self, t: float) -> None:
         """Set the current timeline time, clamping it to the configured bounds."""
-        self._t_now = self._clamp_time(self._validate_time(t))
+        self._ideal_time = self._clamp_time(self._validate_time(t))
+        self._t_now = self._clamp_time(self._ideal_time)
         # An explicit seek discards any residual from the previous clock position.
         self._tick_compensation = 0.0
         self._notify_observers()
@@ -226,8 +248,14 @@ class PlaybackClock:
     def _default_playback_end(self) -> float:
         """Return coverage end, capped to the default span after the first sample."""
         if self._default_playback_span_s is None:
-            return self._t_end
-        return min(self._t_end, self._t_start + self._default_playback_span_s)
+            end = self._t_end
+        else:
+            end = min(self._t_end, self._t_start + self._default_playback_span_s)
+        if self._time_snapper is not None:
+            end = min(
+                max(float(self._time_snapper(end)), self._t_start), self._t_end
+            )
+        return end
 
     def extend_coverage(self, sample_times: Sequence[float] | float) -> None:
         """Extend loaded OEM coverage with strictly later samples.
@@ -276,6 +304,13 @@ class PlaybackClock:
         """
         start = self._validate_time(start_s)
         end = self._validate_time(end_s)
+        if self._time_snapper is not None:
+            start = min(
+                max(float(self._time_snapper(start)), self._t_start), self._t_end
+            )
+            end = min(
+                max(float(self._time_snapper(end)), self._t_start), self._t_end
+            )
         if start > end:
             raise ValueError(
                 "playback_start must be less than or equal to playback_end"
@@ -286,7 +321,8 @@ class PlaybackClock:
         self._playback_start = start
         self._playback_end = end
         self._playback_end_follows_coverage = bool(follow_coverage)
-        self._t_now = min(max(self._t_now, start), end)
+        self._t_now = self._clamp_time(self._t_now)
+        self._ideal_time = self._t_now
         self._tick_compensation = 0.0
         self._notify_observers()
 
@@ -365,15 +401,19 @@ class PlaybackClock:
             observer(self._t_now)
 
     def _clamp_time(self, t: float) -> float:
-        return min(max(float(t), self._playback_start), self._playback_end)
+        value = float(t)
+        if self._time_snapper is not None:
+            value = float(self._time_snapper(value))
+            self._validate_finite(value, "snapped time")
+        return min(max(value, self._playback_start), self._playback_end)
 
     def _validate_time(self, t: float) -> float:
         self._validate_finite(t, "t")
         return float(t)
 
     def _validate_sample_times(
-        self, sample_times: Sequence[float] | None
-    ) -> Sequence[float]:
+        self, sample_times: Sequence[float] | SampleTimes | None
+    ) -> Sequence[float] | SampleTimes:
         if sample_times is None:
             return ()
 

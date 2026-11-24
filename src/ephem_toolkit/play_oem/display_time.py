@@ -14,7 +14,7 @@ def format_datetime(
     value: datetime,
     display_time_zone: str = UTC_DISPLAY,
     *,
-    fractional_second_places: int = 3,
+    fractional_second_places: int = 1,
 ) -> str:
     """Format a timestamp in UTC or the machine's local time zone with a suffix."""
     if value.tzinfo is None:
@@ -41,7 +41,7 @@ def format_tt(
     time_s: float,
     display_time_zone: str = UTC_DISPLAY,
     *,
-    fractional_second_places: int = 3,
+    fractional_second_places: int = 1,
 ) -> str:
     """Format TT seconds as a timestamp in the selected display time zone."""
     return format_datetime(

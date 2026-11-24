@@ -6,7 +6,7 @@ from collections.abc import Callable
 
 import wx
 
-from .. import time_range
+from .. import time_range, time_snapping
 from .tooltips import (
     dismiss_tooltip,
     position_tooltip_at_pointer,
@@ -575,6 +575,10 @@ class PlaybackTimeSlider(TimeSlider):
             self._coverage[1] - duration_s,
         )
         end_s = start_s + duration_s
+        start_s = time_snapping.snap_tt_s_to_utc_half_second(start_s)
+        end_s = time_snapping.snap_tt_s_to_utc_half_second(end_s)
+        start_s = min(max(start_s, self._coverage[0]), self._coverage[1])
+        end_s = min(max(end_s, start_s), self._coverage[1])
         self._range_drag_modifier_changed(move_seek, start_s)
         current_time_s: float | None = None
         if move_seek:
@@ -855,7 +859,9 @@ class PlaybackTimeSlider(TimeSlider):
             return
         self._on_begin_edit()
         local = grip.ClientToScreen(point)
-        target = self._timestamp_at(self.ScreenToClient(local).x)
+        target = time_snapping.snap_tt_s_to_utc_half_second(
+            self._timestamp_at(self.ScreenToClient(local).x)
+        )
         if key.startswith("plot"):
             self._on_plot_endpoint("start" if key.endswith("start") else "end", target)
         else:
@@ -873,9 +879,11 @@ class PlaybackTimeSlider(TimeSlider):
         start, end = self._playback
         key = next(key for key, item in self._grips.items() if item is grip)
         if key.endswith("start"):
-            start = self._coverage[0]
+            start = time_snapping.snap_tt_s_to_utc_half_second(self._coverage[0])
+            start = min(max(start, self._coverage[0]), self._coverage[1])
         else:
-            end = self._coverage[1]
+            end = time_snapping.snap_tt_s_to_utc_half_second(self._coverage[1])
+            end = min(max(end, self._coverage[0]), self._coverage[1])
         self._on_playback(start, end)
 
     def _nudge(self, grip: _RangeGrip, direction: int) -> None:
@@ -887,6 +895,8 @@ class PlaybackTimeSlider(TimeSlider):
             max(self._time_for(key) + direction * step, self._coverage[0]),
             self._coverage[1],
         )
+        target = time_snapping.snap_tt_s_to_utc_half_second(target)
+        target = min(max(target, self._coverage[0]), self._coverage[1])
         self._on_begin_edit()
         if key.startswith("plot"):
             self._on_plot_endpoint("start" if key.endswith("start") else "end", target)

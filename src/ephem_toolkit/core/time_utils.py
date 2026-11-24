@@ -27,20 +27,25 @@ from __future__ import annotations
 import re
 from bisect import bisect_right
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 try:
     from tudatpy.astro import time_representation
-    from tudatpy.astro.time_representation import TimeScales
 except ImportError as exc:
     raise ImportError("time_utils requires tudatpy") from exc
+
+# TudatPy exposes these names from a compiled extension that Pylance cannot
+# resolve from its package stubs. Resolve them dynamically while retaining the
+# runtime API and keeping the external objects untyped here.
+TimeScales: Any = getattr(time_representation, "TimeScales")
 
 # ===================================================================
 # Module-level state
 # ===================================================================
 
-_tudat_time_scale_converter: time_representation.TimeScaleConverter = (
-    time_representation.default_time_scale_converter()
-)
+_tudat_time_scale_converter: Any = getattr(
+    time_representation, "default_time_scale_converter"
+)()
 """Tudat time scale converter for UTC ↔ TDB conversions."""
 
 _UTC_J2000_AS_DATETIME: datetime = datetime(2000, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
@@ -251,6 +256,20 @@ def tt_s_to_datetime(tt_s: float) -> datetime:
     tai_minus_utc_s: float = _INITIAL_TAI_MINUS_UTC_SECONDS + leap_seconds
     utc_j2000_s: float = tt_s - tai_minus_utc_s - _TT_MINUS_TAI_SECONDS
     return _UTC_J2000_AS_DATETIME + timedelta(seconds=utc_j2000_s)
+
+
+def tt_minus_utc_seconds(tt_s: float) -> float:
+    """Return the modeled TT−UTC offset at a TT epoch.
+
+    The offset follows the same leap-second table used by
+    :func:`tt_s_to_datetime`, without converting the epoch to a datetime.
+    """
+    leap_seconds = bisect_right(_LEAP_SECOND_TT_EFFECTIVE_SECONDS, tt_s)
+    return (
+        _INITIAL_TAI_MINUS_UTC_SECONDS
+        + leap_seconds
+        + _TT_MINUS_TAI_SECONDS
+    )
 
 
 # ===================================================================

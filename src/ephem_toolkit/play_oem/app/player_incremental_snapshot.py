@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import time
 
-from .. import clock, cursor, playback_data
+from .. import clock, cursor, playback_data, time_snapping
 from ..display_time import format_tt
 from ..oem_data_store import OemDataStore, StoreSnapshot
 from ..saved_state import normalize_recent_path
@@ -55,7 +55,9 @@ class PlayerIncrementalSnapshotMixin:
         self._oem_interpolation = str(meta.get("INTERPOLATION", "")) or None
         interpolation_degree = meta.get("INTERPOLATION_DEGREE")
         self._oem_interpolation_degree = (
-            None if interpolation_degree is None else int(interpolation_degree)
+            int(interpolation_degree)
+            if isinstance(interpolation_degree, (int, float, str))
+            else None
         )
         self._update_time_display()
         if first_append and self._timeline_restore_state.viewport is None:
@@ -82,6 +84,7 @@ class PlayerIncrementalSnapshotMixin:
             float(snapshot.raw[-1, 0]),
             sample_times=store.sample_times,
             default_playback_span_s=clock.PlaybackClock.DEFAULT_PLAYBACK_SPAN_S,
+            time_snapper=time_snapping.snap_tt_s_to_utc_half_second,
         )
         self.clock.set_playback_bounds(
             self.clock.t_start,
