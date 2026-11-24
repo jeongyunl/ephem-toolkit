@@ -7,7 +7,7 @@ from collections.abc import Callable
 import wx
 
 from .. import time_range
-from ..tooltips import (
+from .tooltips import (
     dismiss_tooltip,
     position_tooltip_at_pointer,
     set_tooltip,

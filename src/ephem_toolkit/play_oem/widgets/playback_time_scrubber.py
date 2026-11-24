@@ -12,7 +12,7 @@ from ephem_toolkit.core import time_utils
 from ephem_toolkit.play_oem import time_range
 
 from ..display_time import LOCAL_DISPLAY, UTC_DISPLAY
-from ..tooltips import set_tooltip
+from .tooltips import set_tooltip
 from .playback_time_slider import PlaybackTimeSlider
 
 

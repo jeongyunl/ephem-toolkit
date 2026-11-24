@@ -7,7 +7,7 @@ import weakref
 
 import pytest
 
-from ephem_toolkit.play_oem import tooltips
+from ephem_toolkit.play_oem.widgets import tooltips
 
 
 class FakeToolTip:

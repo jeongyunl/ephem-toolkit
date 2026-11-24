@@ -6,7 +6,7 @@ from collections.abc import Callable
 
 import wx
 
-from ..tooltips import dismiss_tooltip, position_tooltip_at_pointer, set_tooltip
+from .tooltips import dismiss_tooltip, position_tooltip_at_pointer, set_tooltip
 
 
 class TrackSlider(wx.Control):

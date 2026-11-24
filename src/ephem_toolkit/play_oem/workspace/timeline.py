@@ -9,7 +9,7 @@ import wx
 
 from .constants import TIMELINE_SLIDER_MAX
 from ..widgets.themed_toggle_button import ThemedToggleButton
-from ..tooltips import set_tooltip
+from ..widgets.tooltips import set_tooltip
 
 if TYPE_CHECKING:
     from ..widgets.playback_time_scrubber import PlaybackTimeScrubber, PlaybackTimeScrubberWidget

@@ -12,7 +12,7 @@ from ephem_toolkit.core.interpolator.interpolation_spec import (
 )
 
 from .cursor import CursorState, CursorStatus
-from .tooltips import set_tooltip
+from .widgets.tooltips import set_tooltip
 from .display_time import DISPLAY_TIME_ZONES, LOCAL_DISPLAY, UTC_DISPLAY
 
 LAYOUT_MARGIN: int = 12

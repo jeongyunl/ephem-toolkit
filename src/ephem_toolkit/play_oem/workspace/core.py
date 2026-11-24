@@ -10,7 +10,7 @@ import wx
 
 from ..graph_panel import GraphPanelHost
 from ..timestamp_markup import set_timestamp_label
-from ..tooltips import set_tooltip
+from ..widgets.tooltips import set_tooltip
 from .constants import (
     COMPARISON_PANE_NAME,
     CONTROLS_PANE_NAME,

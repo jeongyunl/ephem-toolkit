@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Protocol
 import wx
 
 from .constants import CONTROLS_PANE_NAME
-from ..tooltips import set_tooltip
+from ..widgets.tooltips import set_tooltip
 
 if TYPE_CHECKING:
     from ..widgets.playback_time_scrubber import PlaybackTimeScrubber, PlaybackTimeScrubberWidget

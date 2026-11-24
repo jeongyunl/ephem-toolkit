@@ -10,7 +10,7 @@ from uuid import uuid4
 
 import wx
 
-from .tooltips import set_tooltip, suppress_tooltips
+from .widgets.tooltips import set_tooltip, suppress_tooltips
 
 from matplotlib import rcParams
 from matplotlib.axes import Axes

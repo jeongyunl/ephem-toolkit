@@ -18,7 +18,7 @@ from .constants import (
     MIN_GRAPH_PANE_WIDTH,
     SASH_DRAG_MIN_PANE,
 )
-from ..tooltips import set_tooltip
+from ..widgets.tooltips import set_tooltip
 
 
 class _GraphStackState(Protocol):
