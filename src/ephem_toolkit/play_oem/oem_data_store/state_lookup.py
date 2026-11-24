@@ -22,6 +22,8 @@ def state_at(
     store: OemDataStore,
     snapshot: StoreSnapshot,
     t_s: float,
+    *,
+    earth_fixed: bool = False,
 ) -> CursorState:
     query_time = _validate_query_time(t_s)
     with store._lock:
@@ -30,6 +32,43 @@ def state_at(
         if snapshot.policy_revision != store._policy_revision:
             raise RuntimeError("interpolation policy has changed")
         interpolator = store._state_interpolator
+    frame_name = None
+    if earth_fixed:
+        from .frame_support import earth_centered_frame_name
+
+        frame_name = earth_centered_frame_name(snapshot, "Earth-fixed state")
+        if frame_name is None:
+            return _unavailable_state(query_time, CursorStatus.UNAVAILABLE)
+
+    def sample(index: int) -> np.ndarray:
+        if frame_name is None:
+            return raw[index, 1:7]
+        from ..ground_track import (
+            _state_to_itrf_m_normalized,
+            normalize_conversion_frame_name,
+        )
+
+        key = (snapshot.epoch, frame_name, index)
+        with store._lock:
+            if snapshot.epoch != store._epoch:
+                raise RuntimeError("store epoch has changed")
+            if snapshot.policy_revision != store._policy_revision:
+                raise RuntimeError("interpolation policy has changed")
+            cached = store._earth_fixed_state_cache.get(key)
+            if cached is not None:
+                store._earth_fixed_state_cache.move_to_end(key)
+                return cached
+            converted = _state_to_itrf_m_normalized(
+                raw[index, 1:7],
+                normalize_conversion_frame_name(frame_name),
+                float(raw[index, 0]),
+                source_frame_name=frame_name,
+            )
+            store._earth_fixed_state_cache[key] = converted
+            if len(store._earth_fixed_state_cache) > 8192:
+                store._earth_fixed_state_cache.popitem(last=False)
+            return converted
+
     if snapshot.sample_count == 0:
         return _unavailable_state(
             query_time,
@@ -46,7 +85,7 @@ def state_at(
 
     upper_index = int(np.searchsorted(times, query_time))
     if upper_index < times.size and times[upper_index] == query_time:
-        state_m = raw[upper_index, 1:7].copy()
+        state_m = sample(upper_index).copy()
         status = CursorStatus.EXACT_SAMPLE
         segment_id = int(snapshot.segment_ids[upper_index])
     else:
@@ -57,12 +96,37 @@ def state_at(
                 query_time,
                 CursorStatus.GAP,
             )
-        state_m = interpolator.interpolate_view(
-            times,
-            raw[:, 1:7],
-            query_time,
-            snapshot.segment_ids,
-        )
+        if earth_fixed:
+            segment_start = int(
+                np.searchsorted(snapshot.segment_ids, segment_id, side="left")
+            )
+            segment_stop = int(
+                np.searchsorted(snapshot.segment_ids, segment_id, side="right")
+            )
+            count = min(
+                segment_stop - segment_start, max(2, interpolator.required_points)
+            )
+            start = segment_start + max(
+                0,
+                min(
+                    upper_index - segment_start - count // 2,
+                    segment_stop - segment_start - count,
+                ),
+            )
+            stop = start + count
+            state_m = interpolator.interpolate_view(
+                times[start:stop],
+                np.stack([sample(i) for i in range(start, stop)]),
+                query_time,
+                snapshot.segment_ids[start:stop],
+            )
+        else:
+            state_m = interpolator.interpolate_view(
+                times,
+                raw[:, 1:7],
+                query_time,
+                snapshot.segment_ids,
+            )
         if state_m is None:
             return _unavailable_state(
                 query_time,

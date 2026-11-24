@@ -109,7 +109,6 @@ def query_earth_fixed(
         buffer, memo, ready = store._earth_fixed_storage(snapshot)
         store._compute_earth_fixed_range(
             snapshot,
-            frame_name,
             start,
             stop,
             buffer,

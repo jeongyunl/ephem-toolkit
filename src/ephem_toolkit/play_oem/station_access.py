@@ -13,7 +13,7 @@ from .cursor import CursorState
 from .ground_stations import (
     GroundStation,
     StationMetrics,
-    station_metrics,
+    station_metrics_from_ecef,
 )
 from .ground_track import GroundTrackPreparationError
 
@@ -126,7 +126,6 @@ class StationAccess:
 def _refine_peak(
     station: GroundStation,
     cursor: StateCursor,
-    frame_name: str,
     low_s: float,
     high_s: float,
 ) -> tuple[float, StationMetrics]:
@@ -144,8 +143,6 @@ def _refine_peak(
         return _metrics_for_state(
             station,
             resolved.state_m,
-            frame_name,
-            epoch,
         )
 
     first_metrics = evaluate(first_s)
@@ -175,7 +172,6 @@ ACCESS_WINDOW_MIN_MARGIN_S = 3_600.0
 def _intervals_for_segment(
     station: GroundStation,
     cursor: StateCursor,
-    frame_name: str,
     sample_times: Iterable[float],
     metrics: Iterable[StationMetrics | None],
     *,
@@ -219,7 +215,6 @@ def _intervals_for_segment(
                     active_start, active_start_metrics = _refine_crossing(
                         station,
                         cursor,
-                        frame_name,
                         previous_time,
                         epoch,
                         entering=True,
@@ -245,7 +240,6 @@ def _intervals_for_segment(
             end_time, end_metrics = _refine_crossing(
                 station,
                 cursor,
-                frame_name,
                 previous_time,
                 epoch,
                 entering=False,
@@ -280,7 +274,6 @@ def _intervals_for_segment(
 def _refine_crossing(
     station: GroundStation,
     cursor: StateCursor,
-    frame_name: str,
     low_s: float,
     high_s: float,
     *,
@@ -294,8 +287,6 @@ def _refine_crossing(
             and _metrics_for_state(
                 station,
                 state.state_m,
-                frame_name,
-                middle_s,
             ).access
         )
         if access == entering:
@@ -311,18 +302,15 @@ def _refine_crossing(
     return crossing_s, _metrics_for_state(
         station,
         state.state_m,
-        frame_name,
-        crossing_s,
     )
 
 
 def _metrics_for_state(
     station: GroundStation,
     state_m: np.ndarray,
-    frame_name: str,
-    epoch_s: float,
 ) -> StationMetrics:
-    return station_metrics(station, state_m, frame_name, epoch_s)
+    """Calculate metrics for an Earth-fixed cursor state."""
+    return station_metrics_from_ecef(station, state_m[:3])
 
 
 def _make_interval(

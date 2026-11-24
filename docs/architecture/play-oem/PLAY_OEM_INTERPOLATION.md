@@ -184,7 +184,7 @@ the interval is continuous. Gap and usable-time checks remain separate from inte
 
 ## Runtime consumers
 
-The same `state_at()` path serves both playback and derived features:
+The store provides source-frame and Earth-fixed point lookups for playback and derived features:
 
 | Consumer | Purpose |
 |---|---|
@@ -206,59 +206,47 @@ history into an interpolation grid.
 ```mermaid
 flowchart LR
     Policy["Active interpolation policy"] --> Store["OemDataStore"]
-    Store --> Cursor["StoreCursor / snapshot cursor"]
+    OEM["Committed OEM states + source frame"] --> Store
+    Target["Configured Earth-fixed target"] --> Convert["Convert exact support states<br/>at their sample epochs"]
+    Store --> Source["Source-frame point lookup<br/>state_at / StoreCursor"]
+    Store --> Convert
+    Convert --> Cache["Converted sample cache"]
+    Cache --> Fixed["Earth-fixed point lookup<br/>earth_fixed_state_at"]
+    Store --> RangeConvert["Convert committed positions"]
+    Target --> RangeConvert
+    RangeConvert --> Ground["Ground Track range tier"]
 
-    subgraph Direct["Direct point consumers"]
-        State["State pane"]
-        Marker["2D / 3D marker"]
-        Footprint["Footprint tier"]
-        Metrics["Current station metrics"]
-    end
-
-    subgraph Indirect["Indirect derived consumers"]
-        Profiles["Station profiles"]
-        Refine["Access maximum / crossing refinement"]
-    end
-
-    subgraph Range["Range-only or raw data"]
-        Series["Raw / lazy series"]
-        Ground["Ground Track Earth-fixed tier"]
-    end
-
-    Cursor --> State
-    Cursor --> Marker
-    Store --> Footprint
-    Store --> Metrics
-    Store --> Profiles
-    Cursor --> Refine
-
+    Source --> State["State pane / 3D marker"]
+    Fixed --> Marker["2D ground-track marker"]
+    Fixed --> Footprint["Footprints"]
+    Fixed --> Metrics["Current station metrics"]
+    Fixed --> Profiles["Station profiles"]
+    Fixed --> Refine["Access maximum / crossing refinement"]
     Profiles --> Derived["Look angle / range / azimuth / elevation"]
     Refine --> Pass["Refined access interval"]
-    Ground --> Series
 ```
 
 ## Indirect use by derived features
 
 Some Play-OEM features do not expose interpolation controls or call an interpolator directly.
-They are indirect users because they request states through `StoreCursor.lookup()` or
-`OemDataStore.state_at()` and therefore inherit the store's active policy.
+They are indirect users because they request states through a snapshot-bound store lookup
+and therefore inherit the store's active policy. Earth-fixed consumers use
+`earth_fixed_state_at()`; source-frame consumers use `state_at()`.
 
 ### Ground Track
 
 The range-based Ground Track Earth-fixed tier converts committed OEM position samples directly.
-It is not itself a point interpolator. The playback marker and its dynamic overlay use
-`state_at(t)` independently, so a marker between OEM samples uses the active store policy while
-the Earth-fixed range remains tied to committed samples and frame conversion.
+The playback marker uses `earth_fixed_state_at(t)`, which interpolates converted sample states
+with the active store policy. See [frame conversion](PLAY_OEM_FRAME_CONVERSION.md).
 
 The footprint tier is a direct point consumer as well: it resolves the playback epoch through
-`state_at(t)`, accepts only exact or interpolated status, and converts that state to the
-Earth-fixed frame. Its cached key includes the resolved position, timestamp, elevation mask,
+`earth_fixed_state_at(t)` and accepts only exact or interpolated status. Its cached key includes the resolved position, timestamp, elevation mask,
 and epoch, preventing values from the wrong policy or snapshot from being reused.
 
 ### Station profiles and station metrics
 
 Station-profile preparation creates a snapshot-bound `_StoreStationCursor` and evaluates profile
-epochs through `cursor.lookup(epoch)`. The profile tier is therefore an indirect interpolation
+epochs through an Earth-fixed snapshot cursor. The profile tier is therefore an indirect interpolation
 consumer:
 
 - profile rows use the store policy to resolve each arbitrary epoch;
@@ -278,7 +266,8 @@ local maximum and crossing algorithms repeatedly call the snapshot-bound cursor:
 ```text
 sample bracket
   -> cursor.lookup(proposed epoch)
-  -> Cartesian state
+  -> cached or converted OEM support states
+  -> Earth-fixed interpolated state
   -> station look-angle metrics
   -> accept/reject and refine proposed epoch
 ```
@@ -389,7 +378,7 @@ gantt
     3D marker lookup               :3, 4
     Ground Track marker lookup     :4, 5
     section Point-derived tiers
-    Footprint lookup / transform   :5, 6
+    Footprint lookup / cached sample conversion :5, 6
     Station metric lookup          :6, 7
     section Output
     Artist, label, and panel refresh:7, 9
@@ -417,32 +406,34 @@ the stages to time independently.
 flowchart TD
     Query["Point query t"] --> Snapshot["Validate snapshot epoch + policy revision"]
     Snapshot --> Exact{"Exact OEM epoch?"}
-    Exact -->|yes| Raw["Return raw state<br/>No polynomial setup"]
+    Exact -->|yes| ExactFrame{"Earth-fixed lookup?"}
+    ExactFrame -->|no| Raw["Copy raw sample"]
+    ExactFrame -->|yes| ExactCache["Fetch cached converted sample<br/>or convert at sample epoch"]
     Exact -->|no| Bracket["Bracket searchsorted"]
     Bracket --> Segment["Segment boundary searchsorted"]
     Segment --> Gap{"Same segment?"}
     Gap -->|no| GapResult["GAP"]
-    Gap -->|yes| Linear{"Linear policy?"}
-
+    Gap -->|yes| Frame{"Earth-fixed lookup?"}
+    Frame -->|no| RawSupport["Use raw source-frame states"]
+    Frame -->|yes| Support["Select segment-local support samples"]
+    Support --> Cache["Reuse cached states or convert<br/>each sample at its own epoch"]
+    RawSupport --> Linear{"Linear policy?"}
+    Cache --> Linear
     Linear -->|yes| LinearEval["Two-sample vector blend"]
     LinearEval --> Copy["Copy CursorState"]
-
     Linear -->|no| Lock["Acquire stateless interpolator lock"]
-    Lock --> Support["Select support window"]
-    Support --> Materialize["Materialize support times + states"]
+    Lock --> Materialize["Materialize polynomial support times + states"]
     Materialize --> Setup{"Polynomial setup"}
-
     Setup -->|Hermite| Hermite["Build divided differences"]
     Setup -->|Lagrange| Lagrange["Build barycentric weights"]
     Setup -->|Chebyshev| Cheb["Build fit domain + lstsq coefficients"]
-
     Hermite --> Evaluate["Evaluate 6-component result"]
     Lagrange --> Evaluate
     Cheb --> Evaluate
     Evaluate --> Cleanup["Clear temporary interpolator storage"]
     Cleanup --> Copy
-
     Raw --> Copy
+    ExactCache --> Copy
 ```
 
 The important measurements are the hit and miss counts for support-window reuse, coefficient or
@@ -459,35 +450,33 @@ sequenceDiagram
     participant Prep as Pass preparation
     participant Cursor as Snapshot-bound cursor
     participant Store as OemDataStore
-    participant Lookup as state_lookup
+    participant Cache as Converted sample cache
+    participant Frame as Frame conversion
     participant Interp as Stateless interpolator
     participant Metrics as Station metrics
 
-    loop At each sampled/profile epoch
+    loop Profile epoch or refinement proposal
         Prep->>Cursor: lookup(epoch)
-        Cursor->>Store: state_at(snapshot, epoch)
-        Store->>Lookup: validate bracket / segment
-        alt Exact or gap/out of range
-            Lookup-->>Cursor: status + optional raw state
-        else Interpolated
-            Lookup->>Interp: interpolate_view(raw views, segment IDs, epoch)
-            Interp-->>Lookup: 6-component state
-            Lookup-->>Cursor: INTERPOLATED
+        Cursor->>Store: earth_fixed_state_at(snapshot, epoch)
+        Store->>Store: Validate snapshot, coverage and segment
+        alt Gap or out of range
+            Store-->>Cursor: GAP or OUT_OF_RANGE
+        else Exact sample or valid interpolation bracket
+            Store->>Cache: Fetch exact sample or local support states
+            alt Cache miss
+                Cache->>Frame: Convert OEM state at its sample epoch
+                Frame-->>Cache: Earth-fixed 6-component state
+            end
+            Cache-->>Store: Converted sample states
+            alt Interpolated epoch
+                Store->>Interp: interpolate_view(converted states, epoch)
+                Interp-->>Store: Interpolated Earth-fixed state
+            end
+            Store-->>Cursor: EXACT_SAMPLE or INTERPOLATED
+            Cursor-->>Prep: Earth-fixed CursorState
+            Prep->>Metrics: Derive azimuth / elevation / range
+            Metrics-->>Prep: Metrics for profile or refinement
         end
-        Cursor-->>Prep: CursorState
-        Prep->>Metrics: derive azimuth / elevation / range
-    end
-
-    loop Local maximum or crossing refinement
-        Prep->>Cursor: lookup(proposed epoch)
-        Cursor->>Store: state_at(snapshot, proposed epoch)
-        Store->>Lookup: resolve state
-        Lookup->>Interp: evaluate if bracketed
-        Interp-->>Lookup: 6-component state
-        Lookup-->>Cursor: CursorState
-        Cursor-->>Prep: CursorState
-        Prep->>Metrics: station metrics
-        Metrics-->>Prep: accept / reject / refine
     end
 ```
 

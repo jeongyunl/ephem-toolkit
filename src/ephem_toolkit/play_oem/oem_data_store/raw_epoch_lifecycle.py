@@ -135,6 +135,7 @@ def reset_locked(store: OemDataStore) -> None:
     for memo in store._series_memos.values():
         memo.clear()
     store._earth_fixed_memo.clear()
+    store._earth_fixed_state_cache.clear()
     store._series_buffers.clear()
     store._series_ready.clear()
     store._earth_fixed_buffer = None

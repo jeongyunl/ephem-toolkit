@@ -128,4 +128,4 @@ class _StoreStationCursor:
 
     def lookup(self, t_s: float) -> CursorState:
         """Resolve one cursor state at the requested timestamp."""
-        return self.store.state_at(self.snapshot, t_s)
+        return self.store.earth_fixed_state_at(self.snapshot, t_s)

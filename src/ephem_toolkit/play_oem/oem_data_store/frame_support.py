@@ -8,7 +8,7 @@ from ..ground_track import (
     EARTH_CENTERS,
     GroundTrackPreparationError,
     normalize_conversion_frame_name,
-    _state_position_to_itrf_m_normalized,
+    _state_to_itrf_m_normalized,
 )
 from ..series import SeriesGroupName, compute_series_chunk
 from .public_types import LoadStatus, StoreSnapshot
@@ -54,18 +54,20 @@ def write_series_chunk(
 
 def write_earth_fixed_chunk(
     snapshot: StoreSnapshot,
-    frame_name: str,
     start: int,
     stop: int,
     output: np.ndarray,
 ) -> None:
     """Write one Earth-fixed derived chunk."""
+    frame_name = earth_centered_frame_name(snapshot, "Earth-fixed positions")
+    if frame_name is None:
+        raise RuntimeError("Earth-fixed frame metadata is unavailable")
     normalized_frame = normalize_conversion_frame_name(frame_name)
     for row in range(start, stop):
         output[row, 0] = snapshot.raw[row, 0]
-        output[row, 1:4] = _state_position_to_itrf_m_normalized(
+        output[row, 1:4] = _state_to_itrf_m_normalized(
             snapshot.raw[row, 1:7],
             normalized_frame,
             float(snapshot.raw[row, 0]),
             source_frame_name=frame_name,
-        )
+        )[:3]

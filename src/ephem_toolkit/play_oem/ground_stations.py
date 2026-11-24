@@ -10,7 +10,7 @@ from uuid import uuid4
 import numpy as np
 from numpy.typing import ArrayLike
 
-from .ground_track import GroundTrackPreparationError, state_position_to_itrf_m
+from .ground_track import GroundTrackPreparationError
 
 
 @dataclass(frozen=True)
@@ -162,14 +162,12 @@ class StationMetrics:
 def station_metrics(
     station: GroundStation,
     spacecraft_state_m: ArrayLike,
-    frame_name: str,
-    epoch_tt_s: float,
 ) -> StationMetrics:
     """Calculate station-relative azimuth, elevation, range, and access."""
-    spacecraft_ecef_m = state_position_to_itrf_m(
-        np.asarray(spacecraft_state_m, dtype=float), frame_name, epoch_tt_s
-    )[:3]
-    return station_metrics_from_ecef(station, spacecraft_ecef_m)
+    state = np.asarray(spacecraft_state_m, dtype=float)
+    if state.shape != (6,):
+        raise GroundTrackPreparationError("Earth-fixed spacecraft state is invalid")
+    return station_metrics_from_ecef(station, state[:3])
 
 
 def station_metrics_from_ecef(

@@ -22,7 +22,6 @@ def test_missing_metric_splits_access_intervals_and_resets_extrema() -> None:
     intervals = _intervals_for_segment(
         station,
         _NoLookupCursor(),
-        "ITRF",
         (0.0, 10.0, 20.0, 30.0, 40.0),
         (
             _metrics(0.0, 20.0, 500.0),
@@ -56,7 +55,6 @@ def test_interval_records_coverage_and_gap_limited_endpoints() -> None:
     intervals = _intervals_for_segment(
         station,
         _NoLookupCursor(),
-        "ITRF",
         (10.0, 20.0),
         (_metrics(0.0, 20.0, 500.0), _metrics(10.0, 30.0, 400.0)),
         starts_at_coverage=True,

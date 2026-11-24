@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import TypedDict
+
 import numpy as np
 import pytest
 
@@ -11,6 +13,15 @@ from ephem_toolkit.play_oem.ground_stations import (
     station_ecef_m,
     station_metrics,
 )
+
+
+class StationFields(TypedDict):
+    station_id: str
+    name: str
+    latitude_deg: float
+    longitude_deg: float
+    altitude_m: float
+    minimum_elevation_deg: int
 
 
 def test_station_normalizes_name_and_longitude_and_generates_id() -> None:
@@ -32,14 +43,14 @@ def test_station_normalizes_name_and_longitude_and_generates_id() -> None:
     ],
 )
 def test_station_rejects_invalid_fields(values, message: str) -> None:
-    fields = dict(
-        station_id="id",
-        name="Site",
-        latitude_deg=0.0,
-        longitude_deg=0.0,
-        altitude_m=0.0,
-        minimum_elevation_deg=10,
-    )
+    fields: StationFields = {
+        "station_id": "id",
+        "name": "Site",
+        "latitude_deg": 0.0,
+        "longitude_deg": 0.0,
+        "altitude_m": 0.0,
+        "minimum_elevation_deg": 10,
+    }
     fields.update(values)
 
     with pytest.raises(ValueError, match=message):
@@ -74,7 +85,7 @@ def test_station_metrics_known_enu_directions(
         ]
     )
 
-    metrics = station_metrics(station, state, "ITRF", 0.0)
+    metrics = station_metrics(station, state)
 
     assert metrics.azimuth_deg == pytest.approx(expected_azimuth)
     assert metrics.elevation_deg == pytest.approx(expected_elevation)
@@ -97,4 +108,4 @@ def test_station_access_uses_inclusive_mask_boundary() -> None:
         ]
     )
 
-    assert station_metrics(station, state, "ITRF", 0.0).access
+    assert station_metrics(station, state).access

@@ -40,7 +40,7 @@ Convert a six-component Cartesian state from TEME to J2000 coordinates at a TT e
 #### `j2000_to_teme(epoch_tt_s: float, j2000_state: np.ndarray) -> np.ndarray`
 Convert a six-component Cartesian state from J2000 to TEME coordinates at a TT epoch.
 
-Both TEME/J2000 helpers apply the epoch-dependent rotation separately to position and velocity; they omit the rotation-matrix derivative term. Their velocities therefore are not a full time-dependent frame-state transformation. `convert_frame` uses these helpers for TEME paths and shares this limitation.
+Both TEME/J2000 helpers include the time-dependent rotation derivative in the velocity transformation. They estimate the derivative using a centered difference with a half-second step. `convert_frame` uses these helpers for TEME paths.
 
 ### SPICE Frame Conversion
 

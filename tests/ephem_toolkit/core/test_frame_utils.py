@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 import numpy as np
 import pytest
 
-import core.frame_utils as frame_utils
+import ephem_toolkit.core.frame_utils as frame_utils
 
 TEST_ROTATION: np.ndarray = np.array(
     [
@@ -44,7 +46,7 @@ def test_teme_to_j2000_rotates_position_and_velocity(
 
     np.testing.assert_allclose(result, expected)
     assert result.shape == (6,)
-    assert requested_epochs == [123.5]
+    assert requested_epochs == [123.5, 123.0, 124.0]
 
 
 def test_j2000_to_teme_uses_transposed_rotation(
@@ -514,8 +516,35 @@ def test_convert_frame_routes_supported_pairs(
 
 
 def test_convert_frame_rejects_unsupported_base_and_target_frames() -> None:
+    unsupported_frame = cast(frame_utils.Frame, object())
     with pytest.raises(ValueError, match="Unsupported base frame"):
-        frame_utils.convert_frame(object(), frame_utils.Frame.J2000, 0.0, TEST_STATE)
+        frame_utils.convert_frame(
+            unsupported_frame, frame_utils.Frame.J2000, 0.0, TEST_STATE
+        )
 
     with pytest.raises(ValueError, match="Unsupported target frame"):
-        frame_utils.convert_frame(frame_utils.Frame.J2000, object(), 0.0, TEST_STATE)
+        frame_utils.convert_frame(
+            frame_utils.Frame.J2000, unsupported_frame, 0.0, TEST_STATE
+        )
+
+
+def test_teme_state_transform_includes_rotation_rate_and_round_trips(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The two state transformations include the rotating-frame velocity."""
+
+    def rotation(epoch: float) -> np.ndarray:
+        angle = 0.01 * epoch
+        c, s = np.cos(angle), np.sin(angle)
+        return np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]])
+
+    monkeypatch.setattr(frame_utils.element_conversion, "teme_to_j2000", rotation)
+    epoch = 12.0
+    converted = frame_utils.teme_to_j2000(epoch, TEST_STATE)
+    rotation_rate = rotation(epoch + 0.5) - rotation(epoch - 0.5)
+    np.testing.assert_allclose(
+        converted[3:], TEST_STATE[3:] @ rotation(epoch) + TEST_STATE[:3] @ rotation_rate
+    )
+    np.testing.assert_allclose(
+        frame_utils.j2000_to_teme(epoch, converted), TEST_STATE, atol=1e-14
+    )

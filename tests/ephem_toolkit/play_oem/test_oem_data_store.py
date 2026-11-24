@@ -29,6 +29,7 @@ from ephem_toolkit.play_oem.oem_data_store import (
     RowSpan,
     StoreSnapshot,
 )
+from ephem_toolkit.play_oem.oem_data_store.internal_types import _PrefetchFuture
 from ephem_toolkit.play_oem.series import (
     SERIES_GROUPS,
     compute_orbit_series,
@@ -651,7 +652,7 @@ def test_point_queries_reuse_raw_state_without_materializing_history_tiers() -> 
     station = GroundStation("station", "Test Station", 35.0, -117.0, 100.0)
 
     metrics = store.station_metrics_at(snapshot, station, 0.0)
-    expected_metrics = station_metrics(station, states[0], "ITRF93", 0.0)
+    expected_metrics = station_metrics(station, states[0])
     assert metrics == expected_metrics
     assert store.station_metrics_at(snapshot, station, 210.0) is None
     assert store.station_metrics_at(snapshot, station, 500.0) is None
@@ -1545,6 +1546,7 @@ def test_clear_cancels_active_prefetch_without_publishing_old_epoch(
         assert entered.wait(3)
         memo = store._series_memos["kinematics"]
         store.clear()
+        assert isinstance(future, _PrefetchFuture)
         assert future.cancel_event.is_set()
     finally:
         release.set()
@@ -1603,6 +1605,7 @@ def test_close_cancels_active_prefetch_and_waits_for_worker(
         assert entered.wait(3)
         closer = Thread(target=close_store)
         closer.start()
+        assert isinstance(future, _PrefetchFuture)
         assert future.cancel_event.wait(3)
         assert not close_finished.is_set()
     finally:
@@ -1791,9 +1794,9 @@ def test_earth_fixed_computes_only_rows_inside_requested_range(monkeypatch) -> N
     computed_spans = []
     original_write = oem_data_store._write_earth_fixed_chunk
 
-    def record_write(snapshot, frame_name, start, stop, output) -> None:
+    def record_write(snapshot, start, stop, output) -> None:
         computed_spans.append((start, stop))
-        original_write(snapshot, frame_name, start, stop, output)
+        original_write(snapshot, start, stop, output)
 
     monkeypatch.setattr(
         oem_data_store, "_write_earth_fixed_chunk", record_write
@@ -1824,10 +1827,10 @@ def test_nonblocking_earth_fixed_query_reports_pending_coverage(monkeypatch) -> 
     release = Event()
     original_write = oem_data_store._write_earth_fixed_chunk
 
-    def blocked_write(snapshot, frame_name, start, stop, output) -> None:
+    def blocked_write(snapshot, start, stop, output) -> None:
         entered.set()
         assert release.wait(3)
-        original_write(snapshot, frame_name, start, stop, output)
+        original_write(snapshot, start, stop, output)
 
     monkeypatch.setattr(oem_data_store, "_write_earth_fixed_chunk", blocked_write)
     future = None
@@ -1975,14 +1978,14 @@ def test_nonblocking_station_query_reports_pending_coverage(monkeypatch) -> None
     snapshot = store.snapshot()
     entered = Event()
     release = Event()
-    original_metrics = oem_data_store.station_metrics
+    original_metrics = oem_data_store.station_metrics_from_ecef
 
     def blocked_metrics(*args, **kwargs):
         entered.set()
         assert release.wait(3)
         return original_metrics(*args, **kwargs)
 
-    monkeypatch.setattr(oem_data_store, "station_metrics", blocked_metrics)
+    monkeypatch.setattr(oem_data_store, "station_metrics_from_ecef", blocked_metrics)
     future = None
     try:
         partial = store.station_access(snapshot, station, (0.0, 120.0))

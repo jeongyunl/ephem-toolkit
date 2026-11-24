@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from .data_store import OemDataStore
 from .public_types import (
     AppendNotice,
@@ -68,7 +70,7 @@ __all__ = [
 ]
 
 
-def __getattr__(name: str):
+def __getattr__(name: str) -> Any:
     if name in {"_PrefetchFuture", "_ScheduledWork"}:
         from . import internal_types
 
@@ -76,6 +78,7 @@ def __getattr__(name: str):
     if name.startswith("_") or name in {
         "ODM_MAX_LINE_LENGTH",
         "station_metrics",
+        "station_metrics_from_ecef",
         "GroundTrackPreparationError",
         "ACCESS_WINDOW_MIN_MARGIN_S",
         "ACCESS_WINDOW_MARGIN_FRACTION",
@@ -84,6 +87,7 @@ def __getattr__(name: str):
         if name in {
             "ODM_MAX_LINE_LENGTH",
             "station_metrics",
+            "station_metrics_from_ecef",
             "GroundTrackPreparationError",
             "ACCESS_WINDOW_MIN_MARGIN_S",
             "ACCESS_WINDOW_MARGIN_FRACTION",
@@ -97,6 +101,12 @@ def __getattr__(name: str):
                 from ephem_toolkit.play_oem.ground_stations import station_metrics
 
                 return station_metrics
+            if name == "station_metrics_from_ecef":
+                from ephem_toolkit.play_oem.ground_stations import (
+                    station_metrics_from_ecef,
+                )
+
+                return station_metrics_from_ecef
             if name == "GroundTrackPreparationError":
                 from ephem_toolkit.play_oem.ground_track import (
                     GroundTrackPreparationError,

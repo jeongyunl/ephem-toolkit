@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from enum import Enum
+from typing import Any, cast
 import warnings
 
 import numpy as np
@@ -17,7 +18,6 @@ warnings.filterwarnings(
 try:
     from tudatpy.astro import element_conversion
     from tudatpy.dynamics import environment_setup
-    from tudatpy.dynamics.environment_setup.rotation_model import RotationModelSettings
     from tudatpy.interface import spice
 except ImportError as exc:
     raise ImportError("frame_utils requires tudatpy") from exc
@@ -29,10 +29,10 @@ _has_compute_state_rotation_matrix_between_frames: bool = hasattr(
 )
 """Whether the installed TudatPy version provides the combined state transform."""
 
-_tudat_spice_rotation_model: object | None = None
+_tudat_spice_rotation_model: Any | None = None
 """Cached TudatPy rotation model using SPICE Earth orientation data."""
 
-_tudat_iau2006_rotation_model: object | None = None
+_tudat_iau2006_rotation_model: Any | None = None
 """Cached TudatPy rotation model using the IAU 2006 Earth orientation model."""
 
 
@@ -56,25 +56,25 @@ _load_spice_kernels()
 class Frame(Enum):
     """Enumeration of supported reference frames."""
 
-    TEME: str = "TEME"
+    TEME = "TEME"
     """True Equator Mean Equinox frame."""
 
-    J2000: str = "J2000"
+    J2000 = "J2000"
     """J2000 Reference frame."""
 
-    EME2000: str = "EME2000"
+    EME2000 = "EME2000"
     """J2000 Reference frame."""
 
-    ICRF: str = "ICRF"
+    ICRF = "ICRF"
     """International Celestial Reference Frame."""
 
-    GCRF: str = "GCRF"
+    GCRF = "GCRF"
     """Geocentric Celestial Reference Frame."""
 
-    ITRF1993: str = "ITRF1993"
+    ITRF1993 = "ITRF1993"
     """International Terrestrial Reference Frame 1993."""
 
-    ITRF: str = "ITRF"
+    ITRF = "ITRF"
     """International Terrestrial Reference Frame."""
 
 
@@ -96,14 +96,18 @@ def teme_to_j2000(epoch_tt_s: float, teme_state: np.ndarray) -> np.ndarray:
 
     Notes
     -----
-    Position and velocity are each multiplied by the epoch-dependent TEME
-    rotation. This helper does not include the rotation-matrix derivative
-    term required for a full time-dependent frame state transformation.
+    Velocity includes the rotation-matrix derivative, estimated using a
+    centered difference with a half-second step.
     """
     j2000_state: np.ndarray = np.zeros(6, dtype=float)
-    rotation_to_j2000: np.ndarray = element_conversion.teme_to_j2000(epoch_tt_s)
+    rotation_to_j2000: np.ndarray = cast(Any, element_conversion).teme_to_j2000(
+        epoch_tt_s
+    )
     j2000_state[0:3] = teme_state[0:3] @ rotation_to_j2000
-    j2000_state[3:6] = teme_state[3:6] @ rotation_to_j2000
+    rotation_rate = _teme_rotation_rate(epoch_tt_s)
+    j2000_state[3:6] = (
+        teme_state[3:6] @ rotation_to_j2000 + teme_state[0:3] @ rotation_rate
+    )
     return j2000_state
 
 
@@ -125,18 +129,27 @@ def j2000_to_teme(epoch_tt_s: float, j2000_state: np.ndarray) -> np.ndarray:
 
     Notes
     -----
-    Position and velocity are each multiplied by the transpose of the
-    epoch-dependent TEME-to-J2000 rotation. This helper does not include the
-    rotation-matrix derivative term required for a full time-dependent frame
-    state transformation.
+    Velocity includes the derivative of the inverse rotation, estimated using
+    a centered difference with a half-second step.
     """
     teme_state: np.ndarray = np.zeros(6, dtype=float)
     rotation_to_teme: np.ndarray = np.transpose(
-        element_conversion.teme_to_j2000(epoch_tt_s)
+        cast(Any, element_conversion).teme_to_j2000(epoch_tt_s)
     )
     teme_state[0:3] = j2000_state[0:3] @ rotation_to_teme
-    teme_state[3:6] = j2000_state[3:6] @ rotation_to_teme
+    teme_state[3:6] = (
+        j2000_state[3:6] @ rotation_to_teme
+        + j2000_state[0:3] @ _teme_rotation_rate(epoch_tt_s).T
+    )
     return teme_state
+
+
+def _teme_rotation_rate(epoch_tt_s: float) -> np.ndarray:
+    """Estimate the derivative of the TEME-to-J2000 rotation matrix."""
+    step_s = 0.5
+    before = cast(Any, element_conversion).teme_to_j2000(epoch_tt_s - step_s)
+    after = cast(Any, element_conversion).teme_to_j2000(epoch_tt_s + step_s)
+    return (after - before) / (2.0 * step_s)
 
 
 def spice_convert_frame(
@@ -178,18 +191,18 @@ def spice_convert_frame(
 
     if _has_compute_state_rotation_matrix_between_frames:
         state_conversion_matrix: np.ndarray = np.asarray(
-            spice.compute_state_rotation_matrix_between_frames(
+            cast(Any, spice).compute_state_rotation_matrix_between_frames(
                 base_frame, target_frame, epoch_tt_s
             )
         )
     else:
-        rotation_matrix: np.ndarray = spice.compute_rotation_matrix_between_frames(
+        rotation_matrix: np.ndarray = cast(
+            Any, spice
+        ).compute_rotation_matrix_between_frames(base_frame, target_frame, epoch_tt_s)
+        rotation_matrix_derivative: np.ndarray = cast(
+            Any, spice
+        ).compute_rotation_matrix_derivative_between_frames(
             base_frame, target_frame, epoch_tt_s
-        )
-        rotation_matrix_derivative: np.ndarray = (
-            spice.compute_rotation_matrix_derivative_between_frames(
-                base_frame, target_frame, epoch_tt_s
-            )
         )
 
         state_conversion_matrix = np.zeros((6, 6))
@@ -203,8 +216,8 @@ def spice_convert_frame(
 def _tudat_create_rotation_model(
     body_name: str,
     global_frame_orientation: str,
-    rotation_model_settings: RotationModelSettings,
-) -> object:
+    rotation_model_settings: Any,
+) -> Any:
     """Create a TudatPy rotation model for a body.
 
     Parameters
@@ -230,13 +243,13 @@ def _tudat_create_rotation_model(
     global_frame_origin: str = body_name
     bodies_to_create: list[str] = [body_name]
 
-    body_settings: dict = environment_setup.get_default_body_settings(
+    body_settings: dict = cast(Any, environment_setup).get_default_body_settings(
         bodies_to_create, global_frame_origin, global_frame_orientation
     )
 
-    bodies: object = environment_setup.create_system_of_bodies(body_settings)
+    bodies: Any = cast(Any, environment_setup).create_system_of_bodies(body_settings)
 
-    environment_setup.add_rotation_model(
+    cast(Any, environment_setup).add_rotation_model(
         bodies,
         body_name,
         rotation_model_settings,
@@ -245,7 +258,7 @@ def _tudat_create_rotation_model(
     return bodies.get(body_name).rotation_model
 
 
-def tudat_spice_rotation_model() -> object:
+def tudat_spice_rotation_model() -> Any:
     """Return the cached TudatPy SPICE rotation model for Earth. J2000 <-> ITRF93."""
 
     global _tudat_spice_rotation_model
@@ -256,11 +269,9 @@ def tudat_spice_rotation_model() -> object:
     original_frame: str = "J2000"
     target_frame: str = "ITRF93"
 
-    rotation_model_settings: RotationModelSettings = (
-        environment_setup.rotation_model.spice(
-            original_frame,
-            target_frame,
-        )
+    rotation_model_settings: Any = cast(Any, environment_setup).rotation_model.spice(
+        original_frame,
+        target_frame,
     )
     global_frame_orientation: str = original_frame
 
@@ -273,7 +284,7 @@ def tudat_spice_rotation_model() -> object:
     return _tudat_spice_rotation_model
 
 
-def tudat_iau2006_rotation_model() -> object:
+def tudat_iau2006_rotation_model() -> Any:
     """Return the cached TudatPy IAU 2006 rotation model for Earth. J2000 <-> ITRF."""
 
     global _tudat_iau2006_rotation_model
@@ -283,11 +294,11 @@ def tudat_iau2006_rotation_model() -> object:
 
     global_frame_orientation: str = "GCRS"
 
-    rotation_model_settings: RotationModelSettings = (
-        environment_setup.rotation_model.gcrs_to_itrs(
-            environment_setup.rotation_model.IAUConventions.iau_2006,
-            global_frame_orientation,
-        )
+    rotation_model_settings: Any = cast(
+        Any, environment_setup
+    ).rotation_model.gcrs_to_itrs(
+        cast(Any, environment_setup).rotation_model.IAUConventions.iau_2006,
+        global_frame_orientation,
     )
 
     _tudat_iau2006_rotation_model = _tudat_create_rotation_model(
@@ -300,7 +311,7 @@ def tudat_iau2006_rotation_model() -> object:
 
 
 def tudat_convert_inertial_to_body_fixed(
-    rotation_model: object,
+    rotation_model: Any,
     input_epoch_et_s: float,
     input_inertial_state_m: np.ndarray,
 ) -> np.ndarray:
@@ -347,7 +358,7 @@ def tudat_convert_inertial_to_body_fixed(
 
 
 def tudat_convert_body_fixed_to_inertial(
-    rotation_model: object,
+    rotation_model: Any,
     input_epoch_et_s: float,
     input_body_fixed_state_m: np.ndarray,
 ) -> np.ndarray:

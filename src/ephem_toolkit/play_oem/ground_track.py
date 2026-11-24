@@ -9,9 +9,11 @@ from typing import Any
 import numpy as np
 
 EARTH_CENTERS = frozenset({"EARTH", "399"})
-DIRECT_EARTH_FIXED_FRAMES = frozenset({"ITRF93"})
+# Configure the Earth-fixed target once for all Play-OEM conversions. This is
+# fixed for the lifetime of a store so its derived caches remain consistent.
+EARTH_FIXED_FRAME_NAME = "ITRF1993"
 J2000_EQUIVALENT_FRAMES = frozenset({"J2000", "EME2000", "ICRF", "GCRF"})
-INERTIAL_FRAMES = frozenset({"J2000", "TEME"})
+SUPPORTED_SOURCE_FRAMES = frozenset({"J2000", "TEME", "ITRF1993"})
 EARTH_RADIUS_AUTHALIC_M = 6_371_007.1809
 
 
@@ -31,6 +33,8 @@ def normalize_conversion_frame_name(frame_name: str) -> str:
     normalized_frame = normalize_frame_name(frame_name)
     if normalized_frame in J2000_EQUIVALENT_FRAMES:
         return "J2000"
+    if normalized_frame == "ITRF93":
+        return "ITRF1993"
     return normalized_frame
 
 
@@ -98,17 +102,17 @@ def _convert_inertial_state_to_itrf(
 
     try:
         source_frame = frame_utils.Frame[frame_name]
-        target_frame = frame_utils.Frame("ITRF1993")
+        target_frame = frame_utils.Frame[EARTH_FIXED_FRAME_NAME]
         converted = frame_utils.convert_frame(
             source_frame, target_frame, epoch_tt_s, state_m
         )
     except (KeyError, ValueError, RuntimeError) as error:
         raise GroundTrackPreparationError(
-            f"Cannot convert OEM frame {frame_name!r} to ITRF93: {error}"
+            f"Cannot convert OEM frame {frame_name!r} to {EARTH_FIXED_FRAME_NAME}: {error}"
         ) from error
     if converted is None:
         raise GroundTrackPreparationError(
-            f"Conversion from OEM frame {frame_name!r} to ITRF93 is unavailable"
+            f"Conversion from OEM frame {frame_name!r} to {EARTH_FIXED_FRAME_NAME} is unavailable"
         )
     return np.asarray(converted, dtype=float)
 
@@ -116,29 +120,29 @@ def _convert_inertial_state_to_itrf(
 def state_position_to_itrf_m(
     state_m: np.ndarray, frame_name: str, epoch_tt_s: float
 ) -> np.ndarray:
-    """Return a supported OEM position in ITRF93 meters at one TT epoch."""
-    return _state_position_to_itrf_m_normalized(
+    """Return a supported OEM position in the configured Earth-fixed frame."""
+    return _state_to_itrf_m_normalized(
         state_m,
         normalize_conversion_frame_name(frame_name),
         epoch_tt_s,
         source_frame_name=frame_name,
-    )
+    )[:3].copy()
 
 
-def _state_position_to_itrf_m_normalized(
+def _state_to_itrf_m_normalized(
     state_m: np.ndarray,
     normalized_frame: str,
     epoch_tt_s: float,
     *,
     source_frame_name: str,
 ) -> np.ndarray:
-    """Convert one state using an already-normalized source frame name."""
+    """Convert a complete state to the configured Earth-fixed frame at its epoch."""
     state_m = np.asarray(state_m, dtype=float)
     if state_m.shape != (6,) or not np.isfinite(state_m).all():
         raise GroundTrackPreparationError("OEM cursor state is invalid")
-    if normalized_frame in DIRECT_EARTH_FIXED_FRAMES:
-        return state_m[:3].copy()
-    if normalized_frame not in INERTIAL_FRAMES:
+    if normalized_frame == EARTH_FIXED_FRAME_NAME:
+        return state_m.copy()
+    if normalized_frame not in SUPPORTED_SOURCE_FRAMES:
         raise GroundTrackPreparationError(
             f"OEM frame {source_frame_name!r} is not supported for Ground Track"
         )
@@ -147,7 +151,7 @@ def _state_position_to_itrf_m_normalized(
         raise GroundTrackPreparationError(
             f"Frame conversion returned an invalid state at TT epoch {epoch_tt_s:.3f}"
         )
-    return converted[:3].copy()
+    return converted.copy()
 
 
 def split_ground_track_runs(

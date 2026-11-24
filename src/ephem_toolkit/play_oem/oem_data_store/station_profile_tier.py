@@ -3,15 +3,15 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from concurrent.futures import CancelledError
 from threading import Event
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
 
 from ..chunk_memo import ChunkMemo
-from ..ground_stations import GroundStation
+from ..ground_stations import GroundStation, StationMetrics
 from ..station_access import (
     MAX_ACCESS_SAMPLES,
     MAX_SOURCE_SAMPLE_GAP_S,
@@ -149,7 +149,6 @@ def compute_profile_ranges(
     snapshot: StoreSnapshot,
     station: GroundStation,
     tier: _StationProfileTier,
-    frame_name: str,
     ranges: Sequence[tuple[_StationSegmentLayout, int, int]],
     *,
     cancel_event: Event | None,
@@ -220,17 +219,21 @@ def compute_profile_ranges(
                             layout,
                             row_index - layout.base_index,
                         )
-                        state = store.state_at(snapshot, epoch_s)
+                        state = store.earth_fixed_state_at(snapshot, epoch_s)
                         row = tier.buffer[row_index]
                         row[0] = epoch_s
                         if state.state_m is None:
                             row[1:] = np.nan
                         else:
-                            metrics = public_store.station_metrics(
+                            metrics = cast(
+                                Callable[
+                                    [GroundStation, np.ndarray],
+                                    StationMetrics,
+                                ],
+                                public_store.station_metrics_from_ecef,
+                            )(
                                 station,
-                                state.state_m,
-                                frame_name,
-                                epoch_s,
+                                state.state_m[:3],
                             )
                             row[1:] = (
                                 metrics.azimuth_deg,

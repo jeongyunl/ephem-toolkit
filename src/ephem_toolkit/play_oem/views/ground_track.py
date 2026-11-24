@@ -30,7 +30,6 @@ from ..ground_track import (
     GroundTrackRun,
     _ecef_to_wgs84_geodetic,
     split_ground_track_runs,
-    state_position_to_itrf_m,
 )
 from ..oem_data_store import GroundTrackGroups, StoreQuery
 from ..series import OrbitSeries
@@ -179,7 +178,7 @@ def _boundary_runs(
                 boundary.latitude_rad,
                 boundary.longitude_rad,
                 np.asarray([0]),
-                "ITRF",
+                "WGS84",
             ),
             center_longitude_deg,
         )
@@ -189,7 +188,7 @@ def _boundary_runs(
         np.concatenate((boundary.latitude_rad, boundary.latitude_rad[:1])),
         np.concatenate((boundary.longitude_rad, boundary.longitude_rad[:1])),
         np.zeros(count + 1, dtype=int),
-        "ITRF",
+        "WGS84",
     )
     return split_ground_track_runs(coordinates, center_longitude_deg)
 
@@ -1279,20 +1278,13 @@ class GroundTrackView:
             self._hide_dynamic_position("Playback time outside plot range")
             self._canvas.draw_idle()
             return
-        state = context.state_at(t_s)
-        if state.state_m is None:
-            self._hide_dynamic_position("Current position unavailable")
-            self._canvas.draw_idle()
-            return
         try:
-            frame_name = dict(context.snapshot.meta).get("REF_FRAME")
-            if not isinstance(frame_name, str):
-                raise GroundTrackPreparationError(
-                    "Ground Track requires REF_FRAME metadata"
-                )
-            position_itrf_m = state_position_to_itrf_m(
-                state.state_m, frame_name, t_s
-            )
+            state = context.store.earth_fixed_state_at(context.snapshot, t_s)
+            if state.state_m is None:
+                self._hide_dynamic_position("Current position unavailable")
+                self._canvas.draw_idle()
+                return
+            position_itrf_m = state.state_m[:3]
             geodetic = _ecef_to_wgs84_geodetic(position_itrf_m.reshape(1, 3))[0]
         except (GroundTrackPreparationError, ValueError, RuntimeError) as error:
             self._hide_dynamic_position(f"Current position unavailable: {error}")

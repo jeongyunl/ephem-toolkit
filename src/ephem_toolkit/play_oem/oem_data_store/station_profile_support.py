@@ -75,7 +75,6 @@ def station_profile_events(
     values: np.ndarray,
     station: GroundStation,
     cursor: _StoreStationCursor,
-    frame_name: str,
     minimum_elevation_deg: int,
 ) -> Iterator[tuple[float, StationMetrics | None]]:
     """Yield profile samples and refined access peak events."""
@@ -112,7 +111,6 @@ def station_profile_events(
             peak_time, peak_metrics = _refine_peak(
                 station,
                 cursor,
-                frame_name,
                 previous[0],
                 following[0],
             )

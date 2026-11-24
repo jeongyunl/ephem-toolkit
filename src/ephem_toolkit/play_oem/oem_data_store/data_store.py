@@ -10,6 +10,7 @@ import logging
 import weakref
 from pathlib import Path
 from threading import Event, RLock
+from typing import cast
 
 import numpy as np
 
@@ -152,6 +153,9 @@ class OemDataStore:
         self._earth_fixed_buffer: np.ndarray | None = None
         self._earth_fixed_ready: np.ndarray | None = None
         self._earth_fixed_memo: ChunkMemo[int, RowSpan] = ChunkMemo()
+        self._earth_fixed_state_cache: OrderedDict[tuple[int, str, int], np.ndarray] = (
+            OrderedDict()
+        )
         self._ground_track_cache: OrderedDict[
             tuple[object, ...], StoreQuery[GroundTrackGroups]
         ] = OrderedDict()
@@ -469,6 +473,10 @@ class OemDataStore:
         """Resolve an exact or interpolated state without copying the raw history."""
         return lookup_state(self, snapshot, t_s)
 
+    def earth_fixed_state_at(self, snapshot: StoreSnapshot, t_s: float) -> CursorState:
+        """Resolve a state by interpolating Earth-fixed OEM samples."""
+        return lookup_state(self, snapshot, t_s, earth_fixed=True)
+
     def station_metrics_at(
         self,
         snapshot: StoreSnapshot,
@@ -483,7 +491,7 @@ class OemDataStore:
         frame_name = _earth_centered_frame_name(snapshot, "Station metrics")
         if frame_name is None:
             return None
-        state = self.state_at(snapshot, query_time)
+        state = self.earth_fixed_state_at(snapshot, query_time)
         if (
             state.status
             not in (
@@ -493,9 +501,11 @@ class OemDataStore:
             or state.state_m is None
         ):
             return None
-        return public_store.station_metrics(
-            station, state.state_m, frame_name, query_time
+        metrics = cast(
+            Callable[[GroundStation, np.ndarray], StationMetrics],
+            public_store.station_metrics_from_ecef,
         )
+        return metrics(station, state.state_m[:3])
 
     def footprints(
         self,
@@ -603,7 +613,6 @@ class OemDataStore:
         snapshot: StoreSnapshot,
         station: GroundStation,
         tier: _StationProfileTier,
-        frame_name: str,
         ranges: Sequence[tuple[_StationSegmentLayout, int, int]],
         *,
         cancel_event: Event | None,
@@ -613,7 +622,6 @@ class OemDataStore:
             snapshot,
             station,
             tier,
-            frame_name,
             ranges,
             cancel_event=cancel_event,
         )
@@ -727,7 +735,12 @@ class OemDataStore:
                 stop,
                 memo,
                 public_store.DERIVED_CHUNK_SIZE,
-                lambda span: public_store._write_series_chunk(
+                lambda span: cast(
+                    Callable[
+                        [StoreSnapshot, SeriesGroupName, int, int, np.ndarray], None
+                    ],
+                    public_store._write_series_chunk,
+                )(
                     snapshot,
                     group,
                     span.first,
@@ -741,7 +754,6 @@ class OemDataStore:
     def _compute_earth_fixed_range(
         self,
         snapshot: StoreSnapshot,
-        frame_name: str,
         start: int,
         stop: int,
         buffer: np.ndarray,
@@ -759,9 +771,11 @@ class OemDataStore:
                 stop,
                 memo,
                 public_store.DERIVED_CHUNK_SIZE,
-                lambda span: public_store._write_earth_fixed_chunk(
+                lambda span: cast(
+                    Callable[[StoreSnapshot, int, int, np.ndarray], None],
+                    public_store._write_earth_fixed_chunk,
+                )(
                     snapshot,
-                    frame_name,
                     span.first,
                     span.stop,
                     buffer,

@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterator
 from concurrent.futures import CancelledError
 from dataclasses import replace
 from itertools import tee
 from threading import Event
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
-from ..ground_stations import GroundStation
+import numpy as np
+
+from ..ground_stations import GroundStation, StationMetrics
 from ..station_access import (
     ACCESS_WINDOW_MARGIN_FRACTION,
     ACCESS_WINDOW_MIN_MARGIN_S,
@@ -160,7 +163,6 @@ def query_station_access(
             snapshot,
             selected_station,
             tier,
-            frame_name,
             layout_ranges,
             cancel_event=cancel_event,
         )
@@ -217,11 +219,17 @@ def query_station_access(
             coverage_spans.append((covered_start, covered_stop))
         if len(values) < 2 or cached_intervals is not None:
             continue
-        events = public_store._station_profile_events(
+        profile_events = cast(
+            Callable[
+                [np.ndarray, GroundStation, _StoreStationCursor, int],
+                Iterator[tuple[float, StationMetrics | None]],
+            ],
+            public_store._station_profile_events,
+        )
+        events = profile_events(
             values,
             selected_station,
             cursor,
-            frame_name,
             threshold,
         )
         timed_events, metric_events = tee(events)
@@ -229,7 +237,6 @@ def query_station_access(
             _intervals_for_segment(
                 selected_station,
                 cursor,
-                frame_name,
                 (event[0] for event in timed_events),
                 (event[1] for event in metric_events),
                 starts_at_coverage=first == 0,

@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING
 
 from ..cursor import CursorStatus
 from ..ground_footprints import GroundFootprints, compute_ground_footprints
-from ..ground_track import state_position_to_itrf_m
 from .public_types import StoreSnapshot
 from .store_support import (
     _earth_centered_frame_name,
@@ -33,7 +32,7 @@ def query_footprints(
     )
     if frame_name is None:
         return None
-    state = store.state_at(snapshot, query_time)
+    state = store.earth_fixed_state_at(snapshot, query_time)
     if (
         state.status
         not in (
@@ -43,11 +42,7 @@ def query_footprints(
         or state.state_m is None
     ):
         return None
-    position = state_position_to_itrf_m(
-        state.state_m,
-        frame_name,
-        query_time,
-    )
+    position = state.state_m[:3]
     cache_key = (
         snapshot.epoch,
         query_time,
