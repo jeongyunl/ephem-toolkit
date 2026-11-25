@@ -912,56 +912,7 @@ def test_comparison_station_selection_follows_only_when_enabled(
     assert comparison.selection.interval_key == (30.0, 40.0)
 
 
-def test_ground_track_open_passes_callback_seeds_station_without_seeking(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    player, _views, _canvases, _frames = make_app(monkeypatch)
-    station = GroundStation("station", "Site", 10.0, 20.0, 30.0)
-    player._ground_stations = [station]
-    monkeypatch.setattr(
-        player.workspace, "select_ground_stations", lambda: None, raising=False
-    )
-    created: list[tuple[str, Any]] = []
 
-    class GroundTrackFakeView(FakeView):
-        def __init__(self, on_open_passes) -> None:
-            super().__init__()
-            self.on_open_passes = on_open_passes
-            self.selected_station_id = None
-
-        def _select_station(self, station_id: str) -> None:
-            self.selected_station_id = station_id
-
-        def _open_selected_station_passes(self) -> None:
-            self.on_open_passes(self.selected_station_id)
-
-    monkeypatch.setattr(
-        player_view_factory.ground_track_view,
-        "GroundTrackView",
-        lambda _panel, *_args, **kwargs: GroundTrackFakeView(
-            kwargs["on_open_passes"]
-        ),
-    )
-
-    def capture_view(name, create_view, **_kwargs) -> None:
-        created.append((name, create_view(cast(Any, None))))
-
-    monkeypatch.setattr(player, "_open_view", capture_view)
-    initial_time = player.clock.t_now
-
-    player.open_ground_track_view()
-    ground_track_view = created[-1][1]
-    ground_track_view._select_station(station.station_id)
-    ground_track_view._open_selected_station_passes()
-
-    pass_view = created[-1][1]
-    assert [name for name, _view in created] == [
-        "ground-track",
-        "pass-list",
-    ]
-    assert pass_view.selected_station_id == station.station_id
-    assert player.clock.t_now == initial_time
-    assert not hasattr(player, "_station_access_cache")
 
 
 def test_replacing_pass_panel_for_new_oem_retains_station_selection(

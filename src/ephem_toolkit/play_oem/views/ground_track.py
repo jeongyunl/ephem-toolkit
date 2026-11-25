@@ -215,7 +215,6 @@ class GroundTrackView(ViewSpecMixin):
         saved_xlim: tuple[float, float] | None = None,
         saved_ylim: tuple[float, float] | None = None,
         stations: Sequence[GroundStation] = (),
-        on_open_passes: Callable[[str], None] | None = None,
     ) -> None:
         self._parent = parent
         self._object_name = object_name
@@ -226,14 +225,16 @@ class GroundTrackView(ViewSpecMixin):
         self.center_longitude_deg = center_longitude_deg
         self._saved_xlim, self._saved_ylim = saved_xlim, saved_ylim
         self._stations = tuple(stations)
-        self._on_open_passes = on_open_passes
         self._selected_station_id: str | None = None
         self._show_stations = True
         self._show_station_labels = False
         self._panel: wx.Panel | None = None
         self._settings_panel: FloatingPanel | None = None
+        self._legend_panel: FloatingPanel | None = None
         self._canvas: FigureCanvasWxAgg | None = None
         self._figure: Figure | None = None
+        self._legend_canvas: FigureCanvasWxAgg | None = None
+        self._legend_figure: Figure | None = None
         self._axes: Any = None
         self._projection: Any = None
         self._track_artists: list[Any] = []
@@ -244,11 +245,9 @@ class GroundTrackView(ViewSpecMixin):
         self._minimum_artist: LineCollection | None = None
         self._minimum_point_artist: Line2D | None = None
         self._coordinate_readout: wx.StaticText | None = None
-        self._station_details: wx.StaticText | None = None
         self._station_choice: wx.Choice | None = None
         self._station_layer_control: wx.CheckBox | None = None
         self._station_labels_control: wx.CheckBox | None = None
-        self._open_passes_button: wx.Button | None = None
         self._station_artists: dict[str, Line2D] = {}
         self._station_label_artists: dict[str, Any] = {}
         self._station_selection_artist: Line2D | None = None
@@ -410,34 +409,34 @@ class GroundTrackView(ViewSpecMixin):
         controls_sizer.AddSpacer(2)
         controls_sizer.Add(navigation, 0, wx.EXPAND)
         settings_panel.SetContentSizer(controls_sizer)
+        legend_panel = FloatingPanel(
+            panel,
+            name="Ground Track legend",
+            handle_label="≡",
+            corner="bottom-right",
+        )
+        self._legend_panel = legend_panel
+        legend_content = legend_panel.GetContentWindow()
+        legend_content.SetName("Ground Track legend content")
+        self._legend_figure = Figure(figsize=(3.0, 1.8), dpi=100)
+        self._legend_canvas = FigureCanvasWxAgg(
+            legend_content,
+            wx.ID_ANY,
+            self._legend_figure,
+        )
+        self._legend_canvas.SetMinSize(
+            legend_content.FromDIP(wx.Size(300, 160))
+        )
+        legend_sizer = wx.BoxSizer(wx.VERTICAL)
+        legend_sizer.Add(self._legend_canvas, 1, wx.EXPAND)
+        legend_panel.SetContentSizer(legend_sizer)
         self._coordinate_readout = wx.StaticText(panel, wx.ID_ANY, "Lat —  ·  Lon —")
         self._coordinate_readout.SetName("Ground Track current coordinates")
-        self._station_details = wx.StaticText(panel, wx.ID_ANY, "No station selected")
-        self._station_details.SetName("Ground Track selected station details")
-        self._station_details.SetMinSize(
-            wx.Size(-1, self._station_details.GetBestSize().height)
-        )
-        self._open_passes_button = wx.Button(
-            panel, wx.ID_ANY, "Open Passes", style=wx.BU_EXACTFIT
-        )
-        self._open_passes_button.SetName("Open passes for selected station")
-        self._open_passes_button.Enable(False)
-        self._open_passes_button.Bind(
-            wx.EVT_BUTTON, lambda _event: self._open_selected_station_passes()
-        )
 
         sizer = wx.BoxSizer(wx.VERTICAL)
         map_row = wx.BoxSizer(wx.HORIZONTAL)
         map_row.Add(self._canvas, 1, wx.EXPAND)
         sizer.Add(map_row, 1, wx.EXPAND)
-        station_details_row = wx.BoxSizer(wx.HORIZONTAL)
-        station_details_row.Add(
-            self._station_details, 1, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 6
-        )
-        station_details_row.Add(
-            self._open_passes_button, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6
-        )
-        sizer.Add(station_details_row, 0, wx.EXPAND | wx.BOTTOM, 2)
         sizer.Add(self._coordinate_readout, 0, wx.ALIGN_RIGHT | wx.ALL, 6)
         panel.SetSizer(sizer)
         projection.Bind(wx.EVT_CHOICE, self._on_projection_choice)
@@ -562,6 +561,7 @@ class GroundTrackView(ViewSpecMixin):
                 transform=axes.transAxes,
             )
             self._figure.subplots_adjust(left=0.04, right=0.98, bottom=0.08, top=0.9)
+            self._draw_legend([])
             return
 
         self._track_status_artist = axes.text(
@@ -653,16 +653,24 @@ class GroundTrackView(ViewSpecMixin):
                     label="Ground station",
                 )
             )
-        self._figure.legend(
-            handles=handles,
-            loc="lower center",
-            ncol=min(len(handles), 5),
-            frameon=False,
-            bbox_to_anchor=(0.5, 0.01),
-        )
-        self._figure.subplots_adjust(left=0.08, right=0.98, bottom=0.22, top=0.95)
+        self._draw_legend(handles)
+        self._figure.subplots_adjust(left=0.08, right=0.98, bottom=0.08, top=0.95)
         if current_time_s is not None:
             self.update(current_time_s)
+
+    def _draw_legend(self, handles: Sequence[Line2D]) -> None:
+        if self._legend_figure is None:
+            return
+        self._legend_figure.clear()
+        if handles:
+            self._legend_figure.legend(
+                handles=handles,
+                loc="center",
+                ncol=1,
+                frameon=False,
+            )
+        if self._legend_canvas is not None:
+            self._legend_canvas.draw_idle()
 
     def _draw_station_artists(self) -> None:
         if self._axes is None or self._projection is None:
@@ -748,36 +756,6 @@ class GroundTrackView(ViewSpecMixin):
             )
         if self._station_labels_control is not None:
             self._station_labels_control.Enable(has_stations and self._show_stations)
-        self._refresh_station_details()
-
-    def _refresh_station_details(self) -> None:
-        if self._station_details is None:
-            return
-        station = next(
-            (
-                item
-                for item in self._stations
-                if item.station_id == self._selected_station_id
-            ),
-            None,
-        )
-        if station is None:
-            self._station_details.SetLabel(
-                "No ground stations are configured."
-                if not self._stations
-                else "Select a ground station marker or station."
-            )
-            if self._open_passes_button is not None:
-                self._open_passes_button.Enable(False)
-            return
-        self._station_details.SetLabel(
-            f"{station.name} · "
-            f"{_latitude_label(station.latitude_deg)} · "
-            f"{_longitude_label(station.longitude_deg)} · "
-            f"Minimum elevation {station.minimum_elevation_deg}°"
-        )
-        if self._open_passes_button is not None:
-            self._open_passes_button.Enable(self._on_open_passes is not None)
 
     def _select_station(self, station_id: str) -> None:
         station = next(
@@ -799,7 +777,6 @@ class GroundTrackView(ViewSpecMixin):
             marker = self._station_artists[station_id]
             self._station_selection_artist.set_data(*marker.get_data())
             self._station_selection_artist.set_visible(True)
-        self._refresh_station_details()
         if self._canvas is not None:
             self._canvas.draw_idle()
 
@@ -809,10 +786,6 @@ class GroundTrackView(ViewSpecMixin):
         index = self._station_choice.GetSelection()
         if 0 <= index < len(self._stations):
             self._select_station(self._stations[index].station_id)
-
-    def _open_selected_station_passes(self) -> None:
-        if self._selected_station_id is not None and self._on_open_passes is not None:
-            self._on_open_passes(self._selected_station_id)
 
     def _on_station_layer_toggle(self, event: wx.CommandEvent) -> None:
         self._show_stations = event.IsChecked()
@@ -1344,10 +1317,15 @@ class GroundTrackView(ViewSpecMixin):
         self._store_track_query = None
         if self._settings_panel is not None:
             self._settings_panel.Close()
+        if self._legend_panel is not None:
+            self._legend_panel.Close()
         self._settings_panel = None
+        self._legend_panel = None
         self._canvas = None
+        self._legend_canvas = None
         self._panel = None
         self._figure = None
+        self._legend_figure = None
         self._axes = None
         self._track_artists.clear()
         self._track_status_artist = None

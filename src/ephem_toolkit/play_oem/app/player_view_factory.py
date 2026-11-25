@@ -160,9 +160,6 @@ class PlayerViewFactoryMixin:
                     self._saved_state.ground_track_ylim if self._saved_state else None
                 ),
                 stations=self._ground_stations,
-                on_open_passes=lambda station_id: self.open_pass_list_view(
-                    initial_station_id=station_id
-                ),
                 on_minimum_elevation=self._set_ground_track_minimum_elevation,
             ),
             panel_id=panel_id,

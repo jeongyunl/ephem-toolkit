@@ -59,14 +59,12 @@ Access uses the OEM's Earth-fixed or supported inertial frame converted to ITRF.
 the shared playback cursor, including seeking and reverse playback. If playback is outside usable
 OEM data or inside a segment gap, current metrics are unavailable rather than zero.
 
-## Ground Track stations and pass inspection
+## Ground Track stations
 
 Open **Ground Track** to show the **Ground Stations** layer. Select a marker on the map or use
-the station selector; the details row shows the station name, coordinates, and elevation mask.
-Use **Station labels** to label all markers. **Open Passes** opens the Ground Station Passes view
-for that station in the responsive Pass Study layout. Selecting a marker does not seek playback or
-prepare access history. With no stations, the station controls are disabled and the map remains
-usable.
+the station selector to highlight a station. Use **Station labels** to label all markers.
+Selecting a marker does not seek playback or prepare access history. With no stations, the
+station controls are disabled and the map remains usable.
 
 Open **Pass List** or **Sky View** independently, or choose **Pass Study** to open both. The
 chronological Pass List contains (timestamps are shown in the selected display time zone,

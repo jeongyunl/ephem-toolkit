@@ -20,6 +20,7 @@ is split at OEM segment gaps and at the map seam.
 
 The map opens in Robinson projection and shows the full Earth, both poles, graticule, ground
 track, current sub-satellite point, 0° horizon, and the selected minimum-elevation footprint.
+Open the floating legend at the bottom-right corner to see the map symbols.
 The Earth map area stays 2:1 as the panel is resized or navigated. The in-plot title is omitted
 to leave more room for the map; the graph panel retains its own Ground Track label.
 Projection choices are Equirectangular and Robinson. Choose the NASA shaded-relief, satellite

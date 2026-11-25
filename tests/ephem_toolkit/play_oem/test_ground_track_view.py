@@ -267,8 +267,12 @@ def test_ground_track_store_view_uses_bound_queries_and_point_footprints() -> No
     canvas = FigureCanvasAgg(view._figure)
     view._canvas = cast(Any, canvas)
     view._axes = view._figure.add_subplot(111)
+    view._legend_figure = Figure()
+    legend_canvas = FigureCanvasAgg(view._legend_figure)
+    view._legend_canvas = cast(Any, legend_canvas)
     view._draw_map()
     canvas.draw()
+    legend_canvas.draw()
 
     assert view._store_track_query is not None
     assert view._store_track_query.coverage.complete
@@ -277,11 +281,14 @@ def test_ground_track_store_view_uses_bound_queries_and_point_footprints() -> No
         len(artist.get_xdata()) <= MAX_DISPLAY_POINTS_PER_SEGMENT
         for artist in view._track_artists
     )
-    legend = view._figure.legends[0]
-    renderer = canvas.get_renderer()
-    assert legend.get_window_extent(renderer).y1 < (
-        view._axes.xaxis.label.get_window_extent(renderer).y0
-    )
+    assert not view._figure.legends
+    assert view._legend_figure.legends
+    assert [text.get_text() for text in view._legend_figure.legends[0].get_texts()] == [
+        "Ground track",
+        "0° horizon",
+        "10° minimum elevation",
+        "Current subpoint",
+    ]
 
     view.update(10.0)
     assert view._marker is not None and len(view._marker.get_xdata()) == 1
@@ -436,7 +443,7 @@ def test_station_markers_follow_projection_and_center_longitude(
     view.close()
 
 
-def test_station_marker_selection_opens_passes_without_seeking() -> None:
+def test_station_marker_selection_does_not_seek_playback() -> None:
     from matplotlib.backend_bases import MouseEvent
     from matplotlib.backends.backend_agg import FigureCanvasAgg
     from matplotlib.figure import Figure
@@ -452,12 +459,10 @@ def test_station_marker_selection_opens_passes_without_seeking() -> None:
             "lookup": lambda _self, time_s: lookup_calls.append(time_s),
         },
     )()
-    opened: list[str] = []
     view = ground_track.GroundTrackView(
         cast(Any, None),
         "Test object",
         stations=[station],
-        on_open_passes=opened.append,
     )
     view._figure = Figure()
     canvas = FigureCanvasAgg(view._figure)
@@ -472,10 +477,8 @@ def test_station_marker_selection_opens_passes_without_seeking() -> None:
     release = MouseEvent("button_release_event", canvas, pixel_x, pixel_y, button=1)
     view._on_map_press(press)
     view._on_map_release(release)
-    view._open_selected_station_passes()
 
     assert view._selected_station_id == station.station_id
-    assert opened == [station.station_id]
     assert lookup_calls == []
     view.close()
 
