@@ -268,6 +268,7 @@ def test_ground_track_store_view_uses_bound_queries_and_point_footprints() -> No
     view._canvas = cast(Any, canvas)
     view._axes = view._figure.add_subplot(111)
     view._draw_map()
+    canvas.draw()
 
     assert view._store_track_query is not None
     assert view._store_track_query.coverage.complete
@@ -275,6 +276,11 @@ def test_ground_track_store_view_uses_bound_queries_and_point_footprints() -> No
     assert all(
         len(artist.get_xdata()) <= MAX_DISPLAY_POINTS_PER_SEGMENT
         for artist in view._track_artists
+    )
+    legend = view._figure.legends[0]
+    renderer = canvas.get_renderer()
+    assert legend.get_window_extent(renderer).y1 < (
+        view._axes.xaxis.label.get_window_extent(renderer).y0
     )
 
     view.update(10.0)
@@ -350,7 +356,7 @@ def test_ground_track_status_distinguishes_empty_query_states(
         store.close()
 
 
-def test_ground_track_axes_follow_canvas_height_without_fixed_aspect() -> None:
+def test_ground_track_map_keeps_two_to_one_box_as_canvas_resizes() -> None:
     from matplotlib.backends.backend_agg import FigureCanvasAgg
     from matplotlib.figure import Figure
 
@@ -364,12 +370,25 @@ def test_ground_track_axes_follow_canvas_height_without_fixed_aspect() -> None:
     view._draw_map()
 
     canvas.draw()
-    tall_axes_height = view._axes.get_window_extent().height
+    axes_bounds = view._axes.get_window_extent()
+    assert axes_bounds.width / axes_bounds.height == pytest.approx(2.0)
+    assert view._axes.get_title() == ""
+
     view._figure.set_size_inches(8.0, 2.0)
     canvas.draw()
 
     assert view._axes.get_aspect() == "auto"
-    assert view._axes.get_window_extent().height < tall_axes_height
+    axes_bounds = view._axes.get_window_extent()
+    assert axes_bounds.width / axes_bounds.height == pytest.approx(2.0)
+
+    x_limits = view._axes.get_xlim()
+    view._axes.set_xlim(
+        x_limits[0] * 0.5,
+        x_limits[1] * 0.5,
+    )
+    canvas.draw()
+    axes_bounds = view._axes.get_window_extent()
+    assert axes_bounds.width / axes_bounds.height == pytest.approx(2.0)
     view.close()
 
 
@@ -508,7 +527,7 @@ def test_wx_view_builds_controls_and_updates_minimum_elevation(wx_app: Any) -> N
     frame.Show()
     wx_app.Yield()
     assert view._axes is not None
-    assert "Ground Track" in view._axes.get_title()
+    assert view._axes.get_title() == ""
     view._on_projection_choice(
         cast(Any, type("Event", (), {"GetString": lambda _self: "Equirectangular"})())
     )

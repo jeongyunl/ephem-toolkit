@@ -493,9 +493,9 @@ class GroundTrackView(ViewSpecMixin):
             self.projection_name, self.center_longitude_deg
         )
         axes.set_aspect("auto")
+        axes.set_box_aspect(0.5)
         axes.set_xlabel("Longitude (deg)")
         axes.set_ylabel("Geodetic latitude (deg)")
-        axes.set_title(f"{self._object_name} · Ground Track")
         axes.grid(False)
 
         # Anchor meridians to geographic longitude so they move with the map
@@ -660,7 +660,7 @@ class GroundTrackView(ViewSpecMixin):
             frameon=False,
             bbox_to_anchor=(0.5, 0.01),
         )
-        self._figure.subplots_adjust(left=0.08, right=0.98, bottom=0.15, top=0.95)
+        self._figure.subplots_adjust(left=0.08, right=0.98, bottom=0.22, top=0.95)
         if current_time_s is not None:
             self.update(current_time_s)
 

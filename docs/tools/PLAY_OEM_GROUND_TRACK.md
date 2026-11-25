@@ -20,6 +20,8 @@ is split at OEM segment gaps and at the map seam.
 
 The map opens in Robinson projection and shows the full Earth, both poles, graticule, ground
 track, current sub-satellite point, 0° horizon, and the selected minimum-elevation footprint.
+The Earth map area stays 2:1 as the panel is resized or navigated. The in-plot title is omitted
+to leave more room for the map; the graph panel retains its own Ground Track label.
 Projection choices are Equirectangular and Robinson. Choose the NASA shaded-relief, satellite
 imagery, or high-resolution political map background from the Background control. The bundled
 4320 × 2160 backgrounds work offline. The political map uses Natural Earth 1:10m country

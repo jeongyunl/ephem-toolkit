@@ -72,6 +72,22 @@ windows, so the source alone may not identify the final focus target. Call
 - The regression test checks that focus is on the content host after expansion
   and returns to the previous host window after collapse.
 
+## Matplotlib layout
+
+The Ground Track map needs a 2:1 display box, even when its wx canvas is resized
+or the map is zoomed. `Axes.set_box_aspect(0.5)` fixes the axes box
+height-to-width ratio; `Axes.set_aspect("auto")` can remain in place when the
+projected data should fill that box. Test the rendered axes bounds after
+`canvas.draw()` at different figure sizes and view limits.
+
+The Ground Track legend is figure-level, separate from the axes. Reserve space
+for it with `Figure.subplots_adjust(bottom=...)` so it does not collide with the
+x-axis label. Verify the rendered text bounds with the canvas renderer after a
+draw, for example by checking that the legend's upper edge is below the
+x-label's lower edge. The Ground Track layout regression checks exercise both
+the 2:1 box and legend clearance in
+[`test_ground_track_view.py`](../../../tests/ephem_toolkit/play_oem/test_ground_track_view.py).
+
 ### Future debugging recipes
 
 For each new GUI debugging example, record the symptom and minimal reproduction,
