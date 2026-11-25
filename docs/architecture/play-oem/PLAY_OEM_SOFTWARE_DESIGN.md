@@ -382,6 +382,8 @@ graph stacks with per-panel view selector, actions, and close controls
   `play-oem.toml`.
 - Native sizing and keyboard focus come from wx. The frame-level File menu provides **Open File...**;
   the status bar reports successful loads and errors.
+- Floating settings panel focus and mouse event tracing is documented in
+  [PLAY_OEM_GUI_DEBUGGING.md](./PLAY_OEM_GUI_DEBUGGING.md).
 - Click-to-seek: each time-series view connects `button_press_event` (left click inside axes, toolbar zoom/pan mode inactive) → `clock.seek(x * unit_divisor)`.
 - The graph-panel selector opens individual registered views. Presets and `--plots` open named
   groups; an already-open view is raised rather than duplicated. Closing one graph panel does not
