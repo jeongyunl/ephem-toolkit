@@ -69,7 +69,16 @@ class FloatingSettingsPanel(wx.Panel):
 
         top_level = wx.GetTopLevelParent(parent)
         self._top_level = top_level
-        self._popup = wx.PopupWindow(top_level, wx.BORDER_NONE)
+        self._popup = wx.Frame(
+            top_level,
+            wx.ID_ANY,
+            "",
+            style=(
+                wx.BORDER_NONE
+                | wx.FRAME_NO_TASKBAR
+                | wx.FRAME_FLOAT_ON_PARENT
+            ),
+        )
         self._popup_border_width_dip = 1
         self._popup_border_width = self.FromDIP(
             self._popup_border_width_dip
@@ -181,6 +190,7 @@ class FloatingSettingsPanel(wx.Panel):
         self._content.Show()
         self._popup.Show()
         self.RefreshLayout()
+        wx.CallAfter(self._focus_expanded_content)
 
     def Collapse(self) -> None:
         self.CancelCollapse()
@@ -199,6 +209,11 @@ class FloatingSettingsPanel(wx.Panel):
         if callable(being_deleted) and being_deleted():
             return
         focus_target.SetFocus()
+
+    def _focus_expanded_content(self) -> None:
+        if not self._expanded:
+            return
+        self._content.SetFocus()
 
     def ScheduleCollapse(self, delay_ms: int = 250) -> None:
         self.CancelCollapse()

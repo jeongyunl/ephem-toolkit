@@ -58,13 +58,15 @@ def test_floating_settings_panel_collapses_expands_and_stays_in_bounds(
         == wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOWFRAME)
     )
 
+    content = panel.GetContentWindow()
     panel.Expand()
     assert panel.IsExpanded()
     wx_app.Yield()
-    content = panel.GetContentWindow()
+    assert wx.Window.FindFocus() == content
     panel.Collapse()
     assert not panel.IsExpanded()
     wx_app.Yield()
+    assert wx.Window.FindFocus() == host
     assert panel._handle.AcceptsFocus()
     bounds = panel.GetExpandedBounds()
     expanded_screen_rect = panel.GetExpandedScreenRect()
