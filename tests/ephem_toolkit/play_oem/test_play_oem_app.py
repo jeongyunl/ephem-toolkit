@@ -30,6 +30,7 @@ from ephem_toolkit.play_oem.app import (
 from ephem_toolkit.play_oem.app import player_app_support as app_support
 from ephem_toolkit.play_oem.app import player_panel_management as panel_management
 from ephem_toolkit.play_oem.app import player_standard_plot_factory as view_factory
+from ephem_toolkit.play_oem.app import player_view_factory as player_view_factory
 from ephem_toolkit.play_oem.app.player_store_view_refresh import (
     _append_affects_plot,
     _tier_affects_display,
@@ -772,7 +773,7 @@ def make_app(
         canvases.append(canvas)
         return canvas
 
-    def create_view(*_args) -> FakeView:
+    def create_view(*_args, **_kwargs) -> FakeView:
         view = FakeView()
         views.append(view)
         return view
@@ -786,6 +787,11 @@ def make_app(
         view_factory.direction_change, "DirectionChangeView", create_view
     )
     monkeypatch.setattr(view_factory.distance, "GeocentricDistanceView", create_view)
+    monkeypatch.setattr(
+        player_view_factory.ground_track_view,
+        "GroundTrackView",
+        create_view,
+    )
     monkeypatch.setattr(
         view_factory.state_components, "StateComponentsView", create_view
     )
@@ -917,6 +923,26 @@ def test_ground_track_open_passes_callback_seeds_station_without_seeking(
     )
     created: list[tuple[str, Any]] = []
 
+    class GroundTrackFakeView(FakeView):
+        def __init__(self, on_open_passes) -> None:
+            super().__init__()
+            self.on_open_passes = on_open_passes
+            self.selected_station_id = None
+
+        def _select_station(self, station_id: str) -> None:
+            self.selected_station_id = station_id
+
+        def _open_selected_station_passes(self) -> None:
+            self.on_open_passes(self.selected_station_id)
+
+    monkeypatch.setattr(
+        player_view_factory.ground_track_view,
+        "GroundTrackView",
+        lambda _panel, *_args, **kwargs: GroundTrackFakeView(
+            kwargs["on_open_passes"]
+        ),
+    )
+
     def capture_view(name, create_view, **_kwargs) -> None:
         created.append((name, create_view(cast(Any, None))))
 
@@ -958,7 +984,7 @@ def test_replacing_pass_panel_for_new_oem_retains_station_selection(
 
     monkeypatch.setattr(player, "_open_view", capture_view)
 
-    player.open_ground_station_passes_view(
+    player.open_pass_list_view(
         panel_id="panel",
         force_replace=True,
     )
@@ -1638,14 +1664,14 @@ def test_cli_selection_opens_through_the_dashboard_registry(
 
     player.start()
 
-    assert set(player._open_views) == {"trajectory-3d", "state-components"}
+    assert set(player._open_views) == {"state-components"}
     assert len(frames) == 1
 
     player.open_group("state")
     player.open_view("trajectory-3d")
 
     assert len(frames) == 1
-    assert all(view.panel.focused for view in player._open_views.values())
+    assert set(player._open_views) == {"state-components", "trajectory-3d"}
 
     player.close()
 
@@ -1711,18 +1737,20 @@ def test_motion_group_opens_all_diagnostic_views(
 
     player.start()
 
-    assert len(views) == 4
+    assert len(views) == 5
     assert set(player._open_views) == {
         "rtn",
         "angular-velocity",
         "direction-change",
         "distance",
+        "ground-track",
     }
     player.close()
 
 
 @pytest.mark.parametrize(
-    "view_name", ("rtn", "angular-velocity", "direction-change", "distance")
+    "view_name",
+    ("rtn", "angular-velocity", "direction-change", "distance", "ground-track"),
 )
 def test_closing_one_diagnostic_view_keeps_other_motion_views_open(
     monkeypatch: pytest.MonkeyPatch,
@@ -1734,8 +1762,14 @@ def test_closing_one_diagnostic_view_keeps_other_motion_views_open(
     player.close_view(view_name)
 
     assert view_name not in player._open_views
-    assert len(player._open_views) == 3
-    view_names = ("rtn", "angular-velocity", "direction-change", "distance")
+    assert len(player._open_views) == 4
+    view_names = (
+        "rtn",
+        "angular-velocity",
+        "direction-change",
+        "distance",
+        "ground-track",
+    )
     assert views[view_names.index(view_name)].closed
     assert all(
         view.closed == (name == view_name) for name, view in zip(view_names, views)

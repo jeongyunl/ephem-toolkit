@@ -70,6 +70,12 @@ class FakeWidget:
     def GetSize(self):
         return self.size
 
+    def GetBestSize(self):
+        return self.size
+
+    def SetMinSize(self, size) -> None:
+        self.minimum_size = size
+
     def trigger(self, event_type, event=None) -> None:
         self.bindings[event_type](FakeEvent() if event is None else event)
 
@@ -166,6 +172,9 @@ class FakeScrolledWindow(FakePanel):
     def GetClientSize(self):
         return FakeSize(190, 400)
 
+    def SetMinSize(self, size) -> None:
+        self.minimum_size = size
+
     def GetViewStart(self):
         return self.view_start.x, self.view_start.y
 
@@ -237,6 +246,13 @@ def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
         "ToggleButton": FakeButton,
         "TextCtrl": FakeTextCtrl,
         "Choice": FakeChoice,
+        "CheckBox": FakeButton,
+        "Size": lambda width, height: FakeSize(width, height),
+        "SystemSettings": type(
+            "FakeSystemSettings",
+            (),
+            {"GetMetric": staticmethod(lambda _metric: 16)},
+        ),
         "Slider": FakeSlider,
         "AcceleratorEntry": FakeAcceleratorEntry,
         "AcceleratorTable": FakeAcceleratorTable,
@@ -245,6 +261,7 @@ def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
         "ID_ANY": -1,
         "VERTICAL": 1,
         "HORIZONTAL": 2,
+        "HSCROLL": 4096,
         "VSCROLL": 2048,
         "TAB_TRAVERSAL": 4096,
         "EXPAND": 4,
@@ -261,6 +278,8 @@ def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
         "EVT_SIZE": "size",
         "EVT_SLIDER": "slider",
         "EVT_CHOICE": "choice",
+        "EVT_CHECKBOX": "check-box",
+        "SYS_HSCROLL_Y": "hscroll-y",
         "EVT_TEXT_ENTER": "text-enter",
         "EVT_SET_FOCUS": "set-focus",
         "EVT_KILL_FOCUS": "kill-focus",
@@ -317,9 +336,13 @@ def test_settings_page_contains_render_rate_and_interpolation_controls(
 
     assert window.settings_scroller.scroll_rate == (0, 10)
     assert window.settings_scroller.name == "Settings render rate"
-    assert [item[0] for item in window.settings_scroller.sizer.items] == [
+    settings_items = [item[0] for item in window.settings_scroller.sizer.items]
+    assert settings_items[:2] == [
         window.display_time_zone_label,
         window.display_time_zone_choice,
+    ]
+    assert getattr(settings_items[2], "name", "") == "Time snapping control row"
+    assert settings_items[3:] == [
         window.render_rate_label,
         window.render_rate_slider,
         window.interpolation_section_label,

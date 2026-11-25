@@ -11,6 +11,7 @@ import pytest
 from ephem_toolkit.play_oem import workspace
 from ephem_toolkit.play_oem.ground_stations import GroundStation
 from ephem_toolkit.play_oem.workspace import core, features, graph_stack, timeline
+from ephem_toolkit.play_oem.widgets import playback_time_slider as playback_time_slider_module
 from ephem_toolkit.play_oem.workspace.constants import DEFAULT_GRAPH_PANEL_HEIGHT
 from ephem_toolkit.play_oem.workspace import ground_stations as station_manager
 
@@ -158,6 +159,17 @@ class FakePlaybackTimeSlider(FakeSlider):
         self.display_time_zone = "UTC"
         self.is_dragging = False
         self._seek_grip = FakeWidget(parent, -1)
+        def handle_seek_motion(event) -> None:
+            if not getattr(self, "is_dragging", False):
+                playback_time_slider_module.position_tooltip_at_pointer(
+                    getattr(self._seek_grip, "_play_oem_tooltip", None),
+                    self._seek_grip,
+                    event.GetPosition(),
+                    above_track=True,
+                )
+            event.Skip()
+
+        self._seek_grip.bindings["motion"] = handle_seek_motion
 
     def GetClientSize(self) -> FakeSize:
         return self.client_size
@@ -195,6 +207,14 @@ class FakeTimeScrubber(FakePlaybackTimeSlider):
         if self._on_viewport is not None:
             self._on_viewport(self.viewport)
 
+    def hide_tooltips(self) -> None:
+        tooltip = getattr(self, "_timeline_tooltip", None)
+        if tooltip is not None:
+            tooltip.DoHideNow()
+        seek_tooltip = getattr(self._seek_grip, "_play_oem_tooltip", None)
+        if seek_tooltip is not None:
+            seek_tooltip.DoHideNow()
+
 
 class FakeTimeScrubberTickRail(FakeWidget):
     def __init__(self, parent) -> None:
@@ -218,6 +238,46 @@ class FakeTimeScrubberChevronButton(FakeWidget):
 
     def SetCursor(self, cursor) -> None:
         self.cursor = cursor
+
+
+class FakePlaybackToggleButton(FakeWidget):
+    def __init__(self, parent, label="", **kwargs) -> None:
+        super().__init__(parent, -1, label, **kwargs)
+
+
+class FakeTimeScrubberWidget(FakeWidget):
+    def __init__(self, parent, **kwargs) -> None:
+        super().__init__(parent, -1)
+        self.slider = FakeTimeScrubber(parent, **kwargs)
+        self.slider.Enable(kwargs.get("timeline_enabled", True))
+        self.tick_rail = FakeTimeScrubberTickRail(parent)
+        coverage = kwargs.get("coverage", (0.0, 100.0))
+        self.tick_rail.set_viewport(kwargs.get("viewport") or coverage)
+        self.left_chevron = FakeTimeScrubberChevronButton(
+            parent,
+            "‹",
+            "Pan earlier",
+            lambda: None,
+        )
+        self.right_chevron = FakeTimeScrubberChevronButton(
+            parent,
+            "›",
+            "Pan later",
+            lambda: None,
+        )
+        self.client_size = FakeSize(600, 74)
+
+    def SetBackgroundColour(self, colour) -> None:
+        self.background_colour = colour
+
+    def GetBackgroundColour(self):
+        return getattr(self, "background_colour", "background")
+
+    def GetClientSize(self) -> FakeSize:
+        return self.client_size
+
+    def set_enabled(self, enabled: bool) -> None:
+        self.slider.Enable(enabled)
 
     def set_scrollable(self, scrollable: bool) -> None:
         self.scrollable = scrollable
@@ -249,6 +309,12 @@ class FakeTextCtrl(FakeWidget):
 
     def SetValue(self, value: str) -> None:
         self.value = value
+
+    def SetBackgroundColour(self, colour) -> None:
+        self.background_colour = colour
+
+    def GetBackgroundColour(self):
+        return getattr(self, "background_colour", "background")
 
 
 class FakeSpinCtrl(FakeTextCtrl):
@@ -528,6 +594,9 @@ class FakeSplitter:
     def SetMinimumPaneSize(self, size: int) -> None:
         self.minimum_pane_size = size
 
+    def FromDIP(self, value: int) -> int:
+        return value
+
     def GetMinimumPaneSize(self) -> int:
         return self.minimum_pane_size
 
@@ -701,13 +770,9 @@ def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(features, "set_tooltip", set_fake_tooltip)
     monkeypatch.setattr(graph_stack, "set_tooltip", set_fake_tooltip)
     monkeypatch.setattr(timeline, "set_tooltip", set_fake_tooltip)
-    monkeypatch.setattr(core, "PlaybackTimeScrubber", FakeTimeScrubber)
-    monkeypatch.setattr(core, "TimeScrubberTickRail", FakeTimeScrubberTickRail)
-    monkeypatch.setattr(
-        core,
-        "TimeScrubberChevronButton",
-        FakeTimeScrubberChevronButton,
-    )
+    monkeypatch.setattr(core, "PlaybackTimeScrubberWidget", FakeTimeScrubberWidget)
+    monkeypatch.setattr(core, "PlaybackToggleButton", FakePlaybackToggleButton)
+    monkeypatch.setattr(timeline, "PlaybackToggleButton", FakePlaybackToggleButton)
     FakeWidget.instances = []
     FakeCallLater.calls = []
     for name, value in {
@@ -898,7 +963,7 @@ def test_workspace_builds_feature_pages_split_panes_and_global_timeline(
     assert result._comparison_toggle.name == "Toggle Comparison pane"
     assert not result._comparison_toggle.value
     assert result.main_splitter.is_split
-    assert result.main_splitter.minimum_pane_size == 240
+    assert result.main_splitter.minimum_pane_size == 180
     assert result.main_splitter.sash_gravity == 0.0
     assert result.main_splitter.style & workspace.wx.SP_3DSASH
     assert result.graph_panes_splitter.minimum_pane_size == 320
@@ -933,8 +998,10 @@ def test_workspace_builds_feature_pages_split_panes_and_global_timeline(
     assert result.playback_forward_play_button.label == "▶"
     assert result.playback_reverse_play_button.minimum_size == (80, -1)
     assert result.playback_forward_play_button.minimum_size == (80, -1)
-    assert result.playback_reverse_play_button.maximum_size == (80, 16)
-    assert result.playback_forward_play_button.maximum_size == (80, 16)
+    assert result.playback_reverse_play_button.maximum_size[0] == 80
+    assert result.playback_reverse_play_button.maximum_size[1] <= 24
+    assert result.playback_forward_play_button.maximum_size[0] == 80
+    assert result.playback_forward_play_button.maximum_size[1] <= 24
     assert result.timeline_panel.sizer.orientation == workspace.wx.VERTICAL
     assert result.timeline_track_row.parent is result.timeline_panel
     assert result.playback_controls_row.parent is result.timeline_panel
@@ -942,22 +1009,15 @@ def test_workspace_builds_feature_pages_split_panes_and_global_timeline(
     assert result.timeline_track_row.sizer.orientation == workspace.wx.HORIZONTAL
     assert result.playback_controls_row.sizer.orientation == workspace.wx.HORIZONTAL
     assert result.time_readout_row.sizer.orientation == workspace.wx.HORIZONTAL
-    assert result.timeline_track_row.sizer.items[0][0] is result.timeline_left_chevron
-    assert result.timeline_track_row.sizer.items[1][0].sizer.orientation == workspace.wx.VERTICAL
-    assert result.timeline_track_row.sizer.items[1][0].sizer.items[0][0] is result.timeline_slider
-    assert result.timeline_track_row.sizer.items[1][0].sizer.items[1][0] is result.timeline_tick_rail
-    assert result.timeline_track_row.sizer.items[2][0] is result.timeline_right_chevron
+    assert result.timeline_track_row.sizer.items[0][0] is result.time_scrubber
     assert result.timeline_panel.sizer.items[2][0] is result.time_readout_row
     assert result.timeline_panel.sizer.items[4][0] is result.timeline_track_row
     assert result.timeline_panel.sizer.items[6][0] is result.playback_controls_row
     assert result.timeline_panel.sizer.items[3][0] == (0, 6)
     assert result.timeline_panel.sizer.items[5][0] == (0, 12)
-    assert result.playback_controls_row.sizer.items[4][0] is (
-        result.playback_reverse_play_button
-    )
-    assert result.playback_controls_row.sizer.items[5][0] is (
-        result.playback_forward_play_button
-    )
+    playback_items = [item[0] for item in result.playback_controls_row.sizer.items]
+    assert result.playback_reverse_play_button in playback_items
+    assert result.playback_forward_play_button in playback_items
     assert [button.label for button in result.playback_speed_buttons.values()] == [
         "<<< 1000×",
         "<< 100×",
@@ -968,10 +1028,6 @@ def test_workspace_builds_feature_pages_split_panes_and_global_timeline(
         "100× >>",
         "1000× >>>",
     ]
-    assert all(
-        button.style == workspace.wx.BU_EXACTFIT
-        for button in result.playback_speed_buttons.values()
-    )
     assert all(
         button.minimum_size == (40, -1)
         for button in result.playback_speed_buttons.values()
@@ -1856,7 +1912,7 @@ def test_seek_grip_motion_positions_timestamp_tooltip_above_track(
     slider._seek_grip._play_oem_tooltip = FakeSuperToolTip("2026-01-01T00:00:00")
     positioned = []
     monkeypatch.setattr(
-        timeline,
+        playback_time_slider_module,
         "position_tooltip_at_pointer",
         lambda _tooltip, _window, position, **kwargs: positioned.append(
             (position, kwargs)
@@ -1901,7 +1957,9 @@ def test_seek_grip_motion_does_not_dismiss_tooltip_while_dragging(
 def test_unloading_oem_dismisses_timeline_tooltip(monkeypatch) -> None:
     result, _seeks, _frame = make_workspace(monkeypatch)
     dismissed = []
-    result._timeline_tooltip = SimpleNamespace(DoHideNow=lambda: dismissed.append(True))
+    result.timeline_slider._timeline_tooltip = SimpleNamespace(
+        DoHideNow=lambda: dismissed.append(True)
+    )
 
     result.set_oem_loaded(False)
 

@@ -272,9 +272,9 @@ def test_direct_store_stream_context_failure_is_not_completion(tmp_path: Path) -
             source, store, batch_size=3, on_append=lambda notice: None,
             cancel_event=Event(),
         )
-    assert store.snapshot().sample_count == 4
+    assert store.snapshot().sample_count == 0
     assert store.snapshot().status is LoadStatus.FAILED
-    with pytest.raises(ValueError, match="empty store"):
+    with pytest.raises(ValueError, match="REF_FRAME"):
         read_oem_into_store(
             source, store, batch_size=3, on_append=lambda notice: None,
             cancel_event=Event(),

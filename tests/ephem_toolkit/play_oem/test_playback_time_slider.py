@@ -6,6 +6,7 @@ from typing import Any, Optional, cast
 import pytest
 import wx
 
+from ephem_toolkit.play_oem.widgets import playback_time_slider as playback_time_slider_module
 from ephem_toolkit.play_oem.time_range import (
     EndpointMode,
     PlotTimeRange,
@@ -241,6 +242,17 @@ def test_track_highlight_uses_outline_without_changing_track_fill(monkeypatch) -
             rectangles.append(((x, y, width, height, radius), self.pen, self.brush))
 
     dc = FakeDC()
+    slider = None
+    def draw_track(draw_dc, width, height):
+        draw_dc.SetPen(("pen", "idle", 1))
+        draw_dc.SetBrush(("brush", "idle"))
+        draw_dc.DrawRoundedRectangle(10, height // 2 - 7, width - 20, 14, 5)
+
+    def draw_track_highlight(draw_dc, width, height):
+        if slider is not None and slider._track_is_highlighted:
+            draw_dc.SetPen(("pen", highlight, 2))
+            draw_dc.SetBrush(transparent)
+            draw_dc.DrawRoundedRectangle(10, height // 2 - 9, width - 20, 18, 5)
     monkeypatch.setattr(wx, "AutoBufferedPaintDC", lambda _window: dc)
     monkeypatch.setattr(wx, "Brush", lambda color: ("brush", color))
     monkeypatch.setattr(wx, "Pen", lambda color, width: ("pen", color, width))
@@ -261,6 +273,11 @@ def test_track_highlight_uses_outline_without_changing_track_fill(monkeypatch) -
         _unloaded_segment_x=lambda: None,
         _now=101.0,
         _slider_bounds=(0.0, 100.0),
+        _ranges_ready=False,
+        _value_is_set=False,
+        _draw_track=draw_track,
+        _draw_track_highlight=draw_track_highlight,
+        _draw_seek_marker=lambda _dc, _height: None,
     )
 
     PlaybackTimeSlider._paint_track(slider, None)
@@ -319,6 +336,11 @@ def test_hovered_playback_connector_draws_line_between_handles(monkeypatch) -> N
         _unloaded_segment_x=lambda: None,
         _now=101.0,
         _slider_bounds=(0.0, 100.0),
+        _ranges_ready=False,
+        _value_is_set=False,
+        _draw_track=lambda _dc, _width, _height: None,
+        _draw_track_highlight=lambda _dc, _width, _height: None,
+        _draw_seek_marker=lambda _dc, _height: None,
     )
 
     PlaybackTimeSlider._paint_track(slider, None)
@@ -335,10 +357,16 @@ def test_hovered_playback_connector_draws_line_between_handles(monkeypatch) -> N
     ],
 )
 def test_dragging_playback_connector_moves_range_without_resizing(
+    monkeypatch: pytest.MonkeyPatch,
     control_down: bool,
     command_down: bool,
     expected_seeks: list[int],
 ) -> None:
+    monkeypatch.setattr(
+        playback_time_slider_module.time_snapping,
+        "snap_tt_s_to_utc_half_second",
+        lambda value: value,
+    )
     class SliderHarness(SimpleNamespace):
         @property
         def _playback_connector_hovered(self) -> bool:
@@ -394,6 +422,8 @@ def test_dragging_playback_connector_moves_range_without_resizing(
         CaptureMouse=lambda: None,
         _on_playback_handles_changed=lambda: None,
         Refresh=lambda: None,
+        _update_pointer_state=lambda _position: None,
+        _fraction_at_x=lambda x: min(max((x - 10) / 80, 0.0), 1.0),
     )
     def motion_event(x: int) -> SimpleNamespace:
         return SimpleNamespace(
@@ -425,7 +455,14 @@ def test_dragging_playback_connector_moves_range_without_resizing(
     assert slider._range_drag_origin is None
 
 
-def test_toggling_modifier_during_range_drag_does_not_jump_seek() -> None:
+def test_toggling_modifier_during_range_drag_does_not_jump_seek(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        playback_time_slider_module.time_snapping,
+        "snap_tt_s_to_utc_half_second",
+        lambda value: value,
+    )
     seeks = []
     ranges = []
 
@@ -455,10 +492,12 @@ def test_toggling_modifier_during_range_drag_does_not_jump_seek() -> None:
         ),
         _timestamp_at=lambda x: PlaybackTimeSlider._timestamp_at(slider, x),
         _x_for=lambda time_s: PlaybackTimeSlider._x_for(slider, time_s),
+        _x_for_fraction=lambda fraction: 10 + round(fraction * 80),
         _value_at_x=lambda x: PlaybackTimeSlider._value_at_x(slider, x),
         GetClientSize=lambda: SimpleNamespace(width=100),
         _on_playback=lambda start, end: ranges.append((start, end)),
         _set_value_from_user=set_value,
+        _fraction_at_x=lambda x: min(max((x - 10) / 80, 0.0), 1.0),
     )
 
     PlaybackTimeSlider._move_playback_range(slider, 60, move_seek=False)
@@ -531,6 +570,8 @@ def test_playable_track_segment_uses_metadata_bounds_as_slider_scale() -> None:
         GetClientSize=lambda: SimpleNamespace(width=100),
     )
     slider._x_for = lambda value: PlaybackTimeSlider._x_for(slider, value)
+    slider._x_for_fraction = lambda fraction: 10 + round(fraction * 80)
+    slider._x_for_fraction = lambda fraction: 10 + round(fraction * 80)
 
     assert PlaybackTimeSlider._playable_segment_x(slider) == (20, 40)
 
@@ -556,6 +597,7 @@ def test_playable_track_segment_is_clipped_to_visible_range(
         GetClientSize=lambda: SimpleNamespace(width=100),
     )
     slider._x_for = lambda value: PlaybackTimeSlider._x_for(slider, value)
+    slider._x_for_fraction = lambda fraction: 10 + round(fraction * 80)
 
     assert PlaybackTimeSlider._playable_segment_x(slider) == expected
 
@@ -567,6 +609,7 @@ def test_unloaded_track_segment_uses_metadata_bounds_as_slider_scale() -> None:
         GetClientSize=lambda: SimpleNamespace(width=100),
     )
     slider._x_for = lambda value: PlaybackTimeSlider._x_for(slider, value)
+    slider._x_for_fraction = lambda fraction: 10 + round(fraction * 80)
 
     assert PlaybackTimeSlider._unloaded_segment_x(slider) == (50, 90)
 
@@ -736,6 +779,18 @@ def test_seek_grip_tooltip_is_a_plain_timestamp(monkeypatch) -> None:
         def GetName(self) -> str:
             return "Current playback time marker"
 
+        def GetPosition(self):
+            return SimpleNamespace(x=0, y=0)
+
+        def IsShown(self) -> bool:
+            return True
+
+        def Refresh(self) -> None:
+            pass
+
+        def Raise(self) -> None:
+            pass
+
     grip = FakeGrip()
     seek_grip = FakeGrip()
     slider = SimpleNamespace(
@@ -751,6 +806,9 @@ def test_seek_grip_tooltip_is_a_plain_timestamp(monkeypatch) -> None:
         _x_for=lambda timestamp: int(timestamp),
         GetClientSize=lambda: SimpleNamespace(width=100, height=74),
         GetPosition=lambda: SimpleNamespace(x=0, y=0),
+        GetParent=lambda: None,
+        RefreshRect=lambda _rect, eraseBackground=False: None,
+        Refresh=lambda: None,
         _seek_grip=seek_grip,
     )
 
@@ -964,6 +1022,7 @@ def test_custom_slider_maps_pointer_to_seek_value(x: int, expected: int) -> None
         _minimum=0,
         _maximum=10_000,
         GetClientSize=lambda: SimpleNamespace(width=100),
+        _fraction_at_x=lambda x: min(max((x - 10) / 80, 0.0), 1.0),
     )
 
     assert PlaybackTimeSlider._value_at_x(slider, x) == expected

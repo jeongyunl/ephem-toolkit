@@ -36,7 +36,7 @@ def test_saving_render_rate_fps_preserves_other_config_and_comments(tmp_path) ->
     assert config.reverse
     assert config.render_rate_fps == 18
     assert config.three_d_backend == "matplotlib"
-    assert config.plots == ("trajectory-3d", "speed-altitude")
+    assert config.plots == ("overview",)
 
 
 def test_saving_render_rate_fps_creates_config_file_when_missing(tmp_path) -> None:
