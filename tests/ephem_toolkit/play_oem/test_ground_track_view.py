@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import gc
 import os
+import re
 from collections.abc import Iterator
 from typing import Any, cast
 
@@ -270,6 +271,13 @@ def test_ground_track_store_view_uses_bound_queries_and_point_footprints() -> No
     view._legend_figure = Figure()
     legend_canvas = FigureCanvasAgg(view._legend_figure)
     view._legend_canvas = cast(Any, legend_canvas)
+    coordinate_labels: list[str] = []
+
+    class CoordinateReadout:
+        def SetLabel(self, label: str) -> None:
+            coordinate_labels.append(label)
+
+    view._coordinate_readout = cast(Any, CoordinateReadout())
     view._draw_map()
     canvas.draw()
     legend_canvas.draw()
@@ -293,6 +301,11 @@ def test_ground_track_store_view_uses_bound_queries_and_point_footprints() -> No
     view.update(10.0)
     assert view._marker is not None and len(view._marker.get_xdata()) == 1
     assert view._last_footprints is not None
+    assert len(coordinate_labels) == 1
+    assert re.fullmatch(
+        r"Lat: -?\d+\.\d{3}°  ·  Long: -?\d+\.\d{3}°",
+        coordinate_labels[0],
+    )
 
     view.set_time_range(ResolvedTimeRange(10.0, 20.0), context.coverage)
     assert view._store_track_query is not None
@@ -531,6 +544,8 @@ def test_wx_view_builds_controls_and_updates_minimum_elevation(wx_app: Any) -> N
     wx_app.Yield()
     assert view._axes is not None
     assert view._axes.get_title() == ""
+    assert view._coordinate_panel is not None
+    assert view._coordinate_panel.IsExpanded()
     view._on_projection_choice(
         cast(Any, type("Event", (), {"GetString": lambda _self: "Equirectangular"})())
     )

@@ -1,22 +1,26 @@
-"""Reusable hover-expanded floating panel for playback views."""
+"""Reusable floating panel for playback views."""
 
 from __future__ import annotations
 
-from typing import Literal
+from enum import Enum
 
 import wx
 
 
-PanelCorner = Literal[
-    "top-left",
-    "top-right",
-    "bottom-left",
-    "bottom-right",
-]
+class PanelCorner(str, Enum):
+    TOP_LEFT = "top-left"
+    TOP_RIGHT = "top-right"
+    BOTTOM_LEFT = "bottom-left"
+    BOTTOM_RIGHT = "bottom-right"
+
+
+class PanelInteraction(str, Enum):
+    HOVER = "hover"
+    CLICK = "click"
 
 
 class FloatingPanel(wx.Panel):
-    """A compact corner panel that expands on pointer hover."""
+    """A compact corner panel that expands on hover or click."""
 
     def __init__(
         self,
@@ -24,20 +28,26 @@ class FloatingPanel(wx.Panel):
         *,
         name: str = "Panel",
         handle_label: str = "≡",
-        corner: PanelCorner = "top-right",
+        corner: PanelCorner = PanelCorner.TOP_RIGHT,
+        interaction: PanelInteraction = PanelInteraction.HOVER,
+        initially_expanded: bool = False,
     ) -> None:
-        """Create a hover-expanded panel anchored to a parent corner.
+        """Create a floating panel anchored to a parent corner.
 
-        ``corner`` may be ``top-left``, ``top-right``, ``bottom-left``, or
-        ``bottom-right``; it defaults to ``top-right``.
+        ``corner`` defaults to :attr:`PanelCorner.TOP_RIGHT`; ``interaction``
+        defaults to :attr:`PanelInteraction.HOVER`. Set ``initially_expanded``
+        to open the panel after the current event completes.
         """
-        if corner not in (
-            "top-left",
-            "top-right",
-            "bottom-left",
-            "bottom-right",
-        ):
-            raise ValueError(f"Unsupported panel corner: {corner!r}")
+        try:
+            corner = PanelCorner(corner)
+        except (TypeError, ValueError) as error:
+            raise ValueError(f"Unsupported panel corner: {corner!r}") from error
+        try:
+            interaction = PanelInteraction(interaction)
+        except (TypeError, ValueError) as error:
+            raise ValueError(
+                f"Unsupported panel interaction: {interaction!r}"
+            ) from error
         super().__init__(
             parent,
             wx.ID_ANY,
@@ -45,6 +55,7 @@ class FloatingPanel(wx.Panel):
         )
         self._host = parent
         self._corner = corner
+        self._interaction = interaction
         self.SetName(name)
         self._expanded = False
         self._collapse_timer: wx.CallLater | None = None
@@ -137,6 +148,19 @@ class FloatingPanel(wx.Panel):
         self._content.SetForegroundColour(
             wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOWTEXT)
         )
+        self._collapse_control: wx.StaticText | None = None
+        if interaction == PanelInteraction.CLICK:
+            self._collapse_control = wx.StaticText(
+                self._content,
+                wx.ID_ANY,
+                handle_label,
+            )
+            self._collapse_control.SetName(f"{name} collapse")
+            self._collapse_control.SetToolTip("Collapse panel")
+            self._collapse_control.Bind(
+                wx.EVT_LEFT_UP,
+                self._on_collapse_control_click,
+            )
         popup_sizer = wx.BoxSizer(wx.VERTICAL)
         popup_sizer.Add(
             self._content,
@@ -148,28 +172,71 @@ class FloatingPanel(wx.Panel):
         self._popup.SetBackgroundColour(popup_background)
         self._popup.Hide()
 
-        self._handle.Bind(wx.EVT_ENTER_WINDOW, self._on_enter)
-        self._handle.Bind(wx.EVT_LEAVE_WINDOW, self._on_leave)
-        self._content.Bind(wx.EVT_ENTER_WINDOW, self._on_enter)
-        self._content.Bind(wx.EVT_LEAVE_WINDOW, self._on_leave)
+        if interaction == PanelInteraction.HOVER:
+            self._handle.Bind(wx.EVT_ENTER_WINDOW, self._on_enter)
+            self._handle.Bind(wx.EVT_LEAVE_WINDOW, self._on_leave)
+            self._content.Bind(wx.EVT_ENTER_WINDOW, self._on_enter)
+            self._content.Bind(wx.EVT_LEAVE_WINDOW, self._on_leave)
+        else:
+            self._handle.Bind(wx.EVT_LEFT_UP, self._on_handle_click)
+            handle_inner.Bind(wx.EVT_LEFT_UP, self._on_handle_click)
+            handle_label_control.Bind(wx.EVT_LEFT_UP, self._on_handle_click)
         parent.Bind(wx.EVT_SIZE, self._on_host_size)
 
         self._handle.Show()
         self._content.Hide()
         wx.CallAfter(self.RefreshLayout)
+        if initially_expanded:
+            wx.CallAfter(self.Expand)
 
     def GetContentWindow(self) -> wx.ScrolledWindow:
         """Return the scrolled content host for view-specific controls."""
         return self._content
 
+    def _sync_collapse_control_height(self) -> None:
+        if self._collapse_control is None or self._content_body_sizer is None:
+            return
+        height = self._content_body_sizer.CalcMin().height
+        if height > 0:
+            self._collapse_control.SetMinSize(wx.Size(-1, height))
+            self._collapse_control.SetMaxSize(wx.Size(-1, height))
+
     def SetContentSizer(self, sizer: wx.Sizer) -> None:
         """Populate the expanded panel with a caller-owned content sizer."""
         margin = self.FromDIP(self._content_margin_dip)
         outer_sizer = wx.BoxSizer(wx.VERTICAL)
-        outer_sizer.Add(sizer, 1, wx.EXPAND | wx.ALL, margin)
+        body_sizer = wx.BoxSizer(
+            wx.HORIZONTAL if self._collapse_control is not None else wx.VERTICAL
+        )
+        if self._collapse_control is None:
+            body_sizer.Add(sizer, 1, wx.EXPAND)
+        else:
+            alignment = (
+                wx.ALIGN_TOP
+                if self._corner.value.startswith("top")
+                else wx.ALIGN_BOTTOM
+            )
+            if self._corner.value.endswith("left"):
+                body_sizer.Add(
+                    self._collapse_control,
+                    0,
+                    alignment | wx.RIGHT,
+                    4,
+                )
+                body_sizer.Add(sizer, 1, wx.EXPAND)
+            else:
+                body_sizer.Add(sizer, 1, wx.EXPAND)
+                body_sizer.Add(
+                    self._collapse_control,
+                    0,
+                    alignment | wx.LEFT,
+                    4,
+                )
+        outer_sizer.Add(body_sizer, 1, wx.EXPAND | wx.ALL, margin)
         self._content_sizer = outer_sizer
         self._content_body_sizer = sizer
         self._content.SetSizer(outer_sizer)
+        self._sync_collapse_control_height()
         outer_sizer.Layout()
         required = outer_sizer.CalcMin()
         self._content.SetVirtualSize(required)
@@ -283,12 +350,12 @@ class FloatingPanel(wx.Panel):
         handle_size = self.FromDIP(24)
         handle_x = (
             0
-            if self._corner.endswith("left")
+            if self._corner.value.endswith("left")
             else max(0, host_size.width - handle_size)
         )
         handle_y = (
             0
-            if self._corner.startswith("top")
+            if self._corner.value.startswith("top")
             else max(0, host_size.height - handle_size)
         )
         handle_rect = wx.Rect(
@@ -301,6 +368,7 @@ class FloatingPanel(wx.Panel):
         if self._content_sizer is not None:
             for child in self._content.GetChildren():
                 child.InvalidateBestSize()
+            self._sync_collapse_control_height()
             required = self._content_sizer.CalcMin()
             self._content_sizer.Layout()
         else:
@@ -341,7 +409,7 @@ class FloatingPanel(wx.Panel):
             popup_height = actual_popup_size.height
             popup_left = (
                 collapsed_left
-                if self._corner.endswith("left")
+                if self._corner.value.endswith("left")
                 else collapsed_right - popup_width
             )
             if popup_left < frame_origin.x:
@@ -350,7 +418,7 @@ class FloatingPanel(wx.Panel):
                 popup_left = frame_origin.x + frame_size.width - popup_width
             popup_top = (
                 collapsed_top
-                if self._corner.startswith("top")
+                if self._corner.value.startswith("top")
                 else collapsed_bottom - popup_height
             )
             if popup_top < frame_origin.y:
@@ -402,10 +470,15 @@ class FloatingPanel(wx.Panel):
     def Close(self, force: bool = False) -> bool:
         self.CancelCollapse()
         self._host.Unbind(wx.EVT_SIZE, handler=self._on_host_size)
-        self._handle.Unbind(wx.EVT_ENTER_WINDOW)
-        self._handle.Unbind(wx.EVT_LEAVE_WINDOW)
-        self._content.Unbind(wx.EVT_ENTER_WINDOW)
-        self._content.Unbind(wx.EVT_LEAVE_WINDOW)
+        if self._interaction == PanelInteraction.HOVER:
+            self._handle.Unbind(wx.EVT_ENTER_WINDOW)
+            self._handle.Unbind(wx.EVT_LEAVE_WINDOW)
+            self._content.Unbind(wx.EVT_ENTER_WINDOW)
+            self._content.Unbind(wx.EVT_LEAVE_WINDOW)
+        else:
+            self._handle.Unbind(wx.EVT_LEFT_UP)
+            if self._collapse_control is not None:
+                self._collapse_control.Unbind(wx.EVT_LEFT_UP)
         self._popup.Hide()
         self._popup.Destroy()
         self.Destroy()
@@ -414,6 +487,14 @@ class FloatingPanel(wx.Panel):
     def _on_enter(self, event: wx.MouseEvent) -> None:
         self.CancelCollapse()
         self.Expand()
+        event.Skip()
+
+    def _on_handle_click(self, event: wx.MouseEvent) -> None:
+        self.Expand()
+        event.Skip()
+
+    def _on_collapse_control_click(self, event: wx.MouseEvent) -> None:
+        self.Collapse()
         event.Skip()
 
     def _on_leave(self, event: wx.MouseEvent) -> None:
@@ -476,12 +557,12 @@ class FloatingPanel(wx.Panel):
         point = wx.Point(
             (
                 margin
-                if self._corner.endswith("left")
+                if self._corner.value.endswith("left")
                 else max(margin, host_size.width - width - margin)
             ),
             (
                 margin
-                if self._corner.startswith("top")
+                if self._corner.value.startswith("top")
                 else max(margin, host_size.height - height - margin)
             ),
         )

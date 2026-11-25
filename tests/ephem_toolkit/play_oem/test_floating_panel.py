@@ -5,9 +5,11 @@ from __future__ import annotations
 import gc
 import os
 from collections.abc import Iterator
-from typing import Any, Literal
+from typing import Any, cast
 
 import pytest
+
+from ephem_toolkit.play_oem.widgets import PanelCorner, PanelInteraction
 
 
 @pytest.fixture(scope="module")
@@ -111,10 +113,10 @@ def test_floating_panel_collapses_expands_and_stays_in_bounds(
 @pytest.mark.parametrize(
     ("corner", "at_left", "at_top"),
     [
-        ("top-left", True, True),
-        ("top-right", False, True),
-        ("bottom-left", True, False),
-        ("bottom-right", False, False),
+        (PanelCorner.TOP_LEFT, True, True),
+        (PanelCorner.TOP_RIGHT, False, True),
+        (PanelCorner.BOTTOM_LEFT, True, False),
+        (PanelCorner.BOTTOM_RIGHT, False, False),
     ],
 )
 @pytest.mark.skipif(
@@ -122,12 +124,7 @@ def test_floating_panel_collapses_expands_and_stays_in_bounds(
 )
 def test_floating_panel_can_anchor_to_each_parent_corner(
     wx_app: Any,
-    corner: Literal[
-        "top-left",
-        "top-right",
-        "bottom-left",
-        "bottom-right",
-    ],
+    corner: PanelCorner,
     at_left: bool,
     at_top: bool,
 ) -> None:
@@ -171,5 +168,92 @@ def test_floating_panel_can_anchor_to_each_parent_corner(
         assert expanded_rect.bottom == host_rect.bottom
 
     assert panel.Close()
+    frame.Destroy()
+    wx_app.Yield()
+
+
+@pytest.mark.skipif(
+    not os.environ.get("DISPLAY"), reason="requires an X display (use xvfb-run)"
+)
+def test_floating_panel_can_start_expanded(wx_app: Any) -> None:
+    import wx
+
+    from ephem_toolkit.play_oem.widgets import FloatingPanel
+
+    frame = wx.Frame(None, size=(500, 300))
+    host = wx.Panel(frame)
+    frame.SetSizer(wx.BoxSizer(wx.VERTICAL))
+    frame.GetSizer().Add(host, 1, wx.EXPAND)
+    panel = FloatingPanel(host, initially_expanded=True)
+    content = wx.BoxSizer(wx.VERTICAL)
+    content.Add(wx.StaticText(panel.GetContentWindow(), label="Readout"))
+    panel.SetContentSizer(content)
+    frame.Show()
+    wx_app.Yield()
+
+    assert panel.IsExpanded()
+
+    panel.Close()
+    frame.Destroy()
+    wx_app.Yield()
+
+
+@pytest.mark.skipif(
+    not os.environ.get("DISPLAY"), reason="requires an X display (use xvfb-run)"
+)
+@pytest.mark.parametrize("corner", list(PanelCorner))
+def test_floating_panel_click_control_stays_open_and_follows_corner(
+    wx_app: Any,
+    corner: PanelCorner,
+) -> None:
+    import wx
+
+    from ephem_toolkit.play_oem.widgets import FloatingPanel
+
+    frame = wx.Frame(None, size=(500, 300))
+    host = wx.Panel(frame)
+    frame.SetSizer(wx.BoxSizer(wx.VERTICAL))
+    frame.GetSizer().Add(host, 1, wx.EXPAND)
+    panel = FloatingPanel(
+        host,
+        corner=corner,
+        interaction=PanelInteraction.CLICK,
+    )
+    readout = wx.StaticText(panel.GetContentWindow(), label="Lat: —  ·  Long: —")
+    row_height = readout.GetBestSize().height
+    content_sizer = wx.BoxSizer(wx.VERTICAL)
+    content_sizer.Add(readout, 0, wx.EXPAND)
+    panel.SetContentSizer(content_sizer)
+    frame.Show()
+    wx_app.Yield()
+
+    class Event:
+        @staticmethod
+        def Skip() -> None:
+            pass
+
+    panel._on_handle_click(cast(Any, Event()))
+    wx_app.Yield()
+    assert panel.IsExpanded()
+    assert panel._collapse_control is not None
+    assert panel._collapse_control.GetLabel() == "≡"
+    assert panel._collapse_control.GetMinSize().height == row_height
+    assert panel._collapse_control.GetMaxSize().height == row_height
+    assert panel._content_sizer is not None
+    body_sizer = panel._content_sizer.GetItem(0).GetSizer()
+    assert body_sizer is not None
+    assert body_sizer.GetOrientation() == wx.HORIZONTAL
+    control_index = 0 if corner.value.endswith("left") else 1
+    control_item = body_sizer.GetItem(control_index)
+    assert control_item.GetWindow() == panel._collapse_control
+    expected_alignment = (
+        wx.ALIGN_TOP if corner.value.startswith("top") else wx.ALIGN_BOTTOM
+    )
+    assert control_item.GetFlag() & expected_alignment
+    panel._on_collapse_control_click(cast(Any, Event()))
+    wx_app.Yield()
+    assert not panel.IsExpanded()
+
+    panel.Close()
     frame.Destroy()
     wx_app.Yield()

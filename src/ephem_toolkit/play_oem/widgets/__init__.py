@@ -12,7 +12,7 @@ from .playback_time_scrubber import (
 from .playback_time_slider import PlaybackTimeSlider
 from .track_slider import TrackSlider
 from .time_slider import TimeSlider
-from .floating_panel import FloatingPanel
+from .floating_panel import FloatingPanel, PanelCorner, PanelInteraction
 
 __all__ = [
     "ChevronButton",
@@ -26,4 +26,6 @@ __all__ = [
     "TimeSlider",
     "TimeTickRail",
     "FloatingPanel",
+    "PanelCorner",
+    "PanelInteraction",
 ]

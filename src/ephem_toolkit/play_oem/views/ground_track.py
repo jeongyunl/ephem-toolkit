@@ -35,7 +35,7 @@ from ..oem_data_store import GroundTrackGroups, StoreQuery
 from ..series import OrbitSeries
 from ..time_range import ResolvedTimeRange
 from ..time_unit import TimeUnit
-from ..widgets import FloatingPanel
+from ..widgets import FloatingPanel, PanelCorner, PanelInteraction
 from .base import StoreViewBinding, StoreViewContext
 from .compact_controls import compact_controls
 from .plotting import bounded_sample_indices
@@ -231,6 +231,7 @@ class GroundTrackView(ViewSpecMixin):
         self._panel: wx.Panel | None = None
         self._settings_panel: FloatingPanel | None = None
         self._legend_panel: FloatingPanel | None = None
+        self._coordinate_panel: FloatingPanel | None = None
         self._canvas: FigureCanvasWxAgg | None = None
         self._figure: Figure | None = None
         self._legend_canvas: FigureCanvasWxAgg | None = None
@@ -413,7 +414,7 @@ class GroundTrackView(ViewSpecMixin):
             panel,
             name="Ground Track legend",
             handle_label="≡",
-            corner="bottom-right",
+            corner=PanelCorner.BOTTOM_RIGHT,
         )
         self._legend_panel = legend_panel
         legend_content = legend_panel.GetContentWindow()
@@ -430,14 +431,28 @@ class GroundTrackView(ViewSpecMixin):
         legend_sizer = wx.BoxSizer(wx.VERTICAL)
         legend_sizer.Add(self._legend_canvas, 1, wx.EXPAND)
         legend_panel.SetContentSizer(legend_sizer)
-        self._coordinate_readout = wx.StaticText(panel, wx.ID_ANY, "Lat —  ·  Lon —")
+        coordinate_panel = FloatingPanel(
+            panel,
+            name="Ground Track coordinates",
+            corner=PanelCorner.TOP_LEFT,
+            interaction=PanelInteraction.CLICK,
+            initially_expanded=True,
+        )
+        self._coordinate_panel = coordinate_panel
+        self._coordinate_readout = wx.StaticText(
+            coordinate_panel.GetContentWindow(),
+            wx.ID_ANY,
+            "Lat: —  ·  Long: —",
+        )
         self._coordinate_readout.SetName("Ground Track current coordinates")
+        coordinate_sizer = wx.BoxSizer(wx.VERTICAL)
+        coordinate_sizer.Add(self._coordinate_readout, 0, wx.EXPAND)
+        coordinate_panel.SetContentSizer(coordinate_sizer)
 
         sizer = wx.BoxSizer(wx.VERTICAL)
         map_row = wx.BoxSizer(wx.HORIZONTAL)
         map_row.Add(self._canvas, 1, wx.EXPAND)
         sizer.Add(map_row, 1, wx.EXPAND)
-        sizer.Add(self._coordinate_readout, 0, wx.ALIGN_RIGHT | wx.ALL, 6)
         panel.SetSizer(sizer)
         projection.Bind(wx.EVT_CHOICE, self._on_projection_choice)
         background.Bind(wx.EVT_CHOICE, self._on_background_choice)
@@ -1255,8 +1270,8 @@ class GroundTrackView(ViewSpecMixin):
             self._marker.set_data([marker_x], [marker_y])
         if self._coordinate_readout is not None:
             self._coordinate_readout.SetLabel(
-                f"Lat {_latitude_label(float(np.rad2deg(latitude_rad)))}  ·  "
-                f"Lon {_longitude_label(float(np.rad2deg(longitude_rad)))}"
+                f"Lat: {np.rad2deg(latitude_rad):.3f}°  ·  "
+                f"Long: {np.rad2deg(longitude_rad):.3f}°"
             )
 
         try:
@@ -1319,8 +1334,11 @@ class GroundTrackView(ViewSpecMixin):
             self._settings_panel.Close()
         if self._legend_panel is not None:
             self._legend_panel.Close()
+        if self._coordinate_panel is not None:
+            self._coordinate_panel.Close()
         self._settings_panel = None
         self._legend_panel = None
+        self._coordinate_panel = None
         self._canvas = None
         self._legend_canvas = None
         self._panel = None
