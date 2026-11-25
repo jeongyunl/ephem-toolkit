@@ -133,16 +133,33 @@ class PlayerStoreViewRefreshMixin:
     def _queue_store_view_refresh(
         self: PlayerAppState, view_ids: set[str] | None = None
     ) -> None:
+        if self._should_suppress_partial_store_view_refresh():
+            return
         if view_ids is None:
-            self._refresh_state.pending_store_view_ids.update(self._open_panels)
+            candidates = self._open_panels
         else:
-            self._refresh_state.pending_store_view_ids.update(
-                panel_id
+            candidates = {
+                panel_id: opened
                 for panel_id, opened in self._open_panels.items()
                 if opened.view_name in view_ids
-            )
+            }
+        self._refresh_state.pending_store_view_ids.update(
+            candidates
+        )
+
+    def _should_suppress_partial_store_view_refresh(
+        self: PlayerAppState,
+    ) -> bool:
+        """Keep every loaded view stable until full OEM coverage completes."""
+        return (
+            self._load_state.initial_range_ready
+            and not self._load_state.coverage_complete
+        )
 
     def _refresh_store_views(self: PlayerAppState) -> None:
+        if self._should_suppress_partial_store_view_refresh():
+            self._refresh_state.incremental_view_refresh_pending = True
+            return
         if self._should_defer_incremental_view_refresh():
             self._refresh_state.incremental_view_refresh_pending = True
             return
@@ -234,6 +251,9 @@ class PlayerStoreViewRefreshMixin:
         self: PlayerAppState, *, force: bool = False
     ) -> None:
         """Rebuild plots at a bounded rate, or immediately when loading ends."""
+        if self._should_suppress_partial_store_view_refresh():
+            self._refresh_state.incremental_view_refresh_pending = True
+            return
         if self._should_defer_incremental_view_refresh():
             self._refresh_state.incremental_view_refresh_pending = True
             return

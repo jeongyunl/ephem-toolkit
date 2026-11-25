@@ -2568,6 +2568,27 @@ def test_incremental_panel_data_update_reuses_view_and_canvas(
     player.close()
 
 
+def test_partial_initial_range_refresh_excludes_all_views(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    player, _views, _canvases, _frames = make_app(monkeypatch)
+    player._open_panels["station"] = SimpleNamespace(view_name="elevation-profile")
+    player._open_panels["series"] = SimpleNamespace(view_name="speed-altitude")
+    player._load_state.initial_range_ready = True
+    player._load_state.coverage_complete = False
+
+    player._queue_store_view_refresh()
+
+    assert player._refresh_state.pending_store_view_ids == set()
+
+    player._load_state.coverage_complete = True
+    player._queue_store_view_refresh()
+
+    assert player._refresh_state.pending_store_view_ids == {"series", "station"}
+    player._open_panels.clear()
+    player.close()
+
+
 def test_store_refresh_rebuilds_panels_opened_before_the_store(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
