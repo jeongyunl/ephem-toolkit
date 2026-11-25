@@ -102,8 +102,15 @@ def _stations(count: int) -> list[GroundStation]:
     ]
 
 
-def measure_store_ingest(source: Path, capacity: int) -> tuple[float, float, int]:
+def measure_store_ingest(
+    source: Path,
+    capacity: int,
+    *,
+    batch_size: int = 512,
+) -> tuple[float, float, int]:
     """Measure direct parsing and raw publication without derived preparation."""
+    if batch_size < 1:
+        raise ValueError("batch_size must be positive")
     store = OemDataStore()
     started = time.perf_counter()
     store.begin(capacity)
@@ -115,13 +122,47 @@ def measure_store_ingest(source: Path, capacity: int) -> tuple[float, float, int
             first_batch_s = time.perf_counter() - started
 
     completion = read_oem_into_store(
-        source, store, batch_size=512, on_append=observe, cancel_event=Event()
+        source, store, batch_size=batch_size, on_append=observe, cancel_event=Event()
     )
     if first_batch_s is None:
         raise RuntimeError("store ingestion completed without states")
     if completion.state_count != store.snapshot().sample_count:
         raise RuntimeError("store and completion counts do not match")
     return first_batch_s, time.perf_counter() - started, completion.state_count
+
+
+def run_batch_size_benchmarks(
+    source: Path,
+    capacity: int,
+    repeats: int,
+    batch_sizes: Sequence[int] = (1, 64, 512, 4096, 65536),
+) -> None:
+    """Compare direct-store ingestion across OEM publication batch sizes."""
+    if repeats < 1:
+        raise ValueError("repeats must be positive")
+    if any(batch_size < 1 for batch_size in batch_sizes):
+        raise ValueError("batch sizes must be positive")
+
+    print(
+        f"Batch-size benchmark input: {source}; bytes={source.stat().st_size}; "
+        f"capacity={capacity}"
+    )
+    print("Settings: synchronous producer; no derived preparation")
+    for batch_size in batch_sizes:
+        measure_store_ingest(source, capacity, batch_size=batch_size)
+        samples = [
+            measure_store_ingest(source, capacity, batch_size=batch_size)
+            for _ in range(repeats)
+        ]
+        _print_measurement(
+            f"Batch {batch_size}",
+            [sample[1] for sample in samples],
+        )
+        print(
+            f"  first-batch samples="
+            f"{[round(sample[0], 6) for sample in samples]}; "
+            f"state counts={[sample[2] for sample in samples]}"
+        )
 
 
 def run_store_ingest_benchmarks(source: Path, capacity: int, repeats: int) -> None:
@@ -983,6 +1024,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="benchmark direct-to-store parsing without GUI handoff",
     )
     parser.add_argument(
+        "--batch-size-bench",
+        action="store_true",
+        help="compare direct-store parsing at batch sizes 1, 64, 512, 4096, 65536",
+    )
+    parser.add_argument(
         "--skip-data-benchmarks",
         action="store_true",
         help="skip one-shot data benchmarks (requires another probe)",
@@ -1024,6 +1070,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         run_store_session_benchmarks(args.oem, store_session_capacity, args.repeats)
     if args.parser_bench:
         run_parser_benchmarks(args.oem, args.repeats)
+    if args.batch_size_bench:
+        run_batch_size_benchmarks(
+            args.oem,
+            OemDataStore.capacity_for_file(args.oem),
+            args.repeats,
+        )
     if args.gui_overlap_probe:
         run_gui_stall_probe(args.oem, range_probe=True)
     elif args.gui_range_baseline_probe:
@@ -1034,6 +1086,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.store_ingest_bench is not None
         or store_session_requested
         or args.parser_bench
+        or args.batch_size_bench
         or args.gui_stall_probe
         or args.gui_overlap_probe
         or args.gui_range_baseline_probe

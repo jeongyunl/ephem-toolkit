@@ -11,6 +11,7 @@ from scripts.bench_play_oem import (
     _store_memory_diagnostics,
     measure_store_ingest,
     measure_store_session,
+    run_batch_size_benchmarks,
     run_parser_benchmarks,
 )
 from ephem_toolkit.play_oem import time_range
@@ -66,6 +67,37 @@ def test_parser_benchmark_reports_direct_store_time(tmp_path: Path, capsys) -> N
     )
     run_parser_benchmarks(source, repeats=2)
     assert "Direct raw-store parsing: median=" in capsys.readouterr().out
+
+
+def test_batch_size_benchmark_reports_comparable_loads(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    source = tmp_path / "small.oem"
+    source.write_text(
+        "CCSDS_OEM_VERS = 2.0\n"
+        "META_START\n"
+        "OBJECT_NAME = TEST\n"
+        "CENTER_NAME = EARTH\n"
+        "REF_FRAME = GCRF\n"
+        "TIME_SYSTEM = UTC\n"
+        "META_STOP\n"
+        "2026-01-01T00:00:00 7000 0 0 0 7.5 0\n"
+        "2026-01-01T00:00:10 7000 1 0 0 7.5 0\n"
+        "2026-01-01T00:00:20 7000 2 0 0 7.5 0\n",
+        encoding="utf-8",
+    )
+    run_batch_size_benchmarks(
+        source,
+        3,
+        repeats=2,
+        batch_sizes=(1, 64, 512),
+    )
+    output = capsys.readouterr().out
+    assert "Batch-size benchmark input:" in output
+    assert "Batch 1:" in output
+    assert "Batch 64:" in output
+    assert "Batch 512:" in output
 
 
 def test_percentile_interpolates_and_rejects_invalid_input() -> None:
