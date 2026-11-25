@@ -23,7 +23,7 @@ from ..station_analysis import StationAnalysisContext, StationAnalysisSelection
 from ..time_range import ResolvedTimeRange
 from ..time_unit import TimeUnit
 from .base import (
-    StoreViewBinding,
+    StoreStationViewSupport,
     StoreViewContext,
     station_access_from_store,
 )
@@ -34,7 +34,7 @@ from .plotting import (
 )
 
 
-class GroundStationAccessView:
+class GroundStationAccessView(StoreStationViewSupport):
     """Display selected-station elevation and shared-clock metrics."""
 
     name = "ground-station-access"
@@ -88,8 +88,7 @@ class GroundStationAccessView:
         self._pass_label: wx.StaticText | None = None
         self._status_label: wx.StaticText | None = None
         self._access_results: tuple[StationAccess, ...] = ()
-        self._store_context: StoreViewContext | None = None
-        self._store_binding = StoreViewBinding(("station-access",))
+        self._initialize_station_store(("station-access",))
         self._store_queries: dict[str, StoreQuery[StationAccessView]] = {}
         self._preparation_error: str | None = None
         self._time_range_bounds: ResolvedTimeRange | None = None
@@ -157,8 +156,7 @@ class GroundStationAccessView:
         return panel
 
     def build_from_store(self, context: StoreViewContext, /) -> wx.Window:
-        self._store_binding.bind(context)
-        self._store_context = context
+        self._prepare_station_store_context(context)
         self._time_range_bounds = context.plot_range
         self._time_range_applied = True
         self._prepare_range = context.plot_range
@@ -168,8 +166,7 @@ class GroundStationAccessView:
     def update_from_store(self, context: StoreViewContext, /) -> None:
         if self._store_context is None:
             raise RuntimeError("Ground Station Access view was not built from a store")
-        self._store_binding.bind(context)
-        self._store_context = context
+        self._prepare_station_store_context(context)
         self._time_range_bounds = context.plot_range
         self._time_range_applied = True
         self._prepare_range = context.plot_range
@@ -276,7 +273,9 @@ class GroundStationAccessView:
         self._time_range_coverage = coverage
         self._time_range_applied = True
         if self._store_context is not None:
-            self._store_context = self._store_binding.with_range(bounds, coverage)
+            self._store_context = self._station_store_context_for_range(
+                bounds, coverage
+            )
         prepared_again = self._reprepare_for_range(bounds)
         if prepared_again or was_empty != (bounds is None):
             self._draw_elevation_plot()
@@ -289,8 +288,7 @@ class GroundStationAccessView:
     def close(self) -> None:
         self._context_unsubscribe()
         self._context_unsubscribe = lambda: None
-        self._store_binding.close()
-        self._store_context = None
+        self._close_station_store()
         self._store_queries.clear()
         self._canvas = None
         self._figure = None
@@ -427,9 +425,7 @@ class GroundStationAccessView:
         result: StationAccess,
         divisor: float,
     ) -> None:
-        if self._store_context is None:
-            return
-        sampler = self._store_context.time_sampling
+        sampler = self._station_time_sampling()
         axes.set_title(f"{station.name} elevation")
         has_line = False
         mask = station.minimum_elevation_deg

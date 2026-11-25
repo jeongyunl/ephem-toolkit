@@ -26,7 +26,7 @@ from ..station_analysis import StationAnalysisContext, StationAnalysisSelection
 from ..time_range import ResolvedTimeRange
 from ..time_unit import TimeUnit
 from .base import (
-    StoreViewBinding,
+    StoreStationViewSupport,
     StoreViewContext,
     station_access_from_store,
     store_load_status_message,
@@ -66,7 +66,7 @@ def _utc_label(time_s: float) -> str:
     )
 
 
-class GroundStationPassesView:
+class GroundStationPassesView(StoreStationViewSupport):
     """Inspect cached pass details and their topocentric sky paths."""
 
     name = "ground-station-passes"
@@ -128,8 +128,7 @@ class GroundStationPassesView:
         )
         self._visible_intervals: tuple[AccessInterval, ...] = ()
         self._access_results: tuple[StationAccess, ...] = ()
-        self._store_context: StoreViewContext | None = None
-        self._store_binding = StoreViewBinding(("station-access",))
+        self._initialize_station_store(("station-access",))
         self._store_queries: dict[str, StoreQuery[StationAccessView]] = {}
         self._time_range_bounds: ResolvedTimeRange | None = None
         self._time_range_applied = False
@@ -176,8 +175,7 @@ class GroundStationPassesView:
 
     def build_from_store(self, context: StoreViewContext, /) -> wx.Window:
         """Build from range-bound pass queries in a stable store snapshot."""
-        self._store_binding.bind(context)
-        self._store_context = context
+        self._prepare_station_store_context(context)
         self._prepare_range = context.plot_range
         self._time_range_bounds = context.plot_range
         self._time_range_applied = True
@@ -188,8 +186,7 @@ class GroundStationPassesView:
         """Refresh pass rows and sky data from a newer store snapshot."""
         if self._store_context is None:
             raise RuntimeError("Ground Station Passes view was not built from a store")
-        self._store_binding.bind(context)
-        self._store_context = context
+        self._prepare_station_store_context(context)
         self._prepare_range = context.plot_range
         self._time_range_bounds = context.plot_range
         self._time_range_applied = True
@@ -994,7 +991,9 @@ class GroundStationPassesView:
         self._time_range_bounds = bounds
         self._time_range_applied = True
         if self._store_context is not None:
-            self._store_context = self._store_binding.with_range(bounds, coverage)
+            self._store_context = self._station_store_context_for_range(
+                bounds, coverage
+            )
         if self._limit_to_range and bounds != self._prepare_range:
             self._prepare_range = bounds
             self._prepare_access()
@@ -1027,8 +1026,7 @@ class GroundStationPassesView:
         oem_loaded: bool,
     ) -> None:
         """Refresh pass data after an OEM is replaced."""
-        self._store_binding.close()
-        self._store_context = None
+        self._close_station_store()
         self._store_queries.clear()
         self._cursor = cursor
         self._object_name = object_name
@@ -1045,8 +1043,7 @@ class GroundStationPassesView:
         self._closed = True
         self._context_unsubscribe()
         self._context_unsubscribe = lambda: None
-        self._store_binding.close()
-        self._store_context = None
+        self._close_station_store()
         self._store_queries.clear()
         self._canvas = None
         self._figure = None

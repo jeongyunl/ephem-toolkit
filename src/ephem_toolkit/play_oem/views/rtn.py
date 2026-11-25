@@ -11,9 +11,8 @@ from .. import series, time_unit
 from ..oem_data_store import ColumnGroupView, StoreQuery
 from ..time_range import ResolvedTimeRange
 from .base import (
+    StoreSeriesPlotView,
     StoreViewContext,
-    StoreViewBinding,
-    TimeRangeSupport,
     add_store_series_paths,
     clear_store_series_artists,
     set_store_series_y_limits,
@@ -31,7 +30,7 @@ FIGURE_SIZE_INCHES: tuple[float, float] = (8.0, 7.0)
 """Default RTN-delta figure size in inches."""
 
 
-class RtnDeltaView(TimeRangeSupport):
+class RtnDeltaView(StoreSeriesPlotView):
     """Plot sample-to-sample radial, transverse, and normal position deltas."""
 
     name: str = "rtn"
@@ -42,18 +41,11 @@ class RtnDeltaView(TimeRangeSupport):
 
     def __init__(self, start_time_s: float, object_name: str) -> None:
         """Create an RTN-delta view anchored at an OEM start time."""
-        self._start_time_s = start_time_s
+        self._initialize_store_series(start_time_s)
         self._object_name = object_name
-        self._figure: Figure | None = None
-        self._cursor_artists: tuple[Line2D, ...] | None = None
-        self._time_unit_divisor_s = 1.0
-        self._histories: tuple[SegmentedPlotHistory, ...] = ()
-        self._store_context: StoreViewContext | None = None
         self._store_query: StoreQuery[tuple[ColumnGroupView, ...]] | None = None
-        self._store_binding = StoreViewBinding(("series",))
         self._store_artists: tuple[tuple[Artist, ...], ...] = ((), (), ())
         self._store_empty_artists: tuple[Text, ...] | None = None
-        self._store_start_time_s = start_time_s
 
     def build_from_store(self, context: StoreViewContext) -> Figure:
         """Build from range-limited RTN columns owned by the data store."""
@@ -114,12 +106,7 @@ class RtnDeltaView(TimeRangeSupport):
     ) -> None:
         if self._figure is None:
             raise RuntimeError("RTN-delta view has not been built")
-        self._store_binding.bind(context)
-        self._store_context = context
-        self._store_start_time_s = context.coverage[0]
-        self._time_unit_divisor_s = context.time_unit.get_divisor_s()
-        self._range_start_time_s = self._store_start_time_s
-        self._range_divisor_s = self._time_unit_divisor_s
+        self._prepare_store_context(context)
         self._figure.axes[-1].set_xlabel(context.time_unit.get_axis_label())
         super().set_time_range(context.plot_range, context.coverage)
         for axes, artists in zip(self._figure.axes, self._store_artists):
@@ -256,38 +243,17 @@ class RtnDeltaView(TimeRangeSupport):
             super().set_time_range(bounds, coverage)
             return
         self._apply_store_context(
-            self._store_binding.with_range(bounds, coverage),
+            self._store_context_for_range(bounds, coverage),
             rescale_y=False,
         )
 
     def update(self, time_s: float) -> None:
         """Move each cursor line to an absolute OEM time."""
-        if self._cursor_artists is None:
-            raise RuntimeError("RTN-delta view has not been built")
-        if self._store_context is not None:
-            self._last_cursor_time_s = time_s
-            elapsed_time_axis = (
-                time_s - self._store_start_time_s
-            ) / self._time_unit_divisor_s
-            for cursor_artist in self._cursor_artists:
-                cursor_artist.set_xdata([elapsed_time_axis, elapsed_time_axis])
-            bounds = self._store_context.plot_range
-            visible = bounds is not None and bounds.start_s <= time_s <= bounds.end_s
-            for cursor_artist in self._cursor_artists:
-                cursor_artist.set_visible(visible)
-            return
-        elapsed_time_axis = (time_s - self._start_time_s) / self._time_unit_divisor_s
-        for cursor_artist in self._cursor_artists:
-            cursor_artist.set_xdata([elapsed_time_axis, elapsed_time_axis])
-        self._set_cursor_visibility(time_s)
+        self._update_store_or_legacy_cursor(time_s)
 
     def close(self) -> None:
         """Release the figure and cursor artists."""
-        if self._figure is not None:
-            self._close_time_range()
-            self._figure.clear()
-        self._store_binding.close()
-        self._store_context = None
+        self._close_store_series_plot()
         self._store_query = None
         self._store_artists = ((), (), ())
         self._store_empty_artists = None

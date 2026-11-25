@@ -377,6 +377,39 @@ class StoreViewBinding:
         self._unsubscribers.clear()
 
 
+class StoreStationViewSupport:
+    """Shared store binding lifecycle for ground-station views."""
+
+    def _initialize_station_store(
+        self,
+        tiers: Sequence[TierName],
+    ) -> None:
+        self._store_context: StoreViewContext | None = None
+        self._store_binding = StoreViewBinding(tiers)
+
+    def _prepare_station_store_context(self, context: StoreViewContext) -> None:
+        self._store_binding.bind(context)
+        self._store_context = context
+
+    def _station_store_context_for_range(
+        self,
+        bounds: ResolvedTimeRange | None,
+        coverage: tuple[float, float],
+    ) -> StoreViewContext:
+        return self._store_binding.with_range(bounds, coverage)
+
+    def _close_station_store(self) -> None:
+        self._store_binding.close()
+        self._store_context = None
+
+    def _station_time_sampling(self) -> TimeSamplingPolicy:
+        """Return store sampling policy or the normal policy for result-only views."""
+        context = getattr(self, "_store_context", None)
+        if isinstance(context, StoreViewContext):
+            return context.time_sampling
+        return TimeSamplingPolicy()
+
+
 def station_access_from_store(value: StationAccessView) -> StationAccess:
     """Adapt leased store columns to the station view model without copying."""
     profiles: list[LookAngleProfile] = []
@@ -780,3 +813,70 @@ class TimeRangeSupport:
         )
         for cursor in self._range_cursors:
             cursor.set_visible(visible)
+
+
+class StoreSeriesPlotView(TimeRangeSupport):
+    """Shared lifecycle for store-backed 2D series plots."""
+
+    def _initialize_store_series(
+        self,
+        start_time_s: float,
+        *,
+        tiers: Sequence[TierName] = ("series",),
+    ) -> None:
+        self._start_time_s = start_time_s
+        self._figure: Figure | None = None
+        self._cursor_artists: tuple[Line2D, ...] | None = None
+        self._time_unit_divisor_s = 1.0
+        self._histories: tuple[SegmentedPlotHistory, ...] = ()
+        self._store_context: StoreViewContext | None = None
+        self._store_binding = StoreViewBinding(tiers)
+        self._store_start_time_s = start_time_s
+
+    def _prepare_store_context(self, context: StoreViewContext) -> None:
+        """Bind a snapshot and refresh the shared origin/time-unit state."""
+        self._store_binding.bind(context)
+        self._store_context = context
+        self._store_start_time_s = context.coverage[0]
+        self._time_unit_divisor_s = context.time_unit.get_divisor_s()
+        self._range_start_time_s = self._store_start_time_s
+        self._range_divisor_s = self._time_unit_divisor_s
+
+    def _store_context_for_range(
+        self,
+        bounds: ResolvedTimeRange | None,
+        coverage: tuple[float, float],
+    ) -> StoreViewContext:
+        return self._store_binding.with_range(bounds, coverage)
+
+    def _update_store_or_legacy_cursor(self, time_s: float) -> None:
+        """Move every cursor using store context or the legacy OEM origin."""
+        if self._cursor_artists is None:
+            raise RuntimeError("view has not been built")
+        if self._store_context is not None:
+            self._last_cursor_time_s = time_s
+            elapsed_time_axis = (
+                time_s - self._store_start_time_s
+            ) / self._time_unit_divisor_s
+            bounds = self._store_context.plot_range
+            visible = bounds is not None and bounds.start_s <= time_s <= bounds.end_s
+            for cursor_artist in self._cursor_artists:
+                cursor_artist.set_xdata([elapsed_time_axis, elapsed_time_axis])
+                cursor_artist.set_visible(visible)
+            return
+        elapsed_time_axis = (
+            time_s - self._start_time_s
+        ) / self._time_unit_divisor_s
+        for cursor_artist in self._cursor_artists:
+            cursor_artist.set_xdata([elapsed_time_axis, elapsed_time_axis])
+        self._set_cursor_visibility(time_s)
+
+    def _close_store_series_plot(self) -> None:
+        """Release shared figure, range callbacks, and store subscriptions."""
+        if self._figure is not None:
+            self._close_time_range()
+            self._figure.clear()
+        self._store_binding.close()
+        self._store_context = None
+        self._figure = None
+        self._cursor_artists = None

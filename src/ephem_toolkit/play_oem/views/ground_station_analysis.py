@@ -25,7 +25,7 @@ from ..station_analysis import StationAnalysisContext, StationAnalysisSelection
 from ..time_range import ResolvedTimeRange
 from ..time_unit import TimeUnit
 from .base import (
-    StoreViewBinding,
+    StoreStationViewSupport,
     StoreViewContext,
     station_access_from_store,
     store_load_status_message,
@@ -35,7 +35,7 @@ from .plotting import MAX_DISPLAY_POINTS_PER_SEGMENT
 _PROFILE_TYPES = frozenset(("elevation-profile", "azimuth-profile", "range-profile"))
 
 
-class GroundStationAnalysisView:
+class GroundStationAnalysisView(StoreStationViewSupport):
     """Render one focused Ground Station panel from shared prepared history."""
 
     def __init__(
@@ -75,8 +75,7 @@ class GroundStationAnalysisView:
             else (self._stations[0].station_id if self._stations else None)
         )
         self._results: dict[str, StationAccess] = {}
-        self._store_context: StoreViewContext | None = None
-        self._store_binding = StoreViewBinding(
+        self._initialize_station_store(
             () if panel_type == "station-status" else ("station-access",)
         )
         self._store_queries: dict[str, StoreQuery[StationAccessView]] = {}
@@ -103,8 +102,7 @@ class GroundStationAnalysisView:
 
     def build_from_store(self, context: StoreViewContext, /) -> wx.Window:
         """Build from bound station queries and point metrics."""
-        self._store_binding.bind(context)
-        self._store_context = context
+        self._prepare_station_store_context(context)
         self._time_range = context.plot_range
         self._prepare_access()
         return self._build_panel()
@@ -113,8 +111,7 @@ class GroundStationAnalysisView:
         """Refresh station results from a newer snapshot or range."""
         if self._store_context is None:
             raise RuntimeError("Ground Station view was not built from a store")
-        self._store_binding.bind(context)
-        self._store_context = context
+        self._prepare_station_store_context(context)
         self._time_range = context.plot_range
         self._prepare_access()
         self._draw()
@@ -214,7 +211,9 @@ class GroundStationAnalysisView:
             return
         self._time_range = bounds
         if self._store_context is not None:
-            self._store_context = self._store_binding.with_range(bounds, coverage)
+            self._store_context = self._station_store_context_for_range(
+                bounds, coverage
+            )
         self._prepare_access()
         self._draw()
 
@@ -240,8 +239,7 @@ class GroundStationAnalysisView:
         ):
             self._canvas.mpl_disconnect(self._selection_callback_id)
         self._context_unsubscribe = lambda: None
-        self._store_binding.close()
-        self._store_context = None
+        self._close_station_store()
         self._store_queries.clear()
         self._canvas = None
         self._figure = None
@@ -364,9 +362,9 @@ class GroundStationAnalysisView:
             self._canvas.draw_idle()
 
     def _draw_profile(self, result: StationAccess, station: GroundStation) -> None:
-        if self._axes is None or self._store_context is None:
+        if self._axes is None:
             return
-        sampler = self._store_context.time_sampling
+        sampler = self._station_time_sampling()
         if self._panel_type == "elevation-profile":
             intervals = self._visible_intervals(result)
             for index, interval in enumerate(intervals):

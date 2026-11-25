@@ -13,8 +13,8 @@ from matplotlib.text import Text
 from .. import series, time_unit
 from ..time_range import ResolvedTimeRange
 from .base import (
+    StoreSeriesPlotView,
     StoreViewContext,
-    TimeRangeSupport,
     add_raw_state_paths,
     clear_store_series_artists,
     set_raw_state_y_limits,
@@ -34,7 +34,7 @@ STATE_COMPONENT_COLUMN_COUNT: int = 2
 """Number of columns for position and velocity plots."""
 
 
-class StateComponentsView(TimeRangeSupport):
+class StateComponentsView(StoreSeriesPlotView):
     """Plot X/Y/Z position and VX/VY/VZ velocity histories."""
 
     name: str = "state-components"
@@ -54,16 +54,10 @@ class StateComponentsView(TimeRangeSupport):
         frame_context : str
             Reference-frame and origin description used in the figure title.
         """
-        self._start_time_s: float = start_time_s
+        self._initialize_store_series(start_time_s)
         self._frame_context: str = frame_context
-        self._figure: Figure | None = None
-        self._cursor_artists: tuple[Line2D, ...] | None = None
-        self._time_unit_divisor_s: float = 1.0
-        self._histories: tuple[SegmentedPlotHistory, ...] = ()
-        self._store_context: StoreViewContext | None = None
         self._store_artists: tuple[tuple[Artist, ...], ...] = ((), (), (), (), (), ())
         self._store_empty_artists: tuple[Text, ...] | None = None
-        self._store_start_time_s = start_time_s
 
     def build_from_store(self, context: StoreViewContext) -> Figure:
         """Build from raw state columns without an OrbitSeries projection."""
@@ -139,11 +133,7 @@ class StateComponentsView(TimeRangeSupport):
     ) -> None:
         if self._figure is None:
             raise RuntimeError("state-components view has not been built")
-        self._store_context = context
-        self._store_start_time_s = context.coverage[0]
-        self._time_unit_divisor_s = context.time_unit.get_divisor_s()
-        self._range_start_time_s = self._store_start_time_s
-        self._range_divisor_s = self._time_unit_divisor_s
+        self._prepare_store_context(context)
         self._figure.axes[4].set_xlabel(context.time_unit.get_axis_label())
         self._figure.axes[5].set_xlabel(context.time_unit.get_axis_label())
         super().set_time_range(context.plot_range, context.coverage)
@@ -331,7 +321,7 @@ class StateComponentsView(TimeRangeSupport):
             super().set_time_range(bounds, coverage)
             return
         self._apply_store_context(
-            self._store_context.with_range(bounds, coverage),
+            self._store_context_for_range(bounds, coverage),
             rescale_y=False,
         )
 
@@ -348,30 +338,11 @@ class StateComponentsView(TimeRangeSupport):
         RuntimeError
             If this view has not been built.
         """
-        if self._cursor_artists is None:
-            raise RuntimeError("state-components view has not been built")
-        if self._store_context is not None:
-            self._last_cursor_time_s = time_s
-            elapsed_time_axis = (
-                time_s - self._store_start_time_s
-            ) / self._time_unit_divisor_s
-            for cursor_artist in self._cursor_artists:
-                cursor_artist.set_xdata([elapsed_time_axis, elapsed_time_axis])
-            bounds = self._store_context.plot_range
-            visible = bounds is not None and bounds.start_s <= time_s <= bounds.end_s
-            for cursor_artist in self._cursor_artists:
-                cursor_artist.set_visible(visible)
-            return
-        elapsed_time_axis = (time_s - self._start_time_s) / self._time_unit_divisor_s
-        for cursor_artist in self._cursor_artists:
-            cursor_artist.set_xdata([elapsed_time_axis, elapsed_time_axis])
-        self._set_cursor_visibility(time_s)
+        self._update_store_or_legacy_cursor(time_s)
 
     def close(self) -> None:
         """Release the figure and cursor artists."""
-        if self._figure is not None:
-            self._close_time_range()
-            self._figure.clear()
+        self._close_store_series_plot()
         self._store_context = None
         self._store_artists = ((), (), (), (), (), ())
         self._store_empty_artists = None
