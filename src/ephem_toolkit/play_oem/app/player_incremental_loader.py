@@ -103,7 +103,6 @@ class PlayerIncrementalLoadingMixin:
 
     def _poll_incremental_load(self: PlayerAppState) -> None:
         data_changed = False
-        load_completed = False
         for event in self._incremental_loader.drain(
             limit=MAX_INCREMENTAL_LOAD_EVENTS_PER_TICK
         ):
@@ -122,13 +121,14 @@ class PlayerIncrementalLoadingMixin:
                 # append notices or refreshing unrelated app state.
                 self._advance_initial_plot()
             elif event.kind is LoadEventKind.COMPLETE:
-                changed, load_completed = self._handle_load_complete_event(event)
+                changed, _ = self._handle_load_complete_event(event)
                 data_changed |= changed
             elif event.kind is LoadEventKind.FAILED:
                 data_changed |= self._handle_load_failed_event(event)
             if event.kind in (LoadEventKind.COMPLETE, LoadEventKind.FAILED):
                 if self._range_dragging:
-                    self._set_range_dragging(False)
+                    self._range_dragging = False
+                    self._publish_range_hint()
         if data_changed and self._oem_loaded:
             self.workspace.update_oem_information(
                 self._formatted_dashboard_context(),
@@ -137,7 +137,7 @@ class PlayerIncrementalLoadingMixin:
             )
             self._update_time_display()
         if self._refresh_state.incremental_view_refresh_pending:
-            self._refresh_incremental_views(force=load_completed)
+            self._refresh_incremental_views()
         self._advance_initial_plot()
 
     def _advance_initial_plot(self: PlayerAppState) -> None:
@@ -200,7 +200,10 @@ class PlayerIncrementalLoadingMixin:
             and not session.paused
         ):
             return
-        if self._range_dragging or self._refresh_state.incremental_view_refresh_pending:
+        if (
+            self._range_dragging
+            or self._refresh_state.incremental_view_refresh_pending
+        ):
             return
         with store._scheduler_lock:
             busy = bool(store._scheduled_work)

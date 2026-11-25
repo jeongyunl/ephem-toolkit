@@ -2362,6 +2362,35 @@ def test_terminal_load_events_end_active_range_drag(
     player.close()
 
 
+def test_terminal_load_event_does_not_force_refresh_after_range_drag_end(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    player, _views, _canvases, _frames = make_app(monkeypatch)
+    event = LoadEvent(1, LoadEventKind.COMPLETE, 0)
+    monkeypatch.setattr(
+        player._incremental_loader,
+        "drain",
+        lambda limit=None: [event],
+    )
+    player._load_state.generation = event.generation
+    player._load_state.path = "test.oem"
+    player._refresh_state.incremental_view_refresh_pending = True
+    player._set_range_dragging(True)
+
+    refresh_calls: list[dict[str, bool]] = []
+    monkeypatch.setattr(
+        player,
+        "_refresh_incremental_views",
+        lambda **kwargs: refresh_calls.append(kwargs),
+    )
+
+    player._poll_incremental_load()
+
+    assert player._range_dragging is False
+    assert refresh_calls == [{}]
+    player.close()
+
+
 def test_controller_ignores_stale_incremental_events() -> None:
     events = [
         LoadEvent(1, LoadEventKind.RAW_APPEND, 100),
