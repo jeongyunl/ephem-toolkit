@@ -80,13 +80,16 @@ height-to-width ratio; `Axes.set_aspect("auto")` can remain in place when the
 projected data should fill that box. Test the rendered axes bounds after
 `canvas.draw()` at different figure sizes and view limits.
 
-The Ground Track legend is figure-level, separate from the axes. Reserve space
-for it with `Figure.subplots_adjust(bottom=...)` so it does not collide with the
-x-axis label. Verify the rendered text bounds with the canvas renderer after a
-draw, for example by checking that the legend's upper edge is below the
-x-label's lower edge. The Ground Track layout regression checks exercise both
-the 2:1 box and legend clearance in
-[`test_ground_track_view.py`](../../../tests/ephem_toolkit/play_oem/test_ground_track_view.py).
+The Ground Track legend uses its own figure and floating panel, separate from
+the map axes. `_draw_legend()` measures the rendered legend bounds and resizes
+the figure and canvas to fit, adding 2 px of canvas padding on each side. The
+renderer returns physical pixels, while the wx canvas size is logical pixels;
+divide the measured size by `GetDPIScaleFactor()` before setting the canvas
+minimum size. The panel uses no content margin and a 1-DIP popup border; keep
+these values small so the legend remains compact. When changing legend entries
+or spacing, verify
+that the rendered legend bounds fit inside the figure with the intended margin
+in [`test_ground_track_view.py`](../../../tests/ephem_toolkit/play_oem/test_ground_track_view.py).
 
 ### Future debugging recipes
 

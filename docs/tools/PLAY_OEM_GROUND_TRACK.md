@@ -20,7 +20,8 @@ is split at OEM segment gaps and at the map seam.
 
 The map opens in Robinson projection and shows the full Earth, both poles, graticule, ground
 track, current sub-satellite point, 0° horizon, and the selected minimum-elevation footprint.
-Open the floating legend at the bottom-right corner to see the map symbols.
+Open the floating legend at the bottom-right corner to see the map symbols. Its panel
+automatically sizes to the legend entries with a small margin.
 Click the handle at the top-left to open the current latitude and longitude readout; both
 coordinates are shown to three decimal places. Use its Collapse button to close it.
 The Earth map area stays 2:1 as the panel is resized or navigated. The in-plot title is omitted

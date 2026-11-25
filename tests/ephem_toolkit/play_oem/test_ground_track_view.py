@@ -295,8 +295,15 @@ def test_ground_track_store_view_uses_bound_queries_and_point_footprints() -> No
         "Ground track",
         "0° horizon",
         "10° minimum elevation",
-        "Current subpoint",
+        "Test object",
     ]
+    legend_bounds = view._legend_figure.legends[0].get_window_extent(
+        legend_canvas.get_renderer()
+    )
+    figure_width_px = view._legend_figure.get_figwidth() * view._legend_figure.dpi
+    figure_height_px = view._legend_figure.get_figheight() * view._legend_figure.dpi
+    assert 3 <= figure_width_px - legend_bounds.width <= 5
+    assert 3 <= figure_height_px - legend_bounds.height <= 5
 
     view.update(10.0)
     assert view._marker is not None and len(view._marker.get_xdata()) == 1

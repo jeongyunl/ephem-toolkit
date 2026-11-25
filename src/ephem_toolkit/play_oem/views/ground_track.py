@@ -58,6 +58,11 @@ BACKGROUND_RENDER_SIZE = (1080, 540)
 _SCROLLBAR_RANGE = 1000
 _SCROLLBAR_THUMB_SIZE = 80
 _SCROLLBAR_TRAVEL = _SCROLLBAR_RANGE - _SCROLLBAR_THUMB_SIZE
+_LEGEND_FIGURE_DPI = 100
+_LEGEND_CANVAS_PADDING_PX = 2
+_LEGEND_BORDER_PAD = 0.1
+_LEGEND_LABEL_SPACING = 0.2
+_LEGEND_HANDLE_TEXT_PAD = 0.4
 
 
 def _scrollbar_metrics(
@@ -415,18 +420,17 @@ class GroundTrackView(ViewSpecMixin):
             name="Ground Track legend",
             handle_label="≡",
             corner=PanelCorner.BOTTOM_RIGHT,
+            content_margin_dip=0,
+            popup_border_width_dip=1,
         )
         self._legend_panel = legend_panel
         legend_content = legend_panel.GetContentWindow()
         legend_content.SetName("Ground Track legend content")
-        self._legend_figure = Figure(figsize=(3.0, 1.8), dpi=100)
+        self._legend_figure = Figure(figsize=(1, 1), dpi=_LEGEND_FIGURE_DPI)
         self._legend_canvas = FigureCanvasWxAgg(
             legend_content,
             wx.ID_ANY,
             self._legend_figure,
-        )
-        self._legend_canvas.SetMinSize(
-            legend_content.FromDIP(wx.Size(300, 160))
         )
         legend_sizer = wx.BoxSizer(wx.VERTICAL)
         legend_sizer.Add(self._legend_canvas, 1, wx.EXPAND)
@@ -639,7 +643,7 @@ class GroundTrackView(ViewSpecMixin):
                 color="#e74d69",
                 marker="o",
                 linestyle="none",
-                label="Current subpoint",
+                label=self._object_name,
             ),
         ]
         if self.minimum_elevation_deg == 0:
@@ -677,14 +681,50 @@ class GroundTrackView(ViewSpecMixin):
         if self._legend_figure is None:
             return
         self._legend_figure.clear()
+        legend = None
         if handles:
-            self._legend_figure.legend(
+            legend = self._legend_figure.legend(
                 handles=handles,
                 loc="center",
                 ncol=1,
                 frameon=False,
+                borderpad=_LEGEND_BORDER_PAD,
+                labelspacing=_LEGEND_LABEL_SPACING,
+                handletextpad=_LEGEND_HANDLE_TEXT_PAD,
             )
         if self._legend_canvas is not None:
+            self._legend_canvas.draw()
+            if legend is None:
+                width_px = height_px = 1
+            else:
+                bounds = legend.get_window_extent(
+                    self._legend_canvas.get_renderer()
+                )
+                padding_px = _LEGEND_CANVAS_PADDING_PX
+                width_px = math.ceil(bounds.width + 2 * padding_px)
+                height_px = math.ceil(bounds.height + 2 * padding_px)
+            dpi = self._legend_figure.dpi
+            self._legend_figure.set_size_inches(
+                width_px / dpi,
+                height_px / dpi,
+                forward=False,
+            )
+            set_min_size = getattr(self._legend_canvas, "SetMinSize", None)
+            get_dpi_scale = getattr(
+                self._legend_canvas,
+                "GetDPIScaleFactor",
+                None,
+            )
+            if callable(set_min_size) and callable(get_dpi_scale):
+                dpi_scale = get_dpi_scale()
+                set_min_size(
+                    wx.Size(
+                        math.ceil(width_px / dpi_scale),
+                        math.ceil(height_px / dpi_scale),
+                    )
+                )
+            if self._legend_panel is not None:
+                self._legend_panel.RefreshLayout()
             self._legend_canvas.draw_idle()
 
     def _draw_station_artists(self) -> None:

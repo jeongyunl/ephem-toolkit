@@ -31,6 +31,8 @@ class FloatingPanel(wx.Panel):
         corner: PanelCorner = PanelCorner.TOP_RIGHT,
         interaction: PanelInteraction = PanelInteraction.HOVER,
         initially_expanded: bool = False,
+        content_margin_dip: int = 8,
+        popup_border_width_dip: int = 1,
     ) -> None:
         """Create a floating panel anchored to a parent corner.
 
@@ -48,6 +50,10 @@ class FloatingPanel(wx.Panel):
             raise ValueError(
                 f"Unsupported panel interaction: {interaction!r}"
             ) from error
+        if content_margin_dip < 0:
+            raise ValueError("content_margin_dip must be non-negative")
+        if popup_border_width_dip < 0:
+            raise ValueError("popup_border_width_dip must be non-negative")
         super().__init__(
             parent,
             wx.ID_ANY,
@@ -61,7 +67,7 @@ class FloatingPanel(wx.Panel):
         self._collapse_timer: wx.CallLater | None = None
         self._content_sizer: wx.Sizer | None = None
         self._content_body_sizer: wx.Sizer | None = None
-        self._content_margin_dip = 8
+        self._content_margin_dip = content_margin_dip
         self._collapsed_screen_rect = wx.Rect()
         self._focus_before_expand: wx.Window | None = None
 
@@ -119,7 +125,7 @@ class FloatingPanel(wx.Panel):
                     | wx.FRAME_FLOAT_ON_PARENT
                 ),
             )
-        self._popup_border_width_dip = 1
+        self._popup_border_width_dip = popup_border_width_dip
         self._popup_border_width = self.FromDIP(
             self._popup_border_width_dip
         )
