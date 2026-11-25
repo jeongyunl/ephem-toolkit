@@ -2651,6 +2651,34 @@ def test_partial_initial_range_refresh_excludes_all_views(
     player.close()
 
 
+def test_loading_completion_does_not_queue_store_views(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    player, _views, _canvases, _frames = make_app(monkeypatch)
+    context = SimpleNamespace(refresh=lambda: context)
+    player._store_state.active = None
+    player._store_state.view_context = context
+    queue_calls = []
+    player._queue_store_view_refresh = lambda *args: queue_calls.append(args)
+    monkeypatch.setattr(player, "_publish_range_hint", lambda: None)
+
+    player._finish_incremental_metadata(
+        SimpleNamespace(
+            meta={
+                "OBJECT_NAME": "COMPLETE",
+                "CENTER_NAME": "EARTH",
+                "REF_FRAME": "GCRF",
+                "TIME_SYSTEM": "UTC",
+            },
+            state_count=3,
+        )
+    )
+
+    assert queue_calls == []
+    assert not player._refresh_state.incremental_view_refresh_pending
+    player.close()
+
+
 def test_store_refresh_rebuilds_panels_opened_before_the_store(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

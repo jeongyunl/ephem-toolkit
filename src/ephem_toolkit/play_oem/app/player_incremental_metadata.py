@@ -84,5 +84,3 @@ class PlayerIncrementalMetadataMixin:
         if self._store_state.view_context is not None:
             self._store_state.view_context = self._store_state.view_context.refresh()
             self._publish_range_hint()
-            self._queue_store_view_refresh()
-        self._refresh_state.incremental_view_refresh_pending = True
