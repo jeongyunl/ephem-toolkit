@@ -7,7 +7,7 @@ from concurrent.futures import CancelledError
 from dataclasses import replace
 from itertools import tee
 from threading import Event
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Optional, cast
 
 import numpy as np
 
@@ -222,7 +222,8 @@ def query_station_access(
         profile_events = cast(
             Callable[
                 [np.ndarray, GroundStation, _StoreStationCursor, int],
-                Iterator[tuple[float, StationMetrics | None]],
+                # Python 3.9 compatibility: avoid PEP 604 unions in runtime casts.
+                Iterator[tuple[float, Optional[StationMetrics]]],
             ],
             public_store._station_profile_events,
         )
