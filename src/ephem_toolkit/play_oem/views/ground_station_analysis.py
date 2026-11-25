@@ -9,11 +9,11 @@ import numpy as np
 import wx
 from matplotlib.backend_bases import MouseButton
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg
-from matplotlib.ticker import FuncFormatter
 from matplotlib.figure import Figure
+from matplotlib.ticker import FuncFormatter
 
-from ..display_time import UTC_DISPLAY, format_tt
 from .. import cursor as playback_cursor
+from ..display_time import UTC_DISPLAY, format_tt
 from ..ground_stations import GroundStation
 from ..oem_data_store import StationAccessView, StoreQuery
 from ..series import OrbitSeries
@@ -109,9 +109,7 @@ class GroundStationAnalysisView(StoreStationViewSupport):
 
     def update_from_store(self, context: StoreViewContext, /) -> None:
         """Refresh station results from a newer snapshot or range."""
-        if self._store_context is None:
-            raise RuntimeError("Ground Station view was not built from a store")
-        self._prepare_station_store_context(context)
+        self._begin_station_store_update(context, "Ground Station")
         self._time_range = context.plot_range
         self._prepare_access()
         self._draw()
@@ -233,10 +231,7 @@ class GroundStationAnalysisView(StoreStationViewSupport):
 
     def close(self) -> None:
         self._context_unsubscribe()
-        if (
-            self._canvas is not None
-            and self._selection_callback_id is not None
-        ):
+        if self._canvas is not None and self._selection_callback_id is not None:
             self._canvas.mpl_disconnect(self._selection_callback_id)
         self._context_unsubscribe = lambda: None
         self._close_station_store()
@@ -246,9 +241,7 @@ class GroundStationAnalysisView(StoreStationViewSupport):
         self._axes = None
         self._panel = None
 
-    def _on_context_selection(
-        self, selection: StationAnalysisSelection
-    ) -> None:
+    def _on_context_selection(self, selection: StationAnalysisSelection) -> None:
         station_id = selection.station_id
         if station_id is not None and not any(
             station.station_id == station_id for station in self._stations
@@ -295,10 +288,7 @@ class GroundStationAnalysisView(StoreStationViewSupport):
     def _prepare_access(self) -> None:
         self._results.clear()
         self._store_queries.clear()
-        if (
-            self._panel_type == "station-status"
-            or not self._oem_loaded
-        ):
+        if self._panel_type == "station-status" or not self._oem_loaded:
             return
         if self._store_context is not None:
             for station in self._stations:
@@ -335,8 +325,7 @@ class GroundStationAnalysisView(StoreStationViewSupport):
         self._axes.xaxis.set_major_formatter(
             FuncFormatter(
                 lambda value, _position: format_tt(
-                    self._cursor.t_start
-                    + value * self._time_unit.get_divisor_s(),
+                    self._cursor.t_start + value * self._time_unit.get_divisor_s(),
                     self._display_time_zone,
                     fractional_second_places=0,
                 )
@@ -386,9 +375,7 @@ class GroundStationAnalysisView(StoreStationViewSupport):
                     )
                 )
                 stop = int(
-                    np.searchsorted(
-                        profile_times, self._time_range.end_s, side="right"
-                    )
+                    np.searchsorted(profile_times, self._time_range.end_s, side="right")
                 )
                 if first >= stop:
                     continue
@@ -552,21 +539,12 @@ class GroundStationAnalysisView(StoreStationViewSupport):
             result = self._results.get(station.station_id)
             query = self._store_queries.get(station.station_id)
             message = (
-                result.limitation
-                if result is not None and result.limitation
-                else ""
+                result.limitation if result is not None and result.limitation else ""
             )
-            if (
-                query is not None
-                and not query.coverage.complete
-                and not message
-            ):
+            if query is not None and not query.coverage.complete and not message:
                 has_ready_data = bool(
                     result is not None
-                    and (
-                        result.intervals
-                        or result.look_angle_profiles
-                    )
+                    and (result.intervals or result.look_angle_profiles)
                 )
                 message = (
                     "Station data is partially available."
@@ -576,7 +554,9 @@ class GroundStationAnalysisView(StoreStationViewSupport):
             elif self._panel_type == "pass-strip" and result is not None:
                 intervals = self._visible_intervals(result)
                 if not intervals and not result.intervals:
-                    message = "No access intervals in OEM coverage meet this station's mask."
+                    message = (
+                        "No access intervals in OEM coverage meet this station's mask."
+                    )
                 elif not intervals:
                     message = "No access intervals overlap the current Plot Range."
             elif self._panel_type in _PROFILE_TYPES and result is not None:
@@ -588,11 +568,7 @@ class GroundStationAnalysisView(StoreStationViewSupport):
     def _update_status_metrics(self) -> None:
         self._update_status_text()
         station = self._selected_station()
-        if (
-            station is None
-            or not self._oem_loaded
-            or self._store_context is None
-        ):
+        if station is None or not self._oem_loaded or self._store_context is None:
             metrics_text = ""
         else:
             metrics = self._store_context.station_metrics_at(

@@ -8,17 +8,20 @@ from math import ceil
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Protocol, TypeVar, cast
 
-from matplotlib.axes import Axes
-from matplotlib.artist import Artist
-from matplotlib.lines import Line2D
-
-from matplotlib.figure import Figure
-from matplotlib.path import Path
-from matplotlib.patches import PathPatch
-from matplotlib.transforms import Affine2D
 import numpy as np
+from matplotlib.artist import Artist
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
+from matplotlib.lines import Line2D
+from matplotlib.patches import PathPatch
+from matplotlib.path import Path
+from matplotlib.transforms import Affine2D
 
+from ..cursor import CursorState
+from ..ground_footprints import GroundFootprints
+from ..ground_stations import GroundStation, StationMetrics
 from ..oem_data_store import (
+    SERIES_GROUPS,
     ColumnGroupView,
     EarthFixedPositions,
     GroundTrackGroups,
@@ -27,18 +30,14 @@ from ..oem_data_store import (
     RowSpan,
     SeriesGroupName,
     SeriesGroups,
-    SERIES_GROUPS,
     StationAccessView,
     StoreQuery,
     StoreSnapshot,
     TierName,
     TimeCoverage,
 )
-from ..cursor import CursorState
-from ..ground_footprints import GroundFootprints
-from ..ground_stations import GroundStation, StationMetrics
-from ..station_access import LookAngleProfile, StationAccess
 from ..series import OrbitSeries
+from ..station_access import LookAngleProfile, StationAccess
 from ..time_range import ResolvedTimeRange, validate_coverage
 from ..time_snapping import TimeSamplingPolicy
 from ..time_unit import TimeUnit
@@ -84,9 +83,7 @@ def _snap_series_groups(
                 if start > stop:
                     continue
                 remaining_columns = tuple(
-                    column
-                    for column in range(source.shape[1])
-                    if column != time_column
+                    column for column in range(source.shape[1]) if column != time_column
                 )
                 times, sampled_values = sampler.sample(
                     source_times,
@@ -202,9 +199,7 @@ class StoreViewContext:
         """Return a context with updated range state and the same snapshot."""
         return replace(self, plot_range=plot_range, coverage=coverage)
 
-    def _empty_query(
-        self, value: _ViewQueryValue
-    ) -> StoreQuery[_ViewQueryValue]:
+    def _empty_query(self, value: _ViewQueryValue) -> StoreQuery[_ViewQueryValue]:
         return StoreQuery(
             self.snapshot.epoch,
             self.snapshot.revision,
@@ -273,14 +268,25 @@ class StoreViewContext:
         """Resolve a point state against this context's stable snapshot."""
         return self.store.state_at(self.snapshot, t_s)
 
+    def query_bounds(
+        self,
+        empty_value: _ViewQueryValue,
+        query: Callable[[tuple[float, float]], StoreQuery[_ViewQueryValue]],
+    ) -> StoreQuery[_ViewQueryValue]:
+        """Run a snapshot-bound store query only when a finite range is selected."""
+        bounds = self.bounds_s
+        if bounds is None:
+            return self._empty_query(empty_value)
+        return query(bounds)
+
     def earth_fixed_positions(
         self, *, margin_s: float = 0.0, wait: bool = False
     ) -> StoreQuery[EarthFixedPositions]:
-        bounds = self.bounds_s
-        if bounds is None:
-            return self._empty_query(())
-        return self.store.earth_fixed_positions(
-            self.snapshot, bounds, margin_s=margin_s, wait=wait
+        return self.query_bounds(
+            (),
+            lambda bounds: self.store.earth_fixed_positions(
+                self.snapshot, bounds, margin_s=margin_s, wait=wait
+            ),
         )
 
     def ground_track(
@@ -290,15 +296,15 @@ class StoreViewContext:
         center_longitude_deg: float = 0.0,
         wait: bool = False,
     ) -> StoreQuery[GroundTrackGroups]:
-        bounds = self.bounds_s
-        if bounds is None:
-            return self._empty_query(())
-        return self.store.ground_track(
-            self.snapshot,
-            bounds,
-            margin_s=margin_s,
-            center_longitude_deg=center_longitude_deg,
-            wait=wait,
+        return self.query_bounds(
+            (),
+            lambda bounds: self.store.ground_track(
+                self.snapshot,
+                bounds,
+                margin_s=margin_s,
+                center_longitude_deg=center_longitude_deg,
+                wait=wait,
+            ),
         )
 
     def station_access(
@@ -308,15 +314,15 @@ class StoreViewContext:
         minimum_elevation_deg: int | None = None,
         wait: bool = False,
     ) -> StoreQuery[StationAccessView]:
-        bounds = self.bounds_s
-        if bounds is None:
-            return self._empty_query(StationAccessView(station, (), (), None))
-        return self.store.station_access(
-            self.snapshot,
-            station,
-            bounds,
-            minimum_elevation_deg=minimum_elevation_deg,
-            wait=wait,
+        return self.query_bounds(
+            StationAccessView(station, (), (), None),
+            lambda bounds: self.store.station_access(
+                self.snapshot,
+                station,
+                bounds,
+                minimum_elevation_deg=minimum_elevation_deg,
+                wait=wait,
+            ),
         )
 
     def station_metrics_at(
@@ -347,9 +353,7 @@ class StoreViewBinding:
         if self._store is not context.store:
             self._unsubscribe()
             self._store = context.store
-            self._unsubscribers = [
-                context.subscribe_tier(tier) for tier in self._tiers
-            ]
+            self._unsubscribers = [context.subscribe_tier(tier) for tier in self._tiers]
         self._context = context
 
     @property
@@ -390,6 +394,26 @@ class StoreStationViewSupport:
     def _prepare_station_store_context(self, context: StoreViewContext) -> None:
         self._store_binding.bind(context)
         self._store_context = context
+
+    def _begin_station_store_update(
+        self,
+        context: StoreViewContext,
+        view_name: str,
+    ) -> None:
+        """Require an existing station view binding, then refresh it."""
+        if self._store_context is None:
+            raise RuntimeError(f"{view_name} view was not built from a store")
+        self._prepare_station_store_context(context)
+
+    def _begin_station_store_update(
+        self,
+        context: StoreViewContext,
+        view_name: str,
+    ) -> None:
+        """Require an existing station view binding, then refresh it."""
+        if self._store_context is None:
+            raise RuntimeError(f"{view_name} view was not built from a store")
+        self._prepare_station_store_context(context)
 
     def _station_store_context_for_range(
         self,
@@ -484,14 +508,17 @@ def add_store_series_paths(
                 value_column,
                 slice(span.first, span.stop, stride),
             )
-            transform = Affine2D.from_values(
-                1.0 / time_divisor_s,
-                0.0,
-                0.0,
-                scale_y,
-                -time_origin_s / time_divisor_s,
-                0.0,
-            ) + axes.transData
+            transform = (
+                Affine2D.from_values(
+                    1.0 / time_divisor_s,
+                    0.0,
+                    0.0,
+                    scale_y,
+                    -time_origin_s / time_divisor_s,
+                    0.0,
+                )
+                + axes.transData
+            )
             if mask_zero and len(points) == 1 and points[0, 1] == 0.0:
                 continue
             codes = np.full(len(points), Path.LINETO, dtype=Path.code_type)
@@ -557,14 +584,17 @@ def add_raw_state_paths(
         points = np.column_stack((sample_times, sample_values))
         codes = np.full(len(points), Path.LINETO, dtype=Path.code_type)
         codes[0] = Path.MOVETO
-        transform = Affine2D.from_values(
-            1.0 / time_divisor_s,
-            0.0,
-            0.0,
-            scale_y,
-            -time_origin_s / time_divisor_s,
-            0.0,
-        ) + axes.transData
+        transform = (
+            Affine2D.from_values(
+                1.0 / time_divisor_s,
+                0.0,
+                0.0,
+                scale_y,
+                -time_origin_s / time_divisor_s,
+                0.0,
+            )
+            + axes.transData
+        )
         artist = PathPatch(
             Path(points, codes, readonly=True),
             facecolor="none",
@@ -760,9 +790,7 @@ class TimeRangeSupport:
             return False
         if not all(
             history.can_replace_data(x, y, segment_ids)
-            for history, (x, y, segment_ids) in zip(
-                self._range_histories, datasets
-            )
+            for history, (x, y, segment_ids) in zip(self._range_histories, datasets)
         ):
             return False
 
@@ -774,9 +802,7 @@ class TimeRangeSupport:
                 history.update((float(history.x[0]), float(history.x[-1])))
             else:
                 history.update(None, empty_range=True)
-        for axis, limits, autoscale in zip(
-            self._range_axes, y_limits, y_autoscale
-        ):
+        for axis, limits, autoscale in zip(self._range_axes, y_limits, y_autoscale):
             axis.relim()
             if autoscale:
                 axis.autoscale_view(scalex=False, scaley=True)
@@ -842,6 +868,28 @@ class StoreSeriesPlotView(TimeRangeSupport):
         self._range_start_time_s = self._store_start_time_s
         self._range_divisor_s = self._time_unit_divisor_s
 
+    def _begin_store_context_update(
+        self,
+        context: StoreViewContext,
+        *,
+        axis_indexes: Sequence[int] | None = None,
+    ) -> None:
+        """Prepare one store snapshot/range update and clear existing artists."""
+        if self._figure is None:
+            raise RuntimeError("store view has not been built")
+        self._prepare_store_context(context)
+        indexes = (
+            tuple(range(len(self._figure.axes)))
+            if axis_indexes is None
+            else tuple(axis_indexes)
+        )
+        for index in indexes:
+            self._figure.axes[index].set_xlabel(context.time_unit.get_axis_label())
+        super().set_time_range(context.plot_range, context.coverage)
+        artist_groups = getattr(self, "_store_artists", ())
+        for axes, artists in zip(self._figure.axes, artist_groups):
+            clear_store_series_artists(axes, artists)
+
     def _store_context_for_range(
         self,
         bounds: ResolvedTimeRange | None,
@@ -864,9 +912,7 @@ class StoreSeriesPlotView(TimeRangeSupport):
                 cursor_artist.set_xdata([elapsed_time_axis, elapsed_time_axis])
                 cursor_artist.set_visible(visible)
             return
-        elapsed_time_axis = (
-            time_s - self._start_time_s
-        ) / self._time_unit_divisor_s
+        elapsed_time_axis = (time_s - self._start_time_s) / self._time_unit_divisor_s
         for cursor_artist in self._cursor_artists:
             cursor_artist.set_xdata([elapsed_time_axis, elapsed_time_axis])
         self._set_cursor_visibility(time_s)

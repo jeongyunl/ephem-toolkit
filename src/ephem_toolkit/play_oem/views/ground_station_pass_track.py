@@ -11,20 +11,19 @@ from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg
 from matplotlib.figure import Figure
 
 from .. import cursor as playback_cursor
-from ..ground_stations import GroundStation
-from ..ground_track import split_ground_track_runs
-from ..oem_data_store import GroundTrackGroups
 from ..display_time import UTC_DISPLAY, format_tt
+from ..ground_stations import GroundStation
+from ..oem_data_store import GroundTrackGroups
 from ..series import OrbitSeries
 from ..station_analysis import StationAnalysisContext, StationAnalysisSelection
 from ..time_range import ResolvedTimeRange
 from ..time_unit import TimeUnit
-from .base import StoreViewBinding, StoreViewContext
+from .base import StoreStationViewSupport, StoreViewContext
 from .plotting import bounded_sample_indices
 from .registry import ViewSpecMixin
 
 
-class GroundStationPassTrackView(ViewSpecMixin):
+class GroundStationPassTrackView(ViewSpecMixin, StoreStationViewSupport):
     """Draw the selected pass subpoint path from shared Earth-fixed positions."""
 
     name = "pass-ground-track"
@@ -48,8 +47,7 @@ class GroundStationPassTrackView(ViewSpecMixin):
         self._selection_context = selection_context
         self._display_time_zone = display_time_zone
         self._prepared_interval_key: tuple[float, float] | None = None
-        self._store_context: StoreViewContext | None = None
-        self._store_binding = StoreViewBinding(("ground-track", "earth-fixed"))
+        self._initialize_station_store(("ground-track", "earth-fixed"))
         self._panel: wx.Panel | None = None
         self._status: wx.StaticText | None = None
         self._figure: Figure | None = None
@@ -64,16 +62,12 @@ class GroundStationPassTrackView(ViewSpecMixin):
 
     def build_from_store(self, context: StoreViewContext, /) -> wx.Window:
         """Build from the selected pass's range-bound store query."""
-        self._store_binding.bind(context)
-        self._store_context = context
+        self._prepare_station_store_context(context)
         return self._build_panel()
 
     def update_from_store(self, context: StoreViewContext, /) -> None:
         """Refresh the selected pass against a newer store snapshot."""
-        if self._store_context is None:
-            raise RuntimeError("Pass Ground Track view was not built from a store")
-        self._store_binding.bind(context)
-        self._store_context = context
+        self._begin_station_store_update(context, "Pass Ground Track")
         self._draw()
 
     def _build_panel(self) -> wx.Window:
@@ -101,7 +95,9 @@ class GroundStationPassTrackView(ViewSpecMixin):
         self, bounds: ResolvedTimeRange | None, coverage: tuple[float, float], /
     ) -> None:
         if self._store_context is not None:
-            self._store_context = self._store_binding.with_range(bounds, coverage)
+            self._store_context = self._station_store_context_for_range(
+                bounds, coverage
+            )
             self._draw()
 
     def set_stations(self, stations: Sequence[GroundStation]) -> None:
@@ -111,16 +107,13 @@ class GroundStationPassTrackView(ViewSpecMixin):
     def close(self) -> None:
         self._context_unsubscribe()
         self._context_unsubscribe = lambda: None
-        self._store_binding.close()
-        self._store_context = None
+        self._close_station_store()
         self._canvas = None
         self._figure = None
         self._axes = None
         self._panel = None
 
-    def _on_context_selection(
-        self, _selection: StationAnalysisSelection
-    ) -> None:
+    def _on_context_selection(self, _selection: StationAnalysisSelection) -> None:
         self._draw()
 
     def _draw(self) -> None:

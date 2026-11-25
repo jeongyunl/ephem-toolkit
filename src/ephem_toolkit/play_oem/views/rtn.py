@@ -14,7 +14,6 @@ from .base import (
     StoreSeriesPlotView,
     StoreViewContext,
     add_store_series_paths,
-    clear_store_series_artists,
     set_store_series_y_limits,
     store_empty_label,
 )
@@ -107,13 +106,9 @@ class RtnDeltaView(ViewSpecMixin, StoreSeriesPlotView):
     def _apply_store_context(
         self, context: StoreViewContext, *, rescale_y: bool = True
     ) -> None:
-        if self._figure is None:
-            raise RuntimeError("RTN-delta view has not been built")
-        self._prepare_store_context(context)
-        self._figure.axes[-1].set_xlabel(context.time_unit.get_axis_label())
-        super().set_time_range(context.plot_range, context.coverage)
-        for axes, artists in zip(self._figure.axes, self._store_artists):
-            clear_store_series_artists(axes, artists)
+        self._begin_store_context_update(
+            context, axis_indexes=(len(self._figure.axes) - 1,)
+        )
 
         query = context.series("rtn")
         self._store_query = query
@@ -136,9 +131,7 @@ class RtnDeltaView(ViewSpecMixin, StoreSeriesPlotView):
             if artists:
                 axes.legend(loc="upper right")
                 if rescale_y:
-                    set_store_series_y_limits(
-                        axes, groups, (column,), scale_y=0.001
-                    )
+                    set_store_series_y_limits(axes, groups, (column,), scale_y=0.001)
         self._store_artists = tuple(artists_by_axis)
         if self._store_empty_artists is not None:
             for empty_artist, artists in zip(

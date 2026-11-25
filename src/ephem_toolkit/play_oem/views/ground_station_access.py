@@ -5,16 +5,15 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from typing import Any
 
+import numpy as np
 import wx
 from matplotlib.axes import Axes
 from matplotlib.backend_bases import MouseButton
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg
 from matplotlib.figure import Figure
-import numpy as np
-
-from ..display_time import UTC_DISPLAY, format_tt
 
 from .. import cursor as playback_cursor
+from ..display_time import UTC_DISPLAY, format_tt
 from ..ground_stations import GroundStation
 from ..oem_data_store import StationAccessView, StoreQuery
 from ..series import OrbitSeries
@@ -162,9 +161,7 @@ class GroundStationAccessView(StoreStationViewSupport):
         return self._build_panel()
 
     def update_from_store(self, context: StoreViewContext, /) -> None:
-        if self._store_context is None:
-            raise RuntimeError("Ground Station Access view was not built from a store")
-        self._prepare_station_store_context(context)
+        self._begin_station_store_update(context, "Ground Station Access")
         self._time_range_bounds = context.plot_range
         self._time_range_applied = True
         self._prepare_range = context.plot_range
@@ -243,9 +240,7 @@ class GroundStationAccessView(StoreStationViewSupport):
         self.update(self._current_time_s)
 
     def _time_label(self, time_s: float) -> str:
-        return format_tt(
-            time_s, self._display_time_zone, fractional_second_places=0
-        )
+        return format_tt(time_s, self._display_time_zone, fractional_second_places=0)
 
     def set_stations(self, stations: Sequence[GroundStation]) -> None:
         """Refresh access histories after station definitions change."""
@@ -293,9 +288,7 @@ class GroundStationAccessView(StoreStationViewSupport):
         self._axes = None
         self._panel = None
 
-    def _on_context_selection(
-        self, selection: StationAnalysisSelection
-    ) -> None:
+    def _on_context_selection(self, selection: StationAnalysisSelection) -> None:
         station_id = selection.station_id
         if station_id is not None and not any(
             station.station_id == station_id for station in self._stations
@@ -481,8 +474,7 @@ class GroundStationAccessView(StoreStationViewSupport):
                             max_samples=MAX_DISPLAY_POINTS_PER_SEGMENT,
                         )
                         axes.plot(
-                            (display_times - self._cursor.t_start)
-                            / divisor,
+                            (display_times - self._cursor.t_start) / divisor,
                             display_elevations,
                             color="#2f7ebc",
                             linewidth=1.2,
@@ -649,9 +641,7 @@ class GroundStationAccessView(StoreStationViewSupport):
 
         def format_interval_summary(label: str, interval: AccessInterval) -> str:
             coverage_note = (
-                " · in progress at coverage start"
-                if interval.clipped_at_start
-                else ""
+                " · in progress at coverage start" if interval.clipped_at_start else ""
             )
             if interval.clipped_at_end:
                 coverage_note += " · continues beyond coverage"

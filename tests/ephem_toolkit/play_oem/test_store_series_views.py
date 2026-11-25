@@ -13,7 +13,11 @@ from ephem_toolkit.play_oem.time_range import ResolvedTimeRange
 from ephem_toolkit.play_oem.time_snapping import snap_tt_s_to_utc_half_second
 from ephem_toolkit.play_oem.time_unit import TimeUnit
 from ephem_toolkit.play_oem.views.angular_velocity import AngularVelocityView
-from ephem_toolkit.play_oem.views.base import StoreViewBinding, StoreViewContext
+from ephem_toolkit.play_oem.views.base import (
+    StoreStationViewSupport,
+    StoreViewBinding,
+    StoreViewContext,
+)
 from ephem_toolkit.play_oem.views.direction_change import DirectionChangeView
 from ephem_toolkit.play_oem.views.distance import GeocentricDistanceView
 from ephem_toolkit.play_oem.views.rtn import RtnDeltaView
@@ -78,9 +82,7 @@ def _assert_store_paths(
             (vertices[:, 0] - time_origin_s) / time_divisor_s,
             atol=1e-12,
         )
-        np.testing.assert_allclose(
-            data[:, 1], vertices[:, 1] * scale_y, atol=1e-12
-        )
+        np.testing.assert_allclose(data[:, 1], vertices[:, 1] * scale_y, atol=1e-12)
 
 
 def test_store_view_context_refresh_and_binding_lifecycle() -> None:
@@ -137,6 +139,57 @@ def test_store_view_context_refresh_and_binding_lifecycle() -> None:
     assert "series" not in other_store._tier_interest
 
 
+def test_store_view_context_query_bounds_reuses_empty_and_bounded_paths() -> None:
+    context = _store_context()
+    received: list[tuple[float, float]] = []
+
+    bounded = context.query_bounds(
+        (),
+        lambda bounds: context.store.series(
+            context.snapshot,
+            bounds,
+            groups=("rtn",),
+        ),
+    )
+
+    assert bounded.coverage.requested_s == (100.0, 280.0)
+    assert bounded.value
+
+    empty = context.with_range(
+        None,
+        context.coverage,
+    ).query_bounds(
+        (),
+        lambda bounds: (
+            received.append(bounds)
+            or context.store.series(context.snapshot, bounds, groups=("rtn",))
+        ),
+    )
+
+    assert empty.value == ()
+    assert empty.coverage.requested_s is None
+    assert received == []
+
+
+def test_station_store_support_rejects_updates_before_build() -> None:
+    context = _store_context()
+    support = StoreStationViewSupport()
+    support._initialize_station_store(("station-access",))
+
+    with pytest.raises(
+        RuntimeError,
+        match="Test Station view was not built from a store",
+    ):
+        support._begin_station_store_update(context, "Test Station")
+
+    support._prepare_station_store_context(context)
+    support._begin_station_store_update(context.refresh(), "Test Station")
+    assert support._store_context is not None
+    assert support._store_context.snapshot is not context.snapshot
+    support._close_station_store()
+    assert support._store_context is None
+
+
 def test_store_series_views_use_bounded_aligned_timestamps() -> None:
     context = _store_context()
 
@@ -164,9 +217,7 @@ def test_series_display_limit_is_respected_after_alignment() -> None:
 
     group = query.value[0]
     assert len(group.segment_bounds) == 2
-    assert all(
-        span.stop - span.first <= 20 for span in group.segment_bounds
-    )
+    assert all(span.stop - span.first <= 20 for span in group.segment_bounds)
 
 
 @pytest.mark.parametrize(
@@ -220,23 +271,17 @@ def test_store_history_views_use_store_owned_paths(
                     for group in groups
                 )
         for axes, artists in zip(figure.axes, view._store_artists):
-            _assert_store_paths(
-                artists, groups, axes, scale_y=180.0 / np.pi
-            )
+            _assert_store_paths(artists, groups, axes, scale_y=180.0 / np.pi)
         assert figure.axes[0].get_ylabel() == "Euler Angle (deg)"
         assert figure.axes[1].get_ylabel() == "Euler Angle Rate (deg/s)"
     elif view_type is RtnDeltaView:
         assert len(view._store_artists) == 3
-        for axes, artists, scale in zip(
-            figure.axes, view._store_artists, scales
-        ):
+        for axes, artists, scale in zip(figure.axes, view._store_artists, scales):
             _assert_store_paths(artists, groups, axes, scale_y=scale)
         assert figure.axes[0].get_ylabel() == "Radial Delta (km)"
     elif view_type is AngularVelocityView:
         assert len(view._store_artists) == 2
-        for axes, artists, scale in zip(
-            figure.axes, view._store_artists, scales
-        ):
+        for axes, artists, scale in zip(figure.axes, view._store_artists, scales):
             _assert_store_paths(artists, groups, axes, scale_y=scale)
         zero_breaks = [
             artist.get_path()
@@ -247,9 +292,7 @@ def test_store_history_views_use_store_owned_paths(
         for path in zero_breaks:
             zero_values = path.vertices[:, 1] == 0.0
             assert np.all(path.codes[zero_values] == Path.MOVETO)
-            assert np.all(
-                path.codes[1:][zero_values[:-1]] == Path.MOVETO
-            )
+            assert np.all(path.codes[1:][zero_values[:-1]] == Path.MOVETO)
         assert figure.axes[0].get_ylabel() == "Angular Velocity (deg/s)"
     else:
         distance_groups = groups
@@ -324,12 +367,9 @@ def test_store_history_views_handle_empty_ranges(
     else:
         assert not view._store_query.value
     assert all(not artists for artists in view._store_artists)
+    assert all(artist.get_visible() for artist in view._store_empty_artists or ())
     assert all(
-        artist.get_visible() for artist in view._store_empty_artists or ()
-    )
-    assert all(
-        artist.get_text() == empty_label
-        for artist in view._store_empty_artists or ()
+        artist.get_text() == empty_label for artist in view._store_empty_artists or ()
     )
     view.close()
 
@@ -357,6 +397,8 @@ def test_store_history_views_report_insufficient_samples(view_type) -> None:
         assert empty_artists[0].get_text() == "No samples in plot range"
         assert empty_artists[1].get_text() == "Not enough samples"
     else:
-        assert all(artist.get_text() == "Not enough samples" for artist in empty_artists)
+        assert all(
+            artist.get_text() == "Not enough samples" for artist in empty_artists
+        )
     assert all(artist.get_visible() for artist in empty_artists)
     view.close()

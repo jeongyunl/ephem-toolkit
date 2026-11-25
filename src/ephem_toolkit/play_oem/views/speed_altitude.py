@@ -18,13 +18,13 @@ from .base import (
     StoreSeriesPlotView,
     StoreViewContext,
 )
-from .registry import ViewSpecMixin
 from .plotting import (
     MAX_DISPLAY_POINTS_PER_SEGMENT,
     SegmentedPlotHistory,
     set_shared_x_limits,
     time_bounds_to_axis,
 )
+from .registry import ViewSpecMixin
 
 CURSOR_LINE_COLOR: str = "tab:red"
 """Color used for the playback cursor lines."""
@@ -97,9 +97,7 @@ class SpeedAltitudeView(ViewSpecMixin, StoreSeriesPlotView):
             orbit_series.segment_ids,
         )
         self._histories = (speed_history, altitude_history)
-        self._cursor_artists = self._make_cursor_artists(
-            speed_axes, altitude_axes
-        )
+        self._cursor_artists = self._make_cursor_artists(speed_axes, altitude_axes)
         self._configure_time_range(
             (speed_axes, altitude_axes),
             self._histories,
@@ -114,9 +112,7 @@ class SpeedAltitudeView(ViewSpecMixin, StoreSeriesPlotView):
         if self._figure is not None:
             raise RuntimeError("speed/altitude view has already been built")
         figure, speed_axes, altitude_axes = self._create_figure(context.time_unit)
-        self._cursor_artists = self._make_cursor_artists(
-            speed_axes, altitude_axes
-        )
+        self._cursor_artists = self._make_cursor_artists(speed_axes, altitude_axes)
         self._store_empty_artists = (
             speed_axes.text(
                 0.5,
@@ -179,15 +175,10 @@ class SpeedAltitudeView(ViewSpecMixin, StoreSeriesPlotView):
     def _apply_store_context(
         self, context: StoreViewContext, *, rescale_y: bool
     ) -> None:
-        if self._figure is None:
-            raise RuntimeError("speed/altitude view has not been built")
-        self._prepare_store_context(context)
-        self._figure.axes[1].set_xlabel(context.time_unit.get_axis_label())
+        self._begin_store_context_update(context, axis_indexes=(1,))
         self._remove_store_patches()
 
-        query = context.series(
-            "kinematics", max_samples=MAX_DISPLAY_POINTS_PER_SEGMENT
-        )
+        query = context.series("kinematics", max_samples=MAX_DISPLAY_POINTS_PER_SEGMENT)
         self._store_query = query
         groups = query.value
         speed_patches, altitude_patches = self._add_store_patches(
@@ -226,9 +217,7 @@ class SpeedAltitudeView(ViewSpecMixin, StoreSeriesPlotView):
                 if speed.shape[0] == 0:
                     continue
                 speed_artists.append(
-                    self._add_store_path(
-                        speed_axes, speed, context, scale_y=0.001
-                    )
+                    self._add_store_path(speed_axes, speed, context, scale_y=0.001)
                 )
                 altitude_artists.append(
                     self._add_store_path(
@@ -245,14 +234,17 @@ class SpeedAltitudeView(ViewSpecMixin, StoreSeriesPlotView):
         *,
         scale_y: float,
     ) -> PathPatch | Line2D:
-        transform = Affine2D.from_values(
-            1.0 / context.time_unit.get_divisor_s(),
-            0.0,
-            0.0,
-            scale_y,
-            -self._store_start_time_s / context.time_unit.get_divisor_s(),
-            0.0,
-        ) + axes.transData
+        transform = (
+            Affine2D.from_values(
+                1.0 / context.time_unit.get_divisor_s(),
+                0.0,
+                0.0,
+                scale_y,
+                -self._store_start_time_s / context.time_unit.get_divisor_s(),
+                0.0,
+            )
+            + axes.transData
+        )
         if values.shape[0] == 1:
             artist = Line2D(
                 values[:, 0],
@@ -276,15 +268,17 @@ class SpeedAltitudeView(ViewSpecMixin, StoreSeriesPlotView):
         self._store_patches = ((), ())
         self._store_query = None
 
-    def _rescale_store_axes(
-        self, groups: tuple[ColumnGroupView, ...]
-    ) -> None:
+    def _rescale_store_axes(self, groups: tuple[ColumnGroupView, ...]) -> None:
         if not groups or self._figure is None:
             return
         for axis_index, column in enumerate(("speed_m_s", "altitude_m")):
             column_index = groups[0].columns.index(column)
-            lower = min(float(np.min(group.values[:, column_index])) for group in groups)
-            upper = max(float(np.max(group.values[:, column_index])) for group in groups)
+            lower = min(
+                float(np.min(group.values[:, column_index])) for group in groups
+            )
+            upper = max(
+                float(np.max(group.values[:, column_index])) for group in groups
+            )
             lower *= 0.001
             upper *= 0.001
             padding = max((upper - lower) * 0.05, abs(upper) * 0.005, 0.001)

@@ -16,7 +16,6 @@ from .base import (
     StoreSeriesPlotView,
     StoreViewContext,
     add_store_series_paths,
-    clear_store_series_artists,
     set_store_series_y_limits,
     store_empty_label,
 )
@@ -116,14 +115,7 @@ class DirectionChangeView(ViewSpecMixin, StoreSeriesPlotView):
     def _apply_store_context(
         self, context: StoreViewContext, *, rescale_y: bool = True
     ) -> None:
-        if self._figure is None:
-            raise RuntimeError("direction-change view has not been built")
-        self._prepare_store_context(context)
-        for axes in self._figure.axes:
-            axes.set_xlabel(context.time_unit.get_axis_label())
-        super().set_time_range(context.plot_range, context.coverage)
-        for axes, artists in zip(self._figure.axes, self._store_artists):
-            clear_store_series_artists(axes, artists)
+        self._begin_store_context_update(context)
 
         query = context.series("direction-rates")
         self._store_query = query

@@ -15,7 +15,6 @@ from .base import (
     StoreSeriesPlotView,
     StoreViewContext,
     add_store_series_paths,
-    clear_store_series_artists,
     set_store_series_y_limits,
     store_empty_label,
 )
@@ -109,14 +108,7 @@ class AngularVelocityView(ViewSpecMixin, StoreSeriesPlotView):
     def _apply_store_context(
         self, context: StoreViewContext, *, rescale_y: bool = True
     ) -> None:
-        if self._figure is None:
-            raise RuntimeError("angular-velocity view has not been built")
-        self._prepare_store_context(context)
-        for axes in self._figure.axes:
-            axes.set_xlabel(context.time_unit.get_axis_label())
-        super().set_time_range(context.plot_range, context.coverage)
-        for axes, artists in zip(self._figure.axes, self._store_artists):
-            clear_store_series_artists(axes, artists)
+        self._begin_store_context_update(context)
 
         query = context.series("direction-rates")
         self._store_query = query
@@ -142,9 +134,7 @@ class AngularVelocityView(ViewSpecMixin, StoreSeriesPlotView):
             if artists:
                 axes.legend(loc="upper right")
                 if rescale_y:
-                    set_store_series_y_limits(
-                        axes, groups, (column,), scale_y=scale
-                    )
+                    set_store_series_y_limits(axes, groups, (column,), scale_y=scale)
         self._store_artists = tuple(artists_by_axis)
         if self._store_empty_artists is not None:
             for empty_artist, artists in zip(

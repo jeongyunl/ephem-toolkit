@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
 import math
+from collections.abc import Callable, Sequence
 from typing import Any
 
 import numpy as np
@@ -11,9 +11,8 @@ import wx
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg
 from matplotlib.figure import Figure
 
-from ..display_time import UTC_DISPLAY, format_tt
-
 from .. import cursor as playback_cursor
+from ..display_time import UTC_DISPLAY, format_tt
 from ..ground_stations import GroundStation
 from ..oem_data_store import StationAccessView, StoreQuery
 from ..series import OrbitSeries
@@ -184,9 +183,7 @@ class GroundStationPassesView(StoreStationViewSupport):
 
     def update_from_store(self, context: StoreViewContext, /) -> None:
         """Refresh pass rows and sky data from a newer store snapshot."""
-        if self._store_context is None:
-            raise RuntimeError("Ground Station Passes view was not built from a store")
-        self._prepare_station_store_context(context)
+        self._begin_station_store_update(context, "Ground Station Passes")
         self._prepare_range = context.plot_range
         self._time_range_bounds = context.plot_range
         self._time_range_applied = True
@@ -496,7 +493,10 @@ class GroundStationPassesView(StoreStationViewSupport):
                     else "Select a ground station to inspect passes."
                 )
             else:
-                message = "No ground stations are configured. Add a station to inspect passes."
+                message = (
+                    "No ground stations are configured. "
+                    "Add a station to inspect passes."
+                )
         elif not self._oem_loaded or self._store_context is None:
             message = "Load an Earth-centered OEM to inspect station passes."
         elif load_status is not None:
@@ -506,9 +506,8 @@ class GroundStationPassesView(StoreStationViewSupport):
         elif result.limitation:
             message = result.limitation
         elif (
-            (query := self._store_queries.get(station.station_id)) is not None
-            and not query.coverage.complete
-        ):
+            query := self._store_queries.get(station.station_id)
+        ) is not None and not query.coverage.complete:
             message = (
                 "Pass history is partially available."
                 if result.intervals
@@ -682,12 +681,8 @@ class GroundStationPassesView(StoreStationViewSupport):
             empty = np.asarray([], dtype=float)
             return empty, empty, empty
         if self._store_context is not None:
-            first = int(
-                np.searchsorted(profile.times_s, interval.start_s, side="left")
-            )
-            stop = int(
-                np.searchsorted(profile.times_s, interval.end_s, side="right")
-            )
+            first = int(np.searchsorted(profile.times_s, interval.start_s, side="left"))
+            stop = int(np.searchsorted(profile.times_s, interval.end_s, side="right"))
             indices = (
                 first + bounded_sample_indices(stop - first)
                 if first < stop
@@ -727,15 +722,11 @@ class GroundStationPassesView(StoreStationViewSupport):
         self, result: StationAccess, interval: AccessInterval, time_s: float
     ) -> tuple[float, float] | None:
         if abs(time_s - interval.start_s) < 1e-9:
-            look_angle = self._interval_endpoint_look_angle(
-                interval, at_start=True
-            )
+            look_angle = self._interval_endpoint_look_angle(interval, at_start=True)
             if look_angle is not None:
                 return look_angle
         if abs(time_s - interval.end_s) < 1e-9:
-            look_angle = self._interval_endpoint_look_angle(
-                interval, at_start=False
-            )
+            look_angle = self._interval_endpoint_look_angle(interval, at_start=False)
             if look_angle is not None:
                 return look_angle
         for profile in result.look_angle_profiles:
@@ -884,27 +875,37 @@ class GroundStationPassesView(StoreStationViewSupport):
             )
             if not plotted:
                 axes.text(
-                    0.5, 0.5, "Selected pass sky path unavailable",
+                    0.5,
+                    0.5,
+                    "Selected pass sky path unavailable",
                     **status_text_kwargs,
                 )
         elif station is None:
             axes.text(
-                0.5, 0.5, "Add or select a ground station to inspect passes.",
+                0.5,
+                0.5,
+                "Add or select a ground station to inspect passes.",
                 **status_text_kwargs,
             )
         elif not self._oem_loaded:
             axes.text(
-                0.5, 0.5, "Load an Earth-centered OEM to view the sky plot.",
+                0.5,
+                0.5,
+                "Load an Earth-centered OEM to view the sky plot.",
                 **status_text_kwargs,
             )
         elif result is not None and result.limitation:
             axes.text(
-                0.5, 0.5, result.limitation,
+                0.5,
+                0.5,
+                result.limitation,
                 **status_text_kwargs,
             )
         elif interval is None:
             axes.text(
-                0.5, 0.5, "Select a pass to view its sky path.",
+                0.5,
+                0.5,
+                "Select a pass to view its sky path.",
                 **status_text_kwargs,
             )
         bottom_margin = 0.08
