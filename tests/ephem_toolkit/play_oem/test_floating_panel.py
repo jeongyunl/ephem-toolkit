@@ -1,11 +1,11 @@
-"""Reusable floating settings panel checks."""
+"""Reusable floating panel checks."""
 
 from __future__ import annotations
 
 import gc
 import os
 from collections.abc import Iterator
-from typing import Any
+from typing import Any, Literal
 
 import pytest
 
@@ -24,18 +24,18 @@ def wx_app() -> Iterator[Any]:
 @pytest.mark.skipif(
     not os.environ.get("DISPLAY"), reason="requires an X display (use xvfb-run)"
 )
-def test_floating_settings_panel_collapses_expands_and_stays_in_bounds(
+def test_floating_panel_collapses_expands_and_stays_in_bounds(
     wx_app: Any,
 ) -> None:
     import wx
 
-    from ephem_toolkit.play_oem.widgets import FloatingSettingsPanel
+    from ephem_toolkit.play_oem.widgets import FloatingPanel
 
     frame = wx.Frame(None, size=(800, 500))
     host = wx.Panel(frame)
     frame.SetSizer(wx.BoxSizer(wx.VERTICAL))
     frame.GetSizer().Add(host, 1, wx.EXPAND)
-    panel = FloatingSettingsPanel(host, name="Test settings")
+    panel = FloatingPanel(host, name="Test panel")
     sizer = wx.BoxSizer(wx.VERTICAL)
     sizer.Add(wx.StaticText(panel.GetContentWindow(), label="Projection"), 0)
     choice = wx.Choice(panel.GetContentWindow(), choices=["A", "B"])
@@ -103,6 +103,73 @@ def test_floating_settings_panel_collapses_expands_and_stays_in_bounds(
     panel.ScheduleCollapse(delay_ms=1)
     wx_app.Yield()
     wx_app.GetTopWindow()
+    assert panel.Close()
+    frame.Destroy()
+    wx_app.Yield()
+
+
+@pytest.mark.parametrize(
+    ("corner", "at_left", "at_top"),
+    [
+        ("top-left", True, True),
+        ("top-right", False, True),
+        ("bottom-left", True, False),
+        ("bottom-right", False, False),
+    ],
+)
+@pytest.mark.skipif(
+    not os.environ.get("DISPLAY"), reason="requires an X display (use xvfb-run)"
+)
+def test_floating_panel_can_anchor_to_each_parent_corner(
+    wx_app: Any,
+    corner: Literal[
+        "top-left",
+        "top-right",
+        "bottom-left",
+        "bottom-right",
+    ],
+    at_left: bool,
+    at_top: bool,
+) -> None:
+    import wx
+
+    from ephem_toolkit.play_oem.widgets import FloatingPanel
+
+    frame = wx.Frame(None, size=(800, 500))
+    host = wx.Panel(frame)
+    frame.SetSizer(wx.BoxSizer(wx.VERTICAL))
+    frame.GetSizer().Add(host, 1, wx.EXPAND)
+    panel = FloatingPanel(host, corner=corner)
+    frame.Show()
+    wx_app.Yield()
+
+    host_rect = host.GetScreenRect()
+    handle_rect = panel.GetCollapsedScreenRect()
+    expected_left = (
+        host_rect.left
+        if at_left
+        else host_rect.right - host.FromDIP(24)
+    )
+    expected_top = (
+        host_rect.top
+        if at_top
+        else host_rect.bottom - host.FromDIP(24)
+    )
+    assert handle_rect.left == expected_left
+    assert handle_rect.top == expected_top
+
+    panel.Expand()
+    wx_app.Yield()
+    expanded_rect = panel.GetExpandedScreenRect()
+    if at_left:
+        assert expanded_rect.left == host_rect.left
+    else:
+        assert expanded_rect.right == host_rect.right
+    if at_top:
+        assert expanded_rect.top == host_rect.top
+    else:
+        assert expanded_rect.bottom == host_rect.bottom
+
     assert panel.Close()
     frame.Destroy()
     wx_app.Yield()

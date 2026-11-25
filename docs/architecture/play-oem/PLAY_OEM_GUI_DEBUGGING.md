@@ -7,9 +7,9 @@ behavior. Add future debugging recipes here as issues are investigated.
 
 ### Temporary focus tracing
 
-The floating settings panel's focus issue was investigated with temporary
+The floating panel's focus issue was investigated with temporary
 instrumentation in
-`src/ephem_toolkit/play_oem/widgets/floating_settings_panel.py`. It logged
+`src/ephem_toolkit/play_oem/widgets/floating_panel.py`. It logged
 focus snapshots around expand/collapse and bound handlers for wx focus and
 mouse-button events on the popup and its content controls. Each event log
 included its wx event type, source window, `wx.Window.FindFocus()`, and panel
@@ -29,7 +29,7 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
 logging.getLogger(
-    "ephem_toolkit.play_oem.widgets.floating_settings_panel"
+    "ephem_toolkit.play_oem.widgets.floating_panel"
 ).setLevel(logging.DEBUG)
 main()
 ' 2>&1 | tee play-oem.trace
@@ -41,7 +41,7 @@ startup.
 
 To reproduce the focus scenario after adding temporary instrumentation:
 
-1. Open a view with a floating settings panel, such as Ground Track.
+1. Open a view with a floating panel, such as Ground Track.
 2. Hover over the handle to expand the panel, then move away to collapse it.
 3. Repeat while clicking a control and blank space in the panel.
 4. Inspect the trace with `rg "Settings panel" play-oem.trace`.

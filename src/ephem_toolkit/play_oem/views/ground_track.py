@@ -35,7 +35,7 @@ from ..oem_data_store import GroundTrackGroups, StoreQuery
 from ..series import OrbitSeries
 from ..time_range import ResolvedTimeRange
 from ..time_unit import TimeUnit
-from ..widgets import FloatingSettingsPanel
+from ..widgets import FloatingPanel
 from .base import StoreViewBinding, StoreViewContext
 from .compact_controls import compact_controls
 from .plotting import bounded_sample_indices
@@ -231,7 +231,7 @@ class GroundTrackView(ViewSpecMixin):
         self._show_stations = True
         self._show_station_labels = False
         self._panel: wx.Panel | None = None
-        self._settings_panel: FloatingSettingsPanel | None = None
+        self._settings_panel: FloatingPanel | None = None
         self._canvas: FigureCanvasWxAgg | None = None
         self._figure: Figure | None = None
         self._axes: Any = None
@@ -303,7 +303,7 @@ class GroundTrackView(ViewSpecMixin):
         toolbar.Realize()
         toolbar.pan()
         toolbar.Hide()
-        settings_panel = FloatingSettingsPanel(
+        settings_panel = FloatingPanel(
             panel,
             name="Ground Track settings",
             handle_label="≡",

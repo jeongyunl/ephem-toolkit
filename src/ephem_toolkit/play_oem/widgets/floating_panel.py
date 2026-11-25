@@ -1,26 +1,50 @@
-"""Reusable hover-expanded floating settings panel for playback views."""
+"""Reusable hover-expanded floating panel for playback views."""
 
 from __future__ import annotations
+
+from typing import Literal
 
 import wx
 
 
-class FloatingSettingsPanel(wx.Panel):
-    """A compact upper-right settings overlay that expands on pointer hover."""
+PanelCorner = Literal[
+    "top-left",
+    "top-right",
+    "bottom-left",
+    "bottom-right",
+]
+
+
+class FloatingPanel(wx.Panel):
+    """A compact corner panel that expands on pointer hover."""
 
     def __init__(
         self,
         parent: wx.Window,
         *,
-        name: str = "Settings",
+        name: str = "Panel",
         handle_label: str = "≡",
+        corner: PanelCorner = "top-right",
     ) -> None:
+        """Create a hover-expanded panel anchored to a parent corner.
+
+        ``corner`` may be ``top-left``, ``top-right``, ``bottom-left``, or
+        ``bottom-right``; it defaults to ``top-right``.
+        """
+        if corner not in (
+            "top-left",
+            "top-right",
+            "bottom-left",
+            "bottom-right",
+        ):
+            raise ValueError(f"Unsupported panel corner: {corner!r}")
         super().__init__(
             parent,
             wx.ID_ANY,
             style=wx.BORDER_NONE,
         )
         self._host = parent
+        self._corner = corner
         self.SetName(name)
         self._expanded = False
         self._collapse_timer: wx.CallLater | None = None
@@ -257,9 +281,19 @@ class FloatingSettingsPanel(wx.Panel):
 
         margin = self.FromDIP(8)
         handle_size = self.FromDIP(24)
+        handle_x = (
+            0
+            if self._corner.endswith("left")
+            else max(0, host_size.width - handle_size)
+        )
+        handle_y = (
+            0
+            if self._corner.startswith("top")
+            else max(0, host_size.height - handle_size)
+        )
         handle_rect = wx.Rect(
-            max(0, host_size.width - handle_size),
-            0,
+            handle_x,
+            handle_y,
             handle_size,
             handle_size,
         )
@@ -280,7 +314,10 @@ class FloatingSettingsPanel(wx.Panel):
         if self._expanded:
             self._handle.SetSize(0, 0, handle_size, handle_size)
             host_origin = self.GetParent().ClientToScreen(wx.Point(0, 0))
+            collapsed_left = host_origin.x + handle_rect.x
             collapsed_right = host_origin.x + handle_rect.x + handle_size
+            collapsed_top = host_origin.y + handle_rect.y
+            collapsed_bottom = collapsed_top + handle_size
             if self._uses_popup_window:
                 frame_origin = self._top_level.ClientToScreen(wx.Point(0, 0))
                 frame_size = self._top_level.GetClientSize()
@@ -302,12 +339,20 @@ class FloatingSettingsPanel(wx.Panel):
             actual_popup_size = self._popup.GetSize()
             popup_width = actual_popup_size.width
             popup_height = actual_popup_size.height
-            popup_left = collapsed_right - popup_width
+            popup_left = (
+                collapsed_left
+                if self._corner.endswith("left")
+                else collapsed_right - popup_width
+            )
             if popup_left < frame_origin.x:
                 popup_left = frame_origin.x
             elif popup_left + popup_width > frame_origin.x + frame_size.width:
                 popup_left = frame_origin.x + frame_size.width - popup_width
-            popup_top = host_origin.y
+            popup_top = (
+                collapsed_top
+                if self._corner.startswith("top")
+                else collapsed_bottom - popup_height
+            )
             if popup_top < frame_origin.y:
                 popup_top = frame_origin.y
             elif popup_top + popup_height > frame_origin.y + frame_size.height:
@@ -315,8 +360,8 @@ class FloatingSettingsPanel(wx.Panel):
             self._popup.SetPosition(wx.Point(popup_left, popup_top))
             self._popup.Layout()
             self._collapsed_screen_rect = wx.Rect(
-                collapsed_right - handle_size,
-                host_origin.y + handle_rect.y,
+                collapsed_left,
+                collapsed_top,
                 handle_size,
                 handle_size,
             )
@@ -429,7 +474,15 @@ class FloatingSettingsPanel(wx.Panel):
         width = max(0, desired_width)
         height = max(0, desired_height)
         point = wx.Point(
-            max(margin, host_size.width - width - margin),
-            margin,
+            (
+                margin
+                if self._corner.endswith("left")
+                else max(margin, host_size.width - width - margin)
+            ),
+            (
+                margin
+                if self._corner.startswith("top")
+                else max(margin, host_size.height - height - margin)
+            ),
         )
         return point, wx.Size(width, height)
