@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from math import ceil
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Protocol, TypeVar, cast
@@ -24,6 +24,7 @@ from ..oem_data_store import (
     GroundTrackGroups,
     LoadStatus,
     OemDataStore,
+    RowSpan,
     SeriesGroupName,
     SeriesGroups,
     SERIES_GROUPS,
@@ -39,6 +40,7 @@ from ..ground_stations import GroundStation, StationMetrics
 from ..station_access import LookAngleProfile, StationAccess
 from ..series import OrbitSeries
 from ..time_range import ResolvedTimeRange, validate_coverage
+from ..time_snapping import TimeSamplingPolicy
 from ..time_unit import TimeUnit
 from .plotting import (
     MAX_DISPLAY_POINTS_PER_SEGMENT,
@@ -51,6 +53,71 @@ if TYPE_CHECKING:
     import wx
 
 _ViewQueryValue = TypeVar("_ViewQueryValue")
+
+
+def _snap_series_groups(
+    groups: SeriesGroups,
+    bounds: tuple[float, float],
+    *,
+    max_samples: int = MAX_DISPLAY_POINTS_PER_SEGMENT,
+    time_sampling: TimeSamplingPolicy | None = None,
+) -> SeriesGroups:
+    """Resample plot series on a bounded, anchored half-second-multiple grid."""
+    sampler = time_sampling or TimeSamplingPolicy()
+    sampled_groups: dict[SeriesGroupName, tuple[ColumnGroupView, ...]] = {}
+    for name, column_groups in groups.items():
+        sampled: list[ColumnGroupView] = []
+        for group in column_groups:
+            try:
+                time_column = group.columns.index("t")
+            except ValueError:
+                sampled.append(group)
+                continue
+            pieces: list[np.ndarray] = []
+            for segment in group.segment_bounds:
+                source = group.values[segment.first : segment.stop]
+                if not len(source):
+                    continue
+                source_times = source[:, time_column]
+                start = max(bounds[0], float(source_times[0]))
+                stop = min(bounds[1], float(source_times[-1]))
+                if start > stop:
+                    continue
+                remaining_columns = tuple(
+                    column
+                    for column in range(source.shape[1])
+                    if column != time_column
+                )
+                times, sampled_values = sampler.sample(
+                    source_times,
+                    source[:, remaining_columns],
+                    bounds_s=(start, stop),
+                    max_samples=max_samples,
+                )
+                if not times.size:
+                    continue
+                values = np.empty((times.size, source.shape[1]), dtype=float)
+                values[:, time_column] = times
+                values[:, remaining_columns] = sampled_values
+                pieces.append(values)
+            if pieces:
+                values = np.concatenate(pieces)
+                spans: list[RowSpan] = []
+                offset = 0
+                for piece in pieces:
+                    spans.append(RowSpan(offset, offset + len(piece)))
+                    offset += len(piece)
+                sampled.append(
+                    ColumnGroupView(
+                        values,
+                        group.columns,
+                        tuple(spans),
+                    )
+                )
+            else:
+                sampled.append(group)
+        sampled_groups[name] = tuple(sampled)
+    return MappingProxyType(sampled_groups)
 
 
 class View(Protocol):
@@ -86,6 +153,7 @@ class StoreViewContext:
     time_unit: TimeUnit
     plot_range: ResolvedTimeRange | None
     coverage: tuple[float, float]
+    time_sampling: TimeSamplingPolicy = field(default_factory=TimeSamplingPolicy)
 
     @classmethod
     def capture(
@@ -95,9 +163,17 @@ class StoreViewContext:
         time_unit: TimeUnit,
         plot_range: ResolvedTimeRange | None,
         coverage: tuple[float, float],
+        time_sampling: TimeSamplingPolicy | None = None,
     ) -> StoreViewContext:
         """Capture one stable snapshot for a set of related view queries."""
-        return cls(store, store.snapshot(), time_unit, plot_range, coverage)
+        return cls(
+            store,
+            store.snapshot(),
+            time_unit,
+            plot_range,
+            coverage,
+            TimeSamplingPolicy() if time_sampling is None else time_sampling,
+        )
 
     def __post_init__(self) -> None:
         if not isinstance(self.store, OemDataStore):
@@ -154,12 +230,26 @@ class StoreViewContext:
             return self._empty_query(
                 MappingProxyType({group: () for group in selected_groups})
             )
-        return self.store.series(
+        query = self.store.series(
             self.snapshot,
             bounds,
             groups=selected_groups,
             max_samples=max_samples,
             wait=wait,
+        )
+        display_limit = (
+            MAX_DISPLAY_POINTS_PER_SEGMENT
+            if max_samples is None
+            else min(max_samples, MAX_DISPLAY_POINTS_PER_SEGMENT)
+        )
+        return replace(
+            query,
+            value=_snap_series_groups(
+                query.value,
+                bounds,
+                max_samples=display_limit,
+                time_sampling=self.time_sampling,
+            ),
         )
 
     def series(
@@ -171,7 +261,13 @@ class StoreViewContext:
     ) -> StoreQuery[tuple[ColumnGroupView, ...]]:
         """Query one series group as segments instead of a name-keyed mapping."""
         query = self.series_groups((group,), max_samples=max_samples, wait=wait)
-        return replace(query, value=query.value[group])
+        return StoreQuery(
+            query.epoch,
+            query.revision,
+            query.policy_revision,
+            query.value[group],
+            query.coverage,
+        )
 
     def state_at(self, t_s: float) -> CursorState:
         """Resolve a point state against this context's stable snapshot."""
@@ -394,11 +490,12 @@ def add_raw_state_paths(
     *,
     bounds: ResolvedTimeRange | None,
     maximum_samples_per_segment: int,
+    time_sampling: TimeSamplingPolicy | None = None,
     scale_y: float,
     color: str = "C0",
     linewidth: float = 1.5,
 ) -> tuple[Artist, ...]:
-    """Plot strided raw-state columns while keeping path vertices store-backed."""
+    """Plot raw-state columns sampled on the shared aligned time grid."""
     if not 1 <= value_column < snapshot.raw.shape[1]:
         raise ValueError("state column must be between 1 and 6")
     if maximum_samples_per_segment < 1:
@@ -410,17 +507,21 @@ def add_raw_state_paths(
     range_start = int(np.searchsorted(times, bounds.start_s, side="left"))
     range_stop = int(np.searchsorted(times, bounds.end_s, side="right"))
     artists: list[Artist] = []
+    sampler = time_sampling or TimeSamplingPolicy()
     for segment_start, segment_stop in snapshot.segment_bounds:
         first = max(int(segment_start), range_start)
         stop = min(int(segment_stop), range_stop)
         sample_count = stop - first
         if sample_count <= 0:
             continue
-        stride = max(1, ceil(sample_count / maximum_samples_per_segment))
-        column_stride = value_column
-        points = snapshot.raw[
-            first:stop:stride, 0 : value_column + 1 : column_stride
-        ]
+        source = snapshot.raw[first:stop]
+        sample_times, sample_values = sampler.sample(
+            source[:, 0],
+            source[:, value_column],
+            bounds_s=(float(source[0, 0]), float(source[-1, 0])),
+            max_samples=maximum_samples_per_segment,
+        )
+        points = np.column_stack((sample_times, sample_values))
         codes = np.full(len(points), Path.LINETO, dtype=Path.code_type)
         codes[0] = Path.MOVETO
         transform = Affine2D.from_values(

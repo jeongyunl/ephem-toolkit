@@ -21,6 +21,7 @@ from .. import (
     time_range,
     time_unit,
     workspace,
+    time_snapping,
 )
 from ..ground_stations import GroundStation
 from ..incremental_loader import IncrementalLoader, LoadEvent
@@ -61,6 +62,8 @@ class PlayerCoreConfig:
     """Optional exact render frame rate."""
     display_time_zone: str
     """Display time zone."""
+    time_snapping: bool
+    """Whether plot display sampling uses UTC half-second alignment."""
     use_oem_interpolation: bool
     """Whether OEM interpolation metadata should be used."""
     interpolation_method: str
@@ -97,6 +100,7 @@ class PlayerCoreConfig:
         tick_interval_ms: int,
         render_rate_fps: int | None,
         display_time_zone: str,
+        time_snapping: bool = True,
         use_oem_interpolation: bool,
         interpolation_method: str,
         interpolation_degree: int,
@@ -121,6 +125,7 @@ class PlayerCoreConfig:
             tick_interval_ms=tick_interval_ms,
             render_rate_fps=render_rate_fps,
             display_time_zone=display_time_zone,
+            time_snapping=time_snapping,
             use_oem_interpolation=use_oem_interpolation,
             interpolation_method=interpolation_method,
             interpolation_degree=interpolation_degree,
@@ -249,6 +254,7 @@ class PreferencesPlayerState(Protocol):
     _state_path: str | Path | None
     _render_rate_config_dirty: bool
     _display_time_zone_config_dirty: bool
+    _time_snapping_config_dirty: bool
     _interpolation_config_dirty: bool
     _ground_stations_config_dirty: bool
 
@@ -283,6 +289,8 @@ class PlayerAppState(
     """Time of the last consumed playback frame period, from a monotonic clock."""
     _render_rate_fps: int
     _display_time_zone: str
+    _time_snapping: bool
+    _time_sampling_policy: time_snapping.TimeSamplingPolicy
     """Requested render-rate FPS used to calculate each playback time increment."""
     _oem_loaded: bool
     _current_oem_path: str | None
@@ -411,6 +419,7 @@ class PlayerAppState(
     ) -> None: ...
     def _active_interpolation_summary(self) -> str: ...
     def _set_display_time_zone(self, display_time_zone: str) -> None: ...
+    def _set_time_snapping(self, enabled: bool) -> None: ...
     def _on_frame_close(self, event: wx.CloseEvent) -> None: ...
     def _on_timer(self, _event: wx.TimerEvent) -> None: ...
     def _on_clock_time_changed(self, time_s: float) -> None: ...
@@ -537,6 +546,8 @@ class PlayerAppState(
     def _close_pending_oem_store(self) -> None: ...
     def _finish_incremental_metadata(self, completion: object) -> None: ...
     def _saved_state_size(self) -> tuple[int, int]: ...
+    def _capture_saved_window_geometry(self) -> None: ...
+    def _capture_saved_open_views(self) -> None: ...
     def _restore_saved_window_size(self) -> None: ...
     def _restore_saved_window_position(self) -> None: ...
     def _save_application_state(
@@ -547,6 +558,7 @@ class PlayerAppState(
     ) -> None: ...
     def _save_render_rate_config(self) -> None: ...
     def _save_display_time_zone_config(self) -> None: ...
+    def _save_time_snapping_config(self) -> None: ...
     def _save_interpolation_config(self) -> None: ...
     def _save_ground_stations_config(self) -> None: ...
     def _capture_current_file_settings(self) -> None: ...

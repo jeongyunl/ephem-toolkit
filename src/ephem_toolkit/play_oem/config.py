@@ -80,6 +80,7 @@ class PlayOemConfig:
     interpolation_method: str = InterpolationType.HERMITE.value
     interpolation_degree: int = DEFAULT_HERMITE_DEGREE
     display_time_zone: str = UTC_DISPLAY
+    time_snapping: bool = True
     three_d_backend: str = "auto"
     plots: tuple[str, ...] = ("overview",)
     plots_configured: bool = False
@@ -179,6 +180,7 @@ def load_config(path: str | Path | None = None) -> PlayOemConfig:
             "config_version",
             "playback",
             "display",
+            "time_snapping",
             "interpolation",
             "ground_stations",
         },
@@ -195,6 +197,9 @@ def load_config(path: str | Path | None = None) -> PlayOemConfig:
 
     playback = _table(document.get("playback", {}), "playback", config_path)
     display = _table(document.get("display", {}), "display", config_path)
+    time_snapping_section = _table(
+        document.get("time_snapping", {}), "time_snapping", config_path
+    )
     interpolation = _table(
         document.get("interpolation", {}), "interpolation", config_path
     )
@@ -207,6 +212,12 @@ def load_config(path: str | Path | None = None) -> PlayOemConfig:
         "playback",
         config_path,
     )
+    _reject_unknown_keys(
+        time_snapping_section, {"enabled"}, "time_snapping", config_path
+    )
+    time_snapping_enabled = time_snapping_section.get("enabled", True)
+    if not isinstance(time_snapping_enabled, bool):
+        raise ConfigError(f"{config_path}: time_snapping.enabled must be true or false")
     _reject_unknown_keys(
         display, {"three_d_backend", "plots", "time_zone"}, "display", config_path
     )
@@ -305,6 +316,7 @@ def load_config(path: str | Path | None = None) -> PlayOemConfig:
         interpolation_method=interpolation_method,
         interpolation_degree=interpolation_degree,
         display_time_zone=display_time_zone,
+        time_snapping=time_snapping_enabled,
         three_d_backend=backend,
         plots=plots,
         plots_configured="plots" in display,
@@ -750,6 +762,40 @@ def save_display_time_zone(
                 break
         else:
             lines.insert(end, f'time_zone = "{display_time_zone}"')
+    updated = newline.join(lines) + (newline if document.endswith(("\n", "\r")) else "")
+    _write_config_document(config_path, updated)
+    return config_path
+
+
+def save_time_snapping(enabled: bool, path: str | Path | None = None) -> Path:
+    """Persist whether time-series plot samples use the snapped grid."""
+    if not isinstance(enabled, bool):
+        raise ConfigError("time_snapping.enabled must be true or false")
+    config_path = default_config_path() if path is None else Path(path).expanduser()
+    if config_path.exists():
+        load_config(config_path)
+        document = config_path.read_text(encoding="utf-8")
+    else:
+        document = f"config_version = {CONFIG_VERSION}\n"
+    lines = document.splitlines()
+    newline = "\r\n" if "\r\n" in document else "\n"
+    header = re.compile(r"^[ \t]*\[[ \t]*time_snapping[ \t]*\][ \t]*(?:#.*)?$")
+    section_header = re.compile(r"^[ \t]*\[{1,2}[^\]]+\]{1,2}[ \t]*(?:#.*)?$")
+    start = next((i for i, line in enumerate(lines) if header.match(line)), None)
+    if start is None:
+        if lines and lines[-1].strip():
+            lines.append("")
+        lines.extend(("[time_snapping]", f"enabled = {str(enabled).lower()}"))
+    else:
+        end = next((i for i in range(start + 1, len(lines)) if section_header.match(lines[i])), len(lines))
+        key = re.compile(r"^([ \t]*)enabled([ \t]*=[ \t]*)(.*?)([ \t]*(?:#.*)?)$")
+        for i in range(start + 1, end):
+            match = key.match(lines[i])
+            if match:
+                lines[i] = f"{match.group(1)}enabled{match.group(2)}{str(enabled).lower()}{match.group(4)}"
+                break
+        else:
+            lines.insert(end, f"enabled = {str(enabled).lower()}")
     updated = newline.join(lines) + (newline if document.endswith(("\n", "\r")) else "")
     _write_config_document(config_path, updated)
     return config_path

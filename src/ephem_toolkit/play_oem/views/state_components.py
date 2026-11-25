@@ -161,6 +161,7 @@ class StateComponentsView(TimeRangeSupport):
                 self._time_unit_divisor_s,
                 bounds=context.plot_range,
                 maximum_samples_per_segment=MAX_STATE_COMPONENT_DISPLAY_POINTS_PER_SEGMENT,
+                time_sampling=context.time_sampling,
                 scale_y=0.001,
                 linewidth=1.5,
             )

@@ -125,6 +125,8 @@ class PlayerWxUiMixin:
             active_interpolation=self._active_interpolation_summary(),
             display_time_zone=self._display_time_zone,
             on_set_display_time_zone=self._set_display_time_zone,
+            time_snapping=self._time_snapping,
+            on_set_time_snapping=self._set_time_snapping,
             on_step_samples=self._step_samples,
             on_step_seconds=self._step_seconds,
             on_jump_to_start=self._jump_to_start,

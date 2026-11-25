@@ -104,8 +104,12 @@ def test_range_profile_uses_cached_values_only_inside_plot_range() -> None:
     view._draw_profile(result, station)
 
     line = view._axes.lines[-1]
-    assert np.array_equal(line.get_xdata(), np.asarray([10.0, 20.0]) / 60.0)
-    assert np.array_equal(line.get_ydata(), np.asarray([90.0, 80.0]))
+    times = line.get_xdata() * 60.0
+    assert 0 < len(times) <= 2000
+    assert times[0] >= 10.0
+    assert times[-1] <= 20.0
+    np.testing.assert_allclose(np.diff(times) / 0.5, 1.0)
+    np.testing.assert_allclose(line.get_ydata(), 100.0 - times)
 
 
 def test_store_station_profiles_share_their_backing_columns() -> None:
@@ -224,7 +228,7 @@ def test_store_station_view_reports_pending_access_coverage() -> None:
     )
     view._build_panel = lambda: cast(Any, None)
     labels: list[str] = []
-    view._status_label = SimpleNamespace(SetLabel=labels.append)
+    view._status_label = cast(Any, SimpleNamespace(SetLabel=labels.append))
 
     try:
         view.build_from_store(context)
@@ -267,7 +271,7 @@ def test_store_station_view_reports_terminal_load_state(
     )
     view._build_panel = lambda: cast(Any, None)
     labels: list[str] = []
-    view._status_label = SimpleNamespace(SetLabel=labels.append)
+    view._status_label = cast(Any, SimpleNamespace(SetLabel=labels.append))
 
     try:
         view.build_from_store(context)
@@ -310,7 +314,7 @@ def test_store_station_view_renders_empty_access_as_empty_not_loading() -> None:
     )
     view._build_panel = lambda: cast(Any, None)
     labels: list[str] = []
-    view._status_label = SimpleNamespace(SetLabel=labels.append)
+    view._status_label = cast(Any, SimpleNamespace(SetLabel=labels.append))
 
     try:
         view.build_from_store(context)
@@ -377,8 +381,20 @@ def test_store_station_profile_keeps_multi_segment_runs_separate() -> None:
 
         assert len(result.look_angle_profiles) == 2
         assert len(view._axes.lines) == 2
-        assert view._axes.lines[0].get_xdata()[-1] == 2.0
-        assert view._axes.lines[1].get_xdata()[0] == 4.0
+        first_times = view._axes.lines[0].get_xdata() * 60.0
+        second_times = view._axes.lines[1].get_xdata() * 60.0
+        assert first_times[0] >= 0.0
+        assert first_times[-1] <= 120.0
+        assert second_times[0] >= 240.0
+        assert second_times[-1] <= 360.0
+        np.testing.assert_allclose(
+            np.diff(first_times) / 0.5,
+            np.rint(np.diff(first_times) / 0.5),
+        )
+        np.testing.assert_allclose(
+            np.diff(second_times) / 0.5,
+            np.rint(np.diff(second_times) / 0.5),
+        )
     finally:
         view.close()
         assert "station-access" not in store._tier_interest
@@ -411,8 +427,10 @@ def test_store_profile_plot_bounds_display_samples() -> None:
 
     line = view._axes.lines[-1]
     assert len(line.get_xdata()) <= 2000
-    assert line.get_xdata()[0] == 0.0
-    assert line.get_xdata()[-1] == 5000.0 / 60.0
+    times = line.get_xdata() * 60.0
+    assert times[0] >= 0.0
+    assert times[-1] <= 5000.0
+    np.testing.assert_allclose(np.diff(times) / 0.5, np.rint(np.diff(times) / 0.5))
 
 
 def test_time_profiles_hide_samples_below_station_elevation_mask() -> None:
@@ -450,20 +468,36 @@ def test_time_profiles_hide_samples_below_station_elevation_mask() -> None:
 
         line = view._axes.lines[-1]
         assert view._mask_filter_enabled
-        assert np.array_equal(
-            line.get_xdata(), np.asarray([0.0, 10.0, 20.0, 30.0]) / 60.0
+        times = line.get_xdata() * 60.0
+        values = line.get_ydata()
+        finite = np.isfinite(values)
+        assert len(times) <= 2000
+        assert times[0] >= 0.0
+        assert times[-1] <= 30.0
+        np.testing.assert_allclose(
+            np.diff(times) / 0.5,
+            np.rint(np.diff(times) / 0.5),
         )
-        assert np.array_equal(
-            np.isnan(line.get_ydata()), np.asarray([True, False, True, False])
+        assert finite.any()
+        assert np.isnan(values).any()
+        elevation_values = np.interp(
+            times,
+            profile.times_s,
+            profile.elevations_deg,
         )
-        expected_above_mask = {
-            "elevation-profile": 10.0,
-            "azimuth-profile": 90.0,
-            "range-profile": 90.0,
+        assert np.all(elevation_values[finite] >= station.minimum_elevation_deg)
+        value_columns = {
+            "elevation-profile": profile.elevations_deg,
+            "azimuth-profile": profile.azimuths_deg,
+            "range-profile": profile.slant_ranges_km,
         }[panel_type]
-        assert line.get_ydata()[1] == expected_above_mask
+        np.testing.assert_allclose(
+            values[finite], np.interp(times[finite], profile.times_s, value_columns)
+        )
 
-        view._mask_filter_control = SimpleNamespace(GetValue=lambda: False)
+        view._mask_filter_control = cast(
+            Any, SimpleNamespace(GetValue=lambda: False)
+        )
         view._on_mask_filter_toggled(cast(Any, None))
 
         assert not view._mask_filter_enabled
@@ -571,7 +605,8 @@ def test_ground_station_pass_track_uses_bound_store_queries() -> None:
     view._canvas = cast(Any, _Canvas())
     view._draw()
     assert len(view._axes.lines) == 1
-    assert view._status.message.startswith("North Site ·")
+    status = cast(Any, view._status)
+    assert status.message.startswith("North Site ·")
 
     selection_context.select_interval((10.0, 20.0))
     assert len(view._axes.lines) == 2

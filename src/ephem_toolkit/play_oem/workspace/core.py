@@ -140,7 +140,7 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             self.main_analysis_pane, self.comparison_pane, MIN_GRAPH_PANE_WIDTH
         )
         self.graph_panes_splitter.Unsplit(self.comparison_pane)
-        self.main_splitter.SetMinimumPaneSize(240)
+        self.main_splitter.SetMinimumPaneSize(self.main_splitter.FromDIP(180))
         self.main_splitter.SetSashGravity(0.0)
         self._right_pane_visible = False
 

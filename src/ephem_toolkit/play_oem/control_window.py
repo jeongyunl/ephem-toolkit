@@ -57,6 +57,8 @@ class ControlWindow:
         active_interpolation: str = "No OEM loaded",
         display_time_zone: str = UTC_DISPLAY,
         on_set_display_time_zone: Callable[[str], None] | None = None,
+        time_snapping: bool = True,
+        on_set_time_snapping: Callable[[bool], None] | None = None,
         on_step_samples: Callable[[int], None],
         on_step_seconds: Callable[[float], None],
         on_jump_to_start: Callable[[], None],
@@ -103,6 +105,7 @@ class ControlWindow:
         self._on_set_render_rate_fps = on_set_render_rate_fps
         self._on_set_interpolation = on_set_interpolation
         self._on_set_display_time_zone = on_set_display_time_zone
+        self._on_set_time_snapping = on_set_time_snapping
         self._use_oem_interpolation = use_oem_interpolation
         self._interpolation_method = interpolation_method
         self._interpolation_degree = interpolation_degree
@@ -133,6 +136,36 @@ class ControlWindow:
         settings_sizer.Add(
             self.display_time_zone_choice, 0,
             wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, LAYOUT_MARGIN,
+        )
+        time_snapping_row = wx.ScrolledWindow(
+            self.settings_scroller,
+            wx.ID_ANY,
+            style=wx.HSCROLL | wx.TAB_TRAVERSAL,
+        )
+        time_snapping_row.SetName("Time snapping control row")
+        time_snapping_row.SetScrollRate(10, 0)
+        self.time_snapping_checkbox = wx.CheckBox(
+            time_snapping_row, wx.ID_ANY, "Snap plots to UTC half-seconds"
+        )
+        self.time_snapping_checkbox.SetName("Time snapping")
+        self.time_snapping_checkbox.SetValue(time_snapping)
+        self.time_snapping_checkbox.Bind(wx.EVT_CHECKBOX, self._on_time_snapping)
+        time_snapping_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        time_snapping_sizer.Add(self.time_snapping_checkbox, 0)
+        time_snapping_row.SetSizer(time_snapping_sizer)
+        time_snapping_row.FitInside()
+        time_snapping_row.SetMinSize(
+            wx.Size(
+                1,
+                self.time_snapping_checkbox.GetBestSize().height
+                + wx.SystemSettings.GetMetric(wx.SYS_HSCROLL_Y),
+            )
+        )
+        settings_sizer.Add(
+            time_snapping_row,
+            0,
+            wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP,
+            LAYOUT_MARGIN,
         )
 
         self.state_scroller = wx.ScrolledWindow(
@@ -414,6 +447,11 @@ class ControlWindow:
         )
         if self._on_set_display_time_zone is not None:
             self._on_set_display_time_zone(selected)
+        event.Skip()
+
+    def _on_time_snapping(self, event: wx.CommandEvent) -> None:
+        if self._on_set_time_snapping is not None:
+            self._on_set_time_snapping(self.time_snapping_checkbox.GetValue())
         event.Skip()
 
     def _on_interpolation_mode_choice(self, event: wx.CommandEvent) -> None:

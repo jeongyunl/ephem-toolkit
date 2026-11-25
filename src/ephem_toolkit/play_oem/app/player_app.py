@@ -30,6 +30,7 @@ from .. import (
     series,
     time_range,
     time_unit,
+    time_snapping,
     workspace,
 )
 from ..display_time import DISPLAY_TIME_ZONES, format_timestamp_text, format_tt
@@ -172,9 +173,14 @@ class PlayerApp(
         self._config_path = config.config_path
         self._state_path = config.state_path
         self._display_time_zone = config.display_time_zone
+        self._time_snapping = config.time_snapping
+        self._time_sampling_policy = time_snapping.TimeSamplingPolicy(
+            align_to_utc_half_seconds=config.time_snapping
+        )
         self._dashboard_context = dict(config.dashboard_context)
         self._metadata_details = config.metadata_details
         self._display_time_zone_config_dirty = False
+        self._time_snapping_config_dirty = False
         self._render_rate_config_dirty = False
         self._interpolation_config_dirty = False
         self._ground_stations_config_dirty = False
@@ -339,6 +345,7 @@ class PlayerApp(
         tick_interval_ms: int = DEFAULT_TICK_INTERVAL_MS,
         render_rate_fps: int | None = None,
         display_time_zone: str = "UTC",
+        time_snapping: bool = True,
         use_oem_interpolation: bool = False,
         interpolation_method: str = InterpolationType.HERMITE.value,
         interpolation_degree: int = DEFAULT_HERMITE_DEGREE,
@@ -410,6 +417,7 @@ class PlayerApp(
             tick_interval_ms=tick_interval_ms,
             render_rate_fps=render_rate_fps,
             display_time_zone=display_time_zone,
+            time_snapping=time_snapping,
             use_oem_interpolation=use_oem_interpolation,
             interpolation_method=interpolation_method,
             interpolation_degree=interpolation_degree,
@@ -602,6 +610,16 @@ class PlayerApp(
                 self._range_dragging,
             )
         )
+
+    def _set_time_snapping(self, enabled: bool) -> None:
+        if enabled == self._time_snapping:
+            return
+        self._time_snapping = enabled
+        self._time_sampling_policy.align_to_utc_half_seconds = enabled
+        self._time_snapping_config_dirty = True
+        if self._store_state.view_context is not None:
+            self._queue_store_view_refresh()
+            self._refresh_store_views()
 
     def _set_display_time_zone(self, display_time_zone: str) -> None:
         if display_time_zone == self._display_time_zone:

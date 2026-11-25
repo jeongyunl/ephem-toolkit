@@ -10,6 +10,7 @@ from matplotlib.path import Path
 
 from ephem_toolkit.play_oem.oem_data_store import OemDataStore
 from ephem_toolkit.play_oem.time_range import ResolvedTimeRange
+from ephem_toolkit.play_oem.time_snapping import snap_tt_s_to_utc_half_second
 from ephem_toolkit.play_oem.time_unit import TimeUnit
 from ephem_toolkit.play_oem.views.angular_velocity import AngularVelocityView
 from ephem_toolkit.play_oem.views.base import StoreViewBinding, StoreViewContext
@@ -134,6 +135,38 @@ def test_store_view_context_refresh_and_binding_lifecycle() -> None:
     binding.close()
     assert binding.context is None
     assert "series" not in other_store._tier_interest
+
+
+def test_store_series_views_use_bounded_aligned_timestamps() -> None:
+    context = _store_context()
+
+    query = context.series("rtn")
+
+    assert len(query.value) == 1
+    group = query.value[0]
+    assert len(group.segment_bounds) == 2
+    time_column = group.columns.index("t")
+    for span in group.segment_bounds:
+        times = group.values[span.first : span.stop, time_column]
+        assert 0 < len(times) <= 2000
+        if len(times) > 1:
+            assert snap_tt_s_to_utc_half_second(float(times[0])) == pytest.approx(
+                times[0]
+            )
+        gaps = np.diff(times) / 0.5
+        np.testing.assert_allclose(gaps, np.rint(gaps))
+
+
+def test_series_display_limit_is_respected_after_alignment() -> None:
+    context = _store_context()
+
+    query = context.series("rtn", max_samples=20)
+
+    group = query.value[0]
+    assert len(group.segment_bounds) == 2
+    assert all(
+        span.stop - span.first <= 20 for span in group.segment_bounds
+    )
 
 
 @pytest.mark.parametrize(
@@ -318,7 +351,8 @@ def test_store_history_views_report_insufficient_samples(view_type) -> None:
     figure = view.build_from_store(context)
     FigureCanvasAgg(figure).draw()
 
-    empty_artists = view._store_empty_artists or ()
+    empty_artists = view._store_empty_artists
+    assert empty_artists is not None
     if view_type is GeocentricDistanceView:
         assert empty_artists[0].get_text() == "No samples in plot range"
         assert empty_artists[1].get_text() == "Not enough samples"

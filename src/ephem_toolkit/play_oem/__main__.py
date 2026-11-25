@@ -84,6 +84,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         tick_interval_ms=math.ceil(1000 / initial_render_rate_fps),
         render_rate_fps=initial_render_rate_fps,
         display_time_zone=user_config.display_time_zone,
+        time_snapping=user_config.time_snapping,
         use_oem_interpolation=user_config.use_oem_interpolation,
         interpolation_method=user_config.interpolation_method,
         interpolation_degree=user_config.interpolation_degree,

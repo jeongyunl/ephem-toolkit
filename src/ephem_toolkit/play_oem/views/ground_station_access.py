@@ -29,7 +29,6 @@ from .base import (
 )
 from .plotting import (
     MAX_DISPLAY_POINTS_PER_SEGMENT,
-    decimate_indices,
     set_shared_x_limits,
     time_bounds_to_axis,
 )
@@ -428,6 +427,9 @@ class GroundStationAccessView:
         result: StationAccess,
         divisor: float,
     ) -> None:
+        if self._store_context is None:
+            return
+        sampler = self._store_context.time_sampling
         axes.set_title(f"{station.name} elevation")
         has_line = False
         mask = station.minimum_elevation_deg
@@ -475,16 +477,22 @@ class GroundStationAccessView:
                         samples = np.column_stack(
                             (plot_times[visible_run], plot_elevations[visible_run])
                         )
-                        display_indices = decimate_indices(
-                            samples, MAX_DISPLAY_POINTS_PER_SEGMENT
+                        display_times, display_elevations = sampler.sample(
+                            samples[:, 0],
+                            samples[:, 1],
+                            bounds_s=(
+                                float(samples[0, 0]),
+                                float(samples[-1, 0]),
+                            ),
+                            max_samples=MAX_DISPLAY_POINTS_PER_SEGMENT,
                         )
                         axes.plot(
-                            (samples[display_indices, 0] - self._cursor.t_start)
+                            (display_times - self._cursor.t_start)
                             / divisor,
-                            samples[display_indices, 1],
+                            display_elevations,
                             color="#2f7ebc",
                             linewidth=1.2,
-                            marker="." if len(display_indices) == 1 else "None",
+                            marker="." if len(display_times) == 1 else "None",
                             label="Elevation" if not has_line else "_nolegend_",
                         )
                         has_line = True

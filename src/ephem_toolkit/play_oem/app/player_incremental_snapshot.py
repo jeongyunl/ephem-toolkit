@@ -50,6 +50,7 @@ class PlayerIncrementalSnapshotMixin:
             time_unit=self.time_unit,
             plot_range=self._resolved_plot_range(),
             coverage=(self.clock.t_start, self.clock.t_end),
+            time_sampling=self._time_sampling_policy,
         )
         self._publish_range_hint()
         self._oem_interpolation = str(meta.get("INTERPOLATION", "")) or None

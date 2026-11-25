@@ -1,6 +1,8 @@
-"""Store-backed raw state and 3D view tests."""
+"""Raw-state and store-backed 3D view tests."""
 
 from __future__ import annotations
+
+from typing import Any, cast
 
 import numpy as np
 from matplotlib.backends.backend_agg import FigureCanvasAgg
@@ -8,6 +10,7 @@ from matplotlib.patches import PathPatch
 
 from ephem_toolkit.play_oem.oem_data_store import OemDataStore
 from ephem_toolkit.play_oem.time_range import ResolvedTimeRange
+from ephem_toolkit.play_oem.time_snapping import snap_tt_s_to_utc_half_second
 from ephem_toolkit.play_oem.time_unit import TimeUnit
 from ephem_toolkit.play_oem.views.base import StoreViewContext
 from ephem_toolkit.play_oem.views.state_components import StateComponentsView
@@ -40,7 +43,7 @@ def _store_context() -> StoreViewContext:
     )
 
 
-def test_state_components_paths_share_raw_columns_and_update_ranges() -> None:
+def test_state_components_paths_use_aligned_samples_and_update_ranges() -> None:
     context = _store_context()
     view = StateComponentsView(100.0, "GCRF / Earth")
     figure = view.build_from_store(context)
@@ -50,10 +53,15 @@ def test_state_components_paths_share_raw_columns_and_update_ranges() -> None:
     for axes in figure.axes:
         paths = [artist for artist in axes.patches if isinstance(artist, PathPatch)]
         assert len(paths) == 2
-        assert all(
-            np.shares_memory(path.get_path().vertices, context.snapshot.raw)
-            for path in paths
-        )
+        for path in paths:
+            vertices = path.get_path().vertices
+            assert len(vertices) <= 500
+            assert np.isclose(
+                vertices[0, 0],
+                snap_tt_s_to_utc_half_second(float(vertices[0, 0])),
+            )
+            gaps = np.diff(vertices[:, 0]) / 0.5
+            np.testing.assert_allclose(gaps, np.rint(gaps))
 
     position_x = figure.axes[0]
     first_path = next(
@@ -63,8 +71,17 @@ def test_state_components_paths_share_raw_columns_and_update_ranges() -> None:
     )
     display = first_path.get_transform().transform(first_path.get_path().vertices)
     data = position_x.transData.inverted().transform(display)
-    np.testing.assert_allclose(data[:, 0], [0.0, 1.0], atol=1e-12)
-    np.testing.assert_allclose(data[:, 1], [7000.0, 0.0], atol=1e-10)
+    np.testing.assert_allclose(
+        data[:, 0],
+        (first_path.get_path().vertices[:, 0] - 100.0) / 60.0,
+        atol=1e-12,
+    )
+    assert len(data) <= 500
+    np.testing.assert_allclose(
+        data[:, 1],
+        7000.0 * (1.0 - (first_path.get_path().vertices[:, 0] - 100.0) / 60.0),
+        atol=1e-8,
+    )
 
     original_y_limits = tuple(axes.get_ylim() for axes in figure.axes)
     view.set_time_range(ResolvedTimeRange(160.0, 220.0), context.coverage)
@@ -92,7 +109,7 @@ def test_trajectory3d_store_paths_are_bounded_and_range_updates_keep_camera() ->
         assert len(coordinates[1]) == 2
         assert len(coordinates[2]) == 2
 
-    axes = figure.axes[0]
+    axes = cast(Any, figure.axes[0])
     original_limits = (axes.get_xlim(), axes.get_ylim(), axes.get_zlim())
     view.set_time_range(ResolvedTimeRange(160.0, 220.0), context.coverage)
     view.update(160.0)
@@ -114,7 +131,7 @@ def test_trajectory3d_store_autoscale_uses_only_the_plot_range() -> None:
     )
     view = Trajectory3DView(None, "ISS", "EME2000 / Earth")
     figure = view.build_from_store(context)
-    axes = figure.axes[0]
+    axes = cast(Any, figure.axes[0])
 
     centers = np.array(
         [

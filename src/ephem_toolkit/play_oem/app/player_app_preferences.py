@@ -171,6 +171,7 @@ class PlayerAppPreferencesMixin:
         """Persist state without allowing a state-file error to close the app."""
         self._save_render_rate_config()
         self._save_display_time_zone_config()
+        self._save_time_snapping_config()
         self._save_interpolation_config()
         self._save_ground_stations_config()
         if not self._persist_saved_state or self._saved_state is None:
@@ -217,6 +218,16 @@ class PlayerAppPreferencesMixin:
             )
         else:
             self._display_time_zone_config_dirty = False
+
+    def _save_time_snapping_config(self: PlayerAppState) -> None:
+        if not self._time_snapping_config_dirty:
+            return
+        try:
+            config.save_time_snapping(self._time_snapping, self._config_path)
+        except (OSError, config.ConfigError) as error:
+            warnings.warn(f"Could not save play-oem time snapping: {error}", RuntimeWarning, stacklevel=2)
+        else:
+            self._time_snapping_config_dirty = False
 
     def _save_interpolation_config(self: PlayerAppState) -> None:
         if not self._interpolation_config_dirty:

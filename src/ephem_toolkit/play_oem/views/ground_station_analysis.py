@@ -30,7 +30,7 @@ from .base import (
     station_access_from_store,
     store_load_status_message,
 )
-from .plotting import bounded_sample_indices
+from .plotting import MAX_DISPLAY_POINTS_PER_SEGMENT
 
 _PROFILE_TYPES = frozenset(("elevation-profile", "azimuth-profile", "range-profile"))
 
@@ -364,8 +364,9 @@ class GroundStationAnalysisView:
             self._canvas.draw_idle()
 
     def _draw_profile(self, result: StationAccess, station: GroundStation) -> None:
-        if self._axes is None:
+        if self._axes is None or self._store_context is None:
             return
+        sampler = self._store_context.time_sampling
         if self._panel_type == "elevation-profile":
             intervals = self._visible_intervals(result)
             for index, interval in enumerate(intervals):
@@ -393,20 +394,19 @@ class GroundStationAnalysisView:
                 )
                 if first >= stop:
                     continue
-                indices = first + bounded_sample_indices(stop - first)
-                times = profile_times[indices]
+                selection: slice | np.ndarray = slice(first, stop)
             else:
                 selected = (profile_times >= self._time_range.start_s) & (
                     profile_times <= self._time_range.end_s
                 )
-                indices = np.flatnonzero(selected)
-                if not len(indices):
+                selection = np.flatnonzero(selected)
+                if not len(selection):
                     continue
-                times = profile_times[indices]
-            if not len(indices):
+            times = profile_times[selection]
+            if not len(times):
                 continue
             if self._panel_type == "elevation-profile":
-                values = profile.elevations_deg[indices]
+                values = profile.elevations_deg[selection]
                 self._axes.axhline(
                     station.minimum_elevation_deg,
                     color="#c74343",
@@ -415,23 +415,39 @@ class GroundStationAnalysisView:
                     label="Station mask",
                 )
             elif self._panel_type == "azimuth-profile":
-                values = profile.azimuths_deg[indices]
+                values = profile.azimuths_deg[selection]
                 values = np.asarray(values, dtype=float).copy()
                 breaks = np.flatnonzero(np.abs(np.diff(values)) > 180.0) + 1
                 values[breaks] = np.nan
             else:
                 if profile.slant_ranges_km is None:
                     continue
-                values = profile.slant_ranges_km[indices]
+                values = profile.slant_ranges_km[selection]
             values = np.asarray(values, dtype=float).copy()
+            elevations = np.asarray(profile.elevations_deg[selection], dtype=float)
             if self._mask_filter_enabled:
-                below_mask = (
-                    profile.elevations_deg[indices] < station.minimum_elevation_deg
-                )
-                values[below_mask] = np.nan
+                source_values = np.column_stack((values, elevations))
+            else:
+                source_values = values
+            finite_times = np.flatnonzero(np.isfinite(times))
+            if not finite_times.size:
+                continue
+            display_times, display_values = sampler.sample(
+                times,
+                source_values,
+                bounds_s=(
+                    float(times[finite_times[0]]),
+                    float(times[finite_times[-1]]),
+                ),
+                max_samples=MAX_DISPLAY_POINTS_PER_SEGMENT,
+            )
+            if self._mask_filter_enabled and display_values.ndim == 2:
+                below_mask = display_values[:, 1] < station.minimum_elevation_deg
+                display_values[below_mask, 0] = np.nan
+                display_values = display_values[:, 0]
             self._axes.plot(
-                self._axis_times(times),
-                values,
+                self._axis_times(display_times),
+                display_values,
                 linewidth=1.3,
                 label=f"{station.name} · segment",
             )

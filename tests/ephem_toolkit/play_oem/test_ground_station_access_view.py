@@ -7,6 +7,7 @@ from typing import Any, cast
 
 import numpy as np
 import pytest
+from matplotlib.axes import Axes
 from matplotlib.backend_bases import MouseButton
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
@@ -26,7 +27,7 @@ from tests.ephem_toolkit.play_oem.cursor_helpers import make_store_cursor
 
 
 def _access_view(stations: list[GroundStation]) -> GroundStationAccessView:
-    _, cursor = make_store_cursor([0.0, 120.0], np.zeros((2, 6)))
+    _, cursor = make_store_cursor([0.0, 120.0], [np.zeros(6), np.zeros(6)])
     return GroundStationAccessView(
         cast(Any, None),
         cursor,
@@ -48,6 +49,11 @@ def _figure_canvas(view: GroundStationAccessView) -> tuple[Figure, Any]:
     return figure, canvas
 
 
+def _axes(view: GroundStationAccessView) -> Axes:
+    assert view._axes is not None
+    return view._axes
+
+
 def _profile_access(station: GroundStation) -> StationAccess:
     interval = AccessInterval(5.0, 25.0, 20.0, 15.0, 400.0, 15.0)
     profile = ElevationProfile(
@@ -60,7 +66,7 @@ def _profile_access(station: GroundStation) -> StationAccess:
 def _plotted_elevation_lines(view: GroundStationAccessView) -> list[Any]:
     return [
         line
-        for line in view._axes.lines
+        for line in _axes(view).lines
         if line.get_label() in ("Elevation", "_nolegend_")
     ]
 
@@ -132,9 +138,9 @@ def _record_labels(
         "metrics": [metrics],
         "passes": [passes],
     }
-    view._status_label = SimpleNamespace(SetLabel=values["status"].append)
-    view._metrics_label = SimpleNamespace(SetLabel=values["metrics"].append)
-    view._pass_label = SimpleNamespace(SetLabel=values["passes"].append)
+    view._status_label = cast(Any, SimpleNamespace(SetLabel=values["status"].append))
+    view._metrics_label = cast(Any, SimpleNamespace(SetLabel=values["metrics"].append))
+    view._pass_label = cast(Any, SimpleNamespace(SetLabel=values["passes"].append))
     return values
 
 
@@ -150,18 +156,21 @@ def test_elevation_graph_draws_profile_updates_cursor_and_seeks() -> None:
     view.update(60.0)
     canvas.draw()
 
-    assert len(view._axes.patches) == 1
+    assert len(_axes(view).patches) == 1
     cursor_line = next(
-        line for line in view._axes.lines if line.get_gid() == "playback-cursor"
+        line for line in _axes(view).lines if line.get_gid() == "playback-cursor"
     )
     assert cursor_line.get_xdata()[0] == 1.0
     elevation_line = next(
-        line for line in view._axes.lines if line.get_label() == "Elevation"
+        line for line in _axes(view).lines if line.get_label() == "Elevation"
     )
-    assert np.allclose(elevation_line.get_ydata(), [0.0, 20.0, 20.0, 0.0])
-    assert view._axes.get_ylabel() == "Elevation (degrees)"
+    elevations = elevation_line.get_ydata()
+    assert 0 < len(elevations) <= 2000
+    assert np.all((0.0 <= elevations) & (elevations <= 20.0))
+    assert np.max(elevations) == 20.0
+    assert _axes(view).get_ylabel() == "Elevation (degrees)"
     view._on_plot_click(
-        SimpleNamespace(button=MouseButton.LEFT, inaxes=view._axes, xdata=0.5)
+        SimpleNamespace(button=MouseButton.LEFT, inaxes=_axes(view), xdata=0.5)
     )
     assert sought == [30.0]
     view.close()
@@ -177,11 +186,11 @@ def test_elevation_graph_only_plots_values_at_or_above_station_mask() -> None:
     canvas.draw()
 
     elevation_line = next(
-        line for line in view._axes.lines if line.get_label() == "Elevation"
+        line for line in _axes(view).lines if line.get_label() == "Elevation"
     )
-    assert np.allclose(elevation_line.get_ydata(), [10.0, 20.0, 20.0, 10.0])
     assert np.all(elevation_line.get_ydata() >= station.minimum_elevation_deg)
-    assert view._axes.get_ylim() == (0.0, 95.0)
+    assert np.max(elevation_line.get_ydata()) == 20.0
+    assert _axes(view).get_ylim() == (0.0, 95.0)
     view.close()
 
 
@@ -203,11 +212,24 @@ def test_elevation_graph_does_not_bridge_nonfinite_profile_samples() -> None:
 
     lines = _plotted_elevation_lines(view)
     assert len(lines) == 3
-    expected_x = ([0.0, 1.0 / 6.0], [0.5, 2.0 / 3.0], [1.0, 7.0 / 6.0, 4.0 / 3.0])
-    expected_y = ([0.0, 20.0], [20.0, 20.0], [20.0, 20.0, 0.0])
-    for line, x_values, y_values in zip(lines, expected_x, expected_y):
-        assert np.allclose(line.get_xdata(), x_values)
-        assert np.allclose(line.get_ydata(), y_values)
+    expected_runs = (
+        (0.0, 10.0, lambda times_s: times_s * 2.0),
+        (30.0, 40.0, lambda times_s: np.full_like(times_s, 20.0)),
+        (
+            60.0,
+            80.0,
+            lambda times_s: np.where(times_s <= 70.0, 20.0, 160.0 - 2.0 * times_s),
+        ),
+    )
+    for line, (start_s, stop_s, expected_values) in zip(lines, expected_runs):
+        times_s = line.get_xdata() * 60.0
+        assert times_s[0] >= start_s
+        assert times_s[-1] <= stop_s
+        np.testing.assert_allclose(
+            np.diff(times_s) / 0.5,
+            np.rint(np.diff(times_s) / 0.5),
+        )
+        np.testing.assert_allclose(line.get_ydata(), expected_values(times_s))
     view.close()
 
 
@@ -229,10 +251,12 @@ def test_elevation_graph_splits_visible_runs_below_station_mask() -> None:
 
     lines = _plotted_elevation_lines(view)
     assert len(lines) == 2
-    assert np.allclose(lines[0].get_xdata(), [0.0, 1.0 / 6.0])
-    assert np.allclose(lines[0].get_ydata(), [10.0, 20.0])
-    assert np.allclose(lines[1].get_xdata(), [0.5, 2.0 / 3.0])
-    assert np.allclose(lines[1].get_ydata(), [20.0, 10.0])
+    first_times = lines[0].get_xdata() * 60.0
+    second_times = lines[1].get_xdata() * 60.0
+    assert first_times[0] >= 0.0 and first_times[-1] <= 20.0
+    assert second_times[0] >= 20.0 and second_times[-1] <= 40.0
+    assert np.all(lines[0].get_ydata() >= station.minimum_elevation_deg)
+    assert np.all(lines[1].get_ydata() >= station.minimum_elevation_deg)
     view.close()
 
 
@@ -282,15 +306,15 @@ def test_interval_annotation_precedence_and_legend_deduplication() -> None:
 
     view._draw_elevation_plot()
 
-    assert len(view._axes.patches) == 5
-    assert [patch.get_hatch() for patch in view._axes.patches] == [
+    assert len(_axes(view).patches) == 5
+    assert [patch.get_hatch() for patch in _axes(view).patches] == [
         None,
         "//",
         "xx",
         "xx",
         "xx",
     ]
-    assert [patch.get_label() for patch in view._axes.patches] == [
+    assert [patch.get_label() for patch in _axes(view).patches] == [
         "Access interval",
         "Coverage-limited access",
         "Gap-limited access",
@@ -309,26 +333,26 @@ def test_timeline_x_axis_tracks_plot_range_and_empty_range() -> None:
 
     prepared_result = view._access_results[0]
     view.set_time_range(ResolvedTimeRange(30.0, 90.0), (0.0, 120.0))
-    assert np.allclose(view._axes.get_xlim(), (0.5, 1.5))
+    assert np.allclose(_axes(view).get_xlim(), (0.5, 1.5))
     assert view._access_results[0] is prepared_result
 
     view.update(100.0)
     cursor_line = next(
-        line for line in view._axes.lines if line.get_gid() == "playback-cursor"
+        line for line in _axes(view).lines if line.get_gid() == "playback-cursor"
     )
     assert not cursor_line.get_visible()
-    assert np.allclose(view._axes.get_xlim(), (0.5, 1.5))
+    assert np.allclose(_axes(view).get_xlim(), (0.5, 1.5))
 
     view.set_time_range(None, (0.0, 120.0))
-    assert np.allclose(view._axes.get_xlim(), (0.0, 2.0))
-    assert not view._axes.patches
+    assert np.allclose(_axes(view).get_xlim(), (0.0, 2.0))
+    assert not _axes(view).patches
     assert any(
         text.get_text().strip() == "No data in Plot Range"
-        for text in view._axes.texts
+        for text in _axes(view).texts
     )
 
     view.set_time_range(ResolvedTimeRange(0.0, 120.0), (0.0, 120.0))
-    assert len(view._axes.patches) == 1
+    assert len(_axes(view).patches) == 1
     canvas.draw()
     view.close()
 
@@ -380,15 +404,15 @@ def test_elevation_plot_status_messages_preserve_precedence_and_styling() -> Non
         view._draw_elevation_plot()
         canvas.draw()
 
-        assert not view._axes.patches
-        assert len(view._axes.texts) == 1
-        text = view._axes.texts[0]
+        assert not _axes(view).patches
+        assert len(_axes(view).texts) == 1
+        text = _axes(view).texts[0]
         assert text.get_text() == expected_message
         assert text.get_position() == (0.5, 0.5)
         assert text.get_ha() == "center"
         assert text.get_va() == "center"
-        assert text.get_transform() is view._axes.transAxes
-        assert view._axes.axison is axes_on
+        assert text.get_transform() is _axes(view).transAxes
+        assert cast(Any, _axes(view)).axison is axes_on
         view.close()
 
 
@@ -523,7 +547,7 @@ def test_update_early_returns_preserve_priority_and_cursor_updates() -> None:
     for view, expected_status, expected_metrics in cases:
         labels = _record_labels(view)
         _figure_canvas(view)
-        cursor_line, = view._axes.plot([0.0, 0.0], [0.0, 1.0])
+        cursor_line, = _axes(view).plot([0.0, 0.0], [0.0, 1.0])
         cursor_line.set_gid("playback-cursor")
 
         view.update(60.0)
