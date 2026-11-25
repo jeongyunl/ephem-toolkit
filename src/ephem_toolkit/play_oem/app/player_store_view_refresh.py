@@ -12,12 +12,44 @@ from ..oem_data_store import (
     AppendNotice,
     OemDataStore,
     ResetNotice,
+    StoreSnapshot,
     TierNotice,
 )
 from .player_app_state import PlayerAppState
 
 INCREMENTAL_VIEW_REFRESH_INTERVAL_S: float = 5.0
 """Maximum refresh interval for partial incremental plot rebuilds."""
+
+
+def _append_affects_plot(
+    notice: AppendNotice, plot: time_range.ResolvedTimeRange | None
+) -> bool:
+    return bool(
+        plot is not None
+        and notice.start_s <= plot.end_s
+        and notice.end_s >= plot.start_s
+    )
+
+
+def _tier_affects_display(
+    notice: TierNotice,
+    snapshot: StoreSnapshot,
+    plot: time_range.ResolvedTimeRange | None,
+    now_s: float,
+) -> bool:
+    """Keep notices that touch the plotted interval or the playback cursor."""
+    span = notice.time_span_s
+    if span is None and notice.tier != "station-access":
+        first = max(0, notice.first_row - 1)
+        stop = min(snapshot.sample_count, notice.stop_row + 1)
+        if first < stop:
+            span = (float(snapshot.raw[first, 0]), float(snapshot.raw[stop - 1, 0]))
+    if span is None:
+        return True
+    start, end = span
+    return (start <= now_s <= end) or (
+        plot is not None and start <= plot.end_s and end >= plot.start_s
+    )
 
 
 class PlayerStoreViewRefreshMixin:
@@ -49,10 +81,20 @@ class PlayerStoreViewRefreshMixin:
                 break
             if notice_store is not store or notice.epoch != snapshot.epoch:
                 continue
-            if isinstance(notice, (AppendNotice, ResetNotice)):
+            if isinstance(notice, ResetNotice):
                 refresh_all = True
+            elif isinstance(notice, AppendNotice):
+                plot_range = self._resolved_plot_range()
+                if (
+                    not self._load_state.initial_range_ready
+                    or _append_affects_plot(notice, plot_range)
+                ):
+                    refresh_all = True
             elif isinstance(notice, TierNotice):
-                affected.update(self._views_for_tier_notice(notice))
+                if _tier_affects_display(
+                    notice, snapshot, self._resolved_plot_range(), self.clock.t_now
+                ):
+                    affected.update(self._views_for_tier_notice(notice))
 
         if refresh_all:
             self._queue_store_view_refresh()
@@ -70,6 +112,8 @@ class PlayerStoreViewRefreshMixin:
                 "direction-rates": {"angular-velocity", "direction-change"},
                 "distance-delta": {"distance"},
             }
+            if notice.group is None:
+                return set()
             return set(group_views.get(notice.group, ()))
         if notice.tier in ("earth-fixed", "ground-track", "footprints"):
             return {"ground-track", "pass-ground-track"}
@@ -167,6 +211,16 @@ class PlayerStoreViewRefreshMixin:
     def _should_defer_incremental_view_refresh(
         self: PlayerAppState,
     ) -> bool:
+        if (
+            self._load_state.first_batch
+            and not self._load_state.coverage_complete
+            and not self._load_state.initial_range_ready
+            and (
+                not self._load_state.initial_range_waiting
+                or not getattr(self._incremental_loader, "paused", False)
+            )
+        ):
+            return True
         return (
             self._range_dragging
             and self._load_state.first_batch
@@ -188,7 +242,8 @@ class PlayerStoreViewRefreshMixin:
                 self.open_plots(self._plots)
                 self.workspace.draw_initial_graphs()
                 wx.CallAfter(self._refresh_graph_stack_layouts)
-            self._queue_store_view_refresh()
+            if not self._refresh_state.pending_store_view_ids:
+                self._queue_store_view_refresh()
             self._refresh_store_views()
             self._refresh_state.incremental_view_refresh_pending = bool(
                 self._refresh_state.pending_store_view_ids

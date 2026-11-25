@@ -2,7 +2,7 @@
 
 Requirements and shipped behavior: [PLAY_OEM_CONCEPTS.md](./PLAY_OEM_CONCEPTS.md).
 Loading and ownership: [PLAY_OEM_DATAFLOW.md](./PLAY_OEM_DATAFLOW.md) and
-[PLAY_OEM_LOADING_AWARE_TIMELINE_IMPLEMENTATION_PLAN.md](./PLAY_OEM_LOADING_AWARE_TIMELINE_IMPLEMENTATION_PLAN.md).
+[PLAY_OEM_LOADING_AWARE_TIMELINE_IMPLEMENTATION_REPORT.md](./old/PLAY_OEM_LOADING_AWARE_TIMELINE_IMPLEMENTATION_REPORT.md).
 User guides:
 [configuration](../../tools/PLAY_OEM_CONFIG.md), [Ground Stations](../../tools/PLAY_OEM_GROUND_STATIONS.md),
 and [Ground Track](../../tools/PLAY_OEM_GROUND_TRACK.md).
@@ -42,7 +42,7 @@ src/ephem_toolkit/play_oem/
   saved_state.py       # application-maintained workspace state
   display_time.py      # UTC/local timestamp formatting
   streaming_oem.py     # parse OEM rows directly into store reservations
-  incremental_loader.py # generation-scoped worker, cancellation, and load events
+  incremental_loader.py # generation-scoped worker, cancellation, pause/resume, and load events
   oem_data_store.py    # raw samples and lazily computed derived tiers
   clock.py             # playback bounds, sample-time view, and clock logic
   cursor.py            # StoreCursor point queries and inert empty startup state
@@ -354,7 +354,7 @@ graph stacks with per-panel view selector, actions, and close controls
   time offset or a fixed timepoint. Right-click a plot handle to choose its mode; drag Offset
   and Fixed handles to change their position. See
   [PLAY_OEM_CONCEPTS.md](./PLAY_OEM_CONCEPTS.md) and
-  [PLAY_OEM_LOADING_AWARE_TIMELINE_IMPLEMENTATION_PLAN.md](./PLAY_OEM_LOADING_AWARE_TIMELINE_IMPLEMENTATION_PLAN.md)
+  [PLAY_OEM_LOADING_AWARE_TIMELINE_IMPLEMENTATION_REPORT.md](./old/PLAY_OEM_LOADING_AWARE_TIMELINE_IMPLEMENTATION_REPORT.md)
   for current requirements and loading behavior.
 - Loading-aware timeline: the reader publishes each segment's UTC metadata at `META_STOP`,
   before parsing its state rows. The controller unions valid segment bounds with observed sample
@@ -415,14 +415,27 @@ directly into the new `OemDataStore`. The wx thread drains generation-tagged eve
 snapshots, captures `StoreViewContext` values, and refreshes open panels. No whole-history
 `OrbitSeries` is prepared before the workspace appears.
 
+`IncrementalLoader.pause()` and `resume()` (also available on its active
+`IncrementalLoadSession`) control the producer asynchronously. `pause()` requests a stop at the
+next committed raw-batch boundary after its append event is published; it does not wait for the
+worker or undo committed rows. The session's `paused` property becomes true when the worker
+acknowledges that boundary. `resume()` clears the request and lets the same generation proceed.
+Cancellation and replacement remain separate operations.
+
+For initial plotting, the app starts the producer normally and defers plot refreshes until the
+requested playback and plot ranges are covered. It then requests a pause, waits for the worker's
+acknowledgment, draws the initial graphs from the committed prefix, and resumes loading. The
+bounded event queue can allow already in-flight batches to commit before the pause is acknowledged.
+
 ## 5. CLI flow (`__main__.py`)
 
 1. Parse the optional OEM path, `--plots`, `--3d-backend`, `--config-file`, `--state-file`, and `--config-dir`.
 2. Load user configuration and saved workspace state, then construct the `wx.App` and workspace
    with an empty startup model.
 3. Show the workspace and start the selected file's generation-scoped background load. The worker
-   commits parsed rows directly to the store; the wx thread installs usable snapshots and refreshes
-   the selected views as loading progresses. Completion publishes validated metadata.
+   commits parsed rows directly to the store; the wx thread installs snapshots while deferring
+   initial plot refreshes until playback and plot coverage are ready. It pauses the producer for
+   initial graph drawing, then resumes it. Completion publishes validated metadata.
 4. Playback, seeking, and render-rate controls operate in the GUI. `--plots` defaults to
    `overview`; `auto` selects VTK only when its wx integration initializes successfully, otherwise
    it uses Matplotlib with a notice. An explicit unavailable VTK request fails with an actionable

@@ -642,8 +642,20 @@ class PlaybackTimeSlider(TimeSlider):
         slider_start, slider_end = self._slider_bounds
         playback_start, playback_end = self._playback_handles
         coverage_start, coverage_end = coverage
+        try:
+            resolved_plot = time_range.resolve_plot_range(
+                plot_rule, coverage, playback, now_s
+            )
+        except ValueError:
+            required_end = float("inf")
+        else:
+            required_end = max(
+                playback_end,
+                resolved_plot.end_s if resolved_plot is not None else playback_end,
+            )
         self._ranges_ready = (
-            unloaded_from_s is None
+            required_end != float("inf")
+            and (unloaded_from_s is None or unloaded_from_s >= required_end)
             and coverage_end > coverage_start
             and slider_end > slider_start
             and playback_end >= playback_start

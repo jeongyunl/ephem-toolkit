@@ -249,6 +249,10 @@ def compute_profile_ranges(
                             station.station_id,
                             span.first,
                             span.stop,
+                            (
+                                float(tier.buffer[span.first, 0]),
+                                float(tier.buffer[span.stop - 1, 0]),
+                            ),
                         )
                     )
                 return RowSpan(chunk_start, chunk_stop)

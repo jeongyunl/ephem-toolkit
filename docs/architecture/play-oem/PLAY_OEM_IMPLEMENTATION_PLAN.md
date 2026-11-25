@@ -3,7 +3,7 @@
 Requirements and current behavior: [PLAY_OEM_CONCEPTS.md](./PLAY_OEM_CONCEPTS.md).
 As-built architecture: [PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md) and
 [PLAY_OEM_DATAFLOW.md](./PLAY_OEM_DATAFLOW.md). The active loading interaction plan is
-[PLAY_OEM_LOADING_AWARE_TIMELINE_IMPLEMENTATION_PLAN.md](./PLAY_OEM_LOADING_AWARE_TIMELINE_IMPLEMENTATION_PLAN.md).
+[PLAY_OEM_LOADING_AWARE_TIMELINE_IMPLEMENTATION_REPORT.md](./old/PLAY_OEM_LOADING_AWARE_TIMELINE_IMPLEMENTATION_REPORT.md).
 
 Ground Stations and station-access analysis are implemented. The current user workflows are in
 [PLAY_OEM_GROUND_STATIONS.md](../../tools/PLAY_OEM_GROUND_STATIONS.md); architecture and data
@@ -26,7 +26,7 @@ periods, redraws once, and drops intermediate frames when rendering overruns.
 
 The active loading architecture is documented in
 [PLAY_OEM_DATAFLOW.md](./PLAY_OEM_DATAFLOW.md) and the
-[loading-aware timeline plan](./PLAY_OEM_LOADING_AWARE_TIMELINE_IMPLEMENTATION_PLAN.md).
+[loading-aware timeline report](./old/PLAY_OEM_LOADING_AWARE_TIMELINE_IMPLEMENTATION_REPORT.md).
 
 ## How to use this plan
 
@@ -80,11 +80,12 @@ notes remain archived in [old/](./old/).
 
 ## Milestone L — Loading-aware timeline and release readiness
 
-### 28. Make the timeline metadata-aware and defer redraws during loading drags
+### 28. Make the timeline metadata-aware, defer loading-time redraws, and gate initial plots by coverage
 
 Use OEM time metadata for the full timeline domain, distinguish committed from unread data,
-keep all handles aligned, and defer plot updates during handle drags while loading. See the
-[dedicated implementation plan](./PLAY_OEM_LOADING_AWARE_TIMELINE_IMPLEMENTATION_PLAN.md) for
+keep all handles aligned, defer plot updates during handle drags, and draw initial plots after the
+requested playback and plot ranges are loaded. See the
+[archived implementation report](./old/PLAY_OEM_LOADING_AWARE_TIMELINE_IMPLEMENTATION_REPORT.md) for
 the current behavior, interaction rules, checklist, and completion criteria.
 
 - **Status:** Complete.

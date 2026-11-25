@@ -404,6 +404,18 @@ class OemDataStore:
         """Publish EOF-validated metadata and mark the active epoch complete."""
         mark_raw_complete(self, epoch, header, meta)
 
+    def publish_loading_metadata(
+        self, epoch: int, meta: tuple[tuple[str, object], ...]
+    ) -> None:
+        """Publish provisional first-segment metadata for loading queries."""
+        from .store_support import _freeze_metadata
+
+        with self._lock:
+            if epoch != self._epoch or self._status is not LoadStatus.LOADING:
+                raise RuntimeError("store epoch is no longer loading")
+            self._meta = _freeze_metadata(meta)
+            self._revision += 1
+
     def mark_failed(self, epoch: int, failure: Exception) -> bool:
         """Mark the current load failed and discard its unpublished suffix."""
         return mark_raw_failed(self, epoch, failure)

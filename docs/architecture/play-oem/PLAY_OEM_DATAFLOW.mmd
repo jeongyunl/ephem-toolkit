@@ -3,7 +3,7 @@ flowchart TD
 
     subgraph WORKER["Default loader path"]
         direction TB
-        SESSION["IncrementalLoader session<br/>generation, cancellation, bounded events"]
+        SESSION["IncrementalLoader session<br/>generation, cancellation, pause/resume, bounded events"]
         CAPACITY["Optional capacity scan"]
         PARSE["read_oem_into_store<br/>parse state rows"]
         COMMIT["Reserve, fill, validate,<br/>commit raw rows"]
@@ -47,11 +47,16 @@ flowchart TD
     subgraph APP["wx application"]
         direction TB
         CONTROLLER["Controller<br/>generation and event handling"]
+        LOAD_CONTROL["Generic load controls<br/>pause / resume request"]
+        INITIAL_PLOT["Initial range gate<br/>wait for playback + plot coverage<br/>pause, draw, resume"]
         CONTEXT["StoreViewContext<br/>snapshot, range, coverage"]
         CLOCK["PlaybackClock<br/>store-backed sample times"]
         RANGE["Playback and plot<br/>range hints"]
         TIER_NOTICE["Append, reset, and<br/>tier notices"]
         CONTROLLER --> CONTEXT
+        CONTROLLER --> LOAD_CONTROL
+        LOAD_CONTROL -->|"pause at next committed batch boundary<br/>resume producer"| SESSION
+        CONTROLLER --> INITIAL_PLOT
         CONTROLLER --> CLOCK
         CONTROLLER --> RANGE
         CONTROLLER -->|"start/cancel generation"| SESSION
@@ -78,6 +83,7 @@ flowchart TD
     FILE --> CAPACITY
     COMMIT --> RAW
     RAW_EVENT --> CONTROLLER
+    INITIAL_PLOT --> CONTEXT
     COMPLETE --> CONTROLLER
     RANGE --> CONTEXT
     RANGE --> SCHEDULER

@@ -6,7 +6,11 @@ from typing import Any, Optional, cast
 import pytest
 import wx
 
-from ephem_toolkit.play_oem.time_range import EndpointMode
+from ephem_toolkit.play_oem.time_range import (
+    EndpointMode,
+    PlotTimeRange,
+    TimeRangeEndpoint,
+)
 from ephem_toolkit.play_oem.widgets.playback_time_slider import (
     _RangeGrip as _RangeGripClass,
     _SeekGrip as _SeekGripClass,
@@ -645,7 +649,9 @@ def test_range_grips_wait_until_span_and_ranges_are_ready() -> None:
         _position_grips=lambda: None,
     )
 
-    plot_rule = SimpleNamespace()
+    plot_rule = PlotTimeRange(
+        True, TimeRangeEndpoint("follow", 0.0), TimeRangeEndpoint("follow", 0.0)
+    )
     PlaybackTimeSlider.set_ranges(
         slider,
         (0.0, 100.0),
@@ -653,6 +659,21 @@ def test_range_grips_wait_until_span_and_ranges_are_ready() -> None:
         plot_rule,
         50.0,
         unloaded_from_s=25.0,
+    )
+    assert not slider._ranges_ready
+
+    PlaybackTimeSlider.set_ranges(
+        slider, (0.0, 100.0), (20.0, 80.0), plot_rule, 50.0,
+        unloaded_from_s=80.0,
+    )
+    assert slider._ranges_ready
+
+    later_plot = PlotTimeRange(
+        True, TimeRangeEndpoint("fixed", 20.0), TimeRangeEndpoint("fixed", 90.0)
+    )
+    PlaybackTimeSlider.set_ranges(
+        slider, (0.0, 100.0), (20.0, 80.0), later_plot, 50.0,
+        unloaded_from_s=80.0,
     )
     assert not slider._ranges_ready
 

@@ -75,6 +75,55 @@ def test_load_session_tags_raw_appends_and_completion_with_generation(
     assert all(event.raw_notice is not None for event in events[2:5])
 
 
+def test_loader_can_pause_and_resume_after_loading_starts(
+    tmp_path: Path, monkeypatch
+) -> None:
+    source = tmp_path / "pause-resume.oem"
+    source.write_text(
+        _oem_prefix(
+            "2026-01-01T00:00:00 7000 0 0 0 7.5 0\n"
+            "2026-01-01T00:00:10 7000 1 0 0 7.5 0\n"
+            "2026-01-01T00:00:20 7000 2 0 0 7.5 0\n"
+        ),
+        encoding="utf-8",
+    )
+    second_row_started = Event()
+    release_second_row = Event()
+    original_validate = odm.validate_odm_line
+
+    def block_second_row(line: str, label: str) -> None:
+        if line.startswith("2026-01-01T00:00:10"):
+            second_row_started.set()
+            if not release_second_row.wait(3.0):
+                raise TimeoutError("test parser was not released")
+        original_validate(line, label)
+
+    monkeypatch.setattr(odm, "validate_odm_line", block_second_row)
+    store = OemDataStore()
+    loader = IncrementalLoader(batch_size=1, queue_size=4)
+    session = loader.start(source, store=store, store_capacity=3)
+    try:
+        assert second_row_started.wait(3.0)
+        loader.pause()
+        release_second_row.set()
+        deadline = time.monotonic() + 3.0
+        while time.monotonic() < deadline and store.snapshot().sample_count < 2:
+            loader.drain()
+            time.sleep(0.005)
+        assert store.snapshot().sample_count == 2
+        assert loader.paused
+        assert not session.finished
+
+        loader.resume()
+        events = _drain_until_finished(session)
+        assert any(event.kind is LoadEventKind.COMPLETE for event in events)
+        assert store.snapshot().sample_count == 3
+    finally:
+        release_second_row.set()
+        if not session.finished:
+            session.cancel()
+
+
 def test_load_session_cancel_releases_backpressure_without_blocking(
     tmp_path: Path,
 ) -> None:

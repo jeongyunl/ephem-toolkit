@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import os
 
+from .. import clock, time_range
+
 from ..incremental_loader import LoadEvent, LoadEventKind
 from ..oem_data_store import (
     InterpolationPolicy,
@@ -13,9 +15,11 @@ from ..oem_data_store import (
 from ..playback_data import oem_declared_slider_bounds
 from ..saved_state import normalize_recent_path
 from .player_app_state import PlayerAppState
+from .player_store_view_refresh import _append_affects_plot
 
 MAX_INCREMENTAL_LOAD_EVENTS_PER_TICK: int = 64
 """Maximum queued load events handled by one wx timer tick."""
+
 
 
 class PlayerIncrementalLoadingMixin:
@@ -70,6 +74,8 @@ class PlayerIncrementalLoadingMixin:
         self._load_state.generation = self._incremental_loader.generation
         self._load_state.path = path
         self._load_state.first_batch = False
+        self._load_state.initial_range_waiting = False
+        self._load_state.initial_range_ready = False
         self._load_state.failed = False
         self._load_state.cursor_anchor_s = None
         self._load_state.pending_slider_bounds = None
@@ -112,6 +118,9 @@ class PlayerIncrementalLoadingMixin:
                 self._handle_segment_metadata_event(event, path)
             elif event.kind is LoadEventKind.RAW_APPEND:
                 data_changed |= self._handle_raw_append_event(event, path)
+                # Request producer flow control before processing more queued
+                # append notices or refreshing unrelated app state.
+                self._advance_initial_plot()
             elif event.kind is LoadEventKind.COMPLETE:
                 changed, load_completed = self._handle_load_complete_event(event)
                 data_changed |= changed
@@ -129,6 +138,85 @@ class PlayerIncrementalLoadingMixin:
             self._update_time_display()
         if self._refresh_state.incremental_view_refresh_pending:
             self._refresh_incremental_views(force=load_completed)
+        self._advance_initial_plot()
+
+    def _advance_initial_plot(self: PlayerAppState) -> None:
+        """Pause at requested-range coverage, draw the first plots, then resume."""
+        session = self._incremental_loader.session
+        store = self._store_state.active
+        if (
+            session is None
+            or store is None
+            or not self._load_state.first_batch
+            or self._load_state.initial_range_ready
+        ):
+            return
+        if not self._load_state.initial_range_waiting:
+            coverage = self._timeline_restore_state.metadata_coverage
+            if coverage is None:
+                coverage = self._slider_bounds
+            playback = self._timeline_restore_state.playback_bounds
+            if playback is None and self._playback_handles_fixed_during_load:
+                playback = self._playback_handle_bounds
+            if playback is None:
+                playback = (
+                    coverage[0],
+                    min(
+                        coverage[1],
+                        coverage[0] + clock.PlaybackClock.DEFAULT_PLAYBACK_SPAN_S,
+                    ),
+                )
+            # Saved endpoints can extend slightly beyond metadata rounded to
+            # milliseconds, while still matching the actual final sample.
+            coverage = (min(coverage[0], playback[0]), max(coverage[1], playback[1]))
+            now = self._timeline_restore_state.file_current_time_s
+            if now is None:
+                now = playback[0]
+            try:
+                plot = time_range.resolve_plot_range(
+                    self.plot_time_range, coverage, playback, now
+                )
+            except ValueError:
+                return
+            required_end = max(playback[1], plot.end_s if plot else playback[1])
+            if (
+                self.clock.t_end < required_end
+                and not self._load_state.coverage_complete
+            ):
+                return
+            if not self._load_state.coverage_complete:
+                # Ask the producer to stop after publishing the next committed
+                # batch. Earlier batches are allowed to stream without per-batch
+                # pause/resume cycles.
+                session.pause()
+            self._load_state.initial_range_waiting = True
+            self._restore_completed_scrubber_state()
+            self._update_time_display()
+            self._refresh_state.incremental_view_refresh_pending = True
+            self._refresh_incremental_views(force=True)
+            return
+        if (
+            not self._load_state.coverage_complete
+            and not session.paused
+        ):
+            return
+        if self._range_dragging or self._refresh_state.incremental_view_refresh_pending:
+            return
+        with store._scheduler_lock:
+            busy = bool(store._scheduled_work)
+        if busy:
+            return
+        self._queue_store_view_refresh()
+        self._refresh_store_views()
+        for opened in self._open_panels.values():
+            canvas = opened.canvas or getattr(opened.view, "_canvas", None)
+            if canvas is not None:
+                canvas.draw()
+            else:
+                opened.panel.request_redraw()
+        self.workspace.draw_initial_graphs()
+        self._load_state.initial_range_ready = True
+        session.resume()
 
     def _handle_segment_metadata_event(
         self: PlayerAppState, event: LoadEvent, path: str
@@ -188,7 +276,12 @@ class PlayerIncrementalLoadingMixin:
             self.status_bar.set_message(f"Could not install OEM data: {error}")
             return False
         self._load_state.loading_progress_s = notice.end_s
-        self._refresh_state.incremental_view_refresh_pending = True
+        plot_range = self._resolved_plot_range()
+        if (
+            not self._load_state.initial_range_ready
+            or _append_affects_plot(notice, plot_range)
+        ):
+            self._refresh_state.incremental_view_refresh_pending = True
         self.status_bar.set_message(
             f"Loading {os.path.basename(path)}: "
             f"{snapshot.sample_count:,} states (partial coverage)"
@@ -227,7 +320,11 @@ class PlayerIncrementalLoadingMixin:
             return
         timeline_slider = getattr(self.workspace, "timeline_slider", None)
         viewport = self._timeline_restore_state.metadata_viewport
-        if timeline_slider is not None and viewport is not None:
+        if (
+            not self._load_state.initial_range_ready
+            and timeline_slider is not None
+            and viewport is not None
+        ):
             set_viewport = getattr(timeline_slider, "set_viewport", None)
             if callable(set_viewport):
                 set_viewport(viewport)

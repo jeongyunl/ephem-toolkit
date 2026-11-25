@@ -551,11 +551,22 @@ class PlayerApp(
         """Resolve one shared interval before updating any live view cursors."""
         if self._closed:
             return
+        if self._installing_incremental_batch and self._load_state.initial_range_ready:
+            resolved = self._resolved_plot_range()
+            context = self._store_state.view_context
+            if (
+                resolved is not None
+                and context is not None
+                and resolved == context.plot_range
+                and resolved.end_s < self.clock.t_end
+            ):
+                return
         if (
             self._load_state.cursor_anchor_s is not None
             and not self._installing_incremental_batch
         ):
             self._load_state.cursor_anchor_s = None
+            self._timeline_restore_state.file_current_time_s = None
         if (
             self._store_state.active is None
             and self._load_state.first_batch
@@ -1001,6 +1012,10 @@ class PlayerApp(
         else:
             slider_start, slider_end = self._slider_bounds
         timeline_coverage = (self.clock.t_start, self.clock.t_end)
+        if self._load_state.first_batch and not self._load_state.coverage_complete:
+            timeline_coverage = (
+                self._timeline_restore_state.metadata_coverage or timeline_coverage
+            )
         timeline_playback = (
             self.clock.playback_start,
             self.clock.playback_end,

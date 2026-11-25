@@ -30,6 +30,11 @@ from ephem_toolkit.play_oem.app import (
 from ephem_toolkit.play_oem.app import player_app_support as app_support
 from ephem_toolkit.play_oem.app import player_panel_management as panel_management
 from ephem_toolkit.play_oem.app import player_standard_plot_factory as view_factory
+from ephem_toolkit.play_oem.app.player_store_view_refresh import (
+    _append_affects_plot,
+    _tier_affects_display,
+)
+from ephem_toolkit.play_oem.app.player_time_range_actions import _range_needs_update
 from ephem_toolkit.play_oem.clock import PlaybackClock
 from ephem_toolkit.play_oem.cursor import StoreCursor
 from ephem_toolkit.play_oem.ground_stations import GroundStation
@@ -38,7 +43,13 @@ from ephem_toolkit.play_oem.incremental_loader import (
     LoadEvent,
     LoadEventKind,
 )
-from ephem_toolkit.play_oem.oem_data_store import LoadStatus, TierName, TierNotice
+from ephem_toolkit.play_oem.oem_data_store import (
+    AppendNotice,
+    LoadStatus,
+    StoreSnapshot,
+    TierName,
+    TierNotice,
+)
 from ephem_toolkit.play_oem.play_oem_cli import (
     PLOTS_OPTION,
     build_arg_parser,
@@ -55,6 +66,33 @@ from ephem_toolkit.play_oem.time_unit import TimeUnit
 from ephem_toolkit.play_oem.views.registry import VIEW_LABELS
 from ephem_toolkit.play_oem.widgets.playback_time_slider import PlaybackTimeSlider
 from tests.ephem_toolkit.play_oem.cursor_helpers import make_store_cursor
+
+
+def test_store_notices_are_filtered_by_plot_and_playback_time() -> None:
+    plot = time_range.ResolvedTimeRange(10.0, 20.0)
+    snapshot = cast(
+        StoreSnapshot,
+        SimpleNamespace(
+            sample_count=5, raw=np.array([[0.0], [10.0], [20.0], [30.0], [40.0]])
+        ),
+    )
+    assert _append_affects_plot(AppendNotice(1, 1, 0, 1, (15.0, 25.0)), plot)
+    assert not _append_affects_plot(AppendNotice(1, 1, 0, 1, (30.0, 40.0)), plot)
+    outside = TierNotice(1, "station-access", None, "station", 0, 1, (30.0, 40.0))
+    assert not _tier_affects_display(outside, snapshot, plot, 5.0)
+    assert _tier_affects_display(outside, snapshot, plot, 35.0)
+    raw_notice = TierNotice(1, "ground-track", None, None, 1, 2)
+    assert _tier_affects_display(raw_notice, snapshot, plot, 35.0)
+
+
+def test_coverage_growth_does_not_rebuild_an_unchanged_plot_range() -> None:
+    plot = time_range.ResolvedTimeRange(10.0, 20.0)
+    opened = SimpleNamespace(
+        range_initialized=True, applied_range=plot, applied_coverage=(0.0, 30.0)
+    )
+    assert not _range_needs_update(opened, plot, (0.0, 100.0))
+    assert _range_needs_update(opened, time_range.ResolvedTimeRange(10.0, 40.0), (0.0, 100.0))
+    assert _range_needs_update(opened, plot, (15.0, 100.0))
 
 
 @pytest.fixture(autouse=True)
@@ -515,6 +553,8 @@ class FakeControlWindow:
         on_step_seconds,
         on_jump_to_start,
         on_jump_to_end,
+        time_snapping=False,
+        on_set_time_snapping=None,
         accelerator_parent=None,
         state_parent=None,
     ) -> None:
@@ -2332,6 +2372,7 @@ def test_controller_ignores_stale_incremental_events() -> None:
         _incremental_loader=SimpleNamespace(drain=lambda limit=None: events[:limit]),
         _active_load_generation=2,
         _incremental_view_refresh_pending=False,
+        _advance_initial_plot=lambda: None,
         _load_state=app.LoadState(generation=2),
         _refresh_state=app.RefreshState(incremental_view_refresh_pending=False),
     )
@@ -2358,6 +2399,7 @@ def test_controller_bounds_incremental_load_events_per_tick() -> None:
         _incremental_loader=SimpleNamespace(drain=drain),
         _active_load_generation=2,
         _incremental_view_refresh_pending=False,
+        _advance_initial_plot=lambda: None,
         _load_state=app.LoadState(generation=2),
         _refresh_state=app.RefreshState(incremental_view_refresh_pending=False),
     )
@@ -2558,7 +2600,7 @@ def test_store_refresh_rebuilds_panels_opened_before_the_store(
     player.close()
 
 
-def test_incremental_timeline_uses_declared_domain_and_defers_drag_redraws(
+def test_incremental_timeline_uses_declared_domain_and_defers_initial_views(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
     source = tmp_path / "loading-timeline.oem"
@@ -2626,40 +2668,11 @@ def test_incremental_timeline_uses_declared_domain_and_defers_drag_redraws(
         )
         assert "Not loaded yet" in player._timeline_tooltip_at(0.9)
 
-        opened_panels = tuple(player._open_panels.values())
-        assert opened_panels
-        before_drag = tuple(
-            (
-                opened.panel.redraw_requests,
-                len(opened.view.updated_times),
-                opened.canvas.draw_idle_count if opened.canvas is not None else 0,
-            )
-            for opened in opened_panels
-        )
-        refresh_calls = []
-        refresh_views = player._refresh_incremental_views
-
-        def record_refresh(*, force: bool = False) -> None:
-            refresh_calls.append(force)
-            refresh_views(force=force)
-
-        player._refresh_incremental_views = record_refresh
-        player._set_range_dragging(True)
-        player._drag_plot_endpoint("start", player.clock.t_start)
+        # Keep the scrubber interactive while the requested playback range is
+        # unavailable, but don't create or notify plot views yet.
+        assert not player._open_panels
         player._seek_to_fraction(0.9)
-        during_drag = tuple(
-            (
-                opened.panel.redraw_requests,
-                len(opened.view.updated_times),
-                opened.canvas.draw_idle_count if opened.canvas is not None else 0,
-            )
-            for opened in opened_panels
-        )
-        assert during_drag == before_drag
-
-        player._set_range_dragging(False)
-        assert refresh_calls == [True]
-        assert not player._refresh_state.incremental_view_refresh_pending
+        assert not player._open_panels
     finally:
         release_second_row.set()
         if session is not None:
@@ -2682,6 +2695,10 @@ def test_incremental_load_preserves_and_restores_saved_file_ranges(
     release_second_row = Event()
     third_row_started = Event()
     release_third_row = Event()
+    sixth_row_started = Event()
+    release_sixth_row = Event()
+    seventh_row_started = Event()
+    release_seventh_row = Event()
     source = tmp_path / "range-restore.oem"
     source.write_text(
         "CCSDS_OEM_VERS = 2.0\n"
@@ -2695,7 +2712,11 @@ def test_incremental_load_preserves_and_restores_saved_file_ranges(
         "META_STOP\n"
         "2026-01-01T00:00:00 7000 0 0 0 7.5 0\n"
         "2026-01-01T00:00:10 7000 1 0 0 7.5 0\n"
-        "2026-01-01T00:00:20 7000 2 0 0 7.5 0\n",
+        "2026-01-01T00:00:20 7000 2 0 0 7.5 0\n"
+        "2026-01-01T00:00:30 7000 3 0 0 7.5 0\n"
+        "2026-01-01T00:00:40 7000 4 0 0 7.5 0\n"
+        "2026-01-01T00:00:50 7000 5 0 0 7.5 0\n"
+        "2026-01-01T00:01:00 7000 6 0 0 7.5 0\n",
         encoding="utf-8",
     )
 
@@ -2709,6 +2730,14 @@ def test_incremental_load_preserves_and_restores_saved_file_ranges(
         elif line.startswith("2026-01-01T00:00:20"):
             third_row_started.set()
             if not release_third_row.wait(3.0):
+                raise TimeoutError("test parser was not released")
+            elif line.startswith("2026-01-01T00:00:50"):
+                sixth_row_started.set()
+                if not release_sixth_row.wait(10.0):
+                    raise TimeoutError("test parser was not released")
+        elif line.startswith("2026-01-01T00:01:00"):
+            seventh_row_started.set()
+            if not release_seventh_row.wait(10.0):
                 raise TimeoutError("test parser was not released")
         original_validate(line, label)
 
@@ -2744,12 +2773,23 @@ def test_incremental_load_preserves_and_restores_saved_file_ranges(
     )
     player._incremental_loader = app.IncrementalLoader(batch_size=1)
     session = None
+    initial_draws = []
     try:
         player._load_oem_file(str(source))
         session = player._incremental_loader.session
         assert session is not None
+        draw_initial_graphs = player.workspace.draw_initial_graphs
 
-        deadline = time.monotonic() + 3.0
+        def record_initial_draw() -> None:
+            snapshot = player._store_state.active.snapshot()
+            initial_draws.append(
+                (snapshot.sample_count, session.paused, session.finished)
+            )
+            draw_initial_graphs()
+
+        player.workspace.draw_initial_graphs = record_initial_draw
+
+        deadline = time.monotonic() + 8.0
         while (
             not player._load_state.first_batch or not second_row_started.is_set()
         ) and time.monotonic() < deadline:
@@ -2801,6 +2841,28 @@ def test_incremental_load_preserves_and_restores_saved_file_ranges(
         )
         player.workspace.timeline_slider = timeline_slider
         release_third_row.set()
+        deadline = time.monotonic() + 8.0
+        while not player._load_state.initial_range_ready and time.monotonic() < deadline:
+            player._poll_incremental_load()
+            time.sleep(0.005)
+        assert initial_draws, (
+            session.paused,
+            session._pause_requested.is_set(),
+            sixth_row_started.is_set(),
+            player.clock.t_end,
+            player._load_state.loading_progress_s,
+            session.finished,
+            player._load_state.initial_range_waiting,
+            player._refresh_state.incremental_view_refresh_pending,
+            player._refresh_state.pending_store_view_ids,
+        )
+        assert 3 <= initial_draws[0][0] < 7
+        assert initial_draws[0][1] is True
+        assert initial_draws[0][2] is False
+        assert player._load_state.initial_range_ready
+        assert not session.paused
+
+        release_seventh_row.set()
         while time.monotonic() < deadline:
             player._poll_incremental_load()
             if session.finished and not session._events.qsize():
@@ -2825,6 +2887,8 @@ def test_incremental_load_preserves_and_restores_saved_file_ranges(
     finally:
         release_second_row.set()
         release_third_row.set()
+        release_sixth_row.set()
+        release_seventh_row.set()
         if session is not None:
             deadline = time.monotonic() + 3.0
             while not session.finished and time.monotonic() < deadline:

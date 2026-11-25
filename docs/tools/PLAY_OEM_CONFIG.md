@@ -200,7 +200,11 @@ The implementation, data ownership, gap rules, and derived-data consumers are do
 
 The input file is selected for an individual run. `play-oem` opens its workspace first, then streams
 the OEM into its data store on a background worker. Playback and views can use committed samples
-while loading continues through EOF validation. The time-axis unit follows the loaded span:
+while loading continues through EOF validation. The application can pause and resume that
+producer at committed-batch boundaries while retaining the current load and its loaded samples.
+For initial plots, it pauses once the requested playback and plot range is loaded, draws those
+graphs, and resumes the same load.
+The time-axis unit follows the loaded span:
 minutes for spans shorter than one hour and hours for spans of one hour or more. Seek to a loaded
 time in the GUI; the playable range grows as samples arrive.
 

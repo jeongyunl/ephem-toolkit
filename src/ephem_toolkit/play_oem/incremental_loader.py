@@ -60,6 +60,7 @@ class IncrementalLoadSession:
         batch_size: int = 512,
         batch_interval_s: float = 0.1,
         queue_size: int = 2,
+        paused: bool = False,
     ) -> None:
         if batch_size < 1:
             raise ValueError("batch_size must be positive")
@@ -74,6 +75,13 @@ class IncrementalLoadSession:
         self._store = store
         self._store_epoch = store_epoch
         self._cancelled = Event()
+        self._pause_requested = Event()
+        self._paused = Event()
+        self._resume_gate = Event()
+        if paused:
+            self._pause_requested.set()
+        else:
+            self._resume_gate.set()
         self._finished = Event()
         self._events: Queue[LoadEvent] = Queue(maxsize=queue_size)
         self._worker = Thread(
@@ -92,6 +100,11 @@ class IncrementalLoadSession:
         """Whether cancellation has been requested."""
         return self._cancelled.is_set()
 
+    @property
+    def paused(self) -> bool:
+        """Whether the worker has reached a requested pause boundary."""
+        return self._paused.is_set()
+
     def start(self) -> None:
         """Start the loader worker once."""
         if self._worker.ident is not None:
@@ -103,6 +116,17 @@ class IncrementalLoadSession:
         """Request cancellation without waiting for the reader or GUI thread."""
         self._cancelled.set()
         self._store.cancel_if_epoch(self._store_epoch)
+
+    def pause(self) -> None:
+        """Request a pause at the next committed batch boundary."""
+        self._pause_requested.set()
+        self._resume_gate.clear()
+
+    def resume(self) -> None:
+        """Resume the producer after a pause request."""
+        self._pause_requested.clear()
+        self._resume_gate.set()
+        self._paused.clear()
 
     def drain(self, limit: int | None = None) -> list[LoadEvent]:
         """Return currently queued events without blocking the caller."""
@@ -139,6 +163,12 @@ class IncrementalLoadSession:
                     raw_notice=notice,
                 )
             )
+            if self._pause_requested.is_set():
+                self._paused.set()
+                while not self._resume_gate.wait(0.1):
+                    if self._cancelled.is_set():
+                        raise _Cancelled
+                self._paused.clear()
 
         def deliver_segment_metadata(
             segment_id: int, metadata: dict[str, Any]
@@ -211,9 +241,13 @@ class IncrementalLoadSession:
 class IncrementalLoader:
     """Own the current session and invalidate prior generations on replacement."""
 
-    def __init__(self, *, batch_size: int = 512, queue_size: int = 2) -> None:
+    def __init__(
+        self, *, batch_size: int = 512, queue_size: int = 2,
+        start_paused: bool = False,
+    ) -> None:
         self.batch_size = batch_size
         self.queue_size = queue_size
+        self._start_paused = start_paused
         self._generation = 0
         self._session: IncrementalLoadSession | None = None
 
@@ -226,6 +260,21 @@ class IncrementalLoader:
     def session(self) -> IncrementalLoadSession | None:
         """Current load session, if a source has been selected."""
         return self._session
+
+    @property
+    def paused(self) -> bool:
+        """Whether the active session's worker has acknowledged a pause."""
+        return bool(self._session and self._session.paused)
+
+    def pause(self) -> None:
+        """Pause the active producer at its next committed batch boundary."""
+        if self._session is not None:
+            self._session.pause()
+
+    def resume(self) -> None:
+        """Resume the active producer."""
+        if self._session is not None:
+            self._session.resume()
 
     def start(
         self,
@@ -248,6 +297,7 @@ class IncrementalLoader:
             self._generation,
             batch_size=self.batch_size,
             queue_size=self.queue_size,
+            paused=self._start_paused,
             store=store,
             store_epoch=store_epoch,
         )

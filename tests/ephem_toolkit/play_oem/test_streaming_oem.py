@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from threading import Event
+import time
 
 import numpy as np
 import pytest
@@ -51,10 +52,12 @@ def test_direct_store_stream_matches_one_shot_across_segments(
     store.begin(8)
     notices = []
     event_order = []
+    loading_metadata = []
 
     def record_append(notice) -> None:
         notices.append(notice)
         event_order.append(("append", notice.sample_count))
+        loading_metadata.append(dict(store.snapshot().meta))
 
     result = read_oem_into_store(
         source,
@@ -75,6 +78,8 @@ def test_direct_store_stream_matches_one_shot_across_segments(
     np.testing.assert_array_equal(snapshot.segment_bounds, [[0, 3], [3, 4]])
     assert snapshot.status is LoadStatus.COMPLETE
     assert dict(snapshot.meta)["OBJECT_NAME"] == "TEST"
+    assert loading_metadata[0]["CENTER_NAME"] == "EARTH"
+    assert loading_metadata[0]["REF_FRAME"] == "GCRF"
     assert snapshot.failure is None
     assert notices[-1].sample_count == 4
     assert all(notice.epoch == snapshot.epoch for notice in notices)
@@ -84,6 +89,28 @@ def test_direct_store_stream_matches_one_shot_across_segments(
         ("metadata", 1, "UTC"),
         ("append", 4),
     ]
+
+
+def test_consumer_pause_does_not_flush_the_next_batch_early(tmp_path: Path) -> None:
+    source = tmp_path / "paused.oem"
+    source.write_text(OEM_TEXT, encoding="utf-8")
+    store = OemDataStore()
+    store.begin(8)
+    counts = []
+
+    def pause_after_append(notice) -> None:
+        counts.append(notice.sample_count)
+        time.sleep(0.12)
+
+    read_oem_into_store(
+        source,
+        store,
+        batch_size=2,
+        batch_interval_s=0.1,
+        on_append=pause_after_append,
+        cancel_event=Event(),
+    )
+    assert counts == [2, 4]
 
 
 def test_direct_store_stream_rejects_non_utc_before_appending_rows(

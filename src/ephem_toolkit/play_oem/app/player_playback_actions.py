@@ -34,6 +34,8 @@ class PlaybackActionsMixin:
         self._update_time_display()
 
     def _seek_to_fraction(self: PlayerAppState, progress: float) -> None:
+        self._timeline_restore_state.file_current_time_s = None
+        self._load_state.cursor_anchor_s = None
         slider_start, slider_end = _timeline_viewport(self)
         self.clock.seek(slider_start + progress * (slider_end - slider_start))
         self._update_time_display()
@@ -148,6 +150,8 @@ class PlaybackActionsMixin:
         clamped_to_playback = not (
             self.clock.playback_start <= target_time_s <= self.clock.playback_end
         )
+        self._timeline_restore_state.file_current_time_s = None
+        self._load_state.cursor_anchor_s = None
         self.clock.seek(target_time_s)
         self.workspace.clear_time_error()
         self.status_bar.set_message(

@@ -200,6 +200,8 @@ class TierNotice:
     """First completed row."""
     stop_row: int
     """Stopping completed row."""
+    time_span_s: TimeBounds | None = None
+    """Time span of the completed rows, when their indexes are not raw rows."""
 
 
 @dataclass(frozen=True)

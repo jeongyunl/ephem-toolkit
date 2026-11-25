@@ -20,7 +20,12 @@ follows playback. Saved settings override those defaults.
    `OemDataStore`. `read_oem_into_store` parses OEM rows into reserved raw buffers and commits
    each validated batch directly to the store. If capacity was not supplied, the worker scans
    the file for a safe capacity before allocating. Raw-append events identify committed
-   prefixes without constructing prepared orbit-series batches.
+   prefixes without constructing prepared orbit-series batches. The active loader or its
+   `IncrementalLoadSession` can receive `pause()` and `resume()` requests at any time. A pause is
+   non-blocking and takes effect after the next raw-append event is published, at a committed
+   batch boundary; resuming releases the worker to continue parsing and committing batches. The
+   event queue remains bounded, so a pause request can wait behind backpressure while the worker
+   publishes an already-produced event.
 
 2. **Install snapshots (wx thread).** The controller drains at most 64
    generation-tagged load events per timer tick, keeping a continuously
@@ -30,7 +35,15 @@ follows playback. Saved settings override those defaults.
    `StoreViewContext`. Each append refreshes the context to the latest committed
    snapshot. Completion publishes validated metadata to the store and refreshes
    the context; replacement, cancellation, and failure remain scoped to their
-   load generation.
+   load generation. These controls pause the producer only. Committed rows and store-managed
+   derived-tier work remain available while parsing is paused; cancellation and replacement are
+   separate lifecycle operations.
+
+   For the initial display, the controller checks the requested playback and plot coverage after
+   each append notice. Until the required range is available, it keeps plot views from receiving
+   incremental updates. Once covered, it requests a producer pause, waits for the worker's
+   committed-boundary acknowledgment, draws the initial graphs from that prefix, then resumes the
+   same load. Already queued or in-flight batches can extend the prefix slightly beyond the range.
 
 3. **Query only data needed by open views.** `StoreViewContext` binds a stable snapshot,
    resolved plot range, coverage, and time unit. Views request:
@@ -52,10 +65,10 @@ follows playback. Saved settings override those defaults.
    interpolation policy in that frame. Station profiles and access refinement use this path;
    they do not derive their states from the range-based position tier.
 
-4. **Refresh affected views.** Raw append, reset, and derived-tier notices are drained by the
-   controller and routed to relevant panels. Range hints prioritize work for the playback and
-   plot ranges. Views retain artists or actors when their structure remains compatible and
-   rebuild only when required by a data or view-structure change.
+4. **Refresh affected views.** After the initial range-ready handoff, raw append, reset, and
+   derived-tier notices are drained by the controller and routed to relevant panels. Range hints
+   prioritize work for the playback and plot ranges. Views retain artists or actors when their
+   structure remains compatible and rebuild only when required by a data or view-structure change.
 
 5. **Playback.** The clock advances over the store's sample-time view. Source-frame consumers
    resolve states through `state_at()` and Earth-fixed consumers use `earth_fixed_state_at()`.
@@ -88,7 +101,7 @@ and station views do not have non-store data fallbacks. Each load generation own
   consumers, and gap behavior
 - [PLAY_OEM_CONCEPTS.md](./PLAY_OEM_CONCEPTS.md): shipped behavior and requirements
 - [PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md): component and lifecycle design
-- [PLAY_OEM_LOADING_AWARE_TIMELINE_IMPLEMENTATION_PLAN.md](./PLAY_OEM_LOADING_AWARE_TIMELINE_IMPLEMENTATION_PLAN.md):
+- [PLAY_OEM_LOADING_AWARE_TIMELINE_IMPLEMENTATION_REPORT.md](./old/PLAY_OEM_LOADING_AWARE_TIMELINE_IMPLEMENTATION_REPORT.md):
   timeline loading and interaction behavior
 - [PLAY_OEM_PERFORMANCE_REPORT.md](./PLAY_OEM_PERFORMANCE_REPORT.md): measured performance and
   deferred work

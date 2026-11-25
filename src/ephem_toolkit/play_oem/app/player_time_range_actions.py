@@ -15,10 +15,25 @@ def playback_range_plot_rule() -> time_range.PlotTimeRange:
     )
 
 
+def _range_needs_update(opened, resolved, coverage) -> bool:
+    if not opened.range_initialized or opened.applied_range != resolved:
+        return True
+    if opened.applied_coverage == coverage or resolved is None:
+        return False
+    previous = opened.applied_coverage
+    return not (
+        previous is not None
+        and previous[0] <= resolved.start_s <= resolved.end_s <= previous[1]
+        and coverage[0] <= resolved.start_s <= resolved.end_s <= coverage[1]
+    )
+
+
 class TimeRangeActionsMixin:
     """Validate and apply playback-linked and customized plot-range edits."""
 
     def _begin_time_range_edit(self: PlayerAppState) -> None:
+        self._timeline_restore_state.file_current_time_s = None
+        self._load_state.cursor_anchor_s = None
         self.clock.pause()
         self._last_frame_monotonic_s = None
         self._update_time_display()
@@ -142,15 +157,19 @@ class TimeRangeActionsMixin:
         coverage = (self.clock.t_start, self.clock.t_end)
         selected_time = self.clock.t_now if time_s is None else time_s
         context = self._store_state.view_context
+        plot_changed = context is None or context.plot_range != resolved
         if context is not None and (
             context.plot_range != resolved or context.coverage != coverage
         ):
             self._store_state.view_context = context.with_range(resolved, coverage)
-            self._queue_store_view_refresh()
+            if plot_changed:
+                self._queue_store_view_refresh()
         if dragging is not None:
             self._range_dragging = dragging
         self._publish_range_hint()
-        if self._should_defer_incremental_view_refresh():
+        if self._should_defer_incremental_view_refresh() and (
+            plot_changed or not self._load_state.initial_range_ready
+        ):
             self._refresh_state.incremental_view_refresh_pending = True
             return
         for opened in tuple(self._open_panels.values()):
@@ -160,11 +179,7 @@ class TimeRangeActionsMixin:
                 opened.pending_time_s = selected_time
                 continue
             setter = getattr(opened.view, "set_time_range", None)
-            if callable(setter) and (
-                not opened.range_initialized
-                or opened.applied_range != resolved
-                or opened.applied_coverage != coverage
-            ):
+            if callable(setter) and _range_needs_update(opened, resolved, coverage):
                 setter(resolved, coverage)
                 opened.applied_range = resolved
                 opened.applied_coverage = coverage
@@ -204,11 +219,7 @@ class TimeRangeActionsMixin:
         )
         setter = getattr(opened.view, "set_time_range", None)
         coverage = (self.clock.t_start, self.clock.t_end)
-        if callable(setter) and (
-            not opened.range_initialized
-            or opened.applied_range != resolved
-            or opened.applied_coverage != coverage
-        ):
+        if callable(setter) and _range_needs_update(opened, resolved, coverage):
             setter(resolved, coverage)
             opened.applied_range = resolved
             opened.applied_coverage = coverage

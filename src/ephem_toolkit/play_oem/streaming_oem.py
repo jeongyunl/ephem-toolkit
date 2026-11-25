@@ -84,8 +84,10 @@ class _StoreRowSink:
         self.reservation = None
         self.total += self.count
         self.count = 0
-        self.last_flush = monotonic()
         self.on_append(notice)
+        # Time blocked in a consumer callback is not time spent filling the
+        # next batch. Otherwise a paused reader flushes every subsequent row.
+        self.last_flush = monotonic()
         if self.cancel_event.is_set():
             raise _Cancelled
 
@@ -137,6 +139,14 @@ def read_oem_into_store(
                 "play-oem currently supports OEM TIME_SYSTEM = UTC only; "
                 f"found {displayed_time_system!r}."
             )
+        if segment_id == 0:
+            odm.validate_odm_context(
+                str(segment_meta.get("CENTER_NAME", "")),
+                str(segment_meta.get("REF_FRAME", "")),
+                time_system,
+                require_center=False,
+            )
+            store.publish_loading_metadata(sink.epoch, tuple(segment_meta.items()))
         if on_segment_metadata is not None:
             on_segment_metadata(segment_id, segment_meta)
 

@@ -114,6 +114,10 @@ play-oem [<input_oem>] [OPTIONS]
 The CLI accepts an optional OEM path plus view-selection options. The window opens before parsing
 finishes; playback starts with the first validated state batch and the loaded timeline grows as
 additional batches arrive. Loading status distinguishes partial coverage from EOF validation.
+The application can request that the background producer pause at a committed-batch boundary and
+resume the same load later; already loaded samples remain available while the producer is paused.
+For initial plotting, the app waits until the requested playback and plot ranges are covered, draws
+the graphs from that prefix while the producer is paused, then resumes loading.
 When present and valid, the slider scale uses the OEM metadata start and stop times; seeking remains
 limited to samples already loaded. Saved playback and plot range handles appear at their saved
 positions as soon as the first batch is installed, even if those playback bounds are not playable
