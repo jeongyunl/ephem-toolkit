@@ -35,6 +35,7 @@ from ..oem_data_store import GroundTrackGroups, StoreQuery
 from ..series import OrbitSeries
 from ..time_range import ResolvedTimeRange
 from ..time_unit import TimeUnit
+from ..widgets import FloatingSettingsPanel
 from .base import StoreViewBinding, StoreViewContext
 from .compact_controls import compact_controls
 from .plotting import bounded_sample_indices
@@ -230,6 +231,7 @@ class GroundTrackView(ViewSpecMixin):
         self._show_stations = True
         self._show_station_labels = False
         self._panel: wx.Panel | None = None
+        self._settings_panel: FloatingSettingsPanel | None = None
         self._canvas: FigureCanvasWxAgg | None = None
         self._figure: Figure | None = None
         self._axes: Any = None
@@ -301,11 +303,14 @@ class GroundTrackView(ViewSpecMixin):
         toolbar.Realize()
         toolbar.pan()
         toolbar.Hide()
-        controls_panel = wx.ScrolledWindow(
-            panel, wx.ID_ANY, style=wx.HSCROLL | wx.TAB_TRAVERSAL
+        settings_panel = FloatingSettingsPanel(
+            panel,
+            name="Ground Track settings",
+            handle_label="≡",
         )
+        self._settings_panel = settings_panel
+        controls_panel = settings_panel.GetContentWindow()
         controls_panel.SetName("Ground Track controls")
-        controls_panel.SetScrollRate(10, 0)
         projection = wx.Choice(controls_panel, choices=list(PROJECTION_NAMES))
         projection.SetStringSelection(self.projection_name)
         background = wx.Choice(controls_panel, choices=list(BACKGROUND_CHOICES))
@@ -369,7 +374,6 @@ class GroundTrackView(ViewSpecMixin):
         zoom_in = wx.Button(controls_panel, label="+", style=wx.BU_EXACTFIT)
         zoom_out = wx.Button(controls_panel, label="−", style=wx.BU_EXACTFIT)
         navigation_buttons = (reset_view, zoom_in, zoom_out)
-        station_controls = (station_layer, station_labels, station_choice)
         # Keep GTK checkboxes on their native theme sizing. Compacting their CSS
         # padding can make GTK allocate a negative check-indicator area in narrow
         # scrolled layouts (gtk_box_gadget_distribute: size >= 0).
@@ -402,18 +406,10 @@ class GroundTrackView(ViewSpecMixin):
         )
         navigation.Add(station_choice, 0, wx.ALIGN_CENTER_VERTICAL)
         controls_sizer = wx.BoxSizer(wx.VERTICAL)
-        controls_sizer.Add(controls, 0, wx.LEFT | wx.RIGHT | wx.TOP, 2)
+        controls_sizer.Add(controls, 0, wx.EXPAND)
         controls_sizer.AddSpacer(2)
-        controls_sizer.Add(navigation, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 2)
-        controls_panel.SetSizer(controls_sizer)
-        controls_panel.SetMinSize(
-            wx.Size(
-                1,
-                controls_sizer.CalcMin().height
-                + wx.SystemSettings.GetMetric(wx.SYS_HSCROLL_Y),
-            )
-        )
-        controls_panel.FitInside()
+        controls_sizer.Add(navigation, 0, wx.EXPAND)
+        settings_panel.SetContentSizer(controls_sizer)
         self._coordinate_readout = wx.StaticText(panel, wx.ID_ANY, "Lat —  ·  Lon —")
         self._coordinate_readout.SetName("Ground Track current coordinates")
         self._station_details = wx.StaticText(panel, wx.ID_ANY, "No station selected")
@@ -431,7 +427,6 @@ class GroundTrackView(ViewSpecMixin):
         )
 
         sizer = wx.BoxSizer(wx.VERTICAL)
-        sizer.Add(controls_panel, 0, wx.EXPAND)
         map_row = wx.BoxSizer(wx.HORIZONTAL)
         map_row.Add(self._canvas, 1, wx.EXPAND)
         sizer.Add(map_row, 1, wx.EXPAND)
@@ -464,29 +459,6 @@ class GroundTrackView(ViewSpecMixin):
         # shrinking it. The controls row does not dictate the canvas width.
         panel.SetMinSize(GRAPH_PANEL_MIN_SIZE)
 
-        def fit_controls(event: wx.SizeEvent | None = None) -> None:
-            if event is not None:
-                event.Skip()
-            if not controls_panel:
-                return
-            # GTK's compact sizes settle after creation. Discard the original
-            # best sizes before measuring the two rows again.
-            for child in controls_panel.GetChildren():
-                child.InvalidateBestSize()
-            required = controls_sizer.CalcMin()
-            height = required.height
-            if required.width > controls_panel.GetClientSize().width:
-                height += wx.SystemSettings.GetMetric(wx.SYS_HSCROLL_Y)
-            if controls_panel.GetMinSize().height == height:
-                return
-            controls_panel.SetMinSize(wx.Size(1, height))
-            controls_panel.FitInside()
-            panel.Layout()
-            if isinstance(self._parent, wx.ScrolledWindow):
-                self._parent.FitInside()
-
-        controls_panel.Bind(wx.EVT_SIZE, fit_controls)
-        wx.CallAfter(fit_controls)
         self._draw_map()
         self._refresh_station_controls()
         # Restored limits are expressed in the saved projection's coordinates.
@@ -1370,6 +1342,9 @@ class GroundTrackView(ViewSpecMixin):
         self._store_binding.close()
         self._store_context = None
         self._store_track_query = None
+        if self._settings_panel is not None:
+            self._settings_panel.Close()
+        self._settings_panel = None
         self._canvas = None
         self._panel = None
         self._figure = None

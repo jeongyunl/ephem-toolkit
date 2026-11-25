@@ -496,7 +496,7 @@ def test_station_updates_retain_viewport_and_remove_stale_markers() -> None:
 def test_wx_view_builds_controls_and_updates_minimum_elevation(wx_app: Any) -> None:
     import wx
 
-    frame = wx.Frame(None)
+    frame = wx.Frame(None, size=(1500, 600))
     updates: list[int] = []
     view = ground_track.GroundTrackView(
         frame,
@@ -505,6 +505,8 @@ def test_wx_view_builds_controls_and_updates_minimum_elevation(wx_app: Any) -> N
     )
     content = view.build(cast(Any, None), cast(Any, None))
     assert isinstance(content, wx.Window)
+    frame.Show()
+    wx_app.Yield()
     assert view._axes is not None
     assert "Ground Track" in view._axes.get_title()
     view._on_projection_choice(
@@ -519,6 +521,16 @@ def test_wx_view_builds_controls_and_updates_minimum_elevation(wx_app: Any) -> N
     minimum_control = view._minimum_control
     assert minimum_control is not None
     assert minimum_control.GetValue() == 15
+    if view._settings_panel is not None:
+        view._settings_panel.Expand()
+        assert view._station_choice is not None
+        assert (
+            view._station_choice.GetPosition().y
+            > view._minimum_control.GetPosition().y
+        )
+        content = view._settings_panel.GetContentWindow()
+        assert content.GetVirtualSize().width == content.GetClientSize().width
+        assert content.GetVirtualSize().height == content.GetClientSize().height
     view.close()
     frame.Destroy()
     wx_app.ProcessPendingEvents()
@@ -574,6 +586,13 @@ def test_resizing_host_preserves_spin_control_sizes(wx_app: Any) -> None:
                     host.graph_scroller.GetVirtualSize().width
                     > host.graph_scroller.GetClientSize().width
                 )
+                if view._settings_panel is not None:
+                    view._settings_panel.Expand()
+                    assert (
+                        view._settings_panel.GetExpandedScreenRect().width
+                        > host.graph_scroller.GetClientSize().width
+                    )
+                    view._settings_panel.Collapse()
             assert view._canvas is not None
             view._canvas.draw()
             bounds = view._axes.get_window_extent()
