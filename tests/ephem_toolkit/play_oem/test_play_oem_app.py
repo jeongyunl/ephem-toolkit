@@ -63,7 +63,6 @@ from ephem_toolkit.play_oem.saved_state import (
 )
 from ephem_toolkit.play_oem.series import SeriesGroupName, compute_orbit_series
 from ephem_toolkit.play_oem.time_unit import TimeUnit
-from ephem_toolkit.play_oem.views.registry import VIEW_LABELS
 from ephem_toolkit.play_oem.widgets.playback_time_slider import PlaybackTimeSlider
 from tests.ephem_toolkit.play_oem.cursor_helpers import make_store_cursor
 
@@ -853,7 +852,7 @@ def test_ground_station_updates_refresh_open_station_views(
             )
         ),
     )
-    player._open_panels["ground-station-passes"] = cast(
+    player._open_panels["pass-list"] = cast(
         Any,
         SimpleNamespace(
             view=SimpleNamespace(
@@ -868,7 +867,7 @@ def test_ground_station_updates_refresh_open_station_views(
     assert updates == [(station,), (station,), (), ()]
 
 
-def test_legacy_saved_panel_names_open_focused_station_panels(
+def test_canonical_saved_panel_names_open_focused_station_panels(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     player, _views, _canvases, _frames = make_app(monkeypatch)
@@ -879,8 +878,8 @@ def test_legacy_saved_panel_names_open_focused_station_panels(
         lambda name, _create_view, **_kwargs: opened.append(name),
     )
 
-    player.open_panel_view("ground-station-access", panel_id="legacy-access")
-    player.open_panel_view("ground-station-passes", panel_id="legacy-passes")
+    player.open_panel_view("elevation-profile", panel_id="elevation")
+    player.open_panel_view("pass-list", panel_id="passes")
 
     assert opened == ["elevation-profile", "pass-list"]
 
@@ -932,7 +931,7 @@ def test_ground_track_open_passes_callback_seeds_station_without_seeking(
     pass_view = created[-1][1]
     assert [name for name, _view in created] == [
         "ground-track",
-        "ground-station-passes",
+        "pass-list",
     ]
     assert pass_view.selected_station_id == station.station_id
     assert player.clock.t_now == initial_time
@@ -1633,7 +1632,7 @@ def test_cli_selection_opens_through_the_dashboard_registry(
 ) -> None:
     cli_args = parse_arguments(
         build_arg_parser(),
-        ["orbit.oem", PLOTS_OPTION, "state-vectors"],
+        ["orbit.oem", PLOTS_OPTION, "state"],
     )
     player, _views, _canvases, frames = make_app(monkeypatch, plots=cli_args.plots)
 
@@ -3368,7 +3367,22 @@ def test_new_graph_panel_starts_empty_and_can_switch_between_empty_and_a_view(
     )
     assert empty_panel.panel.view_choices == (
         (app_support.EMPTY_GRAPH_VIEW, app_support.EMPTY_GRAPH_LABEL),
-        *VIEW_LABELS,
+        ("trajectory-3d", "3D Orbit"),
+        ("speed-altitude", "Speed / Altitude"),
+        ("state-components", "State Components"),
+        ("rtn", "RTN Deltas"),
+        ("angular-velocity", "Angular Velocity"),
+        ("direction-change", "Direction Change"),
+        ("distance", "Geocentric Distance"),
+        ("ground-track", "Ground Track"),
+        ("station-status", "Station Status"),
+        ("pass-strip", "Pass Strip"),
+        ("elevation-profile", "Elevation Profile"),
+        ("azimuth-profile", "Azimuth Profile"),
+        ("range-profile", "Range Profile"),
+        ("pass-list", "Pass List"),
+        ("sky-view", "Sky View"),
+        ("pass-ground-track", "Pass Ground Track"),
     )
     assert empty_panel.panel.native_content.label == "Select a graph view above"
 

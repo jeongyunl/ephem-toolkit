@@ -37,8 +37,6 @@ from .plotting import (
 class GroundStationAccessView(StoreStationViewSupport):
     """Display selected-station elevation and shared-clock metrics."""
 
-    name = "ground-station-access"
-
     def __init__(
         self,
         parent: wx.Window,

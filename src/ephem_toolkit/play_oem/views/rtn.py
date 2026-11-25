@@ -23,6 +23,7 @@ from .plotting import (
     set_shared_x_limits,
     time_bounds_to_axis,
 )
+from .registry import ViewSpecMixin
 
 CURSOR_LINE_COLOR: str = "tab:red"
 """Color used for the playback cursor lines."""
@@ -30,10 +31,12 @@ FIGURE_SIZE_INCHES: tuple[float, float] = (8.0, 7.0)
 """Default RTN-delta figure size in inches."""
 
 
-class RtnDeltaView(StoreSeriesPlotView):
+class RtnDeltaView(ViewSpecMixin, StoreSeriesPlotView):
     """Plot sample-to-sample radial, transverse, and normal position deltas."""
 
     name: str = "rtn"
+    label: str = "RTN Deltas"
+    group: str = "motion"
 
     @property
     def cursor_artists(self) -> tuple[Line2D, ...]:

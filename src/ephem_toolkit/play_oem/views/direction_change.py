@@ -25,6 +25,7 @@ from .plotting import (
     set_shared_x_limits,
     time_bounds_to_axis,
 )
+from .registry import ViewSpecMixin
 
 CURSOR_LINE_COLOR: str = "tab:red"
 """Color used for the playback cursor lines."""
@@ -32,10 +33,12 @@ FIGURE_SIZE_INCHES: tuple[float, float] = (8.0, 6.0)
 """Default direction-change figure size in inches."""
 
 
-class DirectionChangeView(StoreSeriesPlotView):
+class DirectionChangeView(ViewSpecMixin, StoreSeriesPlotView):
     """Plot Euler-style direction angles and their rates."""
 
     name: str = "direction-change"
+    label: str = "Direction Change"
+    group: str = "motion"
 
     @property
     def cursor_artists(self) -> tuple[Line2D, ...]:

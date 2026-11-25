@@ -173,6 +173,11 @@ class View(Protocol):
   coverage, and time unit. They request only the named series, Earth-fixed, Ground Track, station,
   or point-state data they use. Appends, range changes, and derived-tier notices refresh data;
   playback-time updates move cursors, markers, and current-state metrics.
+- View metadata and openers are registered declaratively with `ViewSpec` and
+  `ViewRegistry.register()`. `ViewSpec` supplies the canonical name, label, group, and opener.
+- Individual view classes inherit `ViewSpecMixin` and declare `name`, `label`, and `group`.
+  `view_spec(opener)` creates the corresponding
+  registration descriptor, allowing concrete view classes to own their public metadata.
 - The store owns raw samples and lazily computed derived tiers. Views may create bounded display
   paths or decimated indices, but do not retain independent full-history derived owners.
 - Derived calculations operate only on requested, not-yet-ready sample rows. Chunking is for cache
@@ -202,8 +207,7 @@ The plot-oem state-vector diagnostics are split into two views:
 - `trajectory-3d`: the 3D orbit, Earth and satellite marker (pluggable backend).
 - `state-components`: X/Y/Z, VX/VY/VZ histories (Matplotlib).
 
-The `state` group opens the state-components view. Keep `state-vectors` as a compatibility
-alias that opens both trajectory and state-components views.
+The `state` group opens the state-components view.
 
 The state-components view uses a 3-by-2 Matplotlib layout: position X/Y/Z and velocity VX/VY/VZ,
 with frame and unit labels, one shared elapsed-time axis, and synchronized cursor lines. Each 2D view

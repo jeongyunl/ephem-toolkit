@@ -18,6 +18,7 @@ from .base import (
     StoreSeriesPlotView,
     StoreViewContext,
 )
+from .registry import ViewSpecMixin
 from .plotting import (
     MAX_DISPLAY_POINTS_PER_SEGMENT,
     SegmentedPlotHistory,
@@ -31,10 +32,12 @@ FIGURE_SIZE_INCHES: tuple[float, float] = (8.0, 6.0)
 """Default speed/altitude figure size in inches."""
 
 
-class SpeedAltitudeView(StoreSeriesPlotView):
+class SpeedAltitudeView(ViewSpecMixin, StoreSeriesPlotView):
     """Plot speed and altitude histories with a shared time cursor."""
 
     name: str = "speed-altitude"
+    label: str = "Speed / Altitude"
+    group: str = "overview"
 
     @property
     def cursor_artists(self) -> tuple[Line2D, ...]:

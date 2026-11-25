@@ -32,6 +32,7 @@ from .base import (
     store_load_status_message,
 )
 from .plotting import bounded_sample_indices
+from .registry import ViewSpecMixin
 
 _TABLE_COLUMN_WIDTHS = (190, 90, 150, 155, 155)
 _TABLE_PANEL_MIN_WIDTH = sum(_TABLE_COLUMN_WIDTHS)
@@ -69,7 +70,6 @@ def _utc_label(time_s: float) -> str:
 class GroundStationPassesView(StoreStationViewSupport):
     """Inspect cached pass details and their topocentric sky paths."""
 
-    name = "ground-station-passes"
     heading = "Ground Station Passes"
 
     def __init__(
@@ -1051,10 +1051,12 @@ class GroundStationPassesView(StoreStationViewSupport):
         self._panel = None
 
 
-class GroundStationPassListView(GroundStationPassesView):
+class GroundStationPassListView(ViewSpecMixin, GroundStationPassesView):
     """Show the pass table without embedding its linked Sky View."""
 
     name = "pass-list"
+    label = "Pass List"
+    group = "pass-study"
     heading = "Pass List"
 
     def _update_analysis_layout(self) -> None:
@@ -1075,10 +1077,12 @@ class GroundStationPassListView(GroundStationPassesView):
         return
 
 
-class GroundStationSkyView(GroundStationPassesView):
+class GroundStationSkyView(ViewSpecMixin, GroundStationPassesView):
     """Show the selected-pass polar plot without embedding its list."""
 
     name = "sky-view"
+    label = "Sky View"
+    group = "pass-study"
     heading = "Sky View"
 
     def _update_analysis_layout(self) -> None:

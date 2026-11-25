@@ -15,9 +15,6 @@ from ..views import (
     trajectory3d,
 )
 from ..views import (
-    ground_station_access as ground_station_access_view,
-)
-from ..views import (
     ground_station_analysis as ground_station_analysis_view,
 )
 from ..views import (
@@ -163,7 +160,7 @@ class PlayerViewFactoryMixin:
                     self._saved_state.ground_track_ylim if self._saved_state else None
                 ),
                 stations=self._ground_stations,
-                on_open_passes=lambda station_id: self.open_ground_station_passes_view(
+                on_open_passes=lambda station_id: self.open_pass_list_view(
                     initial_station_id=station_id
                 ),
                 on_minimum_elevation=self._set_ground_track_minimum_elevation,
@@ -173,63 +170,18 @@ class PlayerViewFactoryMixin:
             force_replace=force_replace,
         )
 
-    def open_ground_station_access_view(
+    def _open_focused_pass_view(
         self: PlayerAppState,
-        panel_id: str | None = None,
-        stack: str = "middle",
-        force_replace: bool = False,
-    ) -> None:
-        """Open access analysis for the loaded part of the active plot range."""
-        self._open_view(
-            "ground-station-access",
-            lambda panel: ground_station_access_view.GroundStationAccessView(
-                panel,
-                self.cursor,
-                self._ground_stations,
-                self.time_unit,
-                self.object_name,
-                oem_loaded=self._oem_loaded,
-                on_seek=self._seek_from_ground_station_timeline,
-                on_station_manager=self.workspace.select_ground_stations,
-                selection_context=self._station_analysis_contexts[stack],
-                limit_to_range=True,
-                initial_range=self._resolved_plot_range(),
-                display_time_zone=self._display_time_zone,
-            ),
-            panel_id=panel_id,
-            stack=stack,
-            force_replace=force_replace,
-        )
-
-    def open_ground_station_passes_view(
-        self: PlayerAppState,
+        name: str,
+        view_class: type[ground_station_passes_view.GroundStationPassesView],
+        panel_id: str | None,
+        stack: str,
+        force_replace: bool,
         initial_station_id: str | None = None,
-        panel_id: str | None = None,
-        stack: str = "middle",
-        force_replace: bool = False,
     ) -> None:
-        """Open or focus passes found in the loaded part of the plot range."""
-        if panel_id is None:
-            existing = self._open_views.get("ground-station-passes")
-            if existing is not None:
-                if initial_station_id is not None:
-                    select_station = getattr(
-                        existing.view, "select_station_by_id", None
-                    )
-                    if callable(select_station):
-                        select_station(initial_station_id)
-                existing.panel.SetFocus()
-                return
-        elif force_replace and initial_station_id is None:
-            existing_panel = self._open_panels.get(panel_id)
-            if existing_panel is not None:
-                initial_station_id = getattr(
-                    existing_panel.view, "selected_station_id", None
-                )
-
         self._open_view(
-            "ground-station-passes",
-            lambda panel: ground_station_passes_view.GroundStationPassesView(
+            name,
+            lambda panel: view_class(
                 panel,
                 self.cursor,
                 self._ground_stations,
@@ -249,37 +201,9 @@ class PlayerViewFactoryMixin:
             force_replace=force_replace,
         )
 
-    def _open_focused_pass_view(
-        self: PlayerAppState,
-        name: str,
-        view_class: type[ground_station_passes_view.GroundStationPassesView],
-        panel_id: str | None,
-        stack: str,
-        force_replace: bool,
-    ) -> None:
-        self._open_view(
-            name,
-            lambda panel: view_class(
-                panel,
-                self.cursor,
-                self._ground_stations,
-                self.object_name,
-                oem_loaded=self._oem_loaded,
-                on_seek=self._seek_from_ground_station_timeline,
-                on_focus_pass=self._focus_ground_station_pass,
-                on_station_manager=self.workspace.select_ground_stations,
-                selection_context=self._station_analysis_contexts[stack],
-                limit_to_range=True,
-                initial_range=self._resolved_plot_range(),
-                display_time_zone=self._display_time_zone,
-            ),
-            panel_id=panel_id,
-            stack=stack,
-            force_replace=force_replace,
-        )
-
     def open_pass_list_view(
         self: PlayerAppState,
+        initial_station_id: str | None = None,
         panel_id: str | None = None,
         stack: str = "middle",
         force_replace: bool = False,
@@ -290,6 +214,7 @@ class PlayerViewFactoryMixin:
             panel_id,
             stack,
             force_replace,
+            initial_station_id,
         )
 
     def open_sky_view(

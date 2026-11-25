@@ -13,7 +13,6 @@ from matplotlib.figure import Figure
 from .. import time_range
 from ..graph_panel import GraphPanelHost
 from ..views import base
-from ..views import registry as view_registry
 from ..views.trajectory3d import selection as trajectory3d_selection
 from .player_app_state import PlayerAppState
 from .player_app_support import (
@@ -255,13 +254,6 @@ class PanelManagementMixin:
                 force_replace=force_replace,
             )
             return
-        if name in view_registry.ALIASES:
-            expanded = view_registry.ALIASES[name]
-            if len(expanded) != 1:
-                raise ValueError(
-                    f"plot alias {name!r} does not identify a single panel"
-                )
-            name = expanded[0]
         if name not in self._view_registry.registered_views:
             raise ValueError(f"unknown view name: {name!r}")
         if not self._oem_loaded:

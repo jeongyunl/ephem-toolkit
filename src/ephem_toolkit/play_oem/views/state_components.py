@@ -21,6 +21,7 @@ from .base import (
     store_empty_label,
 )
 from .plotting import SegmentedPlotHistory, set_shared_x_limits, time_bounds_to_axis
+from .registry import ViewSpecMixin
 
 CARTESIAN_COMPONENT_COUNT: int = 3
 """Number of Cartesian position or velocity components."""
@@ -34,10 +35,12 @@ STATE_COMPONENT_COLUMN_COUNT: int = 2
 """Number of columns for position and velocity plots."""
 
 
-class StateComponentsView(StoreSeriesPlotView):
+class StateComponentsView(ViewSpecMixin, StoreSeriesPlotView):
     """Plot X/Y/Z position and VX/VY/VZ velocity histories."""
 
     name: str = "state-components"
+    label: str = "State Components"
+    group: str = "state"
     animated_cursor_updates: bool = True
 
     @property

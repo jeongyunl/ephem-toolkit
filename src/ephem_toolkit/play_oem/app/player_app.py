@@ -51,7 +51,17 @@ from ..saved_state import (
 )
 from ..station_analysis import StationAnalysisContext, StationAnalysisSelection
 from ..views import registry
+from ..views.angular_velocity import AngularVelocityView
+from ..views.direction_change import DirectionChangeView
+from ..views.distance import GeocentricDistanceView
+from ..views.ground_track import GroundTrackView
+from ..views.ground_station_pass_track import GroundStationPassTrackView
+from ..views.ground_station_passes import GroundStationPassListView, GroundStationSkyView
+from ..views.rtn import RtnDeltaView
+from ..views.speed_altitude import SpeedAltitudeView
+from ..views.state_components import StateComponentsView
 from ..views.trajectory3d import selection as trajectory3d_selection
+from ..views.trajectory3d.mpl_backend import Trajectory3DView
 from .player_3d_view_factory import Player3dViewFactoryMixin
 from .player_app_preferences import PlayerAppPreferencesMixin
 from .player_app_state import (
@@ -443,27 +453,45 @@ class PlayerApp(
 
     def _initialize_view_registry(self, plots: Sequence[str]) -> None:
         """Register all graph views and derive startup panel selections."""
-        self._view_registry = registry.ViewRegistry()
-        view_names = (
-            ("trajectory-3d", self.open_trajectory_view),
-            ("speed-altitude", self.open_speed_altitude_view),
-            ("state-components", self.open_state_components_view),
-            ("rtn", self.open_rtn_view),
-            ("angular-velocity", self.open_angular_velocity_view),
-            ("direction-change", self.open_direction_change_view),
-            ("distance", self.open_distance_view),
-            ("ground-track", self.open_ground_track_view),
-            ("station-status", self.open_station_status_view),
-            ("pass-strip", self.open_pass_strip_view),
-            ("elevation-profile", self.open_elevation_profile_view),
-            ("azimuth-profile", self.open_azimuth_profile_view),
-            ("range-profile", self.open_range_profile_view),
-            ("pass-list", self.open_pass_list_view),
-            ("sky-view", self.open_sky_view),
-            ("pass-ground-track", self.open_pass_ground_track_view),
+        self._view_registry = registry.ViewRegistry(
+            (
+                registry.ViewGroup("overview", "Overview"),
+                registry.ViewGroup("state", "State"),
+                registry.ViewGroup("motion", "Motion"),
+                registry.ViewGroup("access-overview", "Access Overview"),
+                registry.ViewGroup("pass-study", "Pass Study"),
+            )
         )
-        for name, opener in view_names:
-            self._view_registry.register_view(name, opener)
+        view_classes = (
+            (Trajectory3DView, self.open_trajectory_view),
+            (SpeedAltitudeView, self.open_speed_altitude_view),
+            (StateComponentsView, self.open_state_components_view),
+            (RtnDeltaView, self.open_rtn_view),
+            (AngularVelocityView, self.open_angular_velocity_view),
+            (DirectionChangeView, self.open_direction_change_view),
+            (GeocentricDistanceView, self.open_distance_view),
+            (GroundTrackView, self.open_ground_track_view),
+        )
+        for view_class, opener in view_classes:
+            self._view_registry.register(view_class.view_spec(opener))
+        legacy_view_names = (
+            ("station-status", "Station Status", "access-overview", self.open_station_status_view),
+            ("pass-strip", "Pass Strip", "access-overview", self.open_pass_strip_view),
+            ("elevation-profile", "Elevation Profile", "access-overview", self.open_elevation_profile_view),
+            ("azimuth-profile", "Azimuth Profile", "access-overview", self.open_azimuth_profile_view),
+            ("range-profile", "Range Profile", "access-overview", self.open_range_profile_view),
+        )
+        for name, label, group, opener in legacy_view_names:
+            self._view_registry.register(
+                registry.ViewSpec(name=name, label=label, group=group, opener=opener)
+            )
+        pass_view_classes = (
+            (GroundStationPassListView, self.open_pass_list_view),
+            (GroundStationSkyView, self.open_sky_view),
+            (GroundStationPassTrackView, self.open_pass_ground_track_view),
+        )
+        for view_class, opener in pass_view_classes:
+            self._view_registry.register(view_class.view_spec(opener))
         self._plots = self._view_registry.expand(plots)
         self._panel_view_choices = ((EMPTY_GRAPH_VIEW, EMPTY_GRAPH_LABEL),) + tuple(
             (name, self._view_registry.label_for(name))

@@ -338,19 +338,6 @@ class PlayerAppState(
         stack: str = "middle",
         force_replace: bool = False,
     ) -> None: ...
-    def open_ground_station_access_view(
-        self,
-        panel_id: str | None = None,
-        stack: str = "middle",
-        force_replace: bool = False,
-    ) -> None: ...
-    def open_ground_station_passes_view(
-        self,
-        initial_station_id: str | None = None,
-        panel_id: str | None = None,
-        stack: str = "middle",
-        force_replace: bool = False,
-    ) -> None: ...
     def open_station_status_view(
         self,
         panel_id: str | None = None,
@@ -383,6 +370,7 @@ class PlayerAppState(
     ) -> None: ...
     def open_pass_list_view(
         self,
+        initial_station_id: str | None = None,
         panel_id: str | None = None,
         stack: str = "middle",
         force_replace: bool = False,

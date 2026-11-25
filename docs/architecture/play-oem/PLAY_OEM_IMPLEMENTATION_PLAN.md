@@ -389,17 +389,17 @@ partial groups. Step 14 enables the State group; Step 15 will enable Motion and 
 ### 14. Add the state-components view
 
 Split the X/Y/Z and VX/VY/VZ histories from the original state-vector plot into a dedicated
-Matplotlib view. Add it to the State group and preserve the `state-vectors` compatibility alias
-for opening both state components and the 3D trajectory.
+Matplotlib view. Add it to the State group. The canonical state-components and trajectory-3d
+views are selected independently.
 
 - **Status:** Done.
 - **Progress:** 4/4 checklist items.
 - [x] Build the position and velocity component plots with units and frame labels.
 - [x] Add synchronized cursor artists and click-to-seek behavior.
-- [x] Add view and alias names to the registry.
-- [x] Test group and alias behavior.
+- [x] Add canonical view names to the registry.
+- [x] Test canonical group behavior.
 
-**Done when:** the State group and compatibility alias open the expected views.
+**Done when:** the State group and canonical state views open the expected views.
 **Depends on:** Step 13.
 
 **Superseded by steps 15–23 (wxPython migration).** The notes below describe the Tk implementation.

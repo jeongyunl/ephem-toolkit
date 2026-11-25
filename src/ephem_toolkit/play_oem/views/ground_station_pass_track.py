@@ -21,12 +21,15 @@ from ..time_range import ResolvedTimeRange
 from ..time_unit import TimeUnit
 from .base import StoreViewBinding, StoreViewContext
 from .plotting import bounded_sample_indices
+from .registry import ViewSpecMixin
 
 
-class GroundStationPassTrackView:
+class GroundStationPassTrackView(ViewSpecMixin):
     """Draw the selected pass subpoint path from shared Earth-fixed positions."""
 
     name = "pass-ground-track"
+    label = "Pass Ground Track"
+    group = "pass-study"
 
     def __init__(
         self,

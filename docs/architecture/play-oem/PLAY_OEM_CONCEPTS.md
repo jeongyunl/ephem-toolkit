@@ -104,7 +104,7 @@ play-oem [<input_oem>] [OPTIONS]
 | Option | Description |
 |--------|-------------|
 | `<input_oem>` | Input CCSDS OEM path (same as `plot-oem`). |
-| `--plots <list>` | Comma-separated view names or groups to open at launch (default: `overview`; groups: `overview`, `state`, `motion`, `access-overview`, `pass-study`, `all`; compatibility alias: `state-vectors`). |
+| `--plots <list>` | Comma-separated canonical view names or groups to open at launch (default: `overview`; groups: `overview`, `state`, `motion`, `access-overview`, `pass-study`, `all`). |
 | `--3d-backend {auto,vtk,matplotlib}` | Renderer for 3D views (default `auto`: VTK when its wx integration is available, otherwise Matplotlib). Explicit `vtk` reports an actionable error if unavailable. |
 | `--config-file <path>` | Load user defaults from the specified TOML file instead of the default configuration location. |
 | `--state-file <path>` | Load and save app state from the specified TOML file. |

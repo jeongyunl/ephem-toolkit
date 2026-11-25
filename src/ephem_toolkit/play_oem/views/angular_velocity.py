@@ -24,6 +24,7 @@ from .plotting import (
     set_shared_x_limits,
     time_bounds_to_axis,
 )
+from .registry import ViewSpecMixin
 
 CURSOR_LINE_COLOR: str = "tab:red"
 """Color used for the playback cursor lines."""
@@ -31,10 +32,12 @@ FIGURE_SIZE_INCHES: tuple[float, float] = (8.0, 6.0)
 """Default angular-velocity figure size in inches."""
 
 
-class AngularVelocityView(StoreSeriesPlotView):
+class AngularVelocityView(ViewSpecMixin, StoreSeriesPlotView):
     """Plot angular-rate histories in degrees and radians per second."""
 
     name: str = "angular-velocity"
+    label: str = "Angular Velocity"
+    group: str = "motion"
 
     @property
     def cursor_artists(self) -> tuple[Line2D, ...]:

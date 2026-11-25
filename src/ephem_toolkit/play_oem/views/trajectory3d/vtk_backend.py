@@ -32,6 +32,7 @@ from ... import cursor, series, time_unit
 from ...time_range import ResolvedTimeRange
 from ..base import StoreViewContext
 from ..plotting import MAX_MATPLOTLIB_3D_DISPLAY_POINTS
+from ..registry import ViewSpecMixin
 from .selection import VTKBackendUnavailableError
 from .selection import select_segmented_positions
 
@@ -57,10 +58,12 @@ TAIL_MINIMUM_SAMPLE_COUNT: int = 2
 """Minimum number of samples considered when selecting tail extent."""
 
 
-class VTKTrajectory3DView:
+class VTKTrajectory3DView(ViewSpecMixin):
     """Render the orbit, WGS84 Earth and cursor marker in an embedded VTK view."""
 
-    name: str = "trajectory3d"
+    name: str = "trajectory-3d"
+    label: str = "3D Orbit"
+    group: str = "overview"
 
     def __init__(
         self,

@@ -150,44 +150,15 @@ def test_3d_backend_option_rejects_unknown_choice(
 @pytest.mark.parametrize(
     ("selection", "expected"),
     [
-        ("overview, trajectory-3d", ("trajectory-3d", "speed-altitude")),
-        ("state", ("state-components",)),
-        ("state-vectors", ("trajectory-3d", "state-components")),
-        (
-            "motion",
-            ("rtn", "angular-velocity", "direction-change", "distance"),
-        ),
-        (
-            "all",
-            (
-                "trajectory-3d",
-                "state-components",
-                "speed-altitude",
-                "rtn",
-                "angular-velocity",
-                "direction-change",
-                "distance",
-                "ground-track",
-                "station-status",
-                "pass-strip",
-                "elevation-profile",
-                "azimuth-profile",
-                "range-profile",
-                "pass-list",
-                "sky-view",
-                "pass-ground-track",
-            ),
-        ),
-        ("ground-station-access", ("elevation-profile",)),
-        ("ground-station-passes", ("pass-list",)),
-        (
-            "access-overview",
-            ("station-status", "pass-strip", "elevation-profile"),
-        ),
-        ("pass-study", ("pass-list", "sky-view")),
+        ("overview, trajectory-3d", ("overview", "trajectory-3d")),
+        ("state", ("state",)),
+        ("motion", ("motion",)),
+        ("all", ("all",)),
+        ("access-overview", ("access-overview",)),
+        ("pass-study", ("pass-study",)),
     ],
 )
-def test_plots_option_expands_names_and_groups(
+def test_plots_option_preserves_canonical_names_and_groups(
     selection: str, expected: tuple[str, ...]
 ) -> None:
     args = parse_arguments(
@@ -198,17 +169,17 @@ def test_plots_option_expands_names_and_groups(
     assert args.plots == expected
 
 
-def test_plots_option_rejects_unknown_names(
+def test_plots_option_rejects_empty_selection(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     with pytest.raises(SystemExit) as exc_info:
         parse_arguments(
             build_arg_parser(),
-            ["orbit.oem", PLOTS_OPTION, "not-a-plot"],
+            ["orbit.oem", PLOTS_OPTION, "overview,"],
         )
 
     assert exc_info.value.code == 2
-    assert "unknown plot name 'not-a-plot'" in capsys.readouterr().err
+    assert "at least one non-empty plot name is required" in capsys.readouterr().err
 
 
 def test_input_path_is_optional() -> None:
@@ -508,7 +479,7 @@ def test_cli_loads_oem_and_launches_player(
     assert launched["oem_loaded"] is False
     assert launched["on_open_file"] is None
     assert launched["initial_file_path"] == str(input_oem)
-    assert launched["plots"] == ("trajectory-3d", "speed-altitude")
+    assert launched["plots"] == ("overview",)
     assert launched["three_d_backend"] == "auto"
     assert launched["time_unit"].value == "hours"
     assert launched["clock"].rate == 1.0

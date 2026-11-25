@@ -38,6 +38,7 @@ from ..time_unit import TimeUnit
 from .base import StoreViewBinding, StoreViewContext
 from .compact_controls import compact_controls
 from .plotting import bounded_sample_indices
+from .registry import ViewSpecMixin
 
 PROJECTION_SPECS = {
     "Equirectangular": ("eqc", {}),
@@ -193,10 +194,12 @@ def _boundary_runs(
     return split_ground_track_runs(coordinates, center_longitude_deg)
 
 
-class GroundTrackView:
+class GroundTrackView(ViewSpecMixin):
     """Map projection, track, current marker and coverage in a wx panel."""
 
     name = "ground-track"
+    label = "Ground Track"
+    group = "motion"
 
     def __init__(
         self,
