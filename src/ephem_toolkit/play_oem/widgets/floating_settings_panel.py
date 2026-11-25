@@ -33,7 +33,7 @@ class FloatingSettingsPanel(wx.Panel):
         self._handle = wx.Panel(self, wx.ID_ANY, style=wx.BORDER_NONE)
         self._handle.SetName(f"{name} handle")
         self._handle.SetBackgroundColour(
-            wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOWFRAME)
+            wx.SystemSettings.GetColour(wx.SYS_COLOUR_BTNSHADOW)
         )
         handle_inner = wx.Panel(
             self._handle,
@@ -69,23 +69,34 @@ class FloatingSettingsPanel(wx.Panel):
 
         top_level = wx.GetTopLevelParent(parent)
         self._top_level = top_level
-        self._popup = wx.Frame(
-            top_level,
-            wx.ID_ANY,
-            "",
-            style=(
-                wx.BORDER_NONE
-                | wx.FRAME_NO_TASKBAR
-                | wx.FRAME_FLOAT_ON_PARENT
-            ),
-        )
+        self._uses_popup_window = "gtk3" in wx.PlatformInfo
+        if self._uses_popup_window:
+            # GTK popup windows avoid activating a second top-level frame.
+            self._popup = wx.PopupWindow(top_level, wx.BORDER_NONE)
+        else:
+            self._popup = wx.Frame(
+                top_level,
+                wx.ID_ANY,
+                "",
+                style=(
+                    wx.BORDER_NONE
+                    | wx.FRAME_NO_TASKBAR
+                    | wx.FRAME_FLOAT_ON_PARENT
+                ),
+            )
         self._popup_border_width_dip = 1
         self._popup_border_width = self.FromDIP(
             self._popup_border_width_dip
         )
-        self._popup.SetBackgroundColour(
-            wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOWFRAME)
+        popup_background = wx.SystemSettings.GetColour(
+            wx.SYS_COLOUR_BTNSHADOW
         )
+        content_background = (
+            top_level.GetBackgroundColour()
+            if self._uses_popup_window
+            else wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW)
+        )
+        self._popup.SetBackgroundColour(popup_background)
         self._content = wx.ScrolledWindow(
             self._popup,
             wx.ID_ANY,
@@ -98,9 +109,7 @@ class FloatingSettingsPanel(wx.Panel):
         self._content.SetScrollRate(10, 10)
         self._content.AlwaysShowScrollbars(False, False)
         self._content.ShowScrollbars(False, False)
-        self._content.SetBackgroundColour(
-            wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW)
-        )
+        self._content.SetBackgroundColour(content_background)
         self._content.SetForegroundColour(
             wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOWTEXT)
         )
@@ -112,9 +121,7 @@ class FloatingSettingsPanel(wx.Panel):
             self._popup_border_width,
         )
         self._popup.SetSizer(popup_sizer)
-        self._popup.SetBackgroundColour(
-            wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOWFRAME)
-        )
+        self._popup.SetBackgroundColour(popup_background)
         self._popup.Hide()
 
         self._handle.Bind(wx.EVT_ENTER_WINDOW, self._on_enter)
@@ -184,13 +191,25 @@ class FloatingSettingsPanel(wx.Panel):
         if self._expanded:
             self.RefreshLayout()
             return
-        self._focus_before_expand = wx.Window.FindFocus()
+        if not self._uses_popup_window:
+            self._focus_before_expand = wx.Window.FindFocus()
         self._expanded = True
         self._handle.Hide()
         self._content.Show()
-        self._popup.Show()
-        self.RefreshLayout()
-        wx.CallAfter(self._focus_expanded_content)
+        if self._uses_popup_window:
+            # Give GTK's scrolled window its final allocation before mapping
+            # the popup; showing it at the default 1x1 size can make its
+            # scrollbars receive a negative allocation.
+            self.RefreshLayout()
+            self._popup.Show()
+            # GTK may apply the popup's initial position while mapping it.
+            # Reapply the host-relative position once it has a native window.
+            self.RefreshLayout()
+        else:
+            self._popup.Show()
+            self.RefreshLayout()
+        if not self._uses_popup_window:
+            wx.CallAfter(self._focus_expanded_content)
 
     def Collapse(self) -> None:
         self.CancelCollapse()
@@ -199,10 +218,11 @@ class FloatingSettingsPanel(wx.Panel):
         self._popup.Hide()
         self._handle.Show()
         self.RefreshLayout()
-        previous_focus = self._focus_before_expand
-        self._focus_before_expand = None
-        focus_target = previous_focus if previous_focus is not None else self._handle
-        wx.CallAfter(self._restore_focus, focus_target)
+        if not self._uses_popup_window:
+            previous_focus = self._focus_before_expand
+            self._focus_before_expand = None
+            focus_target = previous_focus if previous_focus is not None else self._handle
+            wx.CallAfter(self._restore_focus, focus_target)
 
     def _restore_focus(self, focus_target: wx.Window) -> None:
         being_deleted = getattr(focus_target, "IsBeingDeleted", None)
@@ -261,17 +281,21 @@ class FloatingSettingsPanel(wx.Panel):
             self._handle.SetSize(0, 0, handle_size, handle_size)
             host_origin = self.GetParent().ClientToScreen(wx.Point(0, 0))
             collapsed_right = host_origin.x + handle_rect.x + handle_size
-            frame_rect = self._top_level.GetScreenRect()
+            if self._uses_popup_window:
+                frame_origin = self._top_level.ClientToScreen(wx.Point(0, 0))
+                frame_size = self._top_level.GetClientSize()
+            else:
+                frame_rect = self._top_level.GetScreenRect()
+                frame_origin = wx.Point(frame_rect.left, frame_rect.top)
+                frame_size = wx.Size(frame_rect.width, frame_rect.height)
             edge_margin = self.FromDIP(8)
-            frame_right = frame_rect.left + frame_rect.width
-            frame_bottom = frame_rect.top + frame_rect.height
             popup_width = min(
                 size.width,
-                max(1, frame_rect.width - 2 * edge_margin),
+                max(1, frame_size.width - 2 * edge_margin),
             )
             popup_height = min(
                 size.height,
-                max(1, frame_rect.height - 2 * edge_margin),
+                max(1, frame_size.height - 2 * edge_margin),
             )
             self._popup.SetClientSize(wx.Size(popup_width, popup_height))
             self._popup.Layout()
@@ -279,15 +303,15 @@ class FloatingSettingsPanel(wx.Panel):
             popup_width = actual_popup_size.width
             popup_height = actual_popup_size.height
             popup_left = collapsed_right - popup_width
-            if popup_left < frame_rect.left:
-                popup_left = frame_rect.left
-            elif popup_left + popup_width > frame_right:
-                popup_left = frame_right - popup_width
+            if popup_left < frame_origin.x:
+                popup_left = frame_origin.x
+            elif popup_left + popup_width > frame_origin.x + frame_size.width:
+                popup_left = frame_origin.x + frame_size.width - popup_width
             popup_top = host_origin.y
-            if popup_top < frame_rect.top:
-                popup_top = frame_rect.top
-            elif popup_top + popup_height > frame_bottom:
-                popup_top = frame_bottom - popup_height
+            if popup_top < frame_origin.y:
+                popup_top = frame_origin.y
+            elif popup_top + popup_height > frame_origin.y + frame_size.height:
+                popup_top = frame_origin.y + frame_size.height - popup_height
             self._popup.SetPosition(wx.Point(popup_left, popup_top))
             self._popup.Layout()
             self._collapsed_screen_rect = wx.Rect(
@@ -330,7 +354,7 @@ class FloatingSettingsPanel(wx.Panel):
         else:
             self._handle.Show()
 
-    def Close(self) -> bool:
+    def Close(self, force: bool = False) -> bool:
         self.CancelCollapse()
         self._host.Unbind(wx.EVT_SIZE, handler=self._on_host_size)
         self._handle.Unbind(wx.EVT_ENTER_WINDOW)
@@ -373,8 +397,10 @@ class FloatingSettingsPanel(wx.Panel):
     ) -> tuple[wx.Point, wx.Size]:
         if host_size is None:
             host_size = self.GetParent().GetClientSize()
+        assert host_size is not None
         if margin is None:
             margin = self.FromDIP(8)
+        assert margin is not None
         if required is None:
             required = (
                 self._content_sizer.CalcMin()
