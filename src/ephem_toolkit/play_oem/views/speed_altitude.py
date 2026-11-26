@@ -12,6 +12,7 @@ from matplotlib.text import Text
 from matplotlib.transforms import Affine2D
 
 from .. import series, time_unit
+from ..matplotlib_helpers import create_figure, style_axes
 from ..oem_data_store import ColumnGroupView, StoreQuery
 from ..time_range import ResolvedTimeRange
 from .base import (
@@ -143,13 +144,14 @@ class SpeedAltitudeView(ViewSpecMixin, StoreSeriesPlotView):
     def _create_figure(
         self, display_time_unit: time_unit.TimeUnit
     ) -> tuple[Figure, Axes, Axes]:
-        figure = Figure(figsize=FIGURE_SIZE_INCHES, constrained_layout=True)
+        figure = create_figure(FIGURE_SIZE_INCHES)
         speed_axes, altitude_axes = figure.subplots(2, 1, sharex=True)
         speed_axes.set_ylabel("Speed (km/s)")
         altitude_axes.set_ylabel("Altitude (km)")
         altitude_axes.set_xlabel(display_time_unit.get_axis_label())
         speed_axes.grid(True)
         altitude_axes.grid(True)
+        style_axes(speed_axes, altitude_axes)
         self._figure = figure
         self._time_unit_divisor_s = display_time_unit.get_divisor_s()
         return figure, speed_axes, altitude_axes

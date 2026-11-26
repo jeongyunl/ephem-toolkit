@@ -1,18 +1,20 @@
 """Reusable custom controls for the play-oem interface."""
 
-from .themed_toggle_button import ThemedToggleButton
+from .floating_matplotlib_legend import FloatingMatplotlibLegend
+from .floating_panel import FloatingPanel, PanelCorner, PanelInteraction
+from .matplotlib_panel import MatplotlibPanel
 from .playback_time_scrubber import (
-    ChevronButton,
     DEFAULT_CHEVRON_HEIGHT,
     DEFAULT_CHEVRON_WIDTH,
+    ChevronButton,
     PlaybackTimeScrubber,
     PlaybackTimeScrubberWidget,
     TimeTickRail,
 )
 from .playback_time_slider import PlaybackTimeSlider
-from .track_slider import TrackSlider
+from .themed_toggle_button import ThemedToggleButton
 from .time_slider import TimeSlider
-from .floating_panel import FloatingPanel, PanelCorner, PanelInteraction
+from .track_slider import TrackSlider
 
 __all__ = [
     "ChevronButton",
@@ -26,6 +28,8 @@ __all__ = [
     "TimeSlider",
     "TimeTickRail",
     "FloatingPanel",
+    "FloatingMatplotlibLegend",
     "PanelCorner",
     "PanelInteraction",
+    "MatplotlibPanel",
 ]

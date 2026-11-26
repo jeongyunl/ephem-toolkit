@@ -15,8 +15,8 @@ from ephem_toolkit.play_oem.ground_stations import GroundStation
 from ephem_toolkit.play_oem.oem_data_store import OemDataStore
 from ephem_toolkit.play_oem.time_range import ResolvedTimeRange
 from ephem_toolkit.play_oem.time_unit import TimeUnit
-from ephem_toolkit.play_oem.views.base import StoreViewContext
 from ephem_toolkit.play_oem.views import ground_track
+from ephem_toolkit.play_oem.views.base import StoreViewContext
 from ephem_toolkit.play_oem.views.plotting import MAX_DISPLAY_POINTS_PER_SEGMENT
 
 
@@ -268,9 +268,16 @@ def test_ground_track_store_view_uses_bound_queries_and_point_footprints() -> No
     canvas = FigureCanvasAgg(view._figure)
     view._canvas = cast(Any, canvas)
     view._axes = view._figure.add_subplot(111)
-    view._legend_figure = Figure()
-    legend_canvas = FigureCanvasAgg(view._legend_figure)
-    view._legend_canvas = cast(Any, legend_canvas)
+    legend_entries: list[tuple[str, ...]] = []
+
+    class LegendPanel:
+        def set_handles(self, handles: Any) -> None:
+            legend_entries.append(tuple(handle.get_label() for handle in handles))
+
+        def Close(self) -> None:
+            pass
+
+    view._legend_panel = cast(Any, LegendPanel())
     coordinate_labels: list[str] = []
 
     class CoordinateReadout:
@@ -280,7 +287,6 @@ def test_ground_track_store_view_uses_bound_queries_and_point_footprints() -> No
     view._coordinate_readout = cast(Any, CoordinateReadout())
     view._draw_map()
     canvas.draw()
-    legend_canvas.draw()
 
     assert view._store_track_query is not None
     assert view._store_track_query.coverage.complete
@@ -290,20 +296,13 @@ def test_ground_track_store_view_uses_bound_queries_and_point_footprints() -> No
         for artist in view._track_artists
     )
     assert not view._figure.legends
-    assert view._legend_figure.legends
-    assert [text.get_text() for text in view._legend_figure.legends[0].get_texts()] == [
+    assert legend_entries
+    assert legend_entries[-1] == (
         "Ground track",
         "0° horizon",
         "10° minimum elevation",
         "Test object",
-    ]
-    legend_bounds = view._legend_figure.legends[0].get_window_extent(
-        legend_canvas.get_renderer()
     )
-    figure_width_px = view._legend_figure.get_figwidth() * view._legend_figure.dpi
-    figure_height_px = view._legend_figure.get_figheight() * view._legend_figure.dpi
-    assert 3 <= figure_width_px - legend_bounds.width <= 5
-    assert 3 <= figure_height_px - legend_bounds.height <= 5
 
     view.update(10.0)
     assert view._marker is not None and len(view._marker.get_xdata()) == 1

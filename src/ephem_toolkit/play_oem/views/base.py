@@ -844,6 +844,8 @@ class TimeRangeSupport:
 class StoreSeriesPlotView(TimeRangeSupport):
     """Shared lifecycle for store-backed 2D series plots."""
 
+    preserve_canvas_aspect_ratio = False
+
     def _initialize_store_series(
         self,
         start_time_s: float,

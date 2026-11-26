@@ -14,6 +14,7 @@ from .. import time_range
 from ..graph_panel import GraphPanelHost
 from ..views import base
 from ..views.trajectory3d import selection as trajectory3d_selection
+from ..widgets.matplotlib_panel import MatplotlibPanel
 from .player_app_state import PlayerAppState
 from .player_app_support import (
     EMPTY_GRAPH_LABEL,
@@ -134,12 +135,24 @@ class PanelManagementMixin:
         name: str,
         panel: GraphPanelHost,
         content: object,
+        *,
+        preserve_aspect_ratio: bool = False,
     ) -> tuple[FigureCanvasWxAgg | None, NavigationToolbar2WxAgg | None, int | None]:
         if isinstance(content, Figure):
-            canvas = FigureCanvasWxAgg(panel.graph_scroller, wx.ID_ANY, content)
-            toolbar = NavigationToolbar2WxAgg(canvas)
-            toolbar.Realize()
-            panel.set_matplotlib_content(toolbar, canvas)
+            plot_panel = MatplotlibPanel(
+                panel.graph_scroller,
+                content,
+                toolbar_factory=NavigationToolbar2WxAgg,
+                preserve_aspect_ratio=preserve_aspect_ratio,
+            )
+            canvas = plot_panel.canvas
+            toolbar_window = plot_panel.toolbar
+            if not isinstance(toolbar_window, NavigationToolbar2WxAgg):
+                raise RuntimeError(
+                    "graph Matplotlib panel requires a navigation toolbar"
+                )
+            toolbar = toolbar_window
+            panel.set_matplotlib_content(plot_panel)
             click_callback_id = canvas.mpl_connect(
                 "button_press_event",
                 lambda event: self._on_plot_click(event, toolbar),
@@ -408,7 +421,18 @@ class PanelManagementMixin:
             resources.view = create_view(panel.graph_scroller)
             content, requires_store_rebuild = self._build_view_content(resources.view)
             resources.canvas, resources.toolbar, resources.click_callback_id = (
-                self._attach_view_content(name, panel, content)
+                self._attach_view_content(
+                    name,
+                    panel,
+                    content,
+                    preserve_aspect_ratio=bool(
+                        getattr(
+                            resources.view,
+                            "preserve_canvas_aspect_ratio",
+                            False,
+                        )
+                    ),
+                )
             )
 
             # Size a new or newly populated panel to its plot once. Replacing one

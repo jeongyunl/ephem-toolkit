@@ -13,11 +13,13 @@ from matplotlib.figure import Figure
 from .. import cursor as playback_cursor
 from ..display_time import UTC_DISPLAY, format_tt
 from ..ground_stations import GroundStation
+from ..matplotlib_helpers import create_figure, style_axes
 from ..oem_data_store import GroundTrackGroups
 from ..series import OrbitSeries
 from ..station_analysis import StationAnalysisContext, StationAnalysisSelection
 from ..time_range import ResolvedTimeRange
 from ..time_unit import TimeUnit
+from ..widgets.matplotlib_panel import MatplotlibPanel
 from .base import StoreStationViewSupport, StoreViewContext
 from .plotting import bounded_sample_indices
 from .registry import ViewSpecMixin
@@ -53,6 +55,7 @@ class GroundStationPassTrackView(ViewSpecMixin, StoreStationViewSupport):
         self._figure: Figure | None = None
         self._axes: Any = None
         self._canvas: FigureCanvasWxAgg | None = None
+        self._plot_panel: MatplotlibPanel | None = None
         self._context_unsubscribe = selection_context.subscribe(
             self._on_context_selection
         )
@@ -80,10 +83,16 @@ class GroundStationPassTrackView(ViewSpecMixin, StoreStationViewSupport):
         self._status = wx.StaticText(panel, wx.ID_ANY, "")
         self._status.SetName("Pass Ground Track status")
         sizer.Add(self._status, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
-        self._figure = Figure(figsize=(8.0, 4.5), dpi=100)
+        self._figure = create_figure((8.0, 4.5))
         self._axes = self._figure.add_subplot(111)
-        self._canvas = FigureCanvasWxAgg(panel, wx.ID_ANY, self._figure)
-        sizer.Add(self._canvas, 1, wx.EXPAND | wx.ALL, 8)
+        plot_panel = MatplotlibPanel(
+            panel,
+            self._figure,
+            preserve_aspect_ratio=False,
+        )
+        self._plot_panel = plot_panel
+        self._canvas = plot_panel.canvas
+        sizer.Add(plot_panel, 1, wx.EXPAND)
         panel.SetSizer(sizer)
         self._draw()
         return panel
@@ -110,6 +119,7 @@ class GroundStationPassTrackView(ViewSpecMixin, StoreStationViewSupport):
         self._close_station_store()
         self._canvas = None
         self._figure = None
+        self._plot_panel = None
         self._axes = None
         self._panel = None
 
@@ -161,6 +171,7 @@ class GroundStationPassTrackView(ViewSpecMixin, StoreStationViewSupport):
                         station,
                         complete=query.coverage.complete,
                     )
+        style_axes(self._axes)
         if self._canvas is not None:
             self._canvas.draw_idle()
 

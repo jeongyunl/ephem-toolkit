@@ -2,16 +2,13 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 import math
 import time
+from collections.abc import Callable
 from typing import Any, cast
 from uuid import uuid4
 
 import wx
-
-from .widgets.tooltips import set_tooltip, suppress_tooltips
-
 from matplotlib import rcParams
 from matplotlib.axes import Axes
 from matplotlib.backend_bases import DrawEvent
@@ -21,6 +18,9 @@ from matplotlib.backends.backend_wxagg import (
 )
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
+
+from .widgets.matplotlib_panel import MatplotlibPanel
+from .widgets.tooltips import set_tooltip, suppress_tooltips
 
 MATPLOTLIB_REDRAW_INTERVAL_S: float = 0.033
 """Minimum interval between requested Matplotlib redraws per graph panel."""
@@ -36,7 +36,7 @@ def _canvas_figure(canvas: object) -> Figure:
 
 
 def _minimize_figure_padding(figure: Figure) -> None:
-    """Reduce whitespace around every embedded figure while retaining labels."""
+    """Keep specialized native plot canvases on their compact legacy spacing."""
     layout_engine = figure.get_layout_engine()
     if layout_engine is not None:
         layout_engine.set(
@@ -199,9 +199,11 @@ class GraphPanelHost(wx.Panel):
         self._cursor_redraw_requested = False
         self._full_redraw_requested = False
         self._full_draw_scheduled = False
+        self._plot_panel: MatplotlibPanel | None = None
         self._canvas: FigureCanvasWxAgg | None = None
         self._toolbar: NavigationToolbar2WxAgg | None = None
         self._native_content: wx.Window | None = None
+        self._native_plot_panels: tuple[MatplotlibPanel, ...] = ()
         self._uses_constrained_layout = False
         self.graph_scroller = wx.ScrolledWindow(
             self,
@@ -310,19 +312,24 @@ class GraphPanelHost(wx.Panel):
         with suppress_tooltips():
             self.PopupMenu(self._actions_menu)
 
-    def set_matplotlib_content(
-        self, toolbar: NavigationToolbar2WxAgg, canvas: FigureCanvasWxAgg
-    ) -> None:
-        """Install a Matplotlib toolbar and canvas in this panel."""
+    def set_matplotlib_content(self, plot_panel: MatplotlibPanel) -> None:
+        """Install a standard Matplotlib panel in this graph host."""
         if self._native_content is not None:
             raise RuntimeError("graph panel already has native content")
-        _configure_matplotlib_canvas(canvas)
-        self.content_sizer.Add(toolbar, 0, wx.EXPAND)
-        self.content_sizer.Add(canvas, 1, wx.EXPAND)
-        toolbar.Bind(wx.EVT_MOUSEWHEEL, self._on_content_mousewheel)
+        canvas = plot_panel.canvas
+        toolbar_window = plot_panel.toolbar
+        if toolbar_window is not None and not isinstance(
+            toolbar_window, NavigationToolbar2WxAgg
+        ):
+            raise TypeError("graph panels require a Matplotlib navigation toolbar")
+        toolbar = toolbar_window
+        self.content_sizer.Add(plot_panel, 1, wx.EXPAND)
+        plot_panel.Bind(wx.EVT_MOUSEWHEEL, self._on_content_mousewheel)
         canvas.Bind(wx.EVT_MOUSEWHEEL, self._on_content_mousewheel)
+        if toolbar is not None:
+            toolbar.Bind(wx.EVT_MOUSEWHEEL, self._on_content_mousewheel)
+        self._plot_panel = plot_panel
         self._canvas = canvas
-        # Keep both references to measure the full plot height, including its toolbar.
         self._toolbar = toolbar
         self._redraw_throttle = _RedrawThrottle(self._is_visible, self._flush_redraw)
         self._cursor_blitter = _CursorBlitter(canvas)
@@ -403,35 +410,44 @@ class GraphPanelHost(wx.Panel):
         if self._canvas is not None or self._native_content is not None:
             raise RuntimeError("graph panel already has content")
         pending = [content]
+        plot_panels: list[MatplotlibPanel] = []
         while pending:
             window = pending.pop()
+            if isinstance(window, MatplotlibPanel):
+                plot_panels.append(window)
+                continue
             if isinstance(window, FigureCanvasWxAgg):
                 _configure_matplotlib_canvas(window)
             else:
                 pending.extend(window.GetChildren())
         self.content_sizer.Add(content, 1, wx.EXPAND)
         self._native_content = content
+        self._native_plot_panels = tuple(plot_panels)
         self.graph_scroller.FitInside()
         self.Layout()
 
     def natural_content_height(self) -> int:
         """Return the height needed to show the header and content without scrolling."""
         content_height = self.content_sizer.CalcMin().height
-        if self._canvas is not None and self._toolbar is not None:
-            figure = _canvas_figure(self._canvas)
-            # A canvas can report its clipped first-layout size; the figure's
-            # inches and DPI give the intended plot height before layout settles.
-            inches_high = float(figure.get_size_inches()[1])
-            canvas_height = math.ceil(inches_high * figure.dpi)
+        if self._plot_panel is not None:
             content_height = max(
-                content_height,
-                canvas_height + self._toolbar.GetBestSize().height,
+                content_height, self._plot_panel.preferred_size.height
             )
         elif self._native_content is not None:
             # Native views expose their preferred height through wx directly.
             content_height = max(
                 content_height, self._native_content.GetBestSize().height
             )
+            for plot_panel in self._native_plot_panels:
+                parent = plot_panel
+                while parent is not None and parent is not self._native_content:
+                    if not parent.IsShown():
+                        break
+                    parent = parent.GetParent()
+                if parent is self._native_content and parent.IsShown():
+                    content_height = max(
+                        content_height, plot_panel.preferred_size.height
+                    )
         return self._header_sizer.CalcMin().height + content_height
 
     def request_redraw(self) -> None:

@@ -15,6 +15,7 @@ from matplotlib.ticker import FuncFormatter
 from .. import cursor as playback_cursor
 from ..display_time import UTC_DISPLAY, format_tt
 from ..ground_stations import GroundStation
+from ..matplotlib_helpers import create_figure, style_axes
 from ..oem_data_store import StationAccessView, StoreQuery
 from ..series import OrbitSeries
 from ..station_access import (
@@ -24,6 +25,7 @@ from ..station_access import (
 from ..station_analysis import StationAnalysisContext, StationAnalysisSelection
 from ..time_range import ResolvedTimeRange
 from ..time_unit import TimeUnit
+from ..widgets.matplotlib_panel import MatplotlibPanel
 from .base import (
     StoreStationViewSupport,
     StoreViewContext,
@@ -88,6 +90,7 @@ class GroundStationAnalysisView(StoreStationViewSupport):
         self._figure: Figure | None = None
         self._axes: Any = None
         self._canvas: FigureCanvasWxAgg | None = None
+        self._plot_panel: MatplotlibPanel | None = None
         self._playback_marker: Any = None
         self._selection_callback_id: int | None = None
         self._context_unsubscribe = selection_context.subscribe(
@@ -171,16 +174,22 @@ class GroundStationAnalysisView(StoreStationViewSupport):
             self._metrics_label.SetName("Current station metrics")
             root.Add(self._metrics_label, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 8)
         else:
-            self._figure = Figure(figsize=(8.0, 4.0), dpi=100)
+            self._figure = create_figure((8.0, 4.5))
             self._axes = self._figure.add_subplot(111)
-            self._canvas = FigureCanvasWxAgg(panel, wx.ID_ANY, self._figure)
+            plot_panel = MatplotlibPanel(
+                panel,
+                self._figure,
+                preserve_aspect_ratio=False,
+            )
+            self._plot_panel = plot_panel
+            self._canvas = plot_panel.canvas
             self._playback_marker = self._axes.axvline(
                 self._axis_time(self._current_time_s),
                 color="#df4d66",
                 linewidth=1.2,
                 label="Playback",
             )
-            root.Add(self._canvas, 1, wx.EXPAND | wx.ALL, 8)
+            root.Add(plot_panel, 1, wx.EXPAND)
             if self._panel_type == "pass-strip":
                 setattr(self._axes, "_play_oem_seek_enabled", False)
                 self._selection_callback_id = self._canvas.mpl_connect(
@@ -238,6 +247,7 @@ class GroundStationAnalysisView(StoreStationViewSupport):
         self._store_queries.clear()
         self._canvas = None
         self._figure = None
+        self._plot_panel = None
         self._axes = None
         self._panel = None
 
@@ -347,6 +357,7 @@ class GroundStationAnalysisView(StoreStationViewSupport):
         handles, labels = self._axes.get_legend_handles_labels()
         if handles:
             self._axes.legend(loc="best")
+        style_axes(self._axes)
         if self._canvas is not None:
             self._canvas.draw_idle()
 

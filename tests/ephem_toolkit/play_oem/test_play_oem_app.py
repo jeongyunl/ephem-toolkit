@@ -457,9 +457,10 @@ class FakeGraphPanelHost:
         self.on_move_down = _kwargs.get("on_move_down")
         self.__class__.instances.append(self)
 
-    def set_matplotlib_content(self, toolbar, canvas) -> None:
-        self.toolbar = toolbar
-        self.canvas = canvas
+    def set_matplotlib_content(self, plot_panel) -> None:
+        self.plot_panel = plot_panel
+        self.toolbar = plot_panel.toolbar
+        self.canvas = plot_panel.canvas
 
     def set_native_content(self, content) -> None:
         self.native_content = content
@@ -752,9 +753,23 @@ def make_app(
     monkeypatch.setattr(app.control_window, "ControlWindow", FakeControlWindow)
     monkeypatch.setattr(app.workspace, "Workspace", FakeWorkspace)
     monkeypatch.setattr(panel_management, "GraphPanelHost", FakeGraphPanelHost)
-    monkeypatch.setattr(
-        panel_management, "FigureCanvasWxAgg", lambda *args: _canvas(*args)
-    )
+    def matplotlib_panel(
+        parent,
+        figure,
+        *,
+        toolbar_factory=None,
+        preserve_aspect_ratio=False,
+    ):
+        canvas = _canvas(parent, -1, figure)
+        toolbar = toolbar_factory(canvas) if toolbar_factory is not None else None
+        return SimpleNamespace(
+            figure=figure,
+            canvas=canvas,
+            toolbar=toolbar,
+            preserve_aspect_ratio=preserve_aspect_ratio,
+        )
+
+    monkeypatch.setattr(panel_management, "MatplotlibPanel", matplotlib_panel)
     monkeypatch.setattr(panel_management, "NavigationToolbar2WxAgg", FakeToolbar)
     monkeypatch.setattr(app.wx, "EVT_CLOSE", "close")
     monkeypatch.setattr(app.wx, "EVT_TIMER", "timer")
@@ -778,6 +793,11 @@ def make_app(
         views.append(view)
         return view
 
+    def create_trajectory_view(*args, **kwargs) -> FakeView:
+        view = create_view(*args, **kwargs)
+        view.preserve_canvas_aspect_ratio = True
+        return view
+
     monkeypatch.setattr(view_factory.speed_altitude, "SpeedAltitudeView", create_view)
     monkeypatch.setattr(view_factory.rtn, "RtnDeltaView", create_view)
     monkeypatch.setattr(
@@ -798,7 +818,7 @@ def make_app(
     monkeypatch.setattr(
         trajectory_view_factory.trajectory3d,
         "Trajectory3DView",
-        create_view,
+        create_trajectory_view,
     )
     timestamps = [100.0, 200.0]
     series = compute_orbit_series(timestamps, make_states(), TimeUnit.MINUTES)
@@ -1500,11 +1520,23 @@ def test_matplotlib_cursor_updates_use_full_redraw_not_partial_blits(
     player, _views, _canvases, _frames = make_app(
         monkeypatch, plots=("speed-altitude",)
     )
-    monkeypatch.setattr(
-        panel_management,
-        "FigureCanvasWxAgg",
-        lambda _parent, _id, figure: FigureCanvasAgg(figure),
-    )
+    def agg_panel(
+        parent,
+        figure,
+        *,
+        toolbar_factory=None,
+        preserve_aspect_ratio=False,
+    ):
+        canvas = FigureCanvasAgg(figure)
+        toolbar = FakeToolbar(canvas) if toolbar_factory is not None else None
+        return SimpleNamespace(
+            figure=figure,
+            canvas=canvas,
+            toolbar=toolbar,
+            preserve_aspect_ratio=preserve_aspect_ratio,
+        )
+
+    monkeypatch.setattr(panel_management, "MatplotlibPanel", agg_panel)
 
     player.start()
     opened = player._open_views["speed-altitude"]
@@ -1600,6 +1632,27 @@ def test_clock_notifications_update_views_and_existing_plot_is_raised(
     assert all(view.updated_times == [100.0, 150.0] for view in views)
     assert all(panel.focused for panel in plot_panels)
     assert len(frames) == 1
+
+    player.close()
+
+
+def test_time_series_can_resize_freely_while_3d_keeps_canvas_aspect(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    player, _views, _canvases, _frames = make_app(
+        monkeypatch,
+        plots=("speed-altitude", "trajectory-3d"),
+    )
+    player.start()
+
+    assert (
+        player._open_views["speed-altitude"].panel.plot_panel.preserve_aspect_ratio
+        is False
+    )
+    assert (
+        player._open_views["trajectory-3d"].panel.plot_panel.preserve_aspect_ratio
+        is True
+    )
 
     player.close()
 

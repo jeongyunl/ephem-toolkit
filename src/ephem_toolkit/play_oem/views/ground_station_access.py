@@ -15,12 +15,14 @@ from matplotlib.figure import Figure
 from .. import cursor as playback_cursor
 from ..display_time import UTC_DISPLAY, format_tt
 from ..ground_stations import GroundStation
+from ..matplotlib_helpers import create_figure, style_axes
 from ..oem_data_store import StationAccessView, StoreQuery
 from ..series import OrbitSeries
 from ..station_access import AccessInterval, StationAccess
 from ..station_analysis import StationAnalysisContext, StationAnalysisSelection
 from ..time_range import ResolvedTimeRange
 from ..time_unit import TimeUnit
+from ..widgets.matplotlib_panel import MatplotlibPanel
 from .base import (
     StoreStationViewSupport,
     StoreViewContext,
@@ -79,6 +81,7 @@ class GroundStationAccessView(StoreStationViewSupport):
         self._panel: wx.Panel | None = None
         self._canvas: FigureCanvasWxAgg | None = None
         self._figure: Figure | None = None
+        self._plot_panel: MatplotlibPanel | None = None
         self._axes = None
         self._station_choice: wx.Choice | None = None
         self._metrics_label: wx.StaticText | None = None
@@ -141,11 +144,17 @@ class GroundStationAccessView(StoreStationViewSupport):
         self._pass_label.SetName("Previous and next access passes")
         sizer.Add(self._pass_label, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
 
-        self._figure = Figure(figsize=(9.0, 4.5), dpi=100)
+        self._figure = create_figure((8.0, 4.5))
         self._axes = self._figure.add_subplot(1, 1, 1)
-        self._canvas = FigureCanvasWxAgg(panel, wx.ID_ANY, self._figure)
+        plot_panel = MatplotlibPanel(
+            panel,
+            self._figure,
+            preserve_aspect_ratio=False,
+        )
+        self._plot_panel = plot_panel
+        self._canvas = plot_panel.canvas
         self._canvas.mpl_connect("button_press_event", self._on_plot_click)
-        sizer.Add(self._canvas, 1, wx.EXPAND | wx.ALL, 8)
+        sizer.Add(plot_panel, 1, wx.EXPAND)
         panel.SetSizer(sizer)
         self._refresh_station_choice()
         self._draw_elevation_plot()
@@ -285,6 +294,7 @@ class GroundStationAccessView(StoreStationViewSupport):
         self._store_queries.clear()
         self._canvas = None
         self._figure = None
+        self._plot_panel = None
         self._axes = None
         self._panel = None
 
@@ -404,7 +414,7 @@ class GroundStationAccessView(StoreStationViewSupport):
             else:
                 self._draw_elevation_graph(axes, station, result, divisor)
             axes.grid(axis="both", alpha=0.25)
-        self._figure.tight_layout(pad=0.1)
+            style_axes(axes)
         self._apply_time_range()
         if self._canvas is not None:
             self._canvas.draw_idle()

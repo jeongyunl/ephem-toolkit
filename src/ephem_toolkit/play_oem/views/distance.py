@@ -9,6 +9,7 @@ from matplotlib.lines import Line2D
 from matplotlib.text import Text
 
 from .. import series, time_unit
+from ..matplotlib_helpers import create_figure, style_axes
 from ..oem_data_store import SeriesGroups, StoreQuery
 from ..time_range import ResolvedTimeRange
 from .base import (
@@ -57,7 +58,7 @@ class GeocentricDistanceView(ViewSpecMixin, StoreSeriesPlotView):
         """Build from range-limited distance columns owned by the data store."""
         if self._figure is not None:
             raise RuntimeError("geocentric-distance view has already been built")
-        figure = Figure(figsize=FIGURE_SIZE_INCHES, constrained_layout=True)
+        figure = create_figure(FIGURE_SIZE_INCHES)
         distance_axes, delta_axes = figure.subplots(2, 1, sharex=True)
         distance_axes.set_ylabel("Geocentric Distance (km)")
         distance_axes.set_title("Geocentric Distance vs Time")
@@ -182,6 +183,7 @@ class GeocentricDistanceView(ViewSpecMixin, StoreSeriesPlotView):
         )
         set_shared_x_limits(tuple(self._figure.axes), limits)
         self.update(self._last_cursor_time_s)
+        style_axes(*self._figure.axes)
 
     def build(
         self, orbit_series: series.OrbitSeries, time_unit: time_unit.TimeUnit
@@ -197,7 +199,7 @@ class GeocentricDistanceView(ViewSpecMixin, StoreSeriesPlotView):
         ):
             raise ValueError("geocentric-distance arrays must match elapsed_time")
 
-        figure = Figure(figsize=FIGURE_SIZE_INCHES, constrained_layout=True)
+        figure = create_figure(FIGURE_SIZE_INCHES)
         distance_axes, delta_axes = figure.subplots(2, 1, sharex=True)
         histories = [
             SegmentedPlotHistory(
@@ -251,6 +253,7 @@ class GeocentricDistanceView(ViewSpecMixin, StoreSeriesPlotView):
             self._time_unit_divisor_s,
         )
         self.update(self._start_time_s)
+        style_axes(*figure.axes)
         return figure
 
     def update_data(

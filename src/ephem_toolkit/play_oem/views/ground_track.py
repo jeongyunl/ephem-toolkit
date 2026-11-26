@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
 import math
+from collections.abc import Callable, Sequence
 from typing import Any
 
 import numpy as np
@@ -31,11 +31,17 @@ from ..ground_track import (
     _ecef_to_wgs84_geodetic,
     split_ground_track_runs,
 )
+from ..matplotlib_helpers import create_figure
 from ..oem_data_store import GroundTrackGroups, StoreQuery
 from ..series import OrbitSeries
 from ..time_range import ResolvedTimeRange
 from ..time_unit import TimeUnit
-from ..widgets import FloatingPanel, PanelCorner, PanelInteraction
+from ..widgets import (
+    FloatingMatplotlibLegend,
+    FloatingPanel,
+    PanelCorner,
+    PanelInteraction,
+)
 from .base import StoreViewBinding, StoreViewContext
 from .compact_controls import compact_controls
 from .plotting import bounded_sample_indices
@@ -58,13 +64,6 @@ BACKGROUND_RENDER_SIZE = (1080, 540)
 _SCROLLBAR_RANGE = 1000
 _SCROLLBAR_THUMB_SIZE = 80
 _SCROLLBAR_TRAVEL = _SCROLLBAR_RANGE - _SCROLLBAR_THUMB_SIZE
-_LEGEND_FIGURE_DPI = 100
-_LEGEND_CANVAS_PADDING_PX = 2
-_LEGEND_BORDER_PAD = 0.1
-_LEGEND_LABEL_SPACING = 0.2
-_LEGEND_HANDLE_TEXT_PAD = 0.4
-
-
 def _scrollbar_metrics(
     low: float,
     high: float,
@@ -235,12 +234,10 @@ class GroundTrackView(ViewSpecMixin):
         self._show_station_labels = False
         self._panel: wx.Panel | None = None
         self._settings_panel: FloatingPanel | None = None
-        self._legend_panel: FloatingPanel | None = None
+        self._legend_panel: FloatingMatplotlibLegend | None = None
         self._coordinate_panel: FloatingPanel | None = None
         self._canvas: FigureCanvasWxAgg | None = None
         self._figure: Figure | None = None
-        self._legend_canvas: FigureCanvasWxAgg | None = None
-        self._legend_figure: Figure | None = None
         self._axes: Any = None
         self._projection: Any = None
         self._track_artists: list[Any] = []
@@ -300,7 +297,7 @@ class GroundTrackView(ViewSpecMixin):
         panel = wx.Panel(self._parent, wx.ID_ANY)
         panel.SetWindowVariant(wx.WINDOW_VARIANT_SMALL)
         self._panel = panel
-        self._figure = Figure(figsize=(9.0, 5.0), dpi=100)
+        self._figure = create_figure((9.0, 5.0), constrained_layout=False)
         self._axes = self._figure.add_subplot(111)
         self._canvas = FigureCanvasWxAgg(panel, wx.ID_ANY, self._figure)
         self._canvas.SetMinSize(GRAPH_PANEL_MIN_SIZE)
@@ -415,26 +412,13 @@ class GroundTrackView(ViewSpecMixin):
         controls_sizer.AddSpacer(2)
         controls_sizer.Add(navigation, 0, wx.EXPAND)
         settings_panel.SetContentSizer(controls_sizer)
-        legend_panel = FloatingPanel(
+        legend_panel = FloatingMatplotlibLegend(
             panel,
             name="Ground Track legend",
             handle_label="≡",
             corner=PanelCorner.BOTTOM_RIGHT,
-            content_margin_dip=0,
-            popup_border_width_dip=1,
         )
         self._legend_panel = legend_panel
-        legend_content = legend_panel.GetContentWindow()
-        legend_content.SetName("Ground Track legend content")
-        self._legend_figure = Figure(figsize=(1, 1), dpi=_LEGEND_FIGURE_DPI)
-        self._legend_canvas = FigureCanvasWxAgg(
-            legend_content,
-            wx.ID_ANY,
-            self._legend_figure,
-        )
-        legend_sizer = wx.BoxSizer(wx.VERTICAL)
-        legend_sizer.Add(self._legend_canvas, 1, wx.EXPAND)
-        legend_panel.SetContentSizer(legend_sizer)
         coordinate_panel = FloatingPanel(
             panel,
             name="Ground Track coordinates",
@@ -678,54 +662,8 @@ class GroundTrackView(ViewSpecMixin):
             self.update(current_time_s)
 
     def _draw_legend(self, handles: Sequence[Line2D]) -> None:
-        if self._legend_figure is None:
-            return
-        self._legend_figure.clear()
-        legend = None
-        if handles:
-            legend = self._legend_figure.legend(
-                handles=handles,
-                loc="center",
-                ncol=1,
-                frameon=False,
-                borderpad=_LEGEND_BORDER_PAD,
-                labelspacing=_LEGEND_LABEL_SPACING,
-                handletextpad=_LEGEND_HANDLE_TEXT_PAD,
-            )
-        if self._legend_canvas is not None:
-            self._legend_canvas.draw()
-            if legend is None:
-                width_px = height_px = 1
-            else:
-                bounds = legend.get_window_extent(
-                    self._legend_canvas.get_renderer()
-                )
-                padding_px = _LEGEND_CANVAS_PADDING_PX
-                width_px = math.ceil(bounds.width + 2 * padding_px)
-                height_px = math.ceil(bounds.height + 2 * padding_px)
-            dpi = self._legend_figure.dpi
-            self._legend_figure.set_size_inches(
-                width_px / dpi,
-                height_px / dpi,
-                forward=False,
-            )
-            set_min_size = getattr(self._legend_canvas, "SetMinSize", None)
-            get_dpi_scale = getattr(
-                self._legend_canvas,
-                "GetDPIScaleFactor",
-                None,
-            )
-            if callable(set_min_size) and callable(get_dpi_scale):
-                dpi_scale = get_dpi_scale()
-                set_min_size(
-                    wx.Size(
-                        math.ceil(width_px / dpi_scale),
-                        math.ceil(height_px / dpi_scale),
-                    )
-                )
-            if self._legend_panel is not None:
-                self._legend_panel.RefreshLayout()
-            self._legend_canvas.draw_idle()
+        if self._legend_panel is not None:
+            self._legend_panel.set_handles(handles)
 
     def _draw_station_artists(self) -> None:
         if self._axes is None or self._projection is None:
@@ -1380,10 +1318,8 @@ class GroundTrackView(ViewSpecMixin):
         self._legend_panel = None
         self._coordinate_panel = None
         self._canvas = None
-        self._legend_canvas = None
         self._panel = None
         self._figure = None
-        self._legend_figure = None
         self._axes = None
         self._track_artists.clear()
         self._track_status_artist = None

@@ -9,6 +9,7 @@ from matplotlib.lines import Line2D
 from matplotlib.text import Text
 
 from .. import series, time_unit
+from ..matplotlib_helpers import create_figure, style_axes
 from ..oem_data_store import ColumnGroupView, StoreQuery
 from ..time_range import ResolvedTimeRange
 from .base import (
@@ -54,7 +55,7 @@ class AngularVelocityView(ViewSpecMixin, StoreSeriesPlotView):
         """Build from range-limited angular-rate columns owned by the store."""
         if self._figure is not None:
             raise RuntimeError("angular-velocity view has already been built")
-        figure = Figure(figsize=FIGURE_SIZE_INCHES, constrained_layout=True)
+        figure = create_figure(FIGURE_SIZE_INCHES)
         axes_array = figure.subplots(2, 1, sharex=True)
         rates = (
             ("Angular Velocity (deg/s)", "Angular Velocity / Attitude Rate vs Time"),
@@ -156,6 +157,7 @@ class AngularVelocityView(ViewSpecMixin, StoreSeriesPlotView):
         )
         set_shared_x_limits(tuple(self._figure.axes), limits)
         self.update(self._last_cursor_time_s)
+        style_axes(*self._figure.axes)
 
     def build(
         self, orbit_series: series.OrbitSeries, time_unit: time_unit.TimeUnit
@@ -177,7 +179,7 @@ class AngularVelocityView(ViewSpecMixin, StoreSeriesPlotView):
         ):
             raise ValueError("angular-velocity arrays must match elapsed_time")
 
-        figure = Figure(figsize=FIGURE_SIZE_INCHES, constrained_layout=True)
+        figure = create_figure(FIGURE_SIZE_INCHES)
         axes_array = figure.subplots(2, 1, sharex=True)
         rates = (
             (
@@ -234,6 +236,7 @@ class AngularVelocityView(ViewSpecMixin, StoreSeriesPlotView):
             self._time_unit_divisor_s,
         )
         self.update(self._start_time_s)
+        style_axes(*figure.axes)
         return figure
 
     def update_data(

@@ -13,6 +13,7 @@ from matplotlib.figure import Figure
 
 from .. import series, time_unit
 from ..graph_panel import GraphPanelHost
+from ..matplotlib_helpers import create_figure
 from ..time_range import ResolvedTimeRange
 from ..views import base
 
@@ -94,7 +95,7 @@ class _PendingDataGraphView:
     def build(
         self, _series: series.OrbitSeries, _time_unit: time_unit.TimeUnit
     ) -> Figure:
-        figure = Figure()
+        figure = create_figure((8.0, 4.5))
         axes = figure.add_subplot(111)
         axes.set_axis_off()
         axes.text(

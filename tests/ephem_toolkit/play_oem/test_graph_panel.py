@@ -159,6 +159,38 @@ def test_scheduled_redraw_refreshes_visible_native_content() -> None:
     assert native_content.refresh_count == 1
 
 
+def test_native_plot_preferred_height_contributes_to_panel_natural_height() -> None:
+    native_content = SimpleNamespace(
+        GetBestSize=lambda: SimpleNamespace(height=240),
+        IsShown=lambda: True,
+        GetParent=lambda: None,
+    )
+    plot_panel = SimpleNamespace(
+        preferred_size=SimpleNamespace(height=480),
+        IsShown=lambda: True,
+        GetParent=lambda: native_content,
+    )
+    host = SimpleNamespace(
+        content_sizer=SimpleNamespace(
+            CalcMin=lambda: SimpleNamespace(height=200),
+        ),
+        _header_sizer=SimpleNamespace(
+            CalcMin=lambda: SimpleNamespace(height=50),
+        ),
+        _canvas=None,
+        _toolbar=None,
+        _plot_panel=None,
+        _native_content=native_content,
+        _native_plot_panels=(plot_panel,),
+    )
+
+    natural_height = graph_panel.GraphPanelHost.natural_content_height(
+        cast(graph_panel.GraphPanelHost, host)
+    )
+
+    assert natural_height == 530
+
+
 class FakeScrolledWindow:
     def __init__(
         self,

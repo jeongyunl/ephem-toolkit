@@ -11,6 +11,7 @@ from matplotlib.lines import Line2D
 from matplotlib.text import Text
 
 from .. import series, time_unit
+from ..matplotlib_helpers import create_figure, style_axes
 from ..time_range import ResolvedTimeRange
 from .base import (
     StoreSeriesPlotView,
@@ -65,7 +66,7 @@ class StateComponentsView(ViewSpecMixin, StoreSeriesPlotView):
         """Build from raw state columns without an OrbitSeries projection."""
         if self._figure is not None:
             raise RuntimeError("state-components view has already been built")
-        figure = Figure(figsize=FIGURE_SIZE_INCHES, constrained_layout=True)
+        figure = create_figure(FIGURE_SIZE_INCHES)
         axes_array = cast(
             np.ndarray,
             figure.subplots(
@@ -108,7 +109,7 @@ class StateComponentsView(ViewSpecMixin, StoreSeriesPlotView):
         axes_array[0, 1].set_title("Velocity")
         axes_array[2, 0].set_xlabel(context.time_unit.get_axis_label())
         axes_array[2, 1].set_xlabel(context.time_unit.get_axis_label())
-        figure.suptitle(f"State Components | {self._frame_context}")
+        figure.suptitle(f"State Components | {self._frame_context}", fontsize=12)
 
         self._figure = figure
         self._cursor_artists = tuple(cursor_artists)
@@ -169,6 +170,7 @@ class StateComponentsView(ViewSpecMixin, StoreSeriesPlotView):
         )
         set_shared_x_limits(tuple(self._figure.axes), limits)
         self.update(self._last_cursor_time_s)
+        style_axes(*self._figure.axes)
 
     def build(
         self,
@@ -209,7 +211,7 @@ class StateComponentsView(ViewSpecMixin, StoreSeriesPlotView):
         ):
             raise ValueError("state component arrays must have shape (N, 3)")
 
-        figure = Figure(figsize=FIGURE_SIZE_INCHES, constrained_layout=True)
+        figure = create_figure(FIGURE_SIZE_INCHES)
         axes_array = cast(
             np.ndarray,
             figure.subplots(
@@ -268,7 +270,7 @@ class StateComponentsView(ViewSpecMixin, StoreSeriesPlotView):
         axes_array[0, 1].set_title("Velocity")
         axes_array[2, 0].set_xlabel(time_unit.get_axis_label())
         axes_array[2, 1].set_xlabel(time_unit.get_axis_label())
-        figure.suptitle(f"State Components | {self._frame_context}")
+        figure.suptitle(f"State Components | {self._frame_context}", fontsize=12)
 
         self._figure = figure
         self._cursor_artists = tuple(cursor_artists)
@@ -282,6 +284,7 @@ class StateComponentsView(ViewSpecMixin, StoreSeriesPlotView):
             self._time_unit_divisor_s,
         )
         self.update(self._start_time_s)
+        style_axes(*figure.axes)
         return figure
 
     def update_data(

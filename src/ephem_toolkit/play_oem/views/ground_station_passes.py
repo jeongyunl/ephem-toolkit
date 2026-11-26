@@ -14,6 +14,7 @@ from matplotlib.figure import Figure
 from .. import cursor as playback_cursor
 from ..display_time import UTC_DISPLAY, format_tt
 from ..ground_stations import GroundStation
+from ..matplotlib_helpers import create_figure, style_axes
 from ..oem_data_store import StationAccessView, StoreQuery
 from ..series import OrbitSeries
 from ..station_access import (
@@ -24,6 +25,7 @@ from ..station_access import (
 from ..station_analysis import StationAnalysisContext, StationAnalysisSelection
 from ..time_range import ResolvedTimeRange
 from ..time_unit import TimeUnit
+from ..widgets.matplotlib_panel import MatplotlibPanel
 from .base import (
     StoreStationViewSupport,
     StoreViewContext,
@@ -151,6 +153,7 @@ class GroundStationPassesView(StoreStationViewSupport):
         self._figure: Figure | None = None
         self._axes: Any = None
         self._canvas: FigureCanvasWxAgg | None = None
+        self._plot_panel: MatplotlibPanel | None = None
         self._playback_marker: Any = None
         self._refreshing_rows = False
         self._layout_orientation: int | None = None
@@ -282,14 +285,19 @@ class GroundStationPassesView(StoreStationViewSupport):
     def _build_sky_panel(self, parent: wx.Window) -> wx.Panel:
         panel = wx.Panel(parent, wx.ID_ANY)
         sizer = wx.BoxSizer(wx.VERTICAL)
-        self._figure = Figure(figsize=(5.0, 4.5), dpi=100)
+        self._figure = create_figure((5.0, 4.5), constrained_layout=False)
         self._axes = self._figure.add_subplot(111, projection="polar")
-        self._canvas = FigureCanvasWxAgg(panel, wx.ID_ANY, self._figure)
-        self._canvas.SetMinSize(panel.FromDIP(wx.Size(64, 64)))
+        plot_panel = MatplotlibPanel(
+            panel,
+            self._figure,
+            preserve_aspect_ratio=True,
+        )
+        self._plot_panel = plot_panel
+        self._canvas = plot_panel.canvas
         self._sky_summary = wx.StaticText(panel, wx.ID_ANY, "")
         self._sky_summary.SetName("Selected pass sky plot summary")
         self._sky_summary.Wrap(panel.FromDIP(420))
-        sizer.Add(self._canvas, 1, wx.EXPAND | wx.ALL, 2)
+        sizer.Add(plot_panel, 1, wx.EXPAND)
         sizer.Add(self._sky_summary, 0, wx.EXPAND | wx.ALL, 6)
         panel.SetSizer(sizer)
         panel.SetMinSize(panel.FromDIP(wx.Size(64, 64)))
@@ -918,6 +926,7 @@ class GroundStationPassesView(StoreStationViewSupport):
             )
             legend.set_in_layout(False)
             bottom_margin = 0.28
+        style_axes(axes)
         figure.subplots_adjust(
             left=0.08,
             right=0.92,
@@ -1048,6 +1057,7 @@ class GroundStationPassesView(StoreStationViewSupport):
         self._store_queries.clear()
         self._canvas = None
         self._figure = None
+        self._plot_panel = None
         self._axes = None
         self._panel = None
 

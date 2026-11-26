@@ -74,22 +74,27 @@ windows, so the source alone may not identify the final focus target. Call
 
 ## Matplotlib layout
 
+The implemented shared figure helpers, axes styling, figure-canvas wrapper,
+and verification criteria are described in
+[PLAY_OEM_MATPLOTLIB_DESIGN.md](./PLAY_OEM_MATPLOTLIB_DESIGN.md). The wrapper is
+applied at the wx embedding boundary. Wx-owned station views use the same
+wrapper while keeping their own controls and status text. The settings below
+document existing Ground Track behavior and its specialized exceptions.
+
 The Ground Track map needs a 2:1 display box, even when its wx canvas is resized
 or the map is zoomed. `Axes.set_box_aspect(0.5)` fixes the axes box
 height-to-width ratio; `Axes.set_aspect("auto")` can remain in place when the
 projected data should fill that box. Test the rendered axes bounds after
 `canvas.draw()` at different figure sizes and view limits.
 
-The Ground Track legend uses its own figure and floating panel, separate from
-the map axes. `_draw_legend()` measures the rendered legend bounds and resizes
-the figure and canvas to fit, adding 2 px of canvas padding on each side. The
-renderer returns physical pixels, while the wx canvas size is logical pixels;
-divide the measured size by `GetDPIScaleFactor()` before setting the canvas
-minimum size. The panel uses no content margin and a 1-DIP popup border; keep
-these values small so the legend remains compact. When changing legend entries
-or spacing, verify
-that the rendered legend bounds fit inside the figure with the intended margin
-in [`test_ground_track_view.py`](../../../tests/ephem_toolkit/play_oem/test_ground_track_view.py).
+The Ground Track legend uses `FloatingMatplotlibLegend`, separate from the
+map axes. The widget measures rendered bounds through
+`legend_canvas_size_px()`, adds 2 physical pixels of canvas padding on each
+side, and converts its canvas minimum size to wx logical pixels using
+`GetDPIScaleFactor()`. Its default content margin is zero and popup border is
+1 DIP to keep the legend compact. When changing legend entries or spacing,
+verify the renderer fit in
+[`test_floating_matplotlib_legend.py`](../../../tests/ephem_toolkit/play_oem/test_floating_matplotlib_legend.py).
 
 ### Future debugging recipes
 

@@ -10,6 +10,7 @@ from matplotlib.ticker import FuncFormatter
 from mpl_toolkits.mplot3d.art3d import Path3DCollection
 
 from ... import cursor, series, time_unit
+from ...matplotlib_helpers import create_figure, style_axes
 from ...time_range import ResolvedTimeRange
 from ..base import StoreViewContext
 from ..plotting import MAX_MATPLOTLIB_3D_DISPLAY_POINTS, decimate_indices
@@ -49,6 +50,7 @@ class Trajectory3DView(ViewSpecMixin):
     name: str = "trajectory-3d"
     label: str = "3D Orbit"
     group: str = "overview"
+    preserve_canvas_aspect_ratio = True
 
     def __init__(
         self,
@@ -93,7 +95,7 @@ class Trajectory3DView(ViewSpecMixin):
         """Build from raw position columns without an OrbitSeries projection."""
         if self._figure is not None:
             raise RuntimeError("3D trajectory view has already been built")
-        figure = Figure(figsize=FIGURE_SIZE_INCHES, constrained_layout=True)
+        figure = create_figure(FIGURE_SIZE_INCHES)
         trajectory_axes = figure.add_subplot(1, 1, 1, projection="3d")
         trajectory_axes.set_xlabel("X (km)")
         trajectory_axes.set_ylabel("Y (km)")
@@ -123,8 +125,10 @@ class Trajectory3DView(ViewSpecMixin):
         figure.suptitle(
             " | ".join(
                 part for part in (self._object_name, self._frame_context) if part
-            )
+            ),
+            fontsize=12,
         )
+        style_axes(trajectory_axes)
         if context.snapshot.sample_count:
             self.update(context.coverage[0])
         return figure
@@ -182,7 +186,7 @@ class Trajectory3DView(ViewSpecMixin):
         if len(orbit_series.position_km) == 0:
             raise ValueError("cannot plot an empty trajectory")
 
-        figure = Figure(figsize=FIGURE_SIZE_INCHES, constrained_layout=True)
+        figure = create_figure(FIGURE_SIZE_INCHES)
         trajectory_axes = figure.add_subplot(1, 1, 1, projection="3d")
         positions_km = orbit_series.position_km
         self._positions_km = np.asarray(positions_km, dtype=float).copy()
@@ -246,11 +250,13 @@ class Trajectory3DView(ViewSpecMixin):
         figure.suptitle(
             " | ".join(
                 part for part in (self._object_name, self._frame_context) if part
-            )
+            ),
+            fontsize=12,
         )
         self._figure = figure
         self._axes = trajectory_axes
         self.update_cursor(initial_state)
+        style_axes(trajectory_axes)
         return figure
 
     def update_data(
