@@ -196,6 +196,7 @@ class GroundStationProfileRendererBase(
     y_label = "Elevation (degrees)"
     y_limits = (0.0, 95.0)
     status_metric = "Elevation"
+    status_unit = "°"
     seek_on_click = True
 
     def __init__(
@@ -277,7 +278,7 @@ class GroundStationProfileRendererBase(
             seek_enabled=True,
         )
 
-        self._create_elevation_floating_controls(panel)
+        self._create_profile_floating_controls(panel)
 
         root = wx.BoxSizer(wx.VERTICAL)
         root.Add(plot_panel, 1, wx.EXPAND)
@@ -357,7 +358,7 @@ class GroundStationProfileRendererBase(
         self._status_label = None
         self._legend_panel = None
 
-    def _create_elevation_floating_controls(self, panel: wx.Panel) -> None:
+    def _create_profile_floating_controls(self, panel: wx.Panel) -> None:
         settings = self._create_time_series_floating_panel(
             panel,
             name=f"{self.panel_label} settings",
@@ -496,7 +497,8 @@ class GroundStationProfileRendererBase(
         )
         left, right = self._axis_bounds(self._time_range, self._coverage)
         self._axes.set_xlim(left, right)
-        self._axes.set_ylim(*self.y_limits)
+        if self.y_limits is not None:
+            self._axes.set_ylim(*self.y_limits)
         self._axes.set_ylabel(self.y_label)
         self._axes.grid(True, alpha=0.25)
         handles, _labels = self._axes.get_legend_handles_labels()
@@ -552,7 +554,7 @@ class GroundStationProfileRendererBase(
                         np.asarray(finite)
                         & (display_values < station.minimum_elevation_deg)
                     ] = np.nan
-            else:
+            elif self.panel_mode == "azimuth-profile":
                 azimuths = profile.azimuths_deg[first:stop]
                 source_values = (
                     np.column_stack((azimuths, elevations))
@@ -575,6 +577,28 @@ class GroundStationProfileRendererBase(
                     np.abs(np.diff(display_values)) > 180.0
                 ) + 1
                 display_values[breaks] = np.nan
+            else:
+                ranges = profile.slant_ranges_km
+                if ranges is None:
+                    continue
+                ranges = ranges[first:stop]
+                source_values = (
+                    np.column_stack((ranges, elevations))
+                    if self._mask_filter_enabled
+                    else ranges
+                )
+                display_times, display_values = sampler.sample(
+                    times,
+                    source_values,
+                    bounds_s=(float(times[0]), float(times[-1])),
+                    max_samples=MAX_DISPLAY_POINTS_PER_SEGMENT,
+                )
+                display_values = np.asarray(display_values)
+                if display_values.ndim == 2:
+                    below_mask = display_values[:, 1] < station.minimum_elevation_deg
+                    display_values[below_mask, 0] = np.nan
+                    display_values = display_values[:, 0]
+                display_values = np.asarray(display_values, dtype=float).copy()
             self._axes.plot(
                 self._axis_times(display_times),
                 display_values,
@@ -624,9 +648,14 @@ class GroundStationProfileRendererBase(
             if metrics is not None:
                 if self.status_metric == "Azimuth":
                     value = metrics.azimuth_deg
-                else:
+                elif self.status_metric == "Elevation":
                     value = metrics.elevation_deg
-                message = f"{station.name} · {self.status_metric} {value:.1f}°"
+                else:
+                    value = metrics.slant_range_km
+                message = (
+                    f"{station.name} · {self.status_metric} "
+                    f"{value:.1f}{self.status_unit}"
+                )
             else:
                 message = (
                     "Current OEM state unavailable "
@@ -665,6 +694,7 @@ class ElevationProfileRenderer(GroundStationProfileRendererBase):
     y_label = "Elevation (degrees)"
     y_limits = (0.0, 95.0)
     status_metric = "Elevation"
+    status_unit = "°"
 
 
 class AzimuthProfileRenderer(GroundStationProfileRendererBase):
@@ -675,38 +705,18 @@ class AzimuthProfileRenderer(GroundStationProfileRendererBase):
     y_label = "Azimuth (degrees)"
     y_limits = (0.0, 360.0)
     status_metric = "Azimuth"
+    status_unit = "°"
 
 
-class RangeProfileRenderer(GroundStationProfileRenderer):
-    """Range Profile renderer specialization."""
+class RangeProfileRenderer(GroundStationProfileRendererBase):
+    """Updated Range Profile renderer."""
 
-    def __init__(
-        self,
-        parent: wx.Window,
-        cursor: playback_cursor.StoreCursor,
-        stations: Sequence[GroundStation],
-        time_unit: TimeUnit,
-        object_name: str,
-        *,
-        oem_loaded: bool,
-        on_station_manager: Callable[[], None],
-        selection_context: StationAnalysisContext,
-        initial_range: ResolvedTimeRange | None,
-        display_time_zone: str = UTC_DISPLAY,
-    ) -> None:
-        super().__init__(
-            parent,
-            "range-profile",
-            cursor,
-            stations,
-            time_unit,
-            object_name,
-            oem_loaded=oem_loaded,
-            on_station_manager=on_station_manager,
-            selection_context=selection_context,
-            initial_range=initial_range,
-            display_time_zone=display_time_zone,
-        )
+    panel_mode = "range-profile"
+    panel_label = "Range Profile"
+    y_label = "Slant range (km)"
+    y_limits = None
+    status_metric = "Slant range"
+    status_unit = " km"
 
 
 class GroundStationAccessRenderer:

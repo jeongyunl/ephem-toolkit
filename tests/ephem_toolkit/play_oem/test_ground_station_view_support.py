@@ -5,10 +5,13 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import Any, cast
 
+import numpy as np
 import pytest
 import wx
+from matplotlib.figure import Figure
 
 from ephem_toolkit.play_oem.ground_stations import GroundStation
+from ephem_toolkit.play_oem.station_access import LookAngleProfile, StationAccess
 from ephem_toolkit.play_oem.station_analysis import (
     StationAnalysisContext,
 )
@@ -309,6 +312,115 @@ def test_azimuth_profile_renderer_uses_updated_implementation() -> None:
     view.close()
 
 
+def test_range_profile_status_reports_live_slant_range(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    station = GroundStation("north", "North", 0.0, 0.0, 0.0)
+    cursor = SimpleNamespace(t_start=0.0, t_end=120.0)
+    view = GroundStationView(
+        cast(Any, None),
+        "range-profile",
+        cast(Any, cursor),
+        [station],
+        TimeUnit.MINUTES,
+        "Test object",
+        oem_loaded=True,
+        on_station_manager=lambda: None,
+        selection_context=StationAnalysisContext(),
+        initial_range=ResolvedTimeRange(0.0, 120.0),
+    )
+    renderer = view._create_renderer()
+    assert isinstance(renderer, RangeProfileRenderer)
+    monkeypatch.setattr(
+        "ephem_toolkit.play_oem.views.ground_station.store_load_status_message",
+        lambda _context: None,
+    )
+    renderer._store_context = SimpleNamespace(
+        station_metrics_at=lambda _station, _time: SimpleNamespace(
+            slant_range_km=987.65
+        )
+    )
+    statuses: list[str] = []
+    renderer._status_label = SimpleNamespace(
+        SetLabel=lambda text: statuses.append(text)
+    )
+    renderer._time_series_status_label = renderer._status_label
+
+    renderer.update(60.0)
+
+    assert statuses[-1] == "North · Slant range 987.6 km"
+    view.close()
+
+
+def test_range_profile_renderer_draws_mask_filtered_slant_ranges() -> None:
+    station = GroundStation("north", "North", 0.0, 0.0, 0.0, 10)
+    cursor = SimpleNamespace(t_start=0.0, t_end=30.0)
+    view = GroundStationView(
+        cast(Any, None),
+        "range-profile",
+        cast(Any, cursor),
+        [station],
+        TimeUnit.MINUTES,
+        "Test object",
+        oem_loaded=True,
+        on_station_manager=lambda: None,
+        selection_context=StationAnalysisContext(),
+        initial_range=ResolvedTimeRange(0.0, 30.0),
+    )
+    renderer = view._create_renderer()
+    assert isinstance(renderer, RangeProfileRenderer)
+    renderer._figure = Figure()
+    renderer._axes = renderer._figure.add_subplot(111)
+    renderer._time_range = ResolvedTimeRange(0.0, 30.0)
+    profile = LookAngleProfile(
+        np.asarray([0.0, 10.0, 20.0, 30.0]),
+        np.asarray([0.0, 90.0, 180.0, 270.0]),
+        np.asarray([9.0, 10.0, 5.0, 20.0]),
+        np.asarray([100.0, 90.0, 80.0, 70.0]),
+    )
+    renderer._draw_profile(
+        StationAccess(station, (), look_angle_profiles=(profile,)),
+        station,
+    )
+
+    line = renderer._axes.lines[-1]
+    values = line.get_ydata()
+    assert np.isnan(values).any()
+    assert np.isfinite(values).any()
+    finite_values = values[np.isfinite(values)]
+    assert finite_values.min() >= 70.0
+    assert finite_values.max() <= 100.0
+    view.close()
+
+
+def test_range_profile_renderer_uses_updated_implementation() -> None:
+    station = GroundStation("north", "North", 0.0, 0.0, 0.0)
+    cursor = SimpleNamespace(t_start=0.0, t_end=120.0)
+    view = GroundStationView(
+        cast(Any, None),
+        "range-profile",
+        cast(Any, cursor),
+        [station],
+        TimeUnit.MINUTES,
+        "Test object",
+        oem_loaded=True,
+        on_station_manager=lambda: None,
+        selection_context=StationAnalysisContext(),
+    )
+
+    renderer = view._create_renderer()
+
+    assert isinstance(renderer, RangeProfileRenderer)
+    assert not hasattr(renderer, "delegate")
+    assert renderer.panel_mode == "range-profile"
+    assert renderer.panel_label == "Range Profile"
+    assert renderer.y_label == "Slant range (km)"
+    assert renderer.y_limits is None
+    assert renderer.status_metric == "Slant range"
+    assert renderer.seek_on_click is True
+    view.close()
+
+
 def test_elevation_factory_uses_ground_station_view() -> None:
     context = StationAnalysisContext()
     captured: dict[str, object] = {}
@@ -446,4 +558,104 @@ def test_azimuth_factory_uses_ground_station_view() -> None:
     assert isinstance(view, GroundStationView)
     assert view.name == "azimuth-profile"
     assert isinstance(view._create_renderer(), AzimuthProfileRenderer)
+    view.close()
+
+
+@pytest.mark.skipif(
+    not hasattr(wx, "App") or not wx.App.IsDisplayAvailable(),
+    reason="wx display is not available",
+)
+def test_range_profile_builds_floating_controls_and_minimum_canvas() -> None:
+    app = wx.App.Get() or wx.App(False)
+    frame = wx.Frame(None, size=(1000, 700))
+    station = GroundStation("north", "North", 0.0, 0.0, 0.0)
+    context = StationAnalysisContext()
+    view = GroundStationView(
+        frame,
+        "range-profile",
+        cast(Any, SimpleNamespace(t_start=0.0, t_end=120.0)),
+        [station],
+        TimeUnit.MINUTES,
+        "Test object",
+        oem_loaded=True,
+        on_station_manager=lambda: None,
+        selection_context=context,
+        initial_range=None,
+    )
+
+    try:
+        panel = view.build(cast(Any, None), TimeUnit.MINUTES)
+        renderer = view._renderer
+        frame.Show()
+        app.Yield()
+        assert isinstance(renderer, RangeProfileRenderer)
+        assert renderer._panel is panel
+        assert renderer._settings_panel is not None
+        assert renderer._status_panel is not None
+        assert renderer._status_panel.IsExpanded()
+        assert renderer._status_label is not None
+        assert renderer._status_label.GetName() == "Range Profile status text"
+        assert renderer._legend_panel is not None
+        assert renderer._legend_panel.GetName() == "Range Profile legend"
+        settings_handle = renderer._settings_panel.FindWindowByName(
+            "Range Profile settings handle label"
+        )
+        status_handle = renderer._status_panel.FindWindowByName(
+            "Range Profile status handle label"
+        )
+        legend_handle = renderer._legend_panel.FindWindowByName(
+            "Range Profile legend handle label"
+        )
+        assert settings_handle.GetLabel() == "≡"
+        assert status_handle.GetLabel() == "≡"
+        assert legend_handle.GetLabel() == "≡"
+        assert renderer._station_choice is not None
+        assert renderer._mask_filter_control is not None
+        assert renderer._canvas is not None
+        assert renderer._canvas.GetMinSize().width >= 64
+        assert renderer._canvas.GetMinSize().height >= 64
+        assert panel.GetMinSize().width >= 64
+        assert panel.GetMinSize().height >= 64
+    finally:
+        view.close()
+        frame.Destroy()
+
+
+def test_range_factory_uses_ground_station_view() -> None:
+    context = StationAnalysisContext()
+    captured: dict[str, object] = {}
+
+    class Factory(PlayerViewFactoryMixin):
+        cursor = SimpleNamespace(t_start=0.0, t_end=120.0)
+        time_unit = TimeUnit.MINUTES
+        object_name = "Test object"
+        _ground_stations = ()
+        _oem_loaded = True
+        _display_time_zone = "UTC"
+        _station_analysis_contexts = {"middle": context}
+        workspace = SimpleNamespace(select_ground_stations=lambda: None)
+
+        def _open_view(self, name, creator, **kwargs):
+            captured["name"] = name
+            captured["creator"] = creator
+            captured["kwargs"] = kwargs
+
+        def _resolved_plot_range(self):
+            return None
+
+    factory = Factory()
+    factory._open_station_analysis_panel(
+        "range-profile",
+        "range-profile",
+        "range",
+        "middle",
+        False,
+    )
+
+    creator = captured["creator"]
+    assert callable(creator)
+    view = creator(cast(Any, None))
+    assert isinstance(view, GroundStationView)
+    assert view.name == "range-profile"
+    assert isinstance(view._create_renderer(), RangeProfileRenderer)
     view.close()
