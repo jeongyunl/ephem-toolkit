@@ -476,7 +476,6 @@ class PlayerApp(
             self._view_registry.register(view_class.view_spec(opener))
         legacy_view_names = (
             ("station-status", "Station Status", "access-overview", self.open_station_status_view),
-            ("pass-strip", "Pass Strip", "access-overview", self.open_pass_strip_view),
             ("elevation-profile", "Elevation Profile", "access-overview", self.open_elevation_profile_view),
             ("azimuth-profile", "Azimuth Profile", "access-overview", self.open_azimuth_profile_view),
             ("range-profile", "Range Profile", "access-overview", self.open_range_profile_view),

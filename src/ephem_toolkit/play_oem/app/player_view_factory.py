@@ -73,16 +73,6 @@ class PlayerViewFactoryMixin:
             "station-status", "station-status", panel_id, stack, force_replace
         )
 
-    def open_pass_strip_view(
-        self,
-        panel_id: str | None = None,
-        stack: str = "middle",
-        force_replace: bool = False,
-    ) -> None:
-        self._open_station_analysis_panel(
-            "pass-strip", "pass-strip", panel_id, stack, force_replace
-        )
-
     def open_elevation_profile_view(
         self,
         panel_id: str | None = None,

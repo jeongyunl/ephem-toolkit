@@ -287,7 +287,6 @@ class PanelManagementMixin:
             "distance": self.open_distance_view,
             "ground-track": self.open_ground_track_view,
             "station-status": self.open_station_status_view,
-            "pass-strip": self.open_pass_strip_view,
             "elevation-profile": self.open_elevation_profile_view,
             "azimuth-profile": self.open_azimuth_profile_view,
             "range-profile": self.open_range_profile_view,

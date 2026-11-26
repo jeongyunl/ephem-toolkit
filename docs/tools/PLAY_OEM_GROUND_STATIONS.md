@@ -28,15 +28,15 @@ The station elevation mask is independent from the Ground Track footprint settin
 
 ## Focused Ground Station panels
 
-The graph selector offers Station Status, Pass Strip, Elevation Profile, Azimuth Profile, Range
+The graph selector offers Station Status, Elevation Profile, Azimuth Profile, Range
 Profile, Pass List, Sky View, and Pass Ground Track. Choose **Access Overview** or **Pass Study**
-from the preset selector in the Main Analysis header. Access Overview opens Station Status, Pass
-Strip, and Elevation Profile; Pass Study opens Pass List, Sky View, and Pass Ground Track as
+from the preset selector in the Main Analysis header. Access Overview opens Station Status and
+Elevation Profile; Pass Study opens Pass List, Sky View, and Pass Ground Track as
 separate, stackable graph panels. Presets are also available through `--plots access-overview`
 and `--plots pass-study`; they do not change the default `overview` group. Use canonical view
 names directly: Elevation Profile is `elevation-profile` and Pass List is `pass-list`.
 
-Station Status, Pass Strip, and the time profiles are available with no stations or no OEM and
+Station Status and the time profiles are available with no stations or no OEM and
 display a relevant empty state. Use **Manage Ground Stations** to open the manager.
 
 Station Status shows current access, azimuth, elevation, and slant range. Elevation Profile plots
@@ -44,8 +44,7 @@ elevation against time with access intervals and the station mask; its vertical 
 0°–95°. Each Elevation, Azimuth, and Range Profile has its own **Show only above minimum
 elevation** checkbox, checked by default. When checked, below-mask samples are omitted, leaving a
 gap in the plotted line; uncheck it to show the full profile. Azimuth Profile also breaks the line
-at north-wrap discontinuities, and Range Profile shows slant range in kilometers. Pass Strip shows
-access intervals over Plot Range and distinguishes OEM-boundary and segment-gap limitations.
+at north-wrap discontinuities, and Range Profile shows slant range in kilometers.
 Time profiles follow the application's Plot Range; adjust it to zoom or move through time. Click
 a time profile to move playback.
 

@@ -52,7 +52,7 @@ follows playback. Saved settings override those defaults.
    - **3D Orbit** through read-only raw position/time/segment views for the bounded display
      path, and `state_at` for the moving marker and tail.
    - **Ground Track** through range- and margin-bounded Earth-fixed positions, converted to WGS-84 coordinates.
-   - **Station Status, Pass Strip, profiles, Pass List, and Sky View** through shared
+   - **Station Status, profiles, Pass List, and Sky View** through shared
      per-station profile and access-interval tiers.
    - **Pass Ground Track** through the selected pass interval and the shared Ground Track
      tier. Footprints and current station metrics are point queries at playback time.

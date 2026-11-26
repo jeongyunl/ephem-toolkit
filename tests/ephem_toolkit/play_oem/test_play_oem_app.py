@@ -2495,7 +2495,6 @@ def test_controller_bounds_incremental_load_events_per_tick() -> None:
             None,
             {
                 "station-status",
-                "pass-strip",
                 "elevation-profile",
                 "azimuth-profile",
                 "range-profile",
@@ -3442,7 +3441,6 @@ def test_new_graph_panel_starts_empty_and_can_switch_between_empty_and_a_view(
         ("distance", "Geocentric Distance"),
         ("ground-track", "Ground Track"),
         ("station-status", "Station Status"),
-        ("pass-strip", "Pass Strip"),
         ("elevation-profile", "Elevation Profile"),
         ("azimuth-profile", "Azimuth Profile"),
         ("range-profile", "Range Profile"),

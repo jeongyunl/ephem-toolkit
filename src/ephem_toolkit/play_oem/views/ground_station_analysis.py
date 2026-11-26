@@ -7,13 +7,13 @@ from typing import Any
 
 import numpy as np
 import wx
-from matplotlib.backend_bases import MouseButton
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg
 from matplotlib.figure import Figure
 from matplotlib.ticker import FuncFormatter
 
 from .. import cursor as playback_cursor
 from ..display_time import UTC_DISPLAY, format_tt
+from ..graph_panel import GRAPH_PANEL_MIN_SIZE
 from ..ground_stations import GroundStation
 from ..matplotlib_helpers import create_figure, style_axes
 from ..oem_data_store import StationAccessView, StoreQuery
@@ -25,7 +25,13 @@ from ..station_access import (
 from ..station_analysis import StationAnalysisContext, StationAnalysisSelection
 from ..time_range import ResolvedTimeRange
 from ..time_unit import TimeUnit
-from ..widgets.matplotlib_panel import MatplotlibPanel
+from ..widgets import (
+    FloatingPanel,
+    MatplotlibPanel,
+    PanelCorner,
+    PanelInteraction,
+)
+from .compact_controls import compact_controls
 from .base import (
     StoreStationViewSupport,
     StoreViewContext,
@@ -55,7 +61,7 @@ class GroundStationAnalysisView(StoreStationViewSupport):
         initial_range: ResolvedTimeRange | None,
         display_time_zone: str = UTC_DISPLAY,
     ) -> None:
-        if panel_type not in _PROFILE_TYPES | {"station-status", "pass-strip"}:
+        if panel_type not in _PROFILE_TYPES | {"station-status"}:
             raise ValueError(f"unknown Ground Station panel type: {panel_type!r}")
         self.name = panel_type
         self._parent = parent
@@ -82,6 +88,8 @@ class GroundStationAnalysisView(StoreStationViewSupport):
         )
         self._store_queries: dict[str, StoreQuery[StationAccessView]] = {}
         self._panel: wx.Panel | None = None
+        self._settings_panel: FloatingPanel | None = None
+        self._status_panel: FloatingPanel | None = None
         self._station_choice: wx.Choice | None = None
         self._mask_filter_control: wx.CheckBox | None = None
         self._mask_filter_enabled = True
@@ -190,11 +198,6 @@ class GroundStationAnalysisView(StoreStationViewSupport):
                 label="Playback",
             )
             root.Add(plot_panel, 1, wx.EXPAND)
-            if self._panel_type == "pass-strip":
-                setattr(self._axes, "_play_oem_seek_enabled", False)
-                self._selection_callback_id = self._canvas.mpl_connect(
-                    "button_press_event", self._on_strip_click
-                )
         panel.SetSizer(root)
         self._refresh_station_choice()
         self._draw()
@@ -258,7 +261,7 @@ class GroundStationAnalysisView(StoreStationViewSupport):
         ):
             return
         station_changed = station_id != self._selected_station_id
-        if not station_changed and self._panel_type != "pass-strip":
+        if not station_changed:
             return
         if station_changed:
             self._selected_station_id = station_id
@@ -320,16 +323,12 @@ class GroundStationAnalysisView(StoreStationViewSupport):
             linewidth=1.2,
             label="Playback",
         )
-        if self._panel_type == "pass-strip":
-            setattr(self._axes, "_play_oem_seek_enabled", False)
         self._update_status_text()
         station = self._selected_station()
         if station is not None and self._oem_loaded:
             result = self._results.get(station.station_id)
             if result is not None:
-                if self._panel_type == "pass-strip":
-                    self._draw_pass_strip(result)
-                elif self._panel_type in _PROFILE_TYPES:
+                if self._panel_type in _PROFILE_TYPES:
                     self._draw_profile(result, station)
         self._axes.set_xlabel("UTC")
         self._axes.xaxis.set_major_formatter(
@@ -350,9 +349,6 @@ class GroundStationAnalysisView(StoreStationViewSupport):
             self._axes.set_ylabel("Azimuth (degrees)")
         elif self._panel_type == "range-profile":
             self._axes.set_ylabel("Slant range (km)")
-        if self._panel_type == "pass-strip":
-            self._axes.set_yticks([])
-            self._axes.set_ylabel("Access intervals")
         self._axes.grid(True, alpha=0.25)
         handles, labels = self._axes.get_legend_handles_labels()
         if handles:
@@ -448,83 +444,6 @@ class GroundStationAnalysisView(StoreStationViewSupport):
                 label=f"{station.name} · segment",
             )
 
-    def _draw_pass_strip(self, result: StationAccess) -> None:
-        if self._axes is None:
-            return
-        intervals = self._visible_intervals(result)
-        self._axes.set_ylim(0.0, 1.0)
-        seen_boundary_labels: set[str] = set()
-        for index, interval in enumerate(intervals):
-            color = (
-                "#d6e8ff"
-                if _interval_key(interval)
-                == self._selection_context.selection.interval_key
-                else "#e8f3ff"
-            )
-            self._axes.broken_barh(
-                [(self._axis_time(interval.start_s), self._axis_duration(interval))],
-                (0.25, 0.5),
-                facecolors=color,
-                edgecolors="#77a8e8",
-                label="Access interval" if index == 0 else None,
-            )
-            boundary_markers = (
-                (
-                    interval.start_s,
-                    interval.clipped_at_start,
-                    interval.limited_by_gap_at_start,
-                ),
-                (
-                    interval.end_s,
-                    interval.clipped_at_end,
-                    interval.limited_by_gap_at_end,
-                ),
-            )
-            for epoch, clipped, gap_limited in boundary_markers:
-                if self._time_range is None or not (
-                    self._time_range.start_s <= epoch <= self._time_range.end_s
-                ):
-                    continue
-                if clipped or gap_limited:
-                    boundary_label = "OEM boundary" if clipped else "Segment gap"
-                    self._axes.axvline(
-                        self._axis_time(epoch),
-                        color="#a45b20" if clipped else "#7a5195",
-                        linestyle=":" if clipped else "--",
-                        linewidth=1.0,
-                        label=(
-                            boundary_label
-                            if boundary_label not in seen_boundary_labels
-                            else None
-                        ),
-                    )
-                    seen_boundary_labels.add(boundary_label)
-
-    def _on_strip_click(self, event: Any) -> None:
-        if (
-            event.button != MouseButton.LEFT
-            or event.inaxes is not self._axes
-            or event.xdata is None
-        ):
-            return
-        station = self._selected_station()
-        result = self._results.get(station.station_id) if station else None
-        if result is None:
-            return
-        epoch = self._cursor.t_start + event.xdata * self._time_unit.get_divisor_s()
-        interval = next(
-            (
-                item
-                for item in self._visible_intervals(result)
-                if item.start_s <= epoch <= item.end_s
-            ),
-            None,
-        )
-        self._selection_context.select_interval(
-            None if interval is None else _interval_key(interval)
-        )
-        self._draw()
-
     def _visible_intervals(self, result: StationAccess) -> tuple[AccessInterval, ...]:
         if self._time_range is None:
             return ()
@@ -562,14 +481,6 @@ class GroundStationAnalysisView(StoreStationViewSupport):
                     if has_ready_data
                     else "Station data is loading."
                 )
-            elif self._panel_type == "pass-strip" and result is not None:
-                intervals = self._visible_intervals(result)
-                if not intervals and not result.intervals:
-                    message = (
-                        "No access intervals in OEM coverage meet this station's mask."
-                    )
-                elif not intervals:
-                    message = "No access intervals overlap the current Plot Range."
             elif self._panel_type in _PROFILE_TYPES and result is not None:
                 if not result.look_angle_profiles and not message:
                     message = "No station profile samples are available in this range."
@@ -612,7 +523,6 @@ class GroundStationAnalysisView(StoreStationViewSupport):
     def _panel_label(self) -> str:
         return {
             "station-status": "Station Status",
-            "pass-strip": "Pass Strip",
             "elevation-profile": "Elevation Profile",
             "azimuth-profile": "Azimuth Profile",
             "range-profile": "Range Profile",
@@ -640,5 +550,3 @@ class GroundStationAnalysisView(StoreStationViewSupport):
         return self._axis_time(interval.end_s) - self._axis_time(interval.start_s)
 
 
-def _interval_key(interval: AccessInterval) -> tuple[float, float]:
-    return interval.start_s, interval.end_s

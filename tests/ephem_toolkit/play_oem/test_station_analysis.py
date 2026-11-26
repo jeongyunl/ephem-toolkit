@@ -17,7 +17,6 @@ from ephem_toolkit.play_oem.oem_data_store import (
     StationAccessView,
 )
 from ephem_toolkit.play_oem.station_access import (
-    AccessInterval,
     LookAngleProfile,
     StationAccess,
 )
@@ -504,35 +503,11 @@ def test_time_profiles_hide_samples_below_station_elevation_mask() -> None:
         assert np.isfinite(view._axes.lines[-1].get_ydata()).all()
 
 
-def test_pass_strip_filters_intervals_by_plot_range() -> None:
-    station = GroundStation("north", "North Site", 0.0, 0.0, 0.0)
-    intervals = (
-        AccessInterval(0.0, 5.0, 20.0, 2.0, 500.0, 2.0),
-        AccessInterval(10.0, 15.0, 30.0, 12.0, 400.0, 12.0),
-        AccessInterval(20.0, 25.0, 40.0, 22.0, 300.0, 22.0),
-    )
-    result = StationAccess(station, intervals)
-    view = GroundStationAnalysisView(
-        cast(Any, None),
-        "pass-strip",
-        cast(Any, SimpleNamespace(t_start=0.0, t_end=30.0)),
-        [station],
-        TimeUnit.MINUTES,
-        "Test object",
-        oem_loaded=True,
-        on_station_manager=lambda: None,
-        selection_context=StationAnalysisContext(),
-        initial_range=ResolvedTimeRange(14.0, 21.0),
-    )
-
-    assert view._visible_intervals(result) == intervals[1:]
-
-
 def test_empty_plot_range_does_not_prepare_historical_station_data() -> None:
     station = GroundStation("north", "North Site", 0.0, 0.0, 0.0)
     view = GroundStationAnalysisView(
         cast(Any, None),
-        "pass-strip",
+        "elevation-profile",
         cast(Any, SimpleNamespace(t_start=0.0, t_end=30.0)),
         [station],
         TimeUnit.MINUTES,

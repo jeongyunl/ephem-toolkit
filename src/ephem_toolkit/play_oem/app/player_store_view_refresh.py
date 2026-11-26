@@ -120,7 +120,6 @@ class PlayerStoreViewRefreshMixin:
         if notice.tier == "station-access":
             return {
                 "station-status",
-                "pass-strip",
                 "elevation-profile",
                 "azimuth-profile",
                 "range-profile",

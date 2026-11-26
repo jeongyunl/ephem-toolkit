@@ -344,12 +344,6 @@ class PlayerAppState(
         stack: str = "middle",
         force_replace: bool = False,
     ) -> None: ...
-    def open_pass_strip_view(
-        self,
-        panel_id: str | None = None,
-        stack: str = "middle",
-        force_replace: bool = False,
-    ) -> None: ...
     def open_elevation_profile_view(
         self,
         panel_id: str | None = None,
