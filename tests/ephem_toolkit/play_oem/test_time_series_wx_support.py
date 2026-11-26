@@ -98,6 +98,23 @@ def test_time_series_wx_support_builds_minimum_canvas_shell(wx_app: Any) -> None
         assert floating.GetName() == "Shared time-series controls"
         assert status.GetName() == "Shared time-series status"
         assert status.GetLabel() == "Ready"
+
+        status_panel, status_label = (
+            support._create_time_series_status_panel(
+                panel,
+                name="Shared live status",
+                initial_text="Playback: 100 s",
+            )
+        )
+        assert status_panel.GetName() == "Shared live status"
+        assert status_label.GetName() == "Shared live status text"
+        assert status_label.GetLabel() == "Playback: 100 s"
+        frame.Show()
+        wx_app.Yield()
+        assert status_panel.IsExpanded()
+        support._set_time_series_status("Playback: 120 s")
+        assert support._time_series_status_label is status_label
+        assert status_label.GetLabel() == "Playback: 120 s"
     finally:
         support._close_time_series_wx()
         frame.Destroy()

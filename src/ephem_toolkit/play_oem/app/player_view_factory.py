@@ -17,6 +17,7 @@ from ..views import (
 from ..views import (
     ground_station_analysis as ground_station_analysis_view,
 )
+from ..views import ground_station as ground_station_view
 from ..views import (
     ground_station_pass_track as ground_station_pass_track_view,
 )
@@ -43,6 +44,27 @@ class PlayerViewFactoryMixin:
         stack: str,
         force_replace: bool,
     ) -> None:
+        if panel_type in {"elevation-profile", "azimuth-profile"}:
+            self._open_view(
+                name,
+                lambda panel: ground_station_view.GroundStationView(
+                    panel,
+                    panel_type,
+                    self.cursor,
+                    self._ground_stations,
+                    self.time_unit,
+                    self.object_name,
+                    oem_loaded=self._oem_loaded,
+                    on_station_manager=self.workspace.select_ground_stations,
+                    selection_context=self._station_analysis_contexts[stack],
+                    initial_range=self._resolved_plot_range(),
+                    display_time_zone=self._display_time_zone,
+                ),
+                panel_id=panel_id,
+                stack=stack,
+                force_replace=force_replace,
+            )
+            return
         self._open_view(
             name,
             lambda panel: ground_station_analysis_view.GroundStationAnalysisView(

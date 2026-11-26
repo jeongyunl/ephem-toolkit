@@ -38,6 +38,9 @@ def test_floating_panel_collapses_expands_and_stays_in_bounds(
     frame.SetSizer(wx.BoxSizer(wx.VERTICAL))
     frame.GetSizer().Add(host, 1, wx.EXPAND)
     panel = FloatingPanel(host, name="Test panel")
+    handle_label = panel.FindWindowByName("Test panel handle label")
+    assert handle_label is not None
+    assert handle_label.GetLabel() == "≡"
     sizer = wx.BoxSizer(wx.VERTICAL)
     sizer.Add(wx.StaticText(panel.GetContentWindow(), label="Projection"), 0)
     choice = wx.Choice(panel.GetContentWindow(), choices=["A", "B"])

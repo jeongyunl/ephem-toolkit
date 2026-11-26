@@ -308,7 +308,6 @@ class GroundTrackView(ViewSpecMixin):
         settings_panel = FloatingPanel(
             panel,
             name="Ground Track settings",
-            handle_label="≡",
         )
         self._settings_panel = settings_panel
         controls_panel = settings_panel.GetContentWindow()
@@ -415,7 +414,6 @@ class GroundTrackView(ViewSpecMixin):
         legend_panel = FloatingMatplotlibLegend(
             panel,
             name="Ground Track legend",
-            handle_label="≡",
             corner=PanelCorner.BOTTOM_RIGHT,
         )
         self._legend_panel = legend_panel

@@ -69,5 +69,10 @@ def test_floating_matplotlib_legend_renders_and_sizes_to_entries(
         abs=1,
     )
     assert legend_panel.GetName() == "Ground Track legend"
+    handle_label = legend_panel.FindWindowByName(
+        "Ground Track legend handle label"
+    )
+    assert handle_label is not None
+    assert handle_label.GetLabel() == "≡"
     assert legend_panel.Close()
     frame.Destroy()

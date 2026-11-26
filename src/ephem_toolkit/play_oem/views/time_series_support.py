@@ -28,6 +28,8 @@ class TimeSeriesWxPanelMixin:
         self._time_series_plot_panel: MatplotlibPanel | None = None
         self._time_series_canvas: FigureCanvasWxAgg | None = None
         self._time_series_figure: Figure | None = None
+        self._time_series_status_panel: FloatingPanel | None = None
+        self._time_series_status_label: wx.StaticText | None = None
         self._time_series_floating_panels: list[FloatingPanel] = []
         self._time_series_canvas_callback_ids: list[int] = []
 
@@ -115,6 +117,38 @@ class TimeSeriesWxPanelMixin:
         label.SetName(name)
         return label
 
+    def _create_time_series_status_panel(
+        self,
+        parent: wx.Window,
+        *,
+        name: str,
+        initial_text: str = "",
+    ) -> tuple[FloatingPanel, wx.StaticText]:
+        """Create an expanded top-left live status readout like Ground Track."""
+        panel = self._create_time_series_floating_panel(
+            parent,
+            name=name,
+            corner=PanelCorner.TOP_LEFT,
+            interaction=PanelInteraction.CLICK,
+            initially_expanded=True,
+        )
+        label = self._create_time_series_status_label(
+            panel.GetContentWindow(),
+            name=f"{name} text",
+            initial_text=initial_text,
+        )
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        sizer.Add(label, 0, wx.EXPAND)
+        panel.SetContentSizer(sizer)
+        self._time_series_status_panel = panel
+        self._time_series_status_label = label
+        return panel, label
+
+    def _set_time_series_status(self, text: str) -> None:
+        """Update the live top-left status readout."""
+        if self._time_series_status_label is not None:
+            self._time_series_status_label.SetLabel(text)
+
     def _connect_time_series_canvas_event(
         self,
         event_name: str,
@@ -144,3 +178,5 @@ class TimeSeriesWxPanelMixin:
         self._time_series_plot_panel = None
         self._time_series_canvas = None
         self._time_series_figure = None
+        self._time_series_status_panel = None
+        self._time_series_status_label = None

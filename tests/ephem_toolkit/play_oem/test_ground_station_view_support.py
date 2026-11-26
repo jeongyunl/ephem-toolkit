@@ -6,11 +6,13 @@ from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
+import wx
 
 from ephem_toolkit.play_oem.ground_stations import GroundStation
 from ephem_toolkit.play_oem.station_analysis import (
     StationAnalysisContext,
 )
+from ephem_toolkit.play_oem.time_range import ResolvedTimeRange
 from ephem_toolkit.play_oem.time_unit import TimeUnit
 from ephem_toolkit.play_oem.views.base import GroundStationAnalysisMixin
 from ephem_toolkit.play_oem.views.ground_station import (
@@ -22,6 +24,7 @@ from ephem_toolkit.play_oem.views.ground_station import (
     RangeProfileRenderer,
     StationStatusRenderer,
 )
+from ephem_toolkit.play_oem.app.player_view_factory import PlayerViewFactoryMixin
 
 
 class _GroundStationSupport(GroundStationAnalysisMixin):
@@ -113,3 +116,334 @@ def test_ground_station_analysis_modes_are_complete() -> None:
             "range-profile",
         )
     )
+
+
+def test_elevation_profile_status_reports_live_elevation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    station = GroundStation("north", "North", 0.0, 0.0, 0.0)
+    cursor = SimpleNamespace(t_start=0.0, t_end=120.0)
+    view = GroundStationView(
+        cast(Any, None),
+        "elevation-profile",
+        cast(Any, cursor),
+        [station],
+        TimeUnit.MINUTES,
+        "Test object",
+        oem_loaded=True,
+        on_station_manager=lambda: None,
+        selection_context=StationAnalysisContext(),
+        initial_range=ResolvedTimeRange(0.0, 120.0),
+    )
+    renderer = view._create_renderer()
+    assert isinstance(renderer, ElevationProfileRenderer)
+    monkeypatch.setattr(
+        "ephem_toolkit.play_oem.views.ground_station.store_load_status_message",
+        lambda _context: None,
+    )
+    renderer._store_context = SimpleNamespace(
+        station_metrics_at=lambda _station, _time: SimpleNamespace(
+            elevation_deg=34.25
+        )
+    )
+    statuses: list[str] = []
+    renderer._status_label = SimpleNamespace(
+        SetLabel=lambda text: statuses.append(text)
+    )
+    renderer._time_series_status_label = renderer._status_label
+
+    renderer.update(60.0)
+
+    assert statuses[-1] == "North · Elevation 34.2°"
+    view.close()
+
+
+@pytest.mark.skipif(
+    not hasattr(wx, "App") or not wx.App.IsDisplayAvailable(),
+    reason="wx display is not available",
+)
+def test_elevation_profile_builds_floating_controls_and_minimum_canvas() -> None:
+    app = wx.App.Get() or wx.App(False)
+    frame = wx.Frame(None, size=(1000, 700))
+    station = GroundStation("north", "North", 0.0, 0.0, 0.0)
+    context = StationAnalysisContext()
+    view = GroundStationView(
+        frame,
+        "elevation-profile",
+        cast(Any, SimpleNamespace(t_start=0.0, t_end=120.0)),
+        [station],
+        TimeUnit.MINUTES,
+        "Test object",
+        oem_loaded=True,
+        on_station_manager=lambda: None,
+        selection_context=context,
+        initial_range=None,
+    )
+
+    try:
+        panel = view.build(cast(Any, None), TimeUnit.MINUTES)
+        renderer = view._renderer
+        frame.Show()
+        app.Yield()
+        assert isinstance(renderer, ElevationProfileRenderer)
+        assert renderer._panel is panel
+        assert renderer._settings_panel is not None
+        assert renderer._status_panel is not None
+        assert renderer._status_panel.IsExpanded()
+        assert renderer._status_label is not None
+        assert renderer._status_label.GetName() == "Elevation Profile status text"
+        assert renderer._legend_panel is not None
+        assert renderer._legend_panel.GetName() == "Elevation Profile legend"
+        settings_handle = renderer._settings_panel.FindWindowByName(
+            "Elevation Profile settings handle label"
+        )
+        status_handle = renderer._status_panel.FindWindowByName(
+            "Elevation Profile status handle label"
+        )
+        legend_handle = renderer._legend_panel.FindWindowByName(
+            "Elevation Profile legend handle label"
+        )
+        assert settings_handle.GetLabel() == "≡"
+        assert status_handle.GetLabel() == "≡"
+        assert legend_handle.GetLabel() == "≡"
+        assert renderer._station_choice is not None
+        assert renderer._mask_filter_control is not None
+        assert renderer._canvas is not None
+        assert renderer._canvas.GetMinSize().width >= 64
+        assert renderer._canvas.GetMinSize().height >= 64
+        assert panel.GetMinSize().width >= 64
+        assert panel.GetMinSize().height >= 64
+    finally:
+        view.close()
+        frame.Destroy()
+
+
+def test_elevation_profile_renderer_uses_updated_implementation() -> None:
+    station = GroundStation("north", "North", 0.0, 0.0, 0.0)
+    cursor = SimpleNamespace(t_start=0.0, t_end=120.0)
+    view = GroundStationView(
+        cast(Any, None),
+        "elevation-profile",
+        cast(Any, cursor),
+        [station],
+        TimeUnit.MINUTES,
+        "Test object",
+        oem_loaded=True,
+        on_station_manager=lambda: None,
+        selection_context=StationAnalysisContext(),
+    )
+
+    renderer = view._create_renderer()
+
+    assert isinstance(renderer, ElevationProfileRenderer)
+    assert not hasattr(renderer, "delegate")
+    assert renderer.panel_mode == "elevation-profile"
+    assert renderer.seek_on_click is True
+    view.close()
+
+
+def test_azimuth_profile_status_reports_live_azimuth(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    station = GroundStation("north", "North", 0.0, 0.0, 0.0)
+    cursor = SimpleNamespace(t_start=0.0, t_end=120.0)
+    view = GroundStationView(
+        cast(Any, None),
+        "azimuth-profile",
+        cast(Any, cursor),
+        [station],
+        TimeUnit.MINUTES,
+        "Test object",
+        oem_loaded=True,
+        on_station_manager=lambda: None,
+        selection_context=StationAnalysisContext(),
+        initial_range=ResolvedTimeRange(0.0, 120.0),
+    )
+    renderer = view._create_renderer()
+    assert isinstance(renderer, AzimuthProfileRenderer)
+    monkeypatch.setattr(
+        "ephem_toolkit.play_oem.views.ground_station.store_load_status_message",
+        lambda _context: None,
+    )
+    renderer._store_context = SimpleNamespace(
+        station_metrics_at=lambda _station, _time: SimpleNamespace(
+            azimuth_deg=123.4
+        )
+    )
+    statuses: list[str] = []
+    renderer._status_label = SimpleNamespace(
+        SetLabel=lambda text: statuses.append(text)
+    )
+    renderer._time_series_status_label = renderer._status_label
+
+    renderer.update(60.0)
+
+    assert statuses[-1] == "North · Azimuth 123.4°"
+    view.close()
+
+
+def test_azimuth_profile_renderer_uses_updated_implementation() -> None:
+    station = GroundStation("north", "North", 0.0, 0.0, 0.0)
+    cursor = SimpleNamespace(t_start=0.0, t_end=120.0)
+    view = GroundStationView(
+        cast(Any, None),
+        "azimuth-profile",
+        cast(Any, cursor),
+        [station],
+        TimeUnit.MINUTES,
+        "Test object",
+        oem_loaded=True,
+        on_station_manager=lambda: None,
+        selection_context=StationAnalysisContext(),
+    )
+
+    renderer = view._create_renderer()
+
+    assert isinstance(renderer, AzimuthProfileRenderer)
+    assert not hasattr(renderer, "delegate")
+    assert renderer.panel_mode == "azimuth-profile"
+    assert renderer.panel_label == "Azimuth Profile"
+    assert renderer.y_label == "Azimuth (degrees)"
+    assert renderer.y_limits == (0.0, 360.0)
+    assert renderer.seek_on_click is True
+    view.close()
+
+
+def test_elevation_factory_uses_ground_station_view() -> None:
+    context = StationAnalysisContext()
+    captured: dict[str, object] = {}
+
+    class Factory(PlayerViewFactoryMixin):
+        cursor = SimpleNamespace(t_start=0.0, t_end=120.0)
+        time_unit = TimeUnit.MINUTES
+        object_name = "Test object"
+        _ground_stations = ()
+        _oem_loaded = True
+        _display_time_zone = "UTC"
+        _station_analysis_contexts = {"middle": context}
+        workspace = SimpleNamespace(select_ground_stations=lambda: None)
+
+        def _open_view(self, name, creator, **kwargs):
+            captured["name"] = name
+            captured["creator"] = creator
+            captured["kwargs"] = kwargs
+
+        def _resolved_plot_range(self):
+            return None
+
+    factory = Factory()
+    factory._open_station_analysis_panel(
+        "elevation-profile",
+        "elevation-profile",
+        "elevation",
+        "middle",
+        False,
+    )
+
+    creator = captured["creator"]
+    assert callable(creator)
+    view = creator(cast(Any, None))
+    assert isinstance(view, GroundStationView)
+    assert view.name == "elevation-profile"
+    assert isinstance(view._create_renderer(), ElevationProfileRenderer)
+    view.close()
+
+
+@pytest.mark.skipif(
+    not hasattr(wx, "App") or not wx.App.IsDisplayAvailable(),
+    reason="wx display is not available",
+)
+def test_azimuth_profile_builds_floating_controls_and_minimum_canvas() -> None:
+    app = wx.App.Get() or wx.App(False)
+    frame = wx.Frame(None, size=(1000, 700))
+    station = GroundStation("north", "North", 0.0, 0.0, 0.0)
+    context = StationAnalysisContext()
+    view = GroundStationView(
+        frame,
+        "azimuth-profile",
+        cast(Any, SimpleNamespace(t_start=0.0, t_end=120.0)),
+        [station],
+        TimeUnit.MINUTES,
+        "Test object",
+        oem_loaded=True,
+        on_station_manager=lambda: None,
+        selection_context=context,
+        initial_range=None,
+    )
+
+    try:
+        panel = view.build(cast(Any, None), TimeUnit.MINUTES)
+        renderer = view._renderer
+        frame.Show()
+        app.Yield()
+        assert isinstance(renderer, AzimuthProfileRenderer)
+        assert renderer._panel is panel
+        assert renderer._settings_panel is not None
+        assert renderer._status_panel is not None
+        assert renderer._status_panel.IsExpanded()
+        assert renderer._status_label is not None
+        assert renderer._status_label.GetName() == "Azimuth Profile status text"
+        assert renderer._legend_panel is not None
+        assert renderer._legend_panel.GetName() == "Azimuth Profile legend"
+        settings_handle = renderer._settings_panel.FindWindowByName(
+            "Azimuth Profile settings handle label"
+        )
+        status_handle = renderer._status_panel.FindWindowByName(
+            "Azimuth Profile status handle label"
+        )
+        legend_handle = renderer._legend_panel.FindWindowByName(
+            "Azimuth Profile legend handle label"
+        )
+        assert settings_handle.GetLabel() == "≡"
+        assert status_handle.GetLabel() == "≡"
+        assert legend_handle.GetLabel() == "≡"
+        assert renderer._station_choice is not None
+        assert renderer._mask_filter_control is not None
+        assert renderer._canvas is not None
+        assert renderer._canvas.GetMinSize().width >= 64
+        assert renderer._canvas.GetMinSize().height >= 64
+        assert panel.GetMinSize().width >= 64
+        assert panel.GetMinSize().height >= 64
+    finally:
+        view.close()
+        frame.Destroy()
+
+
+def test_azimuth_factory_uses_ground_station_view() -> None:
+    context = StationAnalysisContext()
+    captured: dict[str, object] = {}
+
+    class Factory(PlayerViewFactoryMixin):
+        cursor = SimpleNamespace(t_start=0.0, t_end=120.0)
+        time_unit = TimeUnit.MINUTES
+        object_name = "Test object"
+        _ground_stations = ()
+        _oem_loaded = True
+        _display_time_zone = "UTC"
+        _station_analysis_contexts = {"middle": context}
+        workspace = SimpleNamespace(select_ground_stations=lambda: None)
+
+        def _open_view(self, name, creator, **kwargs):
+            captured["name"] = name
+            captured["creator"] = creator
+            captured["kwargs"] = kwargs
+
+        def _resolved_plot_range(self):
+            return None
+
+    factory = Factory()
+    factory._open_station_analysis_panel(
+        "azimuth-profile",
+        "azimuth-profile",
+        "azimuth",
+        "middle",
+        False,
+    )
+
+    creator = captured["creator"]
+    assert callable(creator)
+    view = creator(cast(Any, None))
+    assert isinstance(view, GroundStationView)
+    assert view.name == "azimuth-profile"
+    assert isinstance(view._create_renderer(), AzimuthProfileRenderer)
+    view.close()
