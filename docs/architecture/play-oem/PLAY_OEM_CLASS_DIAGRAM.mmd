@@ -1,0 +1,183 @@
+---
+title: play-oem package and class structure
+---
+classDiagram
+    direction TB
+
+    namespace entrypoint {
+        class play_oem_cli["play_oem_cli.py <<module>>"]
+        class __main__["__main__.py <<module>>"]
+        class PlayOemArgs
+    }
+
+    namespace app {
+        class player_app["player_app.py <<module>>"]
+        class PlayerApp
+        class PlayerCoreConfig
+        class PlayerAppState
+        class StoreState
+        class LoadState
+        class TimelineRestoreState
+        class RefreshState
+        class PlayerPanelManagementMixin
+        class PlayerStoreViewRefreshMixin
+        class PlayerIncrementalLoadingMixin
+    }
+
+    namespace workspace {
+        class workspace_core["workspace/core.py <<module>>"]
+        class Workspace
+        class GraphStackMixin
+        class TimelineMixin
+        class FeatureNavigationMixin
+    }
+
+    namespace playback {
+        class clock["clock.py <<module>>"]
+        class cursor["cursor.py <<module>>"]
+        class PlaybackClock
+        class StoreCursor
+        class CursorState
+        class IncrementalLoader
+        class IncrementalLoadSession
+    }
+
+    namespace loading {
+        class incremental_loader["incremental_loader.py <<module>>"]
+        class streaming_oem["streaming_oem.py <<module>>"]
+    }
+
+    namespace store {
+        class oem_data_store["oem_data_store/data_store.py <<module>>"]
+        class OemDataStore
+        class StoreSnapshot
+        class StoreQuery
+        class DerivedBufferManager
+        class PrefetchScheduler
+        class InterpolationPolicy
+        class TimeCoverage
+    }
+
+    namespace views {
+        class views_base["views/base.py <<module>>"]
+        class View {
+            <<Protocol>>
+        }
+        class StoreView {
+            <<Protocol>>
+        }
+        class StoreViewContext
+        class StoreViewBinding
+        class StoreSeriesPlotView
+        class StoreStationViewSupport
+        class TimeRangeSupport
+        class views_registry["views/registry.py <<module>>"]
+        class ViewRegistry
+        class ViewSpec
+        class ViewGroup
+        class ViewSpecMixin
+    }
+
+    namespace concrete_views {
+        class state_components["views/state_components.py <<module>>"]
+        class StateComponentsView
+        class speed_altitude["views/speed_altitude.py <<module>>"]
+        class SpeedAltitudeView
+        class ground_track_view["views/ground_track.py <<module>>"]
+        class GroundTrackView
+        class ground_station_access["views/ground_station_access.py <<module>>"]
+        class GroundStationAccessView
+        class Trajectory3DView
+    }
+
+    namespace domains {
+        class OrbitSeries
+        class GroundStation
+        class GroundTrackRun
+        class StationAccess
+        class StationAnalysisContext
+    }
+
+    namespace widgets {
+        class GraphPanelHost
+        class MatplotlibPanel
+        class PlaybackTimeScrubber
+        class ControlWindow
+    }
+
+    __main__ --> PlayOemArgs : parses options
+    __main__ --> PlayerApp : creates app
+    PlayOemArgs --> player_app : selected input and views
+    player_app --> PlayerApp
+    PlayerApp *-- PlaybackClock
+    PlayerApp *-- StoreCursor
+    PlayerApp *-- Workspace
+    PlayerApp *-- IncrementalLoader
+    PlayerApp *-- PlayerAppState
+    PlayerApp *-- ViewRegistry
+    PlayerApp *-- ControlWindow
+    PlayerApp o-- GraphPanelHost : hosts panels
+
+    PlayerApp --|> PlayerPanelManagementMixin
+    PlayerApp --|> PlayerStoreViewRefreshMixin
+    PlayerApp --|> PlayerIncrementalLoadingMixin
+    PlayerAppState *-- StoreState
+    PlayerAppState *-- LoadState
+    PlayerAppState *-- TimelineRestoreState
+    PlayerAppState *-- RefreshState
+    PlayerCoreConfig --> PlaybackClock
+    PlayerCoreConfig --> StoreCursor
+
+    Workspace --|> FeatureNavigationMixin
+    Workspace --|> GraphStackMixin
+    Workspace --|> TimelineMixin
+    Workspace o-- GraphPanelHost
+    Workspace o-- ControlWindow
+    Workspace o-- PlaybackTimeScrubber
+
+    IncrementalLoader *-- IncrementalLoadSession : active generation
+    IncrementalLoader --> OemDataStore : begins and fills
+    streaming_oem --> OemDataStore : reserves and commits rows
+    IncrementalLoader --> StoreSnapshot : publishes notifications
+    OemDataStore *-- DerivedBufferManager
+    OemDataStore *-- PrefetchScheduler
+    OemDataStore *-- InterpolationPolicy
+    OemDataStore --> StoreSnapshot
+    OemDataStore --> StoreQuery
+    OemDataStore --> TimeCoverage
+
+    PlaybackClock --> StoreCursor : sample-time view
+    StoreCursor --> OemDataStore : snapshot point queries
+    StoreCursor *-- CursorState
+    StoreCursor --> StoreSnapshot
+
+    ViewRegistry o-- ViewSpec
+    ViewRegistry o-- ViewGroup
+    ViewSpecMixin ..> ViewSpec : creates
+    View <|.. StoreView
+    StoreViewContext --> OemDataStore
+    StoreViewContext --> StoreSnapshot
+    StoreViewBinding o-- StoreViewContext
+    StoreViewBinding --> OemDataStore
+    StoreSeriesPlotView --|> TimeRangeSupport
+    StateComponentsView --|> StoreSeriesPlotView
+    StateComponentsView --|> ViewSpecMixin
+    SpeedAltitudeView --|> StoreSeriesPlotView
+    SpeedAltitudeView --|> ViewSpecMixin
+    GroundTrackView --|> ViewSpecMixin
+    GroundStationAccessView --|> StoreStationViewSupport
+    GroundStationAccessView --|> ViewSpecMixin
+    Trajectory3DView --|> ViewSpecMixin
+
+    PlayerApp --> StoreViewContext : captures and refreshes
+    StoreViewContext --> StoreView : binds
+    PlayerApp --> ViewSpec : opens
+    GroundTrackView --> GroundTrackRun
+    GroundStationAccessView --> GroundStation
+    GroundStationAccessView --> StationAccess
+    StateComponentsView --> OrbitSeries
+
+    GraphPanelHost *-- MatplotlibPanel
+    note for OemDataStore "Owns raw OEM samples, lazy derived tiers, caches, and snapshots."
+    note for StoreViewContext "Stable snapshot plus resolved plot range and coverage for a view refresh."
+    note for PlayerApp "Composes lifecycle mixins and owns the one wx application event loop."

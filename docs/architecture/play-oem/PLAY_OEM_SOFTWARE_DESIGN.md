@@ -32,6 +32,9 @@ compatibility with both commands is verified.
 
 ## 2. Current package layout
 
+The architectural class and package/module view is in
+[PLAY_OEM_CLASS_DIAGRAM.mmd](./PLAY_OEM_CLASS_DIAGRAM.mmd).
+
 Key current modules (the package contains additional focused modules):
 
 ```
