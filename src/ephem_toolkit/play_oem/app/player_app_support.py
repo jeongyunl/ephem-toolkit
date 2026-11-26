@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import sys
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -14,6 +13,7 @@ from matplotlib.figure import Figure
 from .. import series, time_unit
 from ..graph_panel import GraphPanelHost
 from ..matplotlib_helpers import create_figure
+from ..platform_support import is_linux
 from ..time_range import ResolvedTimeRange
 from ..views import base
 
@@ -38,7 +38,7 @@ EMPTY_GRAPH_LABEL: str = "Empty"
 
 def _configure_settings_backend_without_session_bus() -> None:
     """Avoid dconf warnings when Linux GUI apps have no usable session bus."""
-    if not sys.platform.startswith("linux") or "GSETTINGS_BACKEND" in os.environ:
+    if not is_linux() or "GSETTINGS_BACKEND" in os.environ:
         return
 
     bus_address = os.environ.get("DBUS_SESSION_BUS_ADDRESS", "")

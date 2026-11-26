@@ -11,6 +11,8 @@ import wx
 from wx.lib.agw import supertooltip as _agw_supertooltip
 from wx.lib.agw.supertooltip import SuperToolTip
 
+from ..platform_support import is_macos
+
 TOOLTIP_HORIZONTAL_PADDING: int = 8
 """Horizontal inner padding used by play-oem tooltip windows, in pixels."""
 
@@ -26,7 +28,7 @@ def _tooltip_dimensions(
     return width, height, padding, padding
 
 
-if wx.Platform == "__WXMAC__":
+if is_macos():
 
     class _PlayOemToolTipWindow(wx.Frame, _agw_supertooltip.ToolTipWindowBase):
         def __init__(
@@ -46,7 +48,8 @@ if wx.Platform == "__WXMAC__":
             _agw_supertooltip.ToolTipWindowBase.__init__(self, parent, class_parent)
 
 else:
-    _PlayOemToolTipWindow = _agw_supertooltip.ToolTipWindow
+    class _PlayOemToolTipWindow(_agw_supertooltip.ToolTipWindow):
+        """Use wxPython's default tooltip window outside macOS."""
 
 
 class _VerticallyCenteredToolTipWindow(_PlayOemToolTipWindow):

@@ -6,6 +6,8 @@ from enum import Enum
 
 import wx
 
+from ..platform_support import is_gtk, is_gtk_wayland
+
 
 class PanelCorner(str, Enum):
     TOP_LEFT = "top-left"
@@ -111,12 +113,27 @@ class FloatingPanel(wx.Panel):
 
         top_level = wx.GetTopLevelParent(parent)
         self._top_level = top_level
-        self._embedded_popup = interaction == PanelInteraction.CLICK
+        # Wayland does not support positioning independent top-level windows
+        # at arbitrary screen coordinates. Keep GTK floating panels embedded
+        # in their host there; this also avoids nesting native Choice popups
+        # inside another Wayland popup surface.
+        wayland_gtk = is_gtk_wayland()
+        self._wayland_embedded_popup = wayland_gtk
+        self._wayland_overlay: wx.Panel | None = None
+        self._embedded_popup = (
+            interaction == PanelInteraction.CLICK or wayland_gtk
+        )
         self._uses_popup_window = (
-            not self._embedded_popup and "gtk3" in wx.PlatformInfo
+            not self._embedded_popup
+            and is_gtk()
         )
         if self._embedded_popup:
-            self._popup = wx.Panel(parent, wx.ID_ANY, style=wx.BORDER_NONE)
+            popup_parent = self if wayland_gtk else parent
+            self._popup = wx.Panel(
+                popup_parent,
+                wx.ID_ANY,
+                style=wx.BORDER_NONE,
+            )
         elif self._uses_popup_window:
             # GTK popup windows avoid activating a second top-level frame.
             self._popup = wx.PopupWindow(top_level, wx.BORDER_NONE)
@@ -298,6 +315,8 @@ class FloatingPanel(wx.Panel):
         self.CancelCollapse()
         if self._expanded:
             self.RefreshLayout()
+            if self._embedded_popup:
+                self._raise_embedded_panel()
             return
         if self._embedded_popup or not self._uses_popup_window:
             self._focus_before_expand = wx.Window.FindFocus()
@@ -305,9 +324,14 @@ class FloatingPanel(wx.Panel):
         self._handle.Hide()
         self._content.Show()
         if self._embedded_popup:
+            if self._wayland_embedded_popup:
+                self._show_wayland_overlay()
             self.RefreshLayout()
             self._popup.Show()
-            self._popup.Raise()
+            if self._wayland_overlay is not None:
+                self._wayland_overlay.Show()
+                self.Hide()
+            self._raise_embedded_panel()
             self.RefreshLayout()
         elif self._uses_popup_window:
             # Give GTK's scrolled window its final allocation before mapping
@@ -329,7 +353,13 @@ class FloatingPanel(wx.Panel):
         self._expanded = False
         self._content.Hide()
         self._popup.Hide()
+        if self._wayland_overlay is not None:
+            overlay = self._wayland_overlay
+            self._wayland_overlay = None
+            self._popup.Reparent(self)
+            overlay.Destroy()
         self._handle.Show()
+        self.Show()
         self.RefreshLayout()
         if self._embedded_popup or not self._uses_popup_window:
             previous_focus = self._focus_before_expand
@@ -351,6 +381,43 @@ class FloatingPanel(wx.Panel):
         if not self._expanded:
             return
         self._content.SetFocus()
+
+    def _raise_embedded_popup(self) -> None:
+        if self._expanded and self._embedded_popup and self._popup.IsShown():
+            self._popup.Raise()
+
+    def _raise_embedded_panel(self) -> None:
+        if not self._expanded or not self._embedded_popup:
+            return
+        if self._wayland_overlay is not None:
+            self._wayland_overlay.Raise()
+            self._popup.Raise()
+            return
+        # Explicitly lower expanded siblings before raising both of this
+        # panel's windows. GTK can otherwise retain the creation order when
+        # multiple embedded panels overlap.
+        for sibling in self._host.GetChildren():
+            if sibling is self or not isinstance(sibling, FloatingPanel):
+                continue
+            if sibling._expanded and sibling._embedded_popup:
+                sibling._popup.Lower()
+                sibling.Lower()
+        # The handle host and expanded controls are separate sibling windows.
+        self.Raise()
+        self._raise_embedded_popup()
+
+    def _show_wayland_overlay(self) -> None:
+        """Place expanded GTK Wayland content in a freshly stacked host layer."""
+        if self._wayland_overlay is not None:
+            return
+        overlay = wx.Panel(self._host, wx.ID_ANY, style=wx.BORDER_NONE)
+        overlay.SetBackgroundColour(self._popup.GetBackgroundColour())
+        overlay.Hide()
+        if not self._popup.Reparent(overlay):
+            overlay.Destroy()
+            self._popup.Reparent(self._host)
+            return
+        self._wayland_overlay = overlay
 
     def ScheduleCollapse(self, delay_ms: int = 250) -> None:
         self.CancelCollapse()
@@ -430,9 +497,46 @@ class FloatingPanel(wx.Panel):
                 if self._corner.value.startswith("top")
                 else max(0, host_size.height - popup_height)
             )
-            self._popup.SetSize(
-                wx.Rect(popup_left, popup_top, popup_width, popup_height)
-            )
+            if self._wayland_embedded_popup:
+                self.SetSize(handle_rect)
+                overlay = self._wayland_overlay
+                if overlay is not None:
+                    overlay.SetSize(
+                        wx.Rect(
+                            popup_left,
+                            popup_top,
+                            popup_width,
+                            popup_height,
+                        )
+                    )
+                    self._popup.SetSize(
+                        wx.Rect(0, 0, popup_width, popup_height)
+                    )
+                elif self._popup.GetParent() is self._host:
+                    self._popup.SetSize(
+                        wx.Rect(
+                            popup_left,
+                            popup_top,
+                            popup_width,
+                            popup_height,
+                        )
+                    )
+                else:
+                    self.SetSize(
+                        wx.Rect(
+                            popup_left,
+                            popup_top,
+                            popup_width,
+                            popup_height,
+                        )
+                    )
+                    self._popup.SetSize(
+                        wx.Rect(0, 0, popup_width, popup_height)
+                    )
+            else:
+                self._popup.SetSize(
+                    wx.Rect(popup_left, popup_top, popup_width, popup_height)
+                )
             self._popup.Layout()
             self._collapsed_screen_rect = wx.Rect(
                 collapsed_left,
@@ -547,13 +651,19 @@ class FloatingPanel(wx.Panel):
             if self._collapse_control is not None:
                 self._collapse_control.Unbind(wx.EVT_LEFT_UP)
         self._popup.Hide()
-        self._popup.Destroy()
+        if self._wayland_overlay is not None:
+            self._wayland_overlay.Destroy()
+            self._wayland_overlay = None
+        else:
+            self._popup.Destroy()
         self.Destroy()
         return True
 
     def _on_enter(self, event: wx.MouseEvent) -> None:
         self.CancelCollapse()
         self.Expand()
+        if self._embedded_popup:
+            self._raise_embedded_panel()
         event.Skip()
 
     def _on_handle_click(self, event: wx.MouseEvent) -> None:

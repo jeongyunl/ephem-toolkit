@@ -7,6 +7,8 @@ from functools import lru_cache
 
 import wx
 
+from ..platform_support import is_gtk
+
 
 @lru_cache(maxsize=1)
 def _gtk_style() -> tuple[ctypes.CDLL, int]:
@@ -49,7 +51,7 @@ def _gtk_style() -> tuple[ctypes.CDLL, int]:
 
 def compact_controls(controls: tuple[wx.Window, ...]) -> None:
     """Reduce GTK padding only for these controls, leaving other views alone."""
-    if "gtk3" not in wx.PlatformInfo or not controls:
+    if not is_gtk() or not controls:
         return
     gtk, provider = _gtk_style()
     screen = gtk.gtk_widget_get_screen(int(controls[0].GetGtkWidget()))
