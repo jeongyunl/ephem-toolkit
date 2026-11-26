@@ -51,7 +51,7 @@ class ViewGroup:
         object.__setattr__(self, "label", label)
 
 
-class LegacyViewSpecMixin:
+class ViewSpecMixin:
     """Expose a view class as declarative registry metadata."""
 
     name: str
@@ -71,8 +71,6 @@ class LegacyViewSpecMixin:
             opener=opener,
         )
 
-
-ViewSpecMixin = LegacyViewSpecMixin
 
 
 class ViewRegistry:

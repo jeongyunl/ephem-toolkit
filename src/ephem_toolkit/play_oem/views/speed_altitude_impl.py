@@ -25,15 +25,13 @@ from .plotting import (
     set_shared_x_limits,
     time_bounds_to_axis,
 )
-from .registry import LegacyViewSpecMixin
-
 CURSOR_LINE_COLOR: str = "tab:red"
 """Color used for the playback cursor lines."""
 FIGURE_SIZE_INCHES: tuple[float, float] = (8.0, 6.0)
 """Default speed/altitude figure size in inches."""
 
 
-class LegacySpeedAltitudeView(LegacyViewSpecMixin, StoreSeriesPlotView):
+class SpeedAltitudeImpl(StoreSeriesPlotView):
     """Plot speed and altitude histories with a shared time cursor."""
 
     name: str = "speed-altitude"
@@ -330,7 +328,7 @@ class LegacySpeedAltitudeView(LegacyViewSpecMixin, StoreSeriesPlotView):
         RuntimeError
             If this view has not been built.
         """
-        self._update_store_or_legacy_cursor(time_s)
+        self._update_store_or_impl_cursor(time_s)
 
     def close(self) -> None:
         """Release the figure and cursor artists."""

@@ -1027,7 +1027,7 @@ class StoreSeriesPlotView(TimeRangeSupport):
     ) -> StoreViewContext:
         return self._store_binding.with_range(bounds, coverage)
 
-    def _update_store_or_legacy_cursor(self, time_s: float) -> None:
+    def _update_store_or_impl_cursor(self, time_s: float) -> None:
         """Move every cursor using store context or the legacy OEM origin."""
         if self._cursor_artists is None:
             raise RuntimeError("view has not been built")

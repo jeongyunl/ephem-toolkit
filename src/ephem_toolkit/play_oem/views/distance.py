@@ -1,7 +1,7 @@
 """Geocentric-distance time-series view."""
 
-from .legacy_distance import LegacyGeocentricDistanceView
 from .orbit_time_series import OrbitTimeSeriesView
+from .distance_impl import GeocentricDistanceImpl
 
 
 class GeocentricDistanceView(OrbitTimeSeriesView):
@@ -10,6 +10,6 @@ class GeocentricDistanceView(OrbitTimeSeriesView):
     group = "motion"
 
     def _create_delegate(self, start_time_s: float, object_name: object = ""):
-        return LegacyGeocentricDistanceView(start_time_s, str(object_name))
+        return GeocentricDistanceImpl(start_time_s, str(object_name))
 
 __all__ = ["GeocentricDistanceView"]

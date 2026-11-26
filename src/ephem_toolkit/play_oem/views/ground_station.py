@@ -43,8 +43,6 @@ from .base import (
     station_access_from_store,
     store_load_status_message,
 )
-from .legacy_ground_station_access import LegacyGroundStationAccessView
-from .legacy_ground_station_analysis import LegacyGroundStationAnalysisView
 from .time_series_support import TimeSeriesWxPanelMixin
 
 
@@ -87,74 +85,6 @@ class GroundStationPanelRenderer(Protocol):
 
     def close(self) -> None:
         ...
-
-
-GroundStationRenderer = GroundStationPanelRenderer
-
-
-class GroundStationProfileRenderer:
-    """Adapt a Legacy analysis panel behind the unified renderer protocol."""
-
-    def __init__(
-        self,
-        parent: wx.Window,
-        panel_mode: str,
-        cursor: playback_cursor.StoreCursor,
-        stations: Sequence[GroundStation],
-        time_unit: TimeUnit,
-        object_name: str,
-        *,
-        oem_loaded: bool,
-        on_station_manager: Callable[[], None],
-        selection_context: StationAnalysisContext,
-        initial_range: ResolvedTimeRange | None,
-        display_time_zone: str = UTC_DISPLAY,
-    ) -> None:
-        if panel_mode not in ANALYSIS_PANEL_MODES:
-            raise ValueError(f"unknown analysis panel mode: {panel_mode!r}")
-        self.panel_mode = panel_mode
-        self.delegate = LegacyGroundStationAnalysisView(
-            parent,
-            panel_mode,
-            cursor,
-            stations,
-            time_unit,
-            object_name,
-            oem_loaded=oem_loaded,
-            on_station_manager=on_station_manager,
-            selection_context=selection_context,
-            initial_range=initial_range,
-            display_time_zone=display_time_zone,
-        )
-
-    def build(
-        self,
-        series: OrbitSeries,
-        time_unit: TimeUnit,
-    ) -> wx.Window:
-        return self.delegate.build(series, time_unit)
-
-    def build_from_store(self, context: StoreViewContext) -> wx.Window:
-        return self.delegate.build_from_store(context)
-
-    def update_from_store(self, context: StoreViewContext) -> None:
-        self.delegate.update_from_store(context)
-
-    def update(self, time_s: float) -> None:
-        self.delegate.update(time_s)
-
-    def set_time_range(
-        self,
-        bounds: ResolvedTimeRange | None,
-        coverage: tuple[float, float],
-    ) -> None:
-        self.delegate.set_time_range(bounds, coverage)
-
-    def set_stations(self, stations: Sequence[GroundStation]) -> None:
-        self.delegate.set_stations(stations)
-
-    def close(self) -> None:
-        self.delegate.close()
 
 
 class StationStatusRenderer(

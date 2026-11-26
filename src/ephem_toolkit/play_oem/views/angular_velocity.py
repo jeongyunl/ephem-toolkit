@@ -1,7 +1,7 @@
 """Angular-velocity time-series view."""
 
-from .legacy_angular_velocity import LegacyAngularVelocityView
 from .orbit_time_series import OrbitTimeSeriesView
+from .angular_velocity_impl import AngularVelocityImpl
 
 
 class AngularVelocityView(OrbitTimeSeriesView):
@@ -10,6 +10,6 @@ class AngularVelocityView(OrbitTimeSeriesView):
     group = "motion"
 
     def _create_delegate(self, start_time_s: float, object_name: object = ""):
-        return LegacyAngularVelocityView(start_time_s, str(object_name))
+        return AngularVelocityImpl(start_time_s, str(object_name))
 
 __all__ = ["AngularVelocityView"]

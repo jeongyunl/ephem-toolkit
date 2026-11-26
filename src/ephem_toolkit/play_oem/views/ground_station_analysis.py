@@ -1,7 +1,7 @@
-"""Compatibility imports for the Legacy Ground Station analysis view."""
+"""Compatibility import for the unified ground-station view."""
 
-from .legacy_ground_station_analysis import LegacyGroundStationAnalysisView
+from .ground_station import GroundStationView
 
-GroundStationAnalysisView = LegacyGroundStationAnalysisView
+GroundStationAnalysisView = GroundStationView
 
 __all__ = ["GroundStationAnalysisView"]

@@ -474,14 +474,14 @@ class PlayerApp(
         )
         for view_class, opener in view_classes:
             self._view_registry.register(view_class.view_spec(opener))
-        legacy_view_names = (
+        station_view_names = (
             ("station-status", "Station Status", "access-overview", self.open_station_status_view),
             ("elevation-profile", "Elevation Profile", "access-overview", self.open_elevation_profile_view),
             ("azimuth-profile", "Azimuth Profile", "access-overview", self.open_azimuth_profile_view),
             ("range-profile", "Range Profile", "access-overview", self.open_range_profile_view),
             ("ground-station-access", "Ground Station Access", "access-overview", self.open_ground_station_access_view),
         )
-        for name, label, group, opener in legacy_view_names:
+        for name, label, group, opener in station_view_names:
             self._view_registry.register(
                 registry.ViewSpec(name=name, label=label, group=group, opener=opener)
             )

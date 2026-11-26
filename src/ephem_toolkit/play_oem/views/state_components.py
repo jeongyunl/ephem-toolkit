@@ -2,8 +2,8 @@
 
 from typing import cast
 
-from .legacy_state_components import LegacyStateComponentsView
 from .orbit_time_series import OrbitTimeSeriesView
+from .state_components_impl import StateComponentsImpl
 
 
 class StateComponentsView(OrbitTimeSeriesView):
@@ -12,6 +12,6 @@ class StateComponentsView(OrbitTimeSeriesView):
     group = "state"
 
     def _create_delegate(self, start_time_s: float, frame_context: object = ""):
-        return LegacyStateComponentsView(start_time_s, cast(str, frame_context))
+        return StateComponentsImpl(start_time_s, cast(str, frame_context))
 
 __all__ = ["StateComponentsView"]

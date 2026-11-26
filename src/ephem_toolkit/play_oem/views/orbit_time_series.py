@@ -21,11 +21,11 @@ from .base import (
     StoreViewContext,
     TimeSeriesWxPanelMixin,
 )
-from .registry import LegacyViewSpecMixin
+from .registry import ViewSpecMixin
 
 
 class OrbitTimeSeriesView(
-    LegacyViewSpecMixin,
+    ViewSpecMixin,
     TimeSeriesWxPanelMixin,
     StoreTimeSeriesView,
 ):
@@ -48,7 +48,7 @@ class OrbitTimeSeriesView(
         self._legend_panel: FloatingMatplotlibLegend | None = None
 
     def __getattr__(self, name: str) -> Any:
-        """Preserve Legacy test/runtime attributes while data state stays delegated."""
+        """Preserve implementation test/runtime attributes while data stays delegated."""
         delegate = self.__dict__.get("_delegate")
         if delegate is not None:
             return getattr(delegate, name)

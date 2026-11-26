@@ -21,8 +21,6 @@ from .base import (
     store_empty_label,
 )
 from .plotting import SegmentedPlotHistory, set_shared_x_limits, time_bounds_to_axis
-from .registry import LegacyViewSpecMixin
-
 CARTESIAN_COMPONENT_COUNT: int = 3
 """Number of Cartesian position or velocity components."""
 CURSOR_LINE_COLOR: str = "tab:red"
@@ -35,7 +33,7 @@ STATE_COMPONENT_COLUMN_COUNT: int = 2
 """Number of columns for position and velocity plots."""
 
 
-class LegacyStateComponentsView(LegacyViewSpecMixin, StoreSeriesPlotView):
+class StateComponentsImpl(StoreSeriesPlotView):
     """Plot X/Y/Z position and VX/VY/VZ velocity histories."""
 
     name: str = "state-components"
@@ -334,7 +332,7 @@ class LegacyStateComponentsView(LegacyViewSpecMixin, StoreSeriesPlotView):
         RuntimeError
             If this view has not been built.
         """
-        self._update_store_or_legacy_cursor(time_s)
+        self._update_store_or_impl_cursor(time_s)
 
     def close(self) -> None:
         """Release the figure and cursor artists."""

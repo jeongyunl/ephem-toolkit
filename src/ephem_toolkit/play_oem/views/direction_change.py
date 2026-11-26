@@ -1,7 +1,7 @@
 """Direction-change time-series view."""
 
-from .legacy_direction_change import LegacyDirectionChangeView
 from .orbit_time_series import OrbitTimeSeriesView
+from .direction_change_impl import DirectionChangeImpl
 
 
 class DirectionChangeView(OrbitTimeSeriesView):
@@ -10,6 +10,6 @@ class DirectionChangeView(OrbitTimeSeriesView):
     group = "motion"
 
     def _create_delegate(self, start_time_s: float, object_name: object = ""):
-        return LegacyDirectionChangeView(start_time_s, str(object_name))
+        return DirectionChangeImpl(start_time_s, str(object_name))
 
 __all__ = ["DirectionChangeView"]
