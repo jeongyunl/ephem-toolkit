@@ -227,7 +227,7 @@ class GraphPanelHost(wx.Panel):
                 choices=[label for _name, label in view_choices],
             )
             # Keep the selector compact so it matches the smaller header actions.
-            self.graph_view_selector.SetMinSize(wx.Size(-1, 26))
+            self.graph_view_selector.SetMinSize(self.FromDIP(wx.Size(-1, 24)))
             self.graph_view_selector.SetName(f"{title} view selector")
             # Keep wheel input from changing the selection while forwarding its
             # scrolling effect to the containing graph stack.
@@ -260,17 +260,17 @@ class GraphPanelHost(wx.Panel):
                 self.graph_title_label,
                 1,
                 wx.ALIGN_CENTER_VERTICAL | wx.ALL,
-                4,
+                2,
             )
         self.graph_close_button = wx.Button(self, wx.ID_ANY, "Close")
         # A fixed compact height reduces header space while preserving native width.
-        self.graph_close_button.SetMinSize(wx.Size(-1, 26))
+        self.graph_close_button.SetMinSize(self.FromDIP(wx.Size(-1, 24)))
         self.graph_close_button.SetName(f"Close {title} graph")
         set_tooltip(self.graph_close_button, f"Close {title} graph")
         self.graph_close_button.Bind(wx.EVT_BUTTON, lambda _event: self._on_close())
         self.graph_actions_button = wx.Button(self, wx.ID_ANY, "Actions")
         # Match the Close control so the header buttons have consistent proportions.
-        self.graph_actions_button.SetMinSize(wx.Size(-1, 26))
+        self.graph_actions_button.SetMinSize(self.FromDIP(wx.Size(-1, 24)))
         self.graph_actions_button.SetName(f"{title} panel actions")
         # Keep the tooltip handle so menu activation can dismiss it explicitly.
         self._actions_tooltip = set_tooltip(
