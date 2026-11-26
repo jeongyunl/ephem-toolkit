@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import sys
-from typing import TypeVar
+from typing import TypeVar, Union
 
 from .. import time_range
 from ..views import (
@@ -27,9 +27,12 @@ from .player_app_state import PlayerAppState
 
 _PassView = TypeVar(
     "_PassView",
+    # Use typing.Union on Python 3.9; PEP 604 union syntax is not runtime-safe here.
     bound=(
-        ground_station_passes_view.GroundStationPassListView
-        | ground_station_passes_view.GroundStationSkyView
+        Union[
+            ground_station_passes_view.GroundStationPassListView,
+            ground_station_passes_view.GroundStationSkyView,
+        ]
     ),
 )
 
