@@ -200,8 +200,9 @@ class View(Protocol):
 - The registry includes orbit and diagnostic views, Ground Track, and the Ground Station panels.
   `overview` opens trajectory and speed/altitude; `state` opens state components; `motion` opens
   RTN, angular velocity, direction change, and distance; `access-overview` and `pass-study` are
-  optional station presets; `all` expands to every registered view. The registry powers
-  `--plots` and panel selection.
+  optional station presets; `access-overview` expands to Station Status, Elevation Profile,
+  Azimuth Profile, Range Profile, and Ground Station Access. `all` expands to every registered
+  view. The registry powers `--plots` and panel selection.
 
 ### 4.3.1 3D trajectory backends (Matplotlib/wx and VTK)
 
@@ -388,7 +389,11 @@ graph stacks with per-panel view selector, actions, and close controls
   the status bar reports successful loads and errors.
 - Floating settings panel focus and mouse event tracing is documented in
   [PLAY_OEM_GUI_DEBUGGING.md](./PLAY_OEM_GUI_DEBUGGING.md).
-- Click-to-seek: each time-series view connects `button_press_event` (left click inside axes, toolbar zoom/pan mode inactive) → `clock.seek(x * unit_divisor)`.
+- Click-to-seek: ordinary 2D time-series axes carry explicit `_play_oem_seek_enabled`,
+  `_play_oem_time_origin_s`, and `_play_oem_time_divisor_s` metadata. The central handler
+  requires that metadata plus the view's `seek_on_click` capability, ignores active toolbar
+  pan/zoom modes, and seeks to `origin_s + xdata * divisor_s`. Spatial and non-time views
+  explicitly opt out and do not infer seekability from their axes or a 3D-axis name.
 - The graph-panel selector opens individual registered views. Presets and `--plots` open named
   groups; an already-open view is raised rather than duplicated. Closing one graph panel does not
   affect the clock or other panels. Closing the workspace frame destroys all panels and stops the

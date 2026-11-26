@@ -29,22 +29,29 @@ The station elevation mask is independent from the Ground Track footprint settin
 ## Focused Ground Station panels
 
 The graph selector offers Station Status, Elevation Profile, Azimuth Profile, Range
-Profile, Pass List, Sky View, and Pass Ground Track. Choose **Access Overview** or **Pass Study**
-from the preset selector in the Main Analysis header. Access Overview opens Station Status and
-Elevation Profile; Pass Study opens Pass List, Sky View, and Pass Ground Track as
-separate, stackable graph panels. Presets are also available through `--plots access-overview`
-and `--plots pass-study`; they do not change the default `overview` group. Use canonical view
-names directly: Elevation Profile is `elevation-profile` and Pass List is `pass-list`.
+Profile, Ground Station Access, Pass List, Sky View, and Pass Ground Track. Choose **Access
+Overview** or **Pass Study** from the preset selector in the Main Analysis header. Access
+Overview opens Station Status, Elevation Profile, Azimuth Profile, Range Profile, and Ground
+Station Access; Pass Study opens Pass List, Sky View, and Pass Ground Track as separate,
+stackable graph panels. Presets are also available through `--plots access-overview` and
+`--plots pass-study`; they do not change the default `overview` group. Use canonical view
+names directly: Elevation Profile is `elevation-profile`, Ground Station Access is
+`ground-station-access`, and Pass List is `pass-list`.
 
 Station Status and the time profiles are available with no stations or no OEM and
 display a relevant empty state. Use **Manage Ground Stations** to open the manager.
 
 Station Status shows current access, azimuth, elevation, and slant range. Elevation Profile plots
 elevation against time with access intervals and the station mask; its vertical scale is fixed at
-0°–95°. Each Elevation, Azimuth, and Range Profile has its own **Show only above minimum
-elevation** checkbox, checked by default. When checked, below-mask samples are omitted, leaving a
-gap in the plotted line; uncheck it to show the full profile. Azimuth Profile also breaks the line
-at north-wrap discontinuities, and Range Profile shows slant range in kilometers.
+0°–95°. Ground Station Access combines the elevation graph, access intervals, pass summary,
+station metrics, and playback cursor in one station-analysis panel.
+Each Elevation, Azimuth, Range Profile, and Ground Station Access has a top-right station/settings
+panel, an expanded top-left live-status panel, and a bottom-right floating legend where plotted
+series provide legend handles. Collapsed floating panels use the shared `≡` handle.
+Each Elevation, Azimuth, and Range Profile has its own **Show only above minimum elevation**
+checkbox, checked by default. When checked, below-mask samples are omitted, leaving a gap in the
+plotted line; uncheck it to show the full profile. Azimuth Profile breaks the line at
+north-wrap discontinuities, and Range Profile shows slant range in kilometers.
 Time profiles follow the application's Plot Range; adjust it to zoom or move through time. Click
 a time profile to move playback.
 

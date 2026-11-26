@@ -52,7 +52,9 @@ which views are open.
      loaded yet; seeking there retains the clock's existing loaded-coverage clamping behavior.
      Clicking the trough jumps to that point.
    - Direct entry: type an elapsed time (`1h30m`) or an epoch in the selected display time zone.
-   - Click-to-seek: clicking on a time-series plot seeks to that time.
+   - Click-to-seek: clicking an ordinary 2D time-series plot seeks to that time using
+     the axis's explicit origin and time-unit divisor; pan/zoom modes suppress seeking,
+     and spatial/non-time views do not seek.
    - Step buttons/keys: ±1 sample, ±1 minute, jump to start/end.
    - Seeking works while playing, paused, or reversed, and never changes speed or direction.
 2. Play/Pause button (also `Space`). Playback starts paused at the first OEM state and pauses at either timeline boundary.

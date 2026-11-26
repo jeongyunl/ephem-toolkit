@@ -35,14 +35,17 @@ Out of scope:
 
 The shared design must fit three patterns:
 
-1. **Figure-returning graph views.** `angular_velocity.py`,
-   `direction_change.py`, `distance.py`, `rtn.py`, `speed_altitude.py`,
-   `state_components.py`, and `trajectory3d/mpl_backend.py` build a
-   `matplotlib.figure.Figure`; the app later attaches a wx canvas and toolbar.
-2. **Views that own their wx layout.** `ground_station_access.py`,
-   `ground_station_analysis.py`, `ground_station_pass_track.py`, and
-   `ground_station_passes.py` build a wx panel containing controls, status
-   text, and a `FigureCanvasWxAgg`.
+1. **Migrated orbit/diagnostic time-series views.** `angular_velocity.py`,
+   `direction_change.py`, `distance.py`, `rtn.py`, `speed_altitude.py`, and
+   `state_components.py` expose public classes built from `OrbitTimeSeriesView`.
+   Their ordinary `*_impl.py` plot classes prepare figures and store-owned
+   artists, while `OrbitTimeSeriesView` adds `StoreTimeSeriesView`,
+   `TimeSeriesWxPanelMixin`, expanded live status, floating legends, minimum-size
+   canvas behavior, and explicit seek metadata.
+2. **Views that own their wx layout.** `ground_station.py` owns unified
+   profile/status/access renderers; `ground_station_pass_track.py` and
+   `ground_station_passes.py` own pass/Sky panels. These build native wx panels
+   containing controls, status text, and a `FigureCanvasWxAgg`.
 3. **Specialized Ground Track.** `ground_track.py` combines a custom pan
    toolbar, a map canvas, and a floating legend. The map axes use a fixed 2:1
    box; the reusable floating legend widget sizes its figure from renderer

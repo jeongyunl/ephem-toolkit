@@ -10,8 +10,11 @@ Ground Stations and station-access analysis are implemented. The current user wo
 ownership are in [PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md) and
 [PLAY_OEM_DATAFLOW.md](./PLAY_OEM_DATAFLOW.md).
 
-Ground Station panels are implemented as separate store-backed views; see the active
-[software design](./PLAY_OEM_SOFTWARE_DESIGN.md) and [dataflow](./PLAY_OEM_DATAFLOW.md).
+Ground Station panels are implemented through a unified `GroundStationView` and store-backed
+renderers; see the active [software design](./PLAY_OEM_SOFTWARE_DESIGN.md) and
+[dataflow](./PLAY_OEM_DATAFLOW.md). Orbit/diagnostic public views are also cut over through
+`OrbitTimeSeriesView`, with ordinary `*_impl.py` plot preparation and no remaining play-oem
+`Legacy*` source names.
 
 ## Current runtime behavior
 
@@ -77,6 +80,22 @@ its acceptance history; they are not pending implementation work. See
 [PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md) for the as-built architecture and
 continue with the active implementation sequence below. Historical migration constraints and GUI design
 notes remain archived in [old/](./old/).
+
+## Current status — 2D view and Ground Station cutovers complete
+
+- Items 10–12 of the focused look-and-feel migration are complete: the six orbit/diagnostic
+  time-series views use `OrbitTimeSeriesView` and shared wx/status/legend support.
+- Ground Station Elevation, Azimuth, Range, Station Status, and Ground Station Access use real
+  unified renderers beneath `GroundStationView`.
+- All 2D time-series cutovers use explicit seek metadata and expanded top-left live-status
+  surfaces. Matplotlib legends are floating where series handles exist; stationary status panels
+  do not create plot legends.
+- Ground Station Access is registered under `access-overview` and is selectable by
+  `ground-station-access`.
+- Ground Station and orbit Legacy source names have been retired; ordinary implementation modules
+  remain only where numerical plot preparation is delegated by public wrapper classes.
+- Validation evidence includes 55 focused store/Ground Station/registry tests and 37 focused
+  orbit/store tests, plus explicit no-metadata seek opt-out coverage.
 
 ## Milestone L — Loading-aware timeline and release readiness
 
