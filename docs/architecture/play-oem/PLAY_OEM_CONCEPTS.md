@@ -106,6 +106,7 @@ play-oem [<input_oem>] [OPTIONS]
 | `<input_oem>` | Input CCSDS OEM path (same as `plot-oem`). |
 | `--plots <list>` | Comma-separated canonical view names or groups to open at launch (default: `overview`; groups: `overview`, `state`, `motion`, `access-overview`, `pass-study`, `all`). |
 | `--3d-backend {auto,vtk,matplotlib}` | Renderer for 3D views (default `auto`: VTK when its wx integration is available, otherwise Matplotlib). Explicit `vtk` reports an actionable error if unavailable. |
+| `--theme {system,light,dark}` | Appearance preference (default `system`). On wxPython builds that expose OS appearance APIs, `light` or `dark` requests that appearance; unsupported requests are reported. |
 | `--config-file <path>` | Load user defaults from the specified TOML file instead of the default configuration location. |
 | `--state-file <path>` | Load and save app state from the specified TOML file. |
 | `--config-dir <directory>` | Override the directory used for both `play-oem.toml` and `play-oem-state.toml`; explicit file options take precedence. |

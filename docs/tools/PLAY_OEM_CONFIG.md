@@ -227,6 +227,10 @@ apply only to that run and will not be saved back to the file.
 Malformed TOML, unknown setting names, and invalid values will be reported with an error that
 identifies the config file and setting where possible.
 
+`play-oem --theme {system,light,dark}` requests the application appearance for that run. The
+default is `system`. Theme is a command-line-only preference and is not persisted by
+`play-oem.toml` or `play-oem-state.toml`.
+
 ## Related documentation
 
 - [`play-oem` concepts and command-line options](../architecture/play-oem/PLAY_OEM_CONCEPTS.md)

@@ -46,7 +46,7 @@ flowchart TD
 
     subgraph APP["wx application"]
         direction TB
-        CONTROLLER["Controller<br/>generation and event handling"]
+        CONTROLLER["PlayerApp mixins<br/>generation, snapshot, refresh,<br/>playback, and panel lifecycle"]
         LOAD_CONTROL["Generic load controls<br/>pause / resume request"]
         INITIAL_PLOT["Initial range gate<br/>wait for playback + plot coverage<br/>pause, draw, resume"]
         CONTEXT["StoreViewContext<br/>snapshot, range, coverage"]

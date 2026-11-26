@@ -101,7 +101,7 @@ and station views do not have non-store data fallbacks. Each load generation own
   consumers, and gap behavior
 - [PLAY_OEM_CONCEPTS.md](./PLAY_OEM_CONCEPTS.md): shipped behavior and requirements
 - [PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md): component and lifecycle design
-- [PLAY_OEM_LOADING_AWARE_TIMELINE_IMPLEMENTATION_REPORT.md](./old/PLAY_OEM_LOADING_AWARE_TIMELINE_IMPLEMENTATION_REPORT.md):
-  timeline loading and interaction behavior
+- [PLAY_OEM_TIMESTAMP_ALIGNMENT.md](./PLAY_OEM_TIMESTAMP_ALIGNMENT.md):
+  timeline metadata, timestamp units, and sampling policy
 - [PLAY_OEM_PERFORMANCE_REPORT.md](./PLAY_OEM_PERFORMANCE_REPORT.md): measured performance and
   deferred work

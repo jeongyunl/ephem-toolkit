@@ -31,10 +31,10 @@ The station elevation mask is independent from the Ground Track footprint settin
 The graph selector offers Station Status, Pass Strip, Elevation Profile, Azimuth Profile, Range
 Profile, Pass List, Sky View, and Pass Ground Track. Choose **Access Overview** or **Pass Study**
 from the preset selector in the Main Analysis header. Access Overview opens Station Status, Pass
-Strip, and Elevation Profile; Pass Study opens Pass List and Sky View as separate, stackable graph
-panels. Presets are also available through `--plots access-overview` and `--plots pass-study`;
-they do not change the default `overview` group. Use canonical view names directly: Elevation
-Profile is `elevation-profile` and Pass List is `pass-list`.
+Strip, and Elevation Profile; Pass Study opens Pass List, Sky View, and Pass Ground Track as
+separate, stackable graph panels. Presets are also available through `--plots access-overview`
+and `--plots pass-study`; they do not change the default `overview` group. Use canonical view
+names directly: Elevation Profile is `elevation-profile` and Pass List is `pass-list`.
 
 Station Status, Pass Strip, and the time profiles are available with no stations or no OEM and
 display a relevant empty state. Use **Manage Ground Stations** to open the manager.

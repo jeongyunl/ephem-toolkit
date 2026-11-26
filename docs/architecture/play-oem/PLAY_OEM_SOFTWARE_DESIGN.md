@@ -2,7 +2,7 @@
 
 Requirements and shipped behavior: [PLAY_OEM_CONCEPTS.md](./PLAY_OEM_CONCEPTS.md).
 Loading and ownership: [PLAY_OEM_DATAFLOW.md](./PLAY_OEM_DATAFLOW.md) and
-[PLAY_OEM_LOADING_AWARE_TIMELINE_IMPLEMENTATION_REPORT.md](./old/PLAY_OEM_LOADING_AWARE_TIMELINE_IMPLEMENTATION_REPORT.md).
+[PLAY_OEM_TIMESTAMP_ALIGNMENT.md](./PLAY_OEM_TIMESTAMP_ALIGNMENT.md).
 User guides:
 [configuration](../../tools/PLAY_OEM_CONFIG.md), [Ground Stations](../../tools/PLAY_OEM_GROUND_STATIONS.md),
 and [Ground Track](../../tools/PLAY_OEM_GROUND_TRACK.md).
@@ -43,14 +43,15 @@ src/ephem_toolkit/play_oem/
   display_time.py      # UTC/local timestamp formatting
   streaming_oem.py     # parse OEM rows directly into store reservations
   incremental_loader.py # generation-scoped worker, cancellation, pause/resume, and load events
-  oem_data_store.py    # raw samples and lazily computed derived tiers
+  oem_data_store/      # store-owned raw samples, derived tiers, caches, and scheduling
   clock.py             # playback bounds, sample-time view, and clock logic
   cursor.py            # StoreCursor point queries and inert empty startup state
   series.py time_unit.py time_range.py
   ground_stations.py station_access.py station_analysis.py ground_track.py
   app/
-    controller.py      # load generations, snapshots, playback, and panel lifecycle
-    view_factory.py    # registered store-backed views and backend selection
+    player_app.py      # wx application composition and lifecycle
+    player_app_state.py # shared state dataclasses and protocols
+    player_*_*.py      # focused loading, refresh, restore, preference, and action mixins
   workspace/
     core.py features.py ground_stations.py graph_stack.py timeline.py
   views/
@@ -358,8 +359,8 @@ graph stacks with per-panel view selector, actions, and close controls
   time offset or a fixed timepoint. Right-click a plot handle to choose its mode; drag Offset
   and Fixed handles to change their position. See
   [PLAY_OEM_CONCEPTS.md](./PLAY_OEM_CONCEPTS.md) and
-  [PLAY_OEM_LOADING_AWARE_TIMELINE_IMPLEMENTATION_REPORT.md](./old/PLAY_OEM_LOADING_AWARE_TIMELINE_IMPLEMENTATION_REPORT.md)
-  for current requirements and loading behavior.
+  [PLAY_OEM_TIMESTAMP_ALIGNMENT.md](./PLAY_OEM_TIMESTAMP_ALIGNMENT.md)
+  for timestamp and loading behavior.
 - Loading-aware timeline: the reader publishes each segment's UTC metadata at `META_STOP`,
   before parsing its state rows. The controller unions valid segment bounds with observed sample
   bounds for the slider domain while keeping playback coverage sample-bounded. The parser's latest

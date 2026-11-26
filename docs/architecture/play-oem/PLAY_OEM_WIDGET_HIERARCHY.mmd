@@ -29,6 +29,7 @@ flowchart TB
 
         settings_page --> settings_panel["ControlWindow.settings_scroller<br/>wx.ScrolledWindow, vertical scroll"]
         settings_panel --> time_zone["Display time zone<br/>UTC or Local Time Zone"]
+        settings_panel --> time_snapping["Time snapping<br/>Snap plots to UTC half-seconds"]
         settings_panel --> render_rate["render_rate_label (1–30 FPS, default 30),<br/>render_rate_slider"]
         settings_panel --> interpolation["Interpolation source, method,<br/>degree, and active-policy status"]
 
@@ -51,11 +52,11 @@ flowchart TB
         graph_panes_splitter -- "right, when shown" --> comparison_pane
 
         main_analysis_pane["self.main_analysis_pane<br/>wx.Panel, Main Analysis"]
-        main_analysis_pane --> middle_header["header title, add_graph_button,<br/>comparison toggle button"]
+        main_analysis_pane --> middle_header["header title, Add graph,<br/>Workspace preset, Comparison, Follow selection"]
         main_analysis_pane --> main_analysis_stack["self.main_analysis_stack<br/>wx.ScrolledWindow, vertical scroll"]
 
         comparison_pane["self.comparison_pane<br/>wx.Panel, Comparison, hidden by default"]
-        comparison_pane --> right_header["header title, add_graph_button,<br/>close_pane_button"]
+        comparison_pane --> right_header["header title, Add graph,<br/>Close pane"]
         comparison_pane --> comparison_stack["self.comparison_stack<br/>wx.ScrolledWindow, vertical scroll"]
 
         main_analysis_stack --> middle_empty["empty_state_panel, empty_state_label,<br/>add_graph_button<br/>(shown when there are no graphs)"]
@@ -67,22 +68,22 @@ flowchart TB
         comparison_stack --> right_handle["bottom_resize_handle (Comparison)"]
 
         middle_tree --> graph_host["GraphPanelHost<br/>wx.Panel, one per graph"]
-        graph_host --> host_header["graph_view_selector (wx.Choice) or graph_title_label,<br/>graph_actions_button, graph_close_button"]
+        graph_host --> host_header["graph_view_selector (wx.Choice) or graph_title_label,<br/>Actions menu button, Close button"]
         graph_host --> graph_scroller["graph_scroller<br/>wx.ScrolledWindow, horizontal and vertical scroll"]
-        graph_scroller --> view_content["_canvas (Matplotlib FigureCanvasWxAgg)<br/>or _native_content (native wx content)<br/>or empty_graph_prompt"]
+        graph_scroller --> view_content["MatplotlibPanel<br/>FigureCanvasWxAgg and optional toolbar<br/>or native wx content or empty_graph_prompt"]
     end
 
     subgraph TIMELINE ["Bottom strip"]
         timeline_panel["self.timeline_panel<br/>wx.ScrolledWindow"]
         timeline_panel --> timeline_separator["wx.StaticLine<br/>visual boundary above timeline"]
-        timeline_panel --> time_row["self.timeline_start_label, self.timeline_current_prefix,<br/>self.timeline_time_entry, self.time_error_label,<br/>self.timeline_end_label<br/>(timestamps in selected zone; UTC default)"]
+        timeline_panel --> time_row["time_readout_row<br/>start label, current time prefix and entry,<br/>error label, and end label"]
         timeline_panel --> playback_controls_row["playback_sizer<br/>reverse speed presets, reverse play, forward play,<br/>forward speed presets, focus sink"]
         timeline_panel --> timeline_track_row["self.timeline_track_row<br/>wx.Panel, vertical TimeScrubber track"]
         timeline_track_row --> time_scrubber["self.time_scrubber<br/>TimeScrubberWidget (wx.Panel)"]
         time_scrubber --> timeline_left_chevron["self.timeline_left_chevron<br/>pan earlier"]
         time_scrubber --> time_scrubber_column["slider and tick rail column"]
-        time_scrubber_column --> timeline_slider["self.timeline_slider<br/>TimeScrubber (custom wx.Control)<br/>zoomable track and seek marker"]
-        time_scrubber_column --> timeline_tick_rail["self.timeline_tick_rail<br/>TimeScrubberTickRail<br/>adaptive major and minor ticks"]
+        time_scrubber_column --> timeline_slider["self.timeline_slider<br/>PlaybackTimeScrubber (custom wx.Control)<br/>zoomable track, coverage, playback/plot grips"]
+        time_scrubber_column --> timeline_tick_rail["self.timeline_tick_rail<br/>adaptive major and minor UTC ticks"]
         time_scrubber --> timeline_right_chevron["self.timeline_right_chevron<br/>pan later"]
         timeline_panel --> timeline_grips["Sibling pointer/keyboard grips<br/>playback bounds, plot endpoints,<br/>current-time marker"]
     end

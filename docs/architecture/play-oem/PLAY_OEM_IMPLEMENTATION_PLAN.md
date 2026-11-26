@@ -1,9 +1,9 @@
 # `play-oem` — Implementation Plan
 
 Requirements and current behavior: [PLAY_OEM_CONCEPTS.md](./PLAY_OEM_CONCEPTS.md).
-As-built architecture: [PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md) and
-[PLAY_OEM_DATAFLOW.md](./PLAY_OEM_DATAFLOW.md). The active loading interaction plan is
-[PLAY_OEM_LOADING_AWARE_TIMELINE_IMPLEMENTATION_REPORT.md](./old/PLAY_OEM_LOADING_AWARE_TIMELINE_IMPLEMENTATION_REPORT.md).
+As-built architecture: [PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md),
+[PLAY_OEM_DATAFLOW.md](./PLAY_OEM_DATAFLOW.md), and
+[PLAY_OEM_TIMESTAMP_ALIGNMENT.md](./PLAY_OEM_TIMESTAMP_ALIGNMENT.md).
 
 Ground Stations and station-access analysis are implemented. The current user workflows are in
 [PLAY_OEM_GROUND_STATIONS.md](../../tools/PLAY_OEM_GROUND_STATIONS.md); architecture and data
@@ -25,8 +25,8 @@ render-rate limit (default 30). Its timer advances the clock across all complete
 periods, redraws once, and drops intermediate frames when rendering overruns.
 
 The active loading architecture is documented in
-[PLAY_OEM_DATAFLOW.md](./PLAY_OEM_DATAFLOW.md) and the
-[loading-aware timeline report](./old/PLAY_OEM_LOADING_AWARE_TIMELINE_IMPLEMENTATION_REPORT.md).
+[PLAY_OEM_DATAFLOW.md](./PLAY_OEM_DATAFLOW.md) and
+[PLAY_OEM_TIMESTAMP_ALIGNMENT.md](./PLAY_OEM_TIMESTAMP_ALIGNMENT.md).
 
 ## How to use this plan
 
@@ -84,9 +84,9 @@ notes remain archived in [old/](./old/).
 
 Use OEM time metadata for the full timeline domain, distinguish committed from unread data,
 keep all handles aligned, defer plot updates during handle drags, and draw initial plots after the
-requested playback and plot ranges are loaded. See the
-[archived implementation report](./old/PLAY_OEM_LOADING_AWARE_TIMELINE_IMPLEMENTATION_REPORT.md) for
-the current behavior, interaction rules, checklist, and completion criteria.
+requested playback and plot ranges are loaded. The behavior and interaction rules are documented in
+[PLAY_OEM_DATAFLOW.md](./PLAY_OEM_DATAFLOW.md) and
+[PLAY_OEM_TIMESTAMP_ALIGNMENT.md](./PLAY_OEM_TIMESTAMP_ALIGNMENT.md).
 
 - **Status:** Complete.
 - **Progress:** 9/9 checklist items.
