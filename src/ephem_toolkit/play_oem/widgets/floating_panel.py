@@ -70,6 +70,7 @@ class FloatingPanel(wx.Panel):
         self._content_margin_dip = content_margin_dip
         self._collapsed_screen_rect = wx.Rect()
         self._focus_before_expand: wx.Window | None = None
+        self._scroll_ancestors: tuple[wx.ScrolledWindow, ...] = ()
 
         self._handle = wx.Panel(self, wx.ID_ANY, style=wx.BORDER_NONE)
         self._handle.SetName(f"{name} handle")
@@ -110,8 +111,13 @@ class FloatingPanel(wx.Panel):
 
         top_level = wx.GetTopLevelParent(parent)
         self._top_level = top_level
-        self._uses_popup_window = "gtk3" in wx.PlatformInfo
-        if self._uses_popup_window:
+        self._embedded_popup = interaction == PanelInteraction.CLICK
+        self._uses_popup_window = (
+            not self._embedded_popup and "gtk3" in wx.PlatformInfo
+        )
+        if self._embedded_popup:
+            self._popup = wx.Panel(parent, wx.ID_ANY, style=wx.BORDER_NONE)
+        elif self._uses_popup_window:
             # GTK popup windows avoid activating a second top-level frame.
             self._popup = wx.PopupWindow(top_level, wx.BORDER_NONE)
         else:
@@ -189,7 +195,10 @@ class FloatingPanel(wx.Panel):
             handle_label_control.Bind(wx.EVT_LEFT_UP, self._on_handle_click)
         parent.Bind(wx.EVT_SIZE, self._on_host_size)
         parent.Bind(wx.EVT_MOVE, self._on_host_move)
-        self._top_level.Bind(wx.EVT_MOVE, self._on_host_move)
+        if not self._embedded_popup:
+            self._top_level.Bind(wx.EVT_MOVE, self._on_host_move)
+            parent.Bind(wx.EVT_PAINT, self._on_host_paint)
+            self._scroll_ancestors = self._bind_scroll_ancestors()
 
         self._handle.Show()
         self._content.Hide()
@@ -290,12 +299,17 @@ class FloatingPanel(wx.Panel):
         if self._expanded:
             self.RefreshLayout()
             return
-        if not self._uses_popup_window:
+        if self._embedded_popup or not self._uses_popup_window:
             self._focus_before_expand = wx.Window.FindFocus()
         self._expanded = True
         self._handle.Hide()
         self._content.Show()
-        if self._uses_popup_window:
+        if self._embedded_popup:
+            self.RefreshLayout()
+            self._popup.Show()
+            self._popup.Raise()
+            self.RefreshLayout()
+        elif self._uses_popup_window:
             # Give GTK's scrolled window its final allocation before mapping
             # the popup; showing it at the default 1x1 size can make its
             # scrollbars receive a negative allocation.
@@ -307,7 +321,7 @@ class FloatingPanel(wx.Panel):
         else:
             self._popup.Show()
             self.RefreshLayout()
-        if not self._uses_popup_window:
+        if self._embedded_popup or not self._uses_popup_window:
             wx.CallAfter(self._focus_expanded_content)
 
     def Collapse(self) -> None:
@@ -317,10 +331,14 @@ class FloatingPanel(wx.Panel):
         self._popup.Hide()
         self._handle.Show()
         self.RefreshLayout()
-        if not self._uses_popup_window:
+        if self._embedded_popup or not self._uses_popup_window:
             previous_focus = self._focus_before_expand
             self._focus_before_expand = None
-            focus_target = previous_focus if previous_focus is not None else self._handle
+            focus_target = (
+                previous_focus
+                if previous_focus is not None
+                else self._handle
+            )
             wx.CallAfter(self._restore_focus, focus_target)
 
     def _restore_focus(self, focus_target: wx.Window) -> None:
@@ -387,7 +405,42 @@ class FloatingPanel(wx.Panel):
             required,
             margin,
         )
-        if self._expanded:
+        if self._expanded and self._embedded_popup:
+            self._handle.SetSize(0, 0, handle_size, handle_size)
+            host_origin = self.GetParent().ClientToScreen(wx.Point(0, 0))
+            collapsed_left = host_origin.x + handle_rect.x
+            collapsed_right = host_origin.x + handle_rect.x + handle_size
+            collapsed_top = host_origin.y + handle_rect.y
+            collapsed_bottom = collapsed_top + handle_size
+            popup_width = min(
+                size.width,
+                max(1, host_size.width),
+            )
+            popup_height = min(
+                size.height,
+                max(1, host_size.height),
+            )
+            popup_left = (
+                0
+                if self._corner.value.endswith("left")
+                else max(0, host_size.width - popup_width)
+            )
+            popup_top = (
+                0
+                if self._corner.value.startswith("top")
+                else max(0, host_size.height - popup_height)
+            )
+            self._popup.SetSize(
+                wx.Rect(popup_left, popup_top, popup_width, popup_height)
+            )
+            self._popup.Layout()
+            self._collapsed_screen_rect = wx.Rect(
+                collapsed_left,
+                collapsed_top,
+                handle_size,
+                handle_size,
+            )
+        elif self._expanded:
             self._handle.SetSize(0, 0, handle_size, handle_size)
             host_origin = self.GetParent().ClientToScreen(wx.Point(0, 0))
             collapsed_left = host_origin.x + handle_rect.x
@@ -479,7 +532,11 @@ class FloatingPanel(wx.Panel):
         self.CancelCollapse()
         self._host.Unbind(wx.EVT_SIZE, handler=self._on_host_size)
         self._host.Unbind(wx.EVT_MOVE, handler=self._on_host_move)
-        self._top_level.Unbind(wx.EVT_MOVE, handler=self._on_host_move)
+        if not self._embedded_popup:
+            self._host.Unbind(wx.EVT_PAINT, handler=self._on_host_paint)
+            self._top_level.Unbind(wx.EVT_MOVE, handler=self._on_host_move)
+        for ancestor in self._scroll_ancestors:
+            ancestor.Unbind(wx.EVT_SCROLLWIN, handler=self._on_host_scroll)
         if self._interaction == PanelInteraction.HOVER:
             self._handle.Unbind(wx.EVT_ENTER_WINDOW)
             self._handle.Unbind(wx.EVT_LEAVE_WINDOW)
@@ -508,7 +565,7 @@ class FloatingPanel(wx.Panel):
         event.Skip()
 
     def _on_leave(self, event: wx.MouseEvent) -> None:
-        if self._expanded:
+        if self._interaction == PanelInteraction.HOVER and self._expanded:
             self.ScheduleCollapse()
         event.Skip()
 
@@ -520,12 +577,35 @@ class FloatingPanel(wx.Panel):
         event.Skip()
         wx.CallAfter(self.RefreshLayout)
 
+    def _on_host_paint(self, event: wx.PaintEvent) -> None:
+        event.Skip()
+        if self._expanded:
+            wx.CallAfter(self.RefreshLayout)
+
+    def _bind_scroll_ancestors(self) -> tuple[wx.ScrolledWindow, ...]:
+        ancestors: list[wx.ScrolledWindow] = []
+        window: wx.Window | None = self._host
+        while window is not None:
+            if isinstance(window, wx.ScrolledWindow):
+                window.Bind(wx.EVT_SCROLLWIN, self._on_host_scroll)
+                ancestors.append(window)
+            try:
+                window = window.GetParent()
+            except RuntimeError:
+                break
+        return tuple(ancestors)
+
+    def _on_host_scroll(self, event: wx.ScrollWinEvent) -> None:
+        event.Skip()
+        if self._expanded:
+            wx.CallAfter(self.RefreshLayout)
+
     def _collapse_if_not_hovered(self) -> None:
         self._collapse_timer = None
         if not self._expanded:
             return
         pointer = wx.GetMousePosition()
-        if self._content.GetScreenRect().Contains(pointer):
+        if self._popup.GetScreenRect().Contains(pointer):
             return
         self.Collapse()
 

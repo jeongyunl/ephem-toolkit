@@ -108,6 +108,7 @@ def test_floating_panel_collapses_expands_and_stays_in_bounds(
     frame_origin = frame.GetPosition()
     frame.Move(wx.Point(frame_origin.x + 40, frame_origin.y + 30))
     wx_app.Yield()
+    wx_app.Yield()
     moved_host_rect = host.GetScreenRect()
     moved_expanded_rect = panel.GetExpandedScreenRect()
     assert moved_expanded_rect.right == moved_host_rect.right
@@ -182,6 +183,87 @@ def test_floating_panel_can_anchor_to_each_parent_corner(
     frame.Destroy()
     wx_app.Yield()
 
+
+@pytest.mark.skipif(
+    not os.environ.get("DISPLAY"), reason="requires an X display (use xvfb-run)"
+)
+def test_floating_panel_follows_host_when_scrolled_parent_moves(
+    wx_app: Any,
+) -> None:
+    import wx
+
+    from ephem_toolkit.play_oem.widgets import (
+        FloatingPanel,
+        PanelCorner,
+        PanelInteraction,
+    )
+
+    frame = wx.Frame(None, size=(500, 300))
+    stack_scroller = wx.ScrolledWindow(frame, wx.ID_ANY, style=wx.VSCROLL)
+    stack_scroller.SetScrollRate(0, 10)
+    frame.SetSizer(wx.BoxSizer(wx.VERTICAL))
+    frame.GetSizer().Add(stack_scroller, 1, wx.EXPAND)
+    graph_host = wx.Panel(stack_scroller)
+    graph_host.SetMinSize(wx.Size(280, 400))
+    stack_scroller.SetSizer(wx.BoxSizer(wx.VERTICAL))
+    stack_scroller.GetSizer().Add(graph_host, 0, wx.EXPAND)
+    stack_scroller.FitInside()
+
+    view_scroller = wx.ScrolledWindow(graph_host, wx.ID_ANY, style=wx.VSCROLL)
+    view_scroller.SetScrollRate(0, 10)
+    graph_host.SetSizer(wx.BoxSizer(wx.VERTICAL))
+    graph_host.GetSizer().Add(view_scroller, 1, wx.EXPAND)
+    host = wx.Panel(view_scroller)
+    host.SetMinSize(wx.Size(280, 400))
+    view_scroller.SetSizer(wx.BoxSizer(wx.VERTICAL))
+    view_scroller.GetSizer().Add(host, 1, wx.EXPAND)
+    view_scroller.FitInside()
+
+    panel = FloatingPanel(
+        host,
+        name="Ground Track coordinates",
+        corner=PanelCorner.TOP_LEFT,
+        interaction=PanelInteraction.CLICK,
+        initially_expanded=True,
+    )
+    content = wx.BoxSizer(wx.VERTICAL)
+    content.Add(wx.StaticText(panel.GetContentWindow(), label="Readout"))
+    panel.SetContentSizer(content)
+    frame.Show()
+    wx_app.Yield()
+
+    assert panel.IsExpanded()
+    assert panel._popup.GetParent() is host
+    assert isinstance(panel._popup, wx.Panel)
+    assert not isinstance(panel._popup, wx.Frame)
+    wx_app.Yield()
+    initial_host_rect = host.GetScreenRect()
+
+    stack_scroller.Scroll(0, 1)
+    for _ in range(20):
+        wx.MilliSleep(10)
+        wx_app.Yield()
+    scrolled_host_rect = host.GetScreenRect()
+    scrolled_popup_rect = panel.GetExpandedScreenRect()
+
+    assert scrolled_host_rect.top < initial_host_rect.top
+    assert scrolled_popup_rect.left == scrolled_host_rect.left
+    assert scrolled_popup_rect.top == scrolled_host_rect.top
+    assert panel.IsExpanded()
+
+    view_scroller.Scroll(0, 1)
+    for _ in range(20):
+        wx.MilliSleep(10)
+        wx_app.Yield()
+    inner_scrolled_host_rect = host.GetScreenRect()
+    inner_scrolled_popup_rect = panel.GetExpandedScreenRect()
+
+    assert inner_scrolled_popup_rect.left == inner_scrolled_host_rect.left
+    assert inner_scrolled_popup_rect.top == inner_scrolled_host_rect.top
+
+    panel.Close()
+    frame.Destroy()
+    wx_app.Yield()
 
 @pytest.mark.skipif(
     not os.environ.get("DISPLAY"), reason="requires an X display (use xvfb-run)"
