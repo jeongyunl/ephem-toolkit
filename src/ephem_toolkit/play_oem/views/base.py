@@ -1034,3 +1034,6 @@ class StoreTimeSeriesView(StoreSeriesPlotView):
     def _close_store_time_series(self) -> None:
         """Release shared store/range/figure resources."""
         self._close_store_series_plot()
+
+
+from .time_series_support import TimeSeriesWxPanelMixin  # noqa: E402
