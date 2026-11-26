@@ -102,6 +102,14 @@ def test_floating_panel_collapses_expands_and_stays_in_bounds(
     bounds = panel.GetExpandedBounds()
     assert bounds.width <= wx.Display().GetClientArea().width
 
+    frame_origin = frame.GetPosition()
+    frame.Move(wx.Point(frame_origin.x + 40, frame_origin.y + 30))
+    wx_app.Yield()
+    moved_host_rect = host.GetScreenRect()
+    moved_expanded_rect = panel.GetExpandedScreenRect()
+    assert moved_expanded_rect.right == moved_host_rect.right
+    assert moved_expanded_rect.top == moved_host_rect.top
+
     panel.ScheduleCollapse(delay_ms=1)
     wx_app.Yield()
     wx_app.GetTopWindow()

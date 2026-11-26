@@ -188,6 +188,8 @@ class FloatingPanel(wx.Panel):
             handle_inner.Bind(wx.EVT_LEFT_UP, self._on_handle_click)
             handle_label_control.Bind(wx.EVT_LEFT_UP, self._on_handle_click)
         parent.Bind(wx.EVT_SIZE, self._on_host_size)
+        parent.Bind(wx.EVT_MOVE, self._on_host_move)
+        self._top_level.Bind(wx.EVT_MOVE, self._on_host_move)
 
         self._handle.Show()
         self._content.Hide()
@@ -476,6 +478,8 @@ class FloatingPanel(wx.Panel):
     def Close(self, force: bool = False) -> bool:
         self.CancelCollapse()
         self._host.Unbind(wx.EVT_SIZE, handler=self._on_host_size)
+        self._host.Unbind(wx.EVT_MOVE, handler=self._on_host_move)
+        self._top_level.Unbind(wx.EVT_MOVE, handler=self._on_host_move)
         if self._interaction == PanelInteraction.HOVER:
             self._handle.Unbind(wx.EVT_ENTER_WINDOW)
             self._handle.Unbind(wx.EVT_LEAVE_WINDOW)
@@ -509,6 +513,10 @@ class FloatingPanel(wx.Panel):
         event.Skip()
 
     def _on_host_size(self, event: wx.SizeEvent) -> None:
+        event.Skip()
+        wx.CallAfter(self.RefreshLayout)
+
+    def _on_host_move(self, event: wx.MoveEvent) -> None:
         event.Skip()
         wx.CallAfter(self.RefreshLayout)
 
