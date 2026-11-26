@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+from typing import TypeVar
 
 from .. import time_range
 from ..views import (
@@ -14,13 +15,7 @@ from ..views import (
     state_components,
     trajectory3d,
 )
-from ..views import (
-    ground_station_analysis as ground_station_analysis_view,
-)
 from ..views import ground_station as ground_station_view
-from ..views import (
-    ground_station_pass_track as ground_station_pass_track_view,
-)
 from ..views import (
     ground_station_passes as ground_station_passes_view,
 )
@@ -30,6 +25,14 @@ from ..views import (
 from ..views.trajectory3d import selection as trajectory3d_selection
 from .player_app_state import PlayerAppState
 
+_PassView = TypeVar(
+    "_PassView",
+    bound=(
+        ground_station_passes_view.GroundStationPassListView
+        | ground_station_passes_view.GroundStationSkyView
+    ),
+)
+
 
 class PlayerViewFactoryMixin:
     """Create registered views using the current playback and OEM context."""
@@ -37,65 +40,16 @@ class PlayerViewFactoryMixin:
     _selected_3d_backend: str | None
 
     def _open_station_analysis_panel(
-        self,
+        self: PlayerAppState,
         name: str,
         panel_type: str,
         panel_id: str | None,
         stack: str,
         force_replace: bool,
     ) -> None:
-        if panel_type in {
-            "station-status",
-            "elevation-profile",
-            "azimuth-profile",
-            "range-profile",
-        }:
-            self._open_view(
-                name,
-                lambda panel: ground_station_view.GroundStationView(
-                    panel,
-                    panel_type,
-                    self.cursor,
-                    self._ground_stations,
-                    self.time_unit,
-                    self.object_name,
-                    oem_loaded=self._oem_loaded,
-                    on_station_manager=self.workspace.select_ground_stations,
-                    selection_context=self._station_analysis_contexts[stack],
-                    initial_range=self._resolved_plot_range(),
-                    display_time_zone=self._display_time_zone,
-                ),
-                panel_id=panel_id,
-                stack=stack,
-                force_replace=force_replace,
-            )
-            return
-        if panel_type == "ground-station-access":
-            self._open_view(
-                name,
-                lambda panel: ground_station_view.GroundStationView(
-                    panel,
-                    "ground-station-access",
-                    self.cursor,
-                    self._ground_stations,
-                    self.time_unit,
-                    self.object_name,
-                    oem_loaded=self._oem_loaded,
-                    on_seek=self._seek_from_ground_station_timeline,
-                    on_station_manager=self.workspace.select_ground_stations,
-                    selection_context=self._station_analysis_contexts[stack],
-                    limit_to_range=True,
-                    initial_range=self._resolved_plot_range(),
-                    display_time_zone=self._display_time_zone,
-                ),
-                panel_id=panel_id,
-                stack=stack,
-                force_replace=force_replace,
-            )
-            return
         self._open_view(
             name,
-            lambda panel: ground_station_analysis_view.GroundStationAnalysisView(
+            lambda panel: ground_station_view.GroundStationView(
                 panel,
                 panel_type,
                 self.cursor,
@@ -113,18 +67,8 @@ class PlayerViewFactoryMixin:
             force_replace=force_replace,
         )
 
-    def open_station_status_view(
-        self,
-        panel_id: str | None = None,
-        stack: str = "middle",
-        force_replace: bool = False,
-    ) -> None:
-        self._open_station_analysis_panel(
-            "station-status", "station-status", panel_id, stack, force_replace
-        )
-
     def open_elevation_profile_view(
-        self,
+        self: PlayerAppState,
         panel_id: str | None = None,
         stack: str = "middle",
         force_replace: bool = False,
@@ -134,7 +78,7 @@ class PlayerViewFactoryMixin:
         )
 
     def open_azimuth_profile_view(
-        self,
+        self: PlayerAppState,
         panel_id: str | None = None,
         stack: str = "middle",
         force_replace: bool = False,
@@ -144,7 +88,7 @@ class PlayerViewFactoryMixin:
         )
 
     def open_range_profile_view(
-        self,
+        self: PlayerAppState,
         panel_id: str | None = None,
         stack: str = "middle",
         force_replace: bool = False,
@@ -153,21 +97,9 @@ class PlayerViewFactoryMixin:
             "range-profile", "range-profile", panel_id, stack, force_replace
         )
 
-    def open_ground_station_access_view(
-        self,
-        panel_id: str | None = None,
-        stack: str = "middle",
-        force_replace: bool = False,
-    ) -> None:
-        self._open_station_analysis_panel(
-            "ground-station-access",
-            "ground-station-access",
-            panel_id,
-            stack,
-            force_replace,
-        )
-
-    def _resolved_plot_range(self) -> time_range.ResolvedTimeRange | None:
+    def _resolved_plot_range(
+        self: PlayerAppState,
+    ) -> time_range.ResolvedTimeRange | None:
         return time_range.resolve_plot_range(
             self.plot_time_range,
             (self.clock.t_start, self.clock.t_end),
@@ -224,7 +156,7 @@ class PlayerViewFactoryMixin:
     def _open_focused_pass_view(
         self: PlayerAppState,
         name: str,
-        view_class: type[ground_station_passes_view.GroundStationPassesView],
+        view_class: type[_PassView],
         panel_id: str | None,
         stack: str,
         force_replace: bool,
@@ -280,27 +212,6 @@ class PlayerViewFactoryMixin:
             panel_id,
             stack,
             force_replace,
-        )
-
-    def open_pass_ground_track_view(
-        self: PlayerAppState,
-        panel_id: str | None = None,
-        stack: str = "middle",
-        force_replace: bool = False,
-    ) -> None:
-        self._open_view(
-            "pass-ground-track",
-            lambda panel: ground_station_pass_track_view.GroundStationPassTrackView(
-                panel,
-                self.cursor,
-                self._ground_stations,
-                oem_loaded=self._oem_loaded,
-                selection_context=self._station_analysis_contexts[stack],
-                display_time_zone=self._display_time_zone,
-            ),
-            panel_id=panel_id,
-            stack=stack,
-            force_replace=force_replace,
         )
 
     def open_speed_altitude_view(

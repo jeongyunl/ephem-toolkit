@@ -411,7 +411,7 @@ class FakeCanvas:
 
 
 class FakeToolbar:
-    def __init__(self, canvas: FakeCanvas) -> None:
+    def __init__(self, canvas: Any) -> None:
         self.canvas = canvas
         self.mode = ""
         self.realized = False
@@ -490,6 +490,7 @@ class FakeGraphPanelHost:
 
 class FakeView:
     name = "fake"
+    preserve_canvas_aspect_ratio: bool = False
 
     def __init__(self) -> None:
         self.updated_times: list[float] = []
@@ -905,10 +906,14 @@ def test_canonical_saved_panel_names_open_focused_station_panels(
     )
 
     player.open_panel_view("elevation-profile", panel_id="elevation")
-    player.open_panel_view("ground-station-access", panel_id="access")
+    player.open_panel_view("removed-view", panel_id="removed")
     player.open_panel_view("pass-list", panel_id="passes")
 
-    assert opened == ["elevation-profile", "ground-station-access", "pass-list"]
+    assert opened == [
+        "elevation-profile",
+        app_support.EMPTY_GRAPH_VIEW,
+        "pass-list",
+    ]
 
 
 def test_comparison_station_selection_follows_only_when_enabled(
@@ -2534,20 +2539,18 @@ def test_controller_bounds_incremental_load_events_per_tick() -> None:
         ("series", "rtn", {"rtn"}),
         ("series", "direction-rates", {"angular-velocity", "direction-change"}),
         ("series", "distance-delta", {"distance"}),
-        ("earth-fixed", None, {"ground-track", "pass-ground-track"}),
-        ("ground-track", None, {"ground-track", "pass-ground-track"}),
-        ("footprints", None, {"ground-track", "pass-ground-track"}),
+        ("earth-fixed", None, {"ground-track"}),
+        ("ground-track", None, {"ground-track"}),
+        ("footprints", None, {"ground-track"}),
         (
             "station-access",
             None,
             {
-                "station-status",
                 "elevation-profile",
                 "azimuth-profile",
                 "range-profile",
                 "pass-list",
                 "sky-view",
-                "pass-ground-track",
             },
         ),
     ],
@@ -3487,13 +3490,11 @@ def test_new_graph_panel_starts_empty_and_can_switch_between_empty_and_a_view(
         ("direction-change", "Direction Change"),
         ("distance", "Geocentric Distance"),
         ("ground-track", "Ground Track"),
-        ("station-status", "Station Status"),
         ("elevation-profile", "Elevation Profile"),
         ("azimuth-profile", "Azimuth Profile"),
         ("range-profile", "Range Profile"),
         ("pass-list", "Pass List"),
         ("sky-view", "Sky View"),
-        ("pass-ground-track", "Pass Ground Track"),
     )
     assert empty_panel.panel.native_content.label == "Select a graph view above"
 

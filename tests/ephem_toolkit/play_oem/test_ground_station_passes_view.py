@@ -26,9 +26,6 @@ from ephem_toolkit.play_oem.station_analysis import StationAnalysisContext
 from ephem_toolkit.play_oem.time_range import ResolvedTimeRange
 from ephem_toolkit.play_oem.time_unit import TimeUnit
 from ephem_toolkit.play_oem.views.base import StoreViewContext
-from ephem_toolkit.play_oem.views.ground_station_access import (
-    GroundStationAccessView,
-)
 from ephem_toolkit.play_oem.views.ground_station_passes import (
     GroundStationPassListView,
     GroundStationPassesView,
@@ -78,7 +75,7 @@ def _interval(
 
 
 def _set_complete_store_status(view: GroundStationPassesView) -> None:
-    view._store_context = cast(
+    view._station_store_context = cast(
         Any,
         SimpleNamespace(snapshot=SimpleNamespace(status="complete", failure=None)),
     )
@@ -147,7 +144,7 @@ def test_store_sky_path_bounds_profile_samples() -> None:
     times = np.arange(5001.0)
     profile = LookAngleProfile(times, times % 360.0, times % 90.0)
     view, _cache = _make_view((_interval(0.0, 5000.0),), profiles=(profile,))
-    view._store_context = cast(Any, object())
+    view._station_store_context = cast(Any, object())
     interval = view._access_results[0].intervals[0]
 
     sampled_times, _azimuths, _elevations = view._profile_points(profile, interval)
@@ -288,7 +285,9 @@ def test_pass_endpoint_lookup_preserves_time_tolerance() -> None:
     result = view._access_results[0]
 
     assert view._look_angle_at(result, interval, 0.5e-9) == (350.0, 10.0)
-    assert view._look_angle_at(result, interval, 1.5e-9)[1] < 10.0
+    interpolated = view._look_angle_at(result, interval, 1.5e-9)
+    assert interpolated is not None
+    assert interpolated[1] < 10.0
 
 
 def test_pass_endpoint_lookup_does_not_apply_mask_without_a_station(
@@ -600,8 +599,9 @@ def test_sky_plot_uses_clockwise_azimuth_and_cached_pass_profile() -> None:
     legend_bounds = legend.get_window_extent(canvas.get_renderer())
     axes_bounds = view._axes.get_window_extent(canvas.get_renderer())
     assert legend_bounds.y1 < axes_bounds.y0
-    assert axes_bounds.width >= figure.bbox.width * 0.4
-    assert axes_bounds.height >= figure.bbox.height * 0.55
+    figure_bbox = cast(Any, figure).bbox
+    assert axes_bounds.width >= figure_bbox.width * 0.4
+    assert axes_bounds.height >= figure_bbox.height * 0.55
     path = next(line for line in view._axes.lines if line.get_label() == "Selected pass")
     assert np.all(np.diff(path.get_xdata()) > 0.0)
     np.testing.assert_allclose(path.get_ydata(), [80.0, 70.0, 60.0, 70.0, 80.0])
@@ -665,10 +665,11 @@ def test_sky_plot_without_legend_uses_compact_bottom_margin(monkeypatch) -> None
     view._draw_sky_plot()
 
     assert view._axes.get_legend() is None
-    assert figure.subplotpars.left == 0.08
-    assert figure.subplotpars.right == 0.92
-    assert figure.subplotpars.bottom == 0.08
-    assert figure.subplotpars.top == 0.92
+    subplotpars = cast(Any, figure).subplotpars
+    assert subplotpars.left == 0.08
+    assert subplotpars.right == 0.92
+    assert subplotpars.bottom == 0.08
+    assert subplotpars.top == 0.92
 
 
 def test_sky_plot_draws_at_minimum_size_without_layout_warning() -> None:
@@ -709,10 +710,11 @@ def test_sky_plot_draws_at_minimum_size_without_layout_warning() -> None:
         and "Tight layout not applied" in str(warning.message)
         for warning in warnings_record
     )
-    assert figure.subplotpars.left == 0.08
-    assert figure.subplotpars.right == 0.92
-    assert figure.subplotpars.bottom == 0.28
-    assert figure.subplotpars.top == 0.92
+    subplotpars = cast(Any, figure).subplotpars
+    assert subplotpars.left == 0.08
+    assert subplotpars.right == 0.92
+    assert subplotpars.bottom == 0.28
+    assert subplotpars.top == 0.92
     assert np.any(np.asarray(canvas.buffer_rgba())[:, :, :3] != 255)
     assert view._axes.lines
     view.close()

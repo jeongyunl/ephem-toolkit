@@ -60,6 +60,7 @@ class _EmptyGraphView:
     """View placeholder shown before a graph type is selected."""
 
     name = EMPTY_GRAPH_VIEW
+    seek_on_click = False
 
     def __init__(self, parent: wx.Window) -> None:
         self._parent = parent
@@ -87,6 +88,9 @@ class _EmptyGraphView:
 
 class _PendingDataGraphView:
     """Draw a selected graph panel while its OEM data is not available yet."""
+
+    name = "pending"
+    seek_on_click = False
 
     def __init__(self, parent: wx.Window, label: str) -> None:
         self._parent = parent

@@ -116,16 +116,14 @@ class PlayerStoreViewRefreshMixin:
                 return set()
             return set(group_views.get(notice.group, ()))
         if notice.tier in ("earth-fixed", "ground-track", "footprints"):
-            return {"ground-track", "pass-ground-track"}
+            return {"ground-track"}
         if notice.tier == "station-access":
             return {
-                "station-status",
                 "elevation-profile",
                 "azimuth-profile",
                 "range-profile",
                 "pass-list",
                 "sky-view",
-                "pass-ground-track",
             }
         return set()
 

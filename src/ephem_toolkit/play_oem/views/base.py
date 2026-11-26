@@ -122,8 +122,6 @@ class View(Protocol):
     """Lifecycle shared by all playback views."""
 
     name: str
-    seek_on_click: bool
-
     def build(self, series: OrbitSeries, time_unit: TimeUnit, /) -> Figure | wx.Window:
         """Build the view content and its initial cursor state."""
         ...
@@ -390,12 +388,12 @@ class StoreStationViewSupport:
         self,
         tiers: Sequence[TierName],
     ) -> None:
-        self._store_context: StoreViewContext | None = None
+        self._station_store_context: StoreViewContext | None = None
         self._store_binding = StoreViewBinding(tiers)
 
     def _prepare_station_store_context(self, context: StoreViewContext) -> None:
         self._store_binding.bind(context)
-        self._store_context = context
+        self._station_store_context = context
 
     def _begin_station_store_update(
         self,
@@ -403,17 +401,7 @@ class StoreStationViewSupport:
         view_name: str,
     ) -> None:
         """Require an existing station view binding, then refresh it."""
-        if self._store_context is None:
-            raise RuntimeError(f"{view_name} view was not built from a store")
-        self._prepare_station_store_context(context)
-
-    def _begin_station_store_update(
-        self,
-        context: StoreViewContext,
-        view_name: str,
-    ) -> None:
-        """Require an existing station view binding, then refresh it."""
-        if self._store_context is None:
+        if self._station_store_context is None:
             raise RuntimeError(f"{view_name} view was not built from a store")
         self._prepare_station_store_context(context)
 
@@ -426,11 +414,11 @@ class StoreStationViewSupport:
 
     def _close_station_store(self) -> None:
         self._store_binding.close()
-        self._store_context = None
+        self._station_store_context = None
 
     def _station_time_sampling(self) -> TimeSamplingPolicy:
         """Return store sampling policy or the normal policy for result-only views."""
-        context = getattr(self, "_store_context", None)
+        context = getattr(self, "_station_store_context", None)
         if isinstance(context, StoreViewContext):
             return context.time_sampling
         return TimeSamplingPolicy()
@@ -451,12 +439,6 @@ class GroundStationAnalysisMixin(StoreStationViewSupport):
         self._selection_context = selection_context
         self._oem_loaded = oem_loaded
         self._mask_filter_enabled = True
-        self._ground_station_access_results: dict[
-            str, StationAccess
-        ] = {}
-        self._ground_station_store_queries: dict[
-            str, StoreQuery[StationAccessView]
-        ] = {}
 
         context_station_id = (
             selection_context.selection.station_id
@@ -498,19 +480,6 @@ class GroundStationAnalysisMixin(StoreStationViewSupport):
             ),
             None,
         )
-
-    def _prepare_ground_station_access(self) -> None:
-        """Refresh range-limited station-access results from the bound store."""
-        self._ground_station_access_results.clear()
-        self._ground_station_store_queries.clear()
-        if not self._oem_loaded or self._store_context is None:
-            return
-        for station in self._stations:
-            query = self._store_context.station_access(station)
-            self._ground_station_store_queries[station.station_id] = query
-            self._ground_station_access_results[station.station_id] = (
-                station_access_from_store(query.value)
-            )
 
     def _set_ground_station_stations(
         self,
@@ -558,8 +527,6 @@ class GroundStationAnalysisMixin(StoreStationViewSupport):
         self._context_unsubscribe()
         self._context_unsubscribe = lambda: None
         self._close_station_store()
-        self._ground_station_access_results.clear()
-        self._ground_station_store_queries.clear()
 
 
 def station_access_from_store(value: StationAccessView) -> StationAccess:

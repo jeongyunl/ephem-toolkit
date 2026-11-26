@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Protocol
 import wx
 from matplotlib.backend_bases import MouseEvent
 from matplotlib.backends.backend_wxagg import NavigationToolbar2WxAgg
+from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg
 
 from .. import (
     clock,
@@ -24,13 +25,14 @@ from .. import (
     time_snapping,
 )
 from ..ground_stations import GroundStation
+from ..graph_panel import GraphPanelHost
 from ..incremental_loader import IncrementalLoader, LoadEvent
 from ..oem_data_store import OemDataStore, StoreNotice, StoreSnapshot, TierNotice
 from ..saved_state import SavedAppState
 from ..station_analysis import StationAnalysisContext
-from ..views import base, registry
+from ..views import base, ground_station_passes, registry
 from ..views.base import StoreViewContext
-from .player_app_support import _OpenView
+from .player_app_support import PanelBuildResources, _OpenView
 
 if TYPE_CHECKING:
     from .status_bar import PlaybackStatusBar
@@ -271,6 +273,17 @@ class PlayerAppState(
 ):
     """Application data and operations required by the extracted mixins."""
 
+    def _open_station_analysis_panel(
+        self,
+        name: str,
+        panel_type: str,
+        panel_id: str | None,
+        stack: str,
+        force_replace: bool,
+    ) -> None: ...
+
+    def _should_suppress_partial_store_view_refresh(self) -> bool: ...
+
     clock: clock.PlaybackClock
     control_window: control_window.ControlWindow
     cursor: cursor.StoreCursor
@@ -305,6 +318,7 @@ class PlayerAppState(
     plot_time_range: time_range.PlotTimeRange
     _panel_view_choices: tuple[tuple[str, str], ...]
     _plots: tuple[str, ...]
+    _unknown_plots: tuple[str, ...]
     _requested_3d_backend: str
     _selected_3d_backend: str | None
     _started: bool
@@ -334,12 +348,6 @@ class PlayerAppState(
         name: str,
         create_view: Callable[[wx.Window], base.View],
         *,
-        panel_id: str | None = None,
-        stack: str = "middle",
-        force_replace: bool = False,
-    ) -> None: ...
-    def open_station_status_view(
-        self,
         panel_id: str | None = None,
         stack: str = "middle",
         force_replace: bool = False,
@@ -375,11 +383,17 @@ class PlayerAppState(
         stack: str = "middle",
         force_replace: bool = False,
     ) -> None: ...
-    def open_pass_ground_track_view(
+    def _open_focused_pass_view(
         self,
-        panel_id: str | None = None,
-        stack: str = "middle",
-        force_replace: bool = False,
+        name: str,
+        view_class: type[
+            ground_station_passes.GroundStationPassListView
+            | ground_station_passes.GroundStationSkyView
+        ],
+        panel_id: str | None,
+        stack: str,
+        force_replace: bool,
+        initial_station_id: str | None = None,
     ) -> None: ...
     def _open_matplotlib_trajectory_view(
         self,
@@ -400,6 +414,66 @@ class PlayerAppState(
     def _formatted_dashboard_context(self) -> dict[str, str]: ...
     def _formatted_metadata_details(self) -> tuple[tuple[str, str], ...]: ...
     def _add_graph_panel(self, stack: str) -> None: ...
+    def _open_pending_data_view(
+        self,
+        name: str,
+        *,
+        panel_id: str | None = None,
+        stack: str = "middle",
+        force_replace: bool = False,
+    ) -> None: ...
+    def _resolve_panel_target(
+        self, name: str, panel_id: str | None, force_replace: bool
+    ) -> tuple[str, str | None, _OpenView | None, bool, bool]: ...
+    def _create_graph_panel(
+        self,
+        name: str,
+        panel_id: str,
+        stack: str,
+        stack_parent: wx.Window,
+        panel_ref: list[GraphPanelHost | None],
+    ) -> GraphPanelHost: ...
+    def _panel_is_visible(self, panel: GraphPanelHost | None) -> bool: ...
+    def _insert_graph_panel(
+        self, panel: GraphPanelHost, stack: str, replacing: _OpenView | None
+    ) -> None: ...
+    def _build_view_content(self, view: base.View) -> tuple[object, bool]: ...
+    def _attach_view_content(
+        self,
+        name: str,
+        panel: GraphPanelHost,
+        content: object,
+        *,
+        view: base.View | None = None,
+        preserve_aspect_ratio: bool = False,
+    ) -> tuple[FigureCanvasWxAgg | None, NavigationToolbar2WxAgg | None, int | None]: ...
+    def _size_opened_panel(
+        self, name: str, panel: GraphPanelHost, replacing: _OpenView | None
+    ) -> None: ...
+    def _register_opened_view(
+        self,
+        *,
+        panel_id: str,
+        name: str,
+        stack: str,
+        panel: GraphPanelHost,
+        resources: PanelBuildResources,
+        requires_store_rebuild: bool,
+    ) -> _OpenView: ...
+    def _rollback_open_view(
+        self,
+        *,
+        name: str,
+        panel_id: str,
+        stack: str,
+        replacing: _OpenView | None,
+        panel: GraphPanelHost | None,
+        panel_inserted: bool,
+        view: base.View | None,
+        canvas: FigureCanvasWxAgg | None,
+        click_callback_id: int | None,
+        unsubscribe: Callable[[], None] | None,
+    ) -> None: ...
     def _open_station_preset(self, name: str) -> None: ...
     def _set_follow_station_selection(self, enabled: bool) -> None: ...
     def _set_range_dragging(self, dragging: bool) -> None: ...

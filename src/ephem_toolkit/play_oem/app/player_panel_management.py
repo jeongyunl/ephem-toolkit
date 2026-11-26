@@ -87,10 +87,7 @@ class PanelManagementMixin:
             stack_parent,
             self._panel_view_label(name),
             lambda: self.close_panel(panel_id),
-            is_visible=lambda: (
-                panel_ref[0] is not None
-                and self.workspace.is_graph_panel_visible(panel_ref[0])
-            ),
+            is_visible=lambda: self._panel_is_visible(panel_ref[0]),
             on_redraw_request=self.workspace.queue_graph_redraw,
             on_show=lambda: self._sync_open_panel(panel_id),
             panel_id=panel_id,
@@ -103,6 +100,11 @@ class PanelManagementMixin:
             on_move_down=lambda: self._move_panel(panel_id, 1),
             on_duplicate=lambda: self._duplicate_panel(panel_id),
         )
+
+    def _panel_is_visible(
+        self: PlayerAppState, panel: GraphPanelHost | None
+    ) -> bool:
+        return panel is not None and self.workspace.is_graph_panel_visible(panel)
 
     def _build_view_content(
         self: PlayerAppState,
@@ -203,6 +205,8 @@ class PanelManagementMixin:
         resources: PanelBuildResources,
         requires_store_rebuild: bool,
     ) -> _OpenView:
+        if resources.view is None or resources.unsubscribe is None:
+            raise RuntimeError("panel resources are incomplete")
         opened_state = _OpenView(
             panel_id,
             name,
@@ -269,7 +273,15 @@ class PanelManagementMixin:
             )
             return
         if name not in self._view_registry.registered_views:
-            raise ValueError(f"unknown view name: {name!r}")
+            print(f"Error: unknown view name {name!r}")
+            self._open_view(
+                EMPTY_GRAPH_VIEW,
+                _EmptyGraphView,
+                panel_id=panel_id,
+                stack=stack,
+                force_replace=force_replace,
+            )
+            return
         if not self._oem_loaded:
             self._open_pending_data_view(
                 name,
@@ -287,14 +299,11 @@ class PanelManagementMixin:
             "direction-change": self.open_direction_change_view,
             "distance": self.open_distance_view,
             "ground-track": self.open_ground_track_view,
-            "station-status": self.open_station_status_view,
             "elevation-profile": self.open_elevation_profile_view,
             "azimuth-profile": self.open_azimuth_profile_view,
             "range-profile": self.open_range_profile_view,
-            "ground-station-access": self.open_ground_station_access_view,
             "pass-list": self.open_pass_list_view,
             "sky-view": self.open_sky_view,
-            "pass-ground-track": self.open_pass_ground_track_view,
         }
         openers[name](panel_id=panel_id, stack=stack, force_replace=force_replace)
 
@@ -412,24 +421,25 @@ class PanelManagementMixin:
         resources = PanelBuildResources()
         try:
             panel_ref: list[GraphPanelHost | None] = [None]
-            resources.panel = self._create_graph_panel(
+            panel = self._create_graph_panel(
                 name, panel_id, stack, stack_parent, panel_ref
             )
-            panel = resources.panel
+            resources.panel = panel
             panel_ref[0] = panel
             self._insert_graph_panel(panel, stack, replacing)
             resources.panel_inserted = True
-            resources.view = create_view(panel.graph_scroller)
-            content, requires_store_rebuild = self._build_view_content(resources.view)
+            view = create_view(panel.graph_scroller)
+            resources.view = view
+            content, requires_store_rebuild = self._build_view_content(view)
             resources.canvas, resources.toolbar, resources.click_callback_id = (
                 self._attach_view_content(
                     name,
                     panel,
                     content,
-                    view=resources.view,
+                    view=view,
                     preserve_aspect_ratio=bool(
                         getattr(
-                            resources.view,
+                            view,
                             "preserve_canvas_aspect_ratio",
                             False,
                         )
@@ -443,8 +453,6 @@ class PanelManagementMixin:
 
             # Clock updates use one controller-owned dispatch across all views.
             resources.unsubscribe = lambda: None
-            if resources.view is None:
-                raise RuntimeError("panel view was not constructed")
             opened_state = self._register_opened_view(
                 panel_id=panel_id,
                 name=name,
@@ -456,7 +464,7 @@ class PanelManagementMixin:
             self.frame.Layout()
             panel.Layout()
             if isinstance(content, wx.Window) and name == "trajectory-3d":
-                trajectory3d_selection.validate_vtk_render_context(resources.view)
+                trajectory3d_selection.validate_vtk_render_context(view)
             if resources.canvas is not None:
                 panel.request_redraw()
         except Exception:

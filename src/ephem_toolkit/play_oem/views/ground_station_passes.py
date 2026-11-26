@@ -359,7 +359,7 @@ class GroundStationPassesView(StoreStationViewSupport):
         if not self._oem_loaded:
             self._access_results = ()
             return
-        if self._store_context is not None:
+        if self._station_store_context is not None:
             if self._limit_to_range and self._prepare_range is None:
                 self._access_results = tuple(
                     StationAccess(station, ()) for station in self._stations
@@ -367,7 +367,7 @@ class GroundStationPassesView(StoreStationViewSupport):
                 return
             results: list[StationAccess] = []
             for station in self._stations:
-                query = self._store_context.station_access(station)
+                query = self._station_store_context.station_access(station)
                 self._store_queries[station.station_id] = query
                 results.append(station_access_from_store(query.value))
             self._access_results = tuple(results)
@@ -477,7 +477,7 @@ class GroundStationPassesView(StoreStationViewSupport):
             self._range_label.SetLabel(label)
 
     def _update_coverage_readout(self) -> None:
-        if not self._oem_loaded or self._store_context is None:
+        if not self._oem_loaded or self._station_store_context is None:
             label = "OEM coverage: unavailable"
         else:
             label = (
@@ -491,7 +491,7 @@ class GroundStationPassesView(StoreStationViewSupport):
     def _update_status(
         self, station: GroundStation | None, result: StationAccess | None
     ) -> None:
-        load_status = store_load_status_message(self._store_context)
+        load_status = store_load_status_message(self._station_store_context)
         if station is None:
             if self._stations:
                 message = (
@@ -505,7 +505,7 @@ class GroundStationPassesView(StoreStationViewSupport):
                     "No ground stations are configured. "
                     "Add a station to inspect passes."
                 )
-        elif not self._oem_loaded or self._store_context is None:
+        elif not self._oem_loaded or self._station_store_context is None:
             message = "Load an Earth-centered OEM to inspect station passes."
         elif load_status is not None:
             message = load_status
@@ -688,7 +688,7 @@ class GroundStationPassesView(StoreStationViewSupport):
         if station is None or profile.times_s.size == 0:
             empty = np.asarray([], dtype=float)
             return empty, empty, empty
-        if self._store_context is not None:
+        if self._station_store_context is not None:
             first = int(np.searchsorted(profile.times_s, interval.start_s, side="left"))
             stop = int(np.searchsorted(profile.times_s, interval.end_s, side="right"))
             indices = (
@@ -1000,8 +1000,8 @@ class GroundStationPassesView(StoreStationViewSupport):
             return
         self._time_range_bounds = bounds
         self._time_range_applied = True
-        if self._store_context is not None:
-            self._store_context = self._station_store_context_for_range(
+        if self._station_store_context is not None:
+            self._station_store_context = self._station_store_context_for_range(
                 bounds, coverage
             )
         if self._limit_to_range and bounds != self._prepare_range:

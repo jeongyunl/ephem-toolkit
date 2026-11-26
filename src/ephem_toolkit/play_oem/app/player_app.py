@@ -55,7 +55,6 @@ from ..views.angular_velocity import AngularVelocityView
 from ..views.direction_change import DirectionChangeView
 from ..views.distance import GeocentricDistanceView
 from ..views.ground_track import GroundTrackView
-from ..views.ground_station_pass_track import GroundStationPassTrackView
 from ..views.ground_station_passes import GroundStationPassListView, GroundStationSkyView
 from ..views.rtn import RtnDeltaView
 from ..views.speed_altitude import SpeedAltitudeView
@@ -453,15 +452,14 @@ class PlayerApp(
 
     def _initialize_view_registry(self, plots: Sequence[str]) -> None:
         """Register all graph views and derive startup panel selections."""
-        self._view_registry = registry.ViewRegistry(
-            (
-                registry.ViewGroup("overview", "Overview"),
-                registry.ViewGroup("state", "State"),
-                registry.ViewGroup("motion", "Motion"),
-                registry.ViewGroup("access-overview", "Access Overview"),
-                registry.ViewGroup("pass-study", "Pass Study"),
-            )
+        view_groups = (
+            registry.ViewGroup("overview", "Overview"),
+            registry.ViewGroup("state", "State"),
+            registry.ViewGroup("motion", "Motion"),
+            registry.ViewGroup("access-overview", "Access Overview"),
+            registry.ViewGroup("pass-study", "Pass Study"),
         )
+        self._view_registry = registry.ViewRegistry(view_groups)
         view_classes = (
             (Trajectory3DView, self.open_trajectory_view),
             (SpeedAltitudeView, self.open_speed_altitude_view),
@@ -475,11 +473,9 @@ class PlayerApp(
         for view_class, opener in view_classes:
             self._view_registry.register(view_class.view_spec(opener))
         station_view_names = (
-            ("station-status", "Station Status", "access-overview", self.open_station_status_view),
             ("elevation-profile", "Elevation Profile", "access-overview", self.open_elevation_profile_view),
             ("azimuth-profile", "Azimuth Profile", "access-overview", self.open_azimuth_profile_view),
             ("range-profile", "Range Profile", "access-overview", self.open_range_profile_view),
-            ("ground-station-access", "Ground Station Access", "access-overview", self.open_ground_station_access_view),
         )
         for name, label, group, opener in station_view_names:
             self._view_registry.register(
@@ -488,11 +484,26 @@ class PlayerApp(
         pass_view_classes = (
             (GroundStationPassListView, self.open_pass_list_view),
             (GroundStationSkyView, self.open_sky_view),
-            (GroundStationPassTrackView, self.open_pass_ground_track_view),
         )
         for view_class, opener in pass_view_classes:
             self._view_registry.register(view_class.view_spec(opener))
-        self._plots = self._view_registry.expand(plots)
+        known_plot_names = set(self._view_registry.registered_views) | {
+            "all",
+        } | {group.name for group in view_groups}
+        unknown_plots: list[str] = []
+        recognized_plot_names: list[str] = []
+        for item in plots:
+            for name in item.split(","):
+                normalized = name.strip()
+                if normalized in known_plot_names:
+                    recognized_plot_names.append(normalized)
+                elif normalized:
+                    unknown_plots.append(normalized)
+        self._unknown_plots = tuple(unknown_plots)
+        recognized_plots = tuple(recognized_plot_names)
+        self._plots = (
+            self._view_registry.expand(recognized_plots) if recognized_plots else ()
+        )
         self._panel_view_choices = ((EMPTY_GRAPH_VIEW, EMPTY_GRAPH_LABEL),) + tuple(
             (name, self._view_registry.label_for(name))
             for name in self._view_registry.registered_views
@@ -552,9 +563,16 @@ class PlayerApp(
         self.frame.Show()
         activate_application()
         if self._oem_loaded:
-            self.open_plots(self._plots)
+            if self._plots:
+                self.open_plots(self._plots)
         else:
-            self.open_pending_plots(self._plots)
+            if self._plots:
+                self.open_pending_plots(self._plots)
+        for name in self._unknown_plots:
+            print(f"Error: unknown plot name {name!r}")
+            self._add_graph_panel("middle")
+        if not self._plots and not self._unknown_plots:
+            self._add_graph_panel("middle")
         if self._oem_loaded and self._saved_state is not None:
             self._save_application_state(save_geometry=False)
         self.workspace.draw_initial_graphs()
@@ -708,7 +726,7 @@ class PlayerApp(
                 setter(value)
 
     def _update_ground_stations(self, stations: list[GroundStation]) -> None:
-        """Persist station definitions and refresh only already-open access panels."""
+        """Persist station definitions and refresh open station-analysis panels."""
         ids = [station.station_id for station in stations]
         if len(ids) != len(set(ids)):
             raise ValueError("ground station IDs must be unique")
@@ -718,7 +736,7 @@ class PlayerApp(
         station_ids = {station.station_id for station in stations}
         for context in self._station_analysis_contexts.values():
             context.retain_stations(station_ids)
-        self._refresh_open_ground_station_access()
+        self._refresh_open_station_views()
 
     def _open_station_preset(self, name: str) -> None:
         """Open an optional station-analysis preset in Main Analysis."""
@@ -740,7 +758,7 @@ class PlayerApp(
         comparison_context.select_station(selection.station_id)
         comparison_context.select_interval(selection.interval_key)
 
-    def _refresh_open_ground_station_access(self) -> None:
+    def _refresh_open_station_views(self) -> None:
         """Refresh station-aware panels already open in the graph workspace."""
         for opened in tuple(self._open_panels.values()):
             setter = getattr(opened.view, "set_stations", None)
@@ -943,7 +961,7 @@ class PlayerApp(
             self._store_state.view_context = self._store_state.view_context.refresh()
             self._queue_store_view_refresh()
             self._publish_range_hint()
-        self._refresh_open_ground_station_access()
+        self._refresh_open_station_views()
         self.control_window.update_active_interpolation(
             self._active_interpolation_summary()
         )
