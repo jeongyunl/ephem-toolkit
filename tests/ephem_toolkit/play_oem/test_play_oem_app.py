@@ -1993,6 +1993,38 @@ def test_plot_click_seeks_and_respects_toolbar_modes_and_non_time_axes(
     player.close()
 
 
+def test_plot_click_uses_axis_time_metadata_and_seek_opt_out(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    player, _views, _canvases, _frames = make_app(
+        monkeypatch,
+        plots=("speed-altitude",),
+    )
+    player.start()
+    toolbar = SimpleNamespace(mode="")
+    axis = SimpleNamespace(
+        name="rectilinear",
+        _play_oem_time_origin_s=120.0,
+        _play_oem_time_divisor_s=60.0,
+        _play_oem_seek_enabled=True,
+    )
+
+    player._on_plot_click(
+        SimpleNamespace(button=MouseButton.LEFT, inaxes=axis, xdata=1.0),
+        toolbar,
+    )
+    assert player.clock.t_now == 180.0
+
+    axis._play_oem_seek_enabled = False
+    player._on_plot_click(
+        SimpleNamespace(button=MouseButton.LEFT, inaxes=axis, xdata=3.0),
+        toolbar,
+    )
+    assert player.clock.t_now == 180.0
+
+    player.close()
+
+
 def test_all_open_views_stay_synchronized_for_seeks_and_time_plot_clicks(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

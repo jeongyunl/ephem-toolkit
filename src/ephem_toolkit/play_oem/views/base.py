@@ -928,3 +928,109 @@ class StoreSeriesPlotView(TimeRangeSupport):
         self._store_context = None
         self._figure = None
         self._cursor_artists = None
+
+
+class StoreTimeSeriesView(StoreSeriesPlotView):
+    """Common base for 2D plots whose x-axis represents absolute OEM time."""
+
+    seek_on_click: bool = True
+
+    def _initialize_store_time_series(
+        self,
+        start_time_s: float,
+        *,
+        tiers: Sequence[TierName] = ("series",),
+    ) -> None:
+        """Initialize store/range state and elapsed-time conversion."""
+        self._initialize_store_series(start_time_s, tiers=tiers)
+        self._time_series_origin_s = start_time_s
+        self._time_series_divisor_s = 1.0
+
+    def _configure_time_series_axes(
+        self,
+        axes: Sequence[Axes],
+        *,
+        start_time_s: float,
+        time_unit: TimeUnit,
+        seek_enabled: bool | None = None,
+    ) -> None:
+        """Apply shared labels and click-seek metadata to time-series axes."""
+        divisor_s = time_unit.get_divisor_s()
+        seek_allowed = self.seek_on_click if seek_enabled is None else seek_enabled
+        self._time_series_origin_s = start_time_s
+        self._time_series_divisor_s = divisor_s
+        for axis in axes:
+            axis.set_xlabel(time_unit.get_axis_label())
+            setattr(axis, "_play_oem_seek_enabled", seek_allowed)
+            setattr(axis, "_play_oem_time_origin_s", start_time_s)
+            setattr(axis, "_play_oem_time_divisor_s", divisor_s)
+
+    def _prepare_store_time_series_context(
+        self,
+        context: StoreViewContext,
+    ) -> None:
+        """Bind a store snapshot and configure all time-series axes."""
+        self._prepare_store_context(context)
+        if self._figure is not None:
+            self._configure_time_series_axes(
+                tuple(self._figure.axes),
+                start_time_s=context.coverage[0],
+                time_unit=context.time_unit,
+            )
+
+    def _begin_store_time_series_update(
+        self,
+        context: StoreViewContext,
+        *,
+        axis_indexes: Sequence[int] | None = None,
+    ) -> None:
+        """Prepare a store snapshot update and refresh time-axis metadata."""
+        self._begin_store_context_update(context, axis_indexes=axis_indexes)
+        if self._figure is not None:
+            indexes = (
+                tuple(range(len(self._figure.axes)))
+                if axis_indexes is None
+                else tuple(axis_indexes)
+            )
+            axes = tuple(self._figure.axes[index] for index in indexes)
+            self._configure_time_series_axes(
+                axes,
+                start_time_s=context.coverage[0],
+                time_unit=context.time_unit,
+            )
+
+    def _axis_time(self, time_s: float) -> float:
+        """Convert an absolute OEM time to elapsed axis units."""
+        return (
+            time_s - self._time_series_origin_s
+        ) / self._time_series_divisor_s
+
+    def _axis_times(self, times_s: np.ndarray) -> np.ndarray:
+        """Convert absolute OEM times to elapsed axis units."""
+        return (
+            np.asarray(times_s, dtype=float) - self._time_series_origin_s
+        ) / self._time_series_divisor_s
+
+    def _absolute_time_from_axis(self, axis_value: float) -> float:
+        """Convert elapsed axis units back to an absolute OEM time."""
+        return (
+            self._time_series_origin_s
+            + float(axis_value) * self._time_series_divisor_s
+        )
+
+    def _axis_bounds(
+        self,
+        bounds: ResolvedTimeRange | None,
+        coverage: tuple[float, float],
+    ) -> tuple[float, float]:
+        """Convert a range and coverage pair to elapsed axis limits."""
+        return time_bounds_to_axis(
+            bounds,
+            coverage,
+            self._time_series_origin_s,
+            self._time_series_divisor_s,
+        )
+
+    def _close_store_time_series(self) -> None:
+        """Release shared store/range/figure resources."""
+        self._close_store_series_plot()

@@ -493,8 +493,18 @@ class PanelManagementMixin:
         ):
             return
 
+        origin_s = getattr(
+            event.inaxes,
+            "_play_oem_time_origin_s",
+            self.clock.t_start,
+        )
+        divisor_s = getattr(
+            event.inaxes,
+            "_play_oem_time_divisor_s",
+            self.time_unit.get_divisor_s(),
+        )
         target_time_s = (
-            self.clock.t_start + event.xdata * self.time_unit.get_divisor_s()
+            origin_s + event.xdata * divisor_s
         )
         self.clock.seek(target_time_s)
         self._update_time_display()
