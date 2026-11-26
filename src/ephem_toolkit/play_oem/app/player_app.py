@@ -479,6 +479,7 @@ class PlayerApp(
             ("elevation-profile", "Elevation Profile", "access-overview", self.open_elevation_profile_view),
             ("azimuth-profile", "Azimuth Profile", "access-overview", self.open_azimuth_profile_view),
             ("range-profile", "Range Profile", "access-overview", self.open_range_profile_view),
+            ("ground-station-access", "Ground Station Access", "access-overview", self.open_ground_station_access_view),
         )
         for name, label, group, opener in legacy_view_names:
             self._view_registry.register(

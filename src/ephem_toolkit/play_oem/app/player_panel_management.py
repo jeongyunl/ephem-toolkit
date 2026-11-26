@@ -290,6 +290,7 @@ class PanelManagementMixin:
             "elevation-profile": self.open_elevation_profile_view,
             "azimuth-profile": self.open_azimuth_profile_view,
             "range-profile": self.open_range_profile_view,
+            "ground-station-access": self.open_ground_station_access_view,
             "pass-list": self.open_pass_list_view,
             "sky-view": self.open_sky_view,
             "pass-ground-track": self.open_pass_ground_track_view,

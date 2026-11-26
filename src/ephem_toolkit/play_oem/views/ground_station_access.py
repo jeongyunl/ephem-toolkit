@@ -1,7 +1,7 @@
-"""Compatibility imports for the Legacy Ground Station access view."""
+"""Compatibility imports for the Ground Station access view."""
 
-from .legacy_ground_station_access import LegacyGroundStationAccessView
+from .ground_station import GroundStationAccessRenderer
 
-GroundStationAccessView = LegacyGroundStationAccessView
+GroundStationAccessView = GroundStationAccessRenderer
 
 __all__ = ["GroundStationAccessView"]

@@ -70,6 +70,29 @@ class PlayerViewFactoryMixin:
                 force_replace=force_replace,
             )
             return
+        if panel_type == "ground-station-access":
+            self._open_view(
+                name,
+                lambda panel: ground_station_view.GroundStationView(
+                    panel,
+                    "ground-station-access",
+                    self.cursor,
+                    self._ground_stations,
+                    self.time_unit,
+                    self.object_name,
+                    oem_loaded=self._oem_loaded,
+                    on_seek=self._seek_from_ground_station_timeline,
+                    on_station_manager=self.workspace.select_ground_stations,
+                    selection_context=self._station_analysis_contexts[stack],
+                    limit_to_range=True,
+                    initial_range=self._resolved_plot_range(),
+                    display_time_zone=self._display_time_zone,
+                ),
+                panel_id=panel_id,
+                stack=stack,
+                force_replace=force_replace,
+            )
+            return
         self._open_view(
             name,
             lambda panel: ground_station_analysis_view.GroundStationAnalysisView(
@@ -128,6 +151,20 @@ class PlayerViewFactoryMixin:
     ) -> None:
         self._open_station_analysis_panel(
             "range-profile", "range-profile", panel_id, stack, force_replace
+        )
+
+    def open_ground_station_access_view(
+        self,
+        panel_id: str | None = None,
+        stack: str = "middle",
+        force_replace: bool = False,
+    ) -> None:
+        self._open_station_analysis_panel(
+            "ground-station-access",
+            "ground-station-access",
+            panel_id,
+            stack,
+            force_replace,
         )
 
     def _resolved_plot_range(self) -> time_range.ResolvedTimeRange | None:

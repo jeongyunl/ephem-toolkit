@@ -905,9 +905,10 @@ def test_canonical_saved_panel_names_open_focused_station_panels(
     )
 
     player.open_panel_view("elevation-profile", panel_id="elevation")
+    player.open_panel_view("ground-station-access", panel_id="access")
     player.open_panel_view("pass-list", panel_id="passes")
 
-    assert opened == ["elevation-profile", "pass-list"]
+    assert opened == ["elevation-profile", "ground-station-access", "pass-list"]
 
 
 def test_comparison_station_selection_follows_only_when_enabled(
