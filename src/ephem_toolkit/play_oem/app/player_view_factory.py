@@ -312,7 +312,11 @@ class PlayerViewFactoryMixin:
         """Open or raise the speed and altitude plot."""
         self._open_view(
             "speed-altitude",
-            lambda _panel: speed_altitude.SpeedAltitudeView(self.clock.t_start),
+            lambda panel: speed_altitude.SpeedAltitudeView(
+                self.clock.t_start,
+                panel=panel,
+                on_seek=lambda time_s: self.clock.seek(time_s),
+            ),
             panel_id=panel_id,
             stack=stack,
             force_replace=force_replace,
@@ -327,7 +331,12 @@ class PlayerViewFactoryMixin:
         """Open or raise the RTN position-delta plot."""
         self._open_view(
             "rtn",
-            lambda _panel: rtn.RtnDeltaView(self.clock.t_start, self.object_name),
+            lambda panel: rtn.RtnDeltaView(
+                self.clock.t_start,
+                self.object_name,
+                panel=panel,
+                on_seek=lambda time_s: self.clock.seek(time_s),
+            ),
             panel_id=panel_id,
             stack=stack,
             force_replace=force_replace,
@@ -342,8 +351,11 @@ class PlayerViewFactoryMixin:
         """Open or raise the angular-velocity plot."""
         self._open_view(
             "angular-velocity",
-            lambda _panel: angular_velocity.AngularVelocityView(
-                self.clock.t_start, self.object_name
+            lambda panel: angular_velocity.AngularVelocityView(
+                self.clock.t_start,
+                self.object_name,
+                panel=panel,
+                on_seek=lambda time_s: self.clock.seek(time_s),
             ),
             panel_id=panel_id,
             stack=stack,
@@ -359,8 +371,11 @@ class PlayerViewFactoryMixin:
         """Open or raise the direction-change plot."""
         self._open_view(
             "direction-change",
-            lambda _panel: direction_change.DirectionChangeView(
-                self.clock.t_start, self.object_name
+            lambda panel: direction_change.DirectionChangeView(
+                self.clock.t_start,
+                self.object_name,
+                panel=panel,
+                on_seek=lambda time_s: self.clock.seek(time_s),
             ),
             panel_id=panel_id,
             stack=stack,
@@ -376,8 +391,11 @@ class PlayerViewFactoryMixin:
         """Open or raise the geocentric-distance plot."""
         self._open_view(
             "distance",
-            lambda _panel: distance.GeocentricDistanceView(
-                self.clock.t_start, self.object_name
+            lambda panel: distance.GeocentricDistanceView(
+                self.clock.t_start,
+                self.object_name,
+                panel=panel,
+                on_seek=lambda time_s: self.clock.seek(time_s),
             ),
             panel_id=panel_id,
             stack=stack,
@@ -393,8 +411,11 @@ class PlayerViewFactoryMixin:
         """Open or raise the Cartesian state-components plot."""
         self._open_view(
             "state-components",
-            lambda _panel: state_components.StateComponentsView(
-                self.clock.t_start, self.frame_context
+            lambda panel: state_components.StateComponentsView(
+                self.clock.t_start,
+                self.frame_context,
+                panel=panel,
+                on_seek=lambda time_s: self.clock.seek(time_s),
             ),
             panel_id=panel_id,
             stack=stack,
