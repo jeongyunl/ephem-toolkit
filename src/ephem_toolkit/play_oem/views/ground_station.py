@@ -152,8 +152,15 @@ class GroundStationProfileRenderer:
         self.delegate.close()
 
 
-class StationStatusRenderer(GroundStationProfileRenderer):
-    """Station Status renderer specialization."""
+class StationStatusRenderer(
+    GroundStationAnalysisMixin,
+    TimeSeriesWxPanelMixin,
+    StoreTimeSeriesView,
+):
+    """Updated compact Station Status panel implementation."""
+
+    panel_mode = "station-status"
+    seek_on_click = False
 
     def __init__(
         self,
@@ -169,19 +176,230 @@ class StationStatusRenderer(GroundStationProfileRenderer):
         initial_range: ResolvedTimeRange | None,
         display_time_zone: str = UTC_DISPLAY,
     ) -> None:
-        super().__init__(
-            parent,
-            "station-status",
-            cursor,
-            stations,
-            time_unit,
-            object_name,
-            oem_loaded=oem_loaded,
-            on_station_manager=on_station_manager,
-            selection_context=selection_context,
-            initial_range=initial_range,
-            display_time_zone=display_time_zone,
+        self._parent = parent
+        self._cursor = cursor
+        self._time_unit = time_unit
+        self._object_name = object_name
+        self._oem_loaded = oem_loaded
+        self._on_station_manager = on_station_manager
+        self._display_time_zone = display_time_zone
+        self._time_range = initial_range
+        self._coverage = (cursor.t_start, cursor.t_end)
+        self._current_time_s = cursor.t_start
+        self._station_choice: wx.Choice | None = None
+        self._settings_panel: FloatingPanel | None = None
+        self._status_panel: FloatingPanel | None = None
+        self._status_label: wx.StaticText | None = None
+        self._metrics_label: wx.StaticText | None = None
+        self._panel: wx.Panel | None = None
+
+        self._initialize_store_time_series(
+            cursor.t_start,
+            tiers=(),
         )
+        self._initialize_ground_station_analysis(
+            stations,
+            selection_context,
+            oem_loaded=oem_loaded,
+            tiers=(),
+        )
+        self._initialize_time_series_wx()
+
+    def build(
+        self,
+        _series: OrbitSeries,
+        time_unit: TimeUnit,
+    ) -> wx.Window:
+        panel = wx.Panel(self._parent, wx.ID_ANY)
+        panel.SetWindowVariant(wx.WINDOW_VARIANT_SMALL)
+        panel.SetName("Station Status")
+        panel.SetMinSize(panel.FromDIP(wx.Size(64, 64)))
+        self._panel = panel
+        self._time_series_panel = panel
+
+        self._metrics_label = wx.StaticText(panel, wx.ID_ANY, "")
+        self._metrics_label.SetName("Current station metrics")
+
+        root = wx.BoxSizer(wx.VERTICAL)
+        root.Add(self._metrics_label, 1, wx.EXPAND | wx.ALL, 8)
+        panel.SetSizer(root)
+
+        self._create_station_status_floating_controls(panel)
+        panel.Layout()
+        self._refresh_station_choice()
+        self._update_status_metrics()
+        return panel
+
+    def build_from_store(self, context: StoreViewContext) -> wx.Window:
+        self._prepare_station_store_context(context)
+        self._time_range = context.plot_range
+        self._coverage = context.coverage
+        return self.build(cast(OrbitSeries, None), context.time_unit)
+
+    def update_from_store(self, context: StoreViewContext) -> None:
+        self._begin_station_store_update(context, "Station Status")
+        self._time_range = context.plot_range
+        self._coverage = context.coverage
+        self._update_status_metrics()
+
+    def update(self, time_s: float) -> None:
+        self._current_time_s = time_s
+        self._update_status_metrics()
+
+    def set_time_range(
+        self,
+        bounds: ResolvedTimeRange | None,
+        coverage: tuple[float, float],
+    ) -> None:
+        if bounds == self._time_range and coverage == self._coverage:
+            return
+        self._time_range = bounds
+        self._coverage = coverage
+        if self._store_context is not None:
+            self._store_context = self._station_store_context_for_range(
+                bounds,
+                coverage,
+            )
+        self._update_status_metrics()
+
+    def set_stations(self, stations: Sequence[GroundStation]) -> None:
+        self._set_ground_station_stations(stations)
+        self._refresh_station_choice()
+        self._update_status_metrics()
+
+    def set_display_time_zone(self, display_time_zone: str) -> None:
+        self._display_time_zone = display_time_zone
+
+    def close(self) -> None:
+        self._close_ground_station_analysis()
+        self._close_time_series_wx()
+        self._panel = None
+        self._station_choice = None
+        self._metrics_label = None
+        self._status_label = None
+        self._settings_panel = None
+        self._status_panel = None
+
+    def _create_station_status_floating_controls(self, panel: wx.Panel) -> None:
+        settings = self._create_time_series_floating_panel(
+            panel,
+            name="Station Status settings",
+            handle_label="≡",
+            corner=PanelCorner.TOP_RIGHT,
+        )
+        self._settings_panel = settings
+        controls = settings.GetContentWindow()
+        controls.SetName("Station Status controls")
+        station_label = wx.StaticText(controls, wx.ID_ANY, "Station")
+        self._station_choice = wx.Choice(controls, wx.ID_ANY)
+        self._station_choice.SetName("Station Status station")
+        self._station_choice.Bind(wx.EVT_CHOICE, self._on_station_selected)
+        manage = wx.Button(
+            controls,
+            wx.ID_ANY,
+            "Manage Ground Stations",
+        )
+        manage.SetName("Manage stations from Station Status")
+        manage.Bind(wx.EVT_BUTTON, lambda _event: self._on_station_manager())
+        self._compact_time_series_controls(
+            (self._station_choice, manage)
+        )
+
+        content = wx.BoxSizer(wx.HORIZONTAL)
+        content.Add(station_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
+        content.Add(self._station_choice, 1, wx.EXPAND | wx.RIGHT, 8)
+        content.Add(manage, 0)
+        settings.SetContentSizer(content)
+
+        status, status_label = self._create_time_series_status_panel(
+            panel,
+            name="Station Status status",
+        )
+        self._status_panel = status
+        self._status_label = status_label
+
+    def _on_ground_station_context_selection(
+        self,
+        selection: StationAnalysisSelection,
+    ) -> None:
+        super()._on_ground_station_context_selection(selection)
+        self._refresh_station_choice()
+        self._update_status_metrics()
+
+    def _on_station_selected(self, _event: wx.CommandEvent) -> None:
+        if self._station_choice is None:
+            return
+        index = self._station_choice.GetSelection()
+        if 0 <= index < len(self._stations):
+            station_id = self._stations[index].station_id
+            self._selected_station_id = station_id
+            if self._selection_context is not None:
+                self._selection_context.select_station(station_id)
+            self._update_status_metrics()
+
+    def _refresh_station_choice(self) -> None:
+        if self._station_choice is None:
+            return
+        self._station_choice.Clear()
+        selected_index = wx.NOT_FOUND
+        for index, station in enumerate(self._stations):
+            self._station_choice.Append(station.name)
+            if station.station_id == self._selected_station_id:
+                selected_index = index
+        self._station_choice.SetSelection(selected_index)
+
+    def _update_status_text(self) -> None:
+        station = self._selected_ground_station()
+        load_status = store_load_status_message(self._store_context)
+        if station is None:
+            message = "No ground stations are configured. Add a station to continue."
+        elif not self._oem_loaded or self._store_context is None:
+            message = "Load an Earth-centered OEM to view station analysis."
+        elif load_status is not None:
+            message = load_status
+        else:
+            message = ""
+        if self._status_label is not None:
+            self._set_time_series_status(message)
+
+    def _update_status_metrics(self) -> None:
+        station = self._selected_ground_station()
+        if station is None:
+            metrics_text = ""
+            if self._metrics_label is not None:
+                self._metrics_label.SetLabel(metrics_text)
+            self._update_status_text()
+            return
+        if not self._oem_loaded or self._store_context is None:
+            if self._metrics_label is not None:
+                self._metrics_label.SetLabel("")
+            self._update_status_text()
+            return
+
+        metrics = self._store_context.station_metrics_at(
+            station,
+            self._current_time_s,
+        )
+        if metrics is None:
+            metrics_text = (
+                "Current OEM state unavailable "
+                "(outside coverage or in a segment gap)."
+            )
+        else:
+            metrics_text = (
+                f"{station.name} · mask {station.minimum_elevation_deg}°\n"
+                f"{'Access' if metrics.access else 'No access'} · "
+                f"Azimuth {metrics.azimuth_deg:.1f}° · "
+                f"Elevation {metrics.elevation_deg:.1f}° · "
+                f"Slant range {metrics.slant_range_km:.1f} km"
+            )
+        if self._metrics_label is not None:
+            self._metrics_label.SetLabel(metrics_text)
+        if self._status_label is not None:
+            if store_load_status_message(self._store_context) is not None:
+                self._update_status_text()
+            else:
+                self._set_time_series_status(metrics_text)
 
 
 class GroundStationProfileRendererBase(
@@ -792,7 +1010,10 @@ class GroundStationView(
 ):
     """Unify Ground Station panel modes behind shared store and wx support."""
 
-    renderer_types: dict[str, type[GroundStationProfileRenderer] | type[GroundStationAccessRenderer]] = {
+    renderer_types: dict[
+        str,
+        type[GroundStationPanelRenderer] | type[GroundStationAccessRenderer],
+    ] = {
         "station-status": StationStatusRenderer,
         "elevation-profile": ElevationProfileRenderer,
         "azimuth-profile": AzimuthProfileRenderer,
@@ -885,7 +1106,7 @@ class GroundStationView(
     def _make_analysis_renderer(
         self,
         selection_context: StationAnalysisContext,
-    ) -> GroundStationProfileRenderer:
+    ) -> GroundStationPanelRenderer:
         renderer_types = {
             "station-status": StationStatusRenderer,
             "elevation-profile": ElevationProfileRenderer,

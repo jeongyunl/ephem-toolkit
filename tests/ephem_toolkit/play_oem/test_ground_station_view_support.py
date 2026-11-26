@@ -659,3 +659,171 @@ def test_range_factory_uses_ground_station_view() -> None:
     assert view.name == "range-profile"
     assert isinstance(view._create_renderer(), RangeProfileRenderer)
     view.close()
+
+
+def test_station_status_renderer_uses_updated_implementation() -> None:
+    station = GroundStation("north", "North", 0.0, 0.0, 10)
+    cursor = SimpleNamespace(t_start=0.0, t_end=120.0)
+    view = GroundStationView(
+        cast(Any, None),
+        "station-status",
+        cast(Any, cursor),
+        [station],
+        TimeUnit.MINUTES,
+        "Test object",
+        oem_loaded=True,
+        on_station_manager=lambda: None,
+        selection_context=StationAnalysisContext(),
+    )
+
+    renderer = view._create_renderer()
+
+    assert isinstance(renderer, StationStatusRenderer)
+    assert not hasattr(renderer, "delegate")
+    assert renderer.panel_mode == "station-status"
+    assert renderer.seek_on_click is False
+    assert view.seek_on_click is False
+    view.close()
+
+
+def test_station_status_updates_current_metrics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    station = GroundStation("north", "North", 0.0, 0.0, 10)
+    cursor = SimpleNamespace(t_start=0.0, t_end=120.0)
+    view = GroundStationView(
+        cast(Any, None),
+        "station-status",
+        cast(Any, cursor),
+        [station],
+        TimeUnit.MINUTES,
+        "Test object",
+        oem_loaded=True,
+        on_station_manager=lambda: None,
+        selection_context=StationAnalysisContext(),
+    )
+    renderer = view._create_renderer()
+    assert isinstance(renderer, StationStatusRenderer)
+    monkeypatch.setattr(
+        "ephem_toolkit.play_oem.views.ground_station.store_load_status_message",
+        lambda _context: None,
+    )
+    renderer._store_context = SimpleNamespace(
+        station_metrics_at=lambda _station, _time: SimpleNamespace(
+            access=True,
+            azimuth_deg=123.4,
+            elevation_deg=45.7,
+            slant_range_km=987.65,
+        )
+    )
+    metrics: list[str] = []
+    statuses: list[str] = []
+    renderer._metrics_label = SimpleNamespace(
+        SetLabel=lambda text: metrics.append(text)
+    )
+    renderer._status_label = SimpleNamespace(
+        SetLabel=lambda text: statuses.append(text)
+    )
+    renderer._time_series_status_label = renderer._status_label
+
+    renderer.update(60.0)
+
+    expected = (
+        "North · mask 10°\n"
+        "Access · Azimuth 123.4° · Elevation 45.7° · Slant range 987.6 km"
+    )
+    assert metrics[-1] == expected
+    assert statuses[-1] == expected
+    view.close()
+
+
+@pytest.mark.skipif(
+    not hasattr(wx, "App") or not wx.App.IsDisplayAvailable(),
+    reason="wx display is not available",
+)
+def test_station_status_builds_floating_controls_and_minimum_panel() -> None:
+    app = wx.App.Get() or wx.App(False)
+    frame = wx.Frame(None, size=(1000, 700))
+    station = GroundStation("north", "North", 0.0, 0.0, 0.0)
+    context = StationAnalysisContext()
+    view = GroundStationView(
+        frame,
+        "station-status",
+        cast(Any, SimpleNamespace(t_start=0.0, t_end=120.0)),
+        [station],
+        TimeUnit.MINUTES,
+        "Test object",
+        oem_loaded=True,
+        on_station_manager=lambda: None,
+        selection_context=context,
+        initial_range=None,
+    )
+
+    try:
+        panel = view.build(cast(Any, None), TimeUnit.MINUTES)
+        renderer = view._renderer
+        frame.Show()
+        app.Yield()
+        assert isinstance(renderer, StationStatusRenderer)
+        assert renderer._panel is panel
+        assert renderer._settings_panel is not None
+        assert renderer._status_panel is not None
+        assert renderer._status_panel.IsExpanded()
+        assert renderer._status_label is not None
+        assert renderer._status_label.GetName() == "Station Status status text"
+        assert renderer._metrics_label is not None
+        assert renderer._metrics_label.GetName() == "Current station metrics"
+        settings_handle = renderer._settings_panel.FindWindowByName(
+            "Station Status settings handle label"
+        )
+        status_handle = renderer._status_panel.FindWindowByName(
+            "Station Status status handle label"
+        )
+        assert settings_handle.GetLabel() == "≡"
+        assert status_handle.GetLabel() == "≡"
+        assert renderer._station_choice is not None
+        assert panel.GetMinSize().width >= 64
+        assert panel.GetMinSize().height >= 64
+    finally:
+        view.close()
+        frame.Destroy()
+
+
+def test_station_status_factory_uses_ground_station_view() -> None:
+    context = StationAnalysisContext()
+    captured: dict[str, object] = {}
+
+    class Factory(PlayerViewFactoryMixin):
+        cursor = SimpleNamespace(t_start=0.0, t_end=120.0)
+        time_unit = TimeUnit.MINUTES
+        object_name = "Test object"
+        _ground_stations = ()
+        _oem_loaded = True
+        _display_time_zone = "UTC"
+        _station_analysis_contexts = {"middle": context}
+        workspace = SimpleNamespace(select_ground_stations=lambda: None)
+
+        def _open_view(self, name, creator, **kwargs):
+            captured["name"] = name
+            captured["creator"] = creator
+            captured["kwargs"] = kwargs
+
+        def _resolved_plot_range(self):
+            return None
+
+    factory = Factory()
+    factory._open_station_analysis_panel(
+        "station-status",
+        "station-status",
+        "station",
+        "middle",
+        False,
+    )
+
+    creator = captured["creator"]
+    assert callable(creator)
+    view = creator(cast(Any, None))
+    assert isinstance(view, GroundStationView)
+    assert view.name == "station-status"
+    assert isinstance(view._create_renderer(), StationStatusRenderer)
+    view.close()

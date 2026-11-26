@@ -44,7 +44,12 @@ class PlayerViewFactoryMixin:
         stack: str,
         force_replace: bool,
     ) -> None:
-        if panel_type in {"elevation-profile", "azimuth-profile", "range-profile"}:
+        if panel_type in {
+            "station-status",
+            "elevation-profile",
+            "azimuth-profile",
+            "range-profile",
+        }:
             self._open_view(
                 name,
                 lambda panel: ground_station_view.GroundStationView(
