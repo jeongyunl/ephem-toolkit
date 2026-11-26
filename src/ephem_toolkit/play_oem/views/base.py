@@ -38,6 +38,7 @@ from ..oem_data_store import (
 )
 from ..series import OrbitSeries
 from ..station_access import LookAngleProfile, StationAccess
+from ..station_analysis import StationAnalysisContext, StationAnalysisSelection
 from ..time_range import ResolvedTimeRange, validate_coverage
 from ..time_snapping import TimeSamplingPolicy
 from ..time_unit import TimeUnit
@@ -432,6 +433,132 @@ class StoreStationViewSupport:
         if isinstance(context, StoreViewContext):
             return context.time_sampling
         return TimeSamplingPolicy()
+
+
+class GroundStationAnalysisMixin(StoreStationViewSupport):
+    """Shared station selection and store-state support for Ground Station views."""
+
+    def _initialize_ground_station_analysis(
+        self,
+        stations: Sequence[GroundStation],
+        selection_context: StationAnalysisContext | None,
+        *,
+        oem_loaded: bool,
+        tiers: Sequence[TierName] = ("station-access",),
+    ) -> None:
+        self._stations = tuple(stations)
+        self._selection_context = selection_context
+        self._oem_loaded = oem_loaded
+        self._mask_filter_enabled = True
+        self._ground_station_access_results: dict[
+            str, StationAccess
+        ] = {}
+        self._ground_station_store_queries: dict[
+            str, StoreQuery[StationAccessView]
+        ] = {}
+
+        context_station_id = (
+            selection_context.selection.station_id
+            if selection_context is not None
+            else None
+        )
+        self._selected_station_id = self._resolve_ground_station_id(
+            context_station_id
+        )
+        self._initialize_station_store(tiers)
+        self._context_unsubscribe: Callable[[], None] = (
+            selection_context.subscribe(self._on_ground_station_context_selection)
+            if selection_context is not None
+            else lambda: None
+        )
+        if (
+            selection_context is not None
+            and self._selected_station_id != context_station_id
+        ):
+            selection_context.select_station(self._selected_station_id)
+
+    @property
+    def selected_station_id(self) -> str | None:
+        """Return the currently selected station identity."""
+        return self._selected_station_id
+
+    def _resolve_ground_station_id(self, station_id: str | None) -> str | None:
+        if any(station.station_id == station_id for station in self._stations):
+            return station_id
+        return self._stations[0].station_id if self._stations else None
+
+    def _selected_ground_station(self) -> GroundStation | None:
+        station_id = self._selected_station_id
+        return next(
+            (
+                station
+                for station in self._stations
+                if station.station_id == station_id
+            ),
+            None,
+        )
+
+    def _prepare_ground_station_access(self) -> None:
+        """Refresh range-limited station-access results from the bound store."""
+        self._ground_station_access_results.clear()
+        self._ground_station_store_queries.clear()
+        if not self._oem_loaded or self._store_context is None:
+            return
+        for station in self._stations:
+            query = self._store_context.station_access(station)
+            self._ground_station_store_queries[station.station_id] = query
+            self._ground_station_access_results[station.station_id] = (
+                station_access_from_store(query.value)
+            )
+
+    def _set_ground_station_stations(
+        self,
+        stations: Sequence[GroundStation],
+    ) -> None:
+        """Synchronize station definitions and retain a valid selection."""
+        selected_id = self._selected_station_id
+        self._stations = tuple(stations)
+        self._selected_station_id = (
+            selected_id
+            if any(station.station_id == selected_id for station in stations)
+            else (stations[0].station_id if stations else None)
+        )
+        station_choice = getattr(self, "_station_choice", None)
+        if station_choice is not None:
+            station_choice.Clear()
+            selected_index = -1
+            for index, station in enumerate(self._stations):
+                station_choice.Append(station.name)
+                if station.station_id == self._selected_station_id:
+                    selected_index = index
+            station_choice.SetSelection(selected_index)
+        if self._selection_context is not None:
+            self._selection_context.select_station(self._selected_station_id)
+
+    def _on_ground_station_context_selection(
+        self,
+        selection: StationAnalysisSelection,
+    ) -> None:
+        """Apply shared station selection without reacting to interval-only changes."""
+        station_id = self._resolve_ground_station_id(selection.station_id)
+        if station_id != self._selected_station_id:
+            self._selected_station_id = station_id
+            station_choice = getattr(self, "_station_choice", None)
+            if station_choice is not None:
+                for index, station in enumerate(self._stations):
+                    if station.station_id == station_id:
+                        station_choice.SetSelection(index)
+                        break
+                else:
+                    station_choice.SetSelection(-1)
+
+    def _close_ground_station_analysis(self) -> None:
+        """Release shared selection and store subscriptions."""
+        self._context_unsubscribe()
+        self._context_unsubscribe = lambda: None
+        self._close_station_store()
+        self._ground_station_access_results.clear()
+        self._ground_station_store_queries.clear()
 
 
 def station_access_from_store(value: StationAccessView) -> StationAccess:
