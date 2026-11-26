@@ -122,6 +122,7 @@ class View(Protocol):
     """Lifecycle shared by all playback views."""
 
     name: str
+    seek_on_click: bool
 
     def build(self, series: OrbitSeries, time_unit: TimeUnit, /) -> Figure | wx.Window:
         """Build the view content and its initial cursor state."""

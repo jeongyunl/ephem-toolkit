@@ -2023,6 +2023,20 @@ def test_plot_click_uses_axis_time_metadata_and_seek_opt_out(
     )
     assert player.clock.t_now == 180.0
 
+    axis_without_metadata = SimpleNamespace(
+        name="rectilinear",
+        xdata=1.0,
+    )
+    player._on_plot_click(
+        SimpleNamespace(
+            button=MouseButton.LEFT,
+            inaxes=axis_without_metadata,
+            xdata=1.0,
+        ),
+        toolbar,
+    )
+    assert player.clock.t_now == 180.0
+
     player.close()
 
 

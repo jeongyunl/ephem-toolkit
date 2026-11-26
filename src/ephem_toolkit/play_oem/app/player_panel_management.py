@@ -136,6 +136,7 @@ class PanelManagementMixin:
         panel: GraphPanelHost,
         content: object,
         *,
+        view: base.View | None = None,
         preserve_aspect_ratio: bool = False,
     ) -> tuple[FigureCanvasWxAgg | None, NavigationToolbar2WxAgg | None, int | None]:
         if isinstance(content, Figure):
@@ -155,7 +156,7 @@ class PanelManagementMixin:
             panel.set_matplotlib_content(plot_panel)
             click_callback_id = canvas.mpl_connect(
                 "button_press_event",
-                lambda event: self._on_plot_click(event, toolbar),
+                lambda event: self._on_plot_click(event, toolbar, view),
             )
             return canvas, toolbar, click_callback_id
         if isinstance(content, wx.Window):
@@ -425,6 +426,7 @@ class PanelManagementMixin:
                     name,
                     panel,
                     content,
+                    view=resources.view,
                     preserve_aspect_ratio=bool(
                         getattr(
                             resources.view,
@@ -482,28 +484,24 @@ class PanelManagementMixin:
         self._publish_range_hint()
 
     def _on_plot_click(
-        self: PlayerAppState, event: MouseEvent, toolbar: NavigationToolbar2WxAgg
+        self: PlayerAppState,
+        event: MouseEvent,
+        toolbar: NavigationToolbar2WxAgg,
+        view: base.View | None = None,
     ) -> None:
         if (
             getattr(toolbar, "mode", "")
             or event.button != MouseButton.LEFT
             or event.inaxes is None
             or event.xdata is None
-            or event.inaxes.name == "3d"
-            or not getattr(event.inaxes, "_play_oem_seek_enabled", True)
+            or (view is not None and not getattr(view, "seek_on_click", False))
         ):
             return
-
-        origin_s = getattr(
-            event.inaxes,
-            "_play_oem_time_origin_s",
-            self.clock.t_start,
-        )
-        divisor_s = getattr(
-            event.inaxes,
-            "_play_oem_time_divisor_s",
-            self.time_unit.get_divisor_s(),
-        )
+        origin_s = getattr(event.inaxes, "_play_oem_time_origin_s", None)
+        divisor_s = getattr(event.inaxes, "_play_oem_time_divisor_s", None)
+        seek_enabled = getattr(event.inaxes, "_play_oem_seek_enabled", None)
+        if seek_enabled is not True or origin_s is None or divisor_s is None:
+            return
         target_time_s = (
             origin_s + event.xdata * divisor_s
         )
