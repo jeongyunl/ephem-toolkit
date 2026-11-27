@@ -20,7 +20,9 @@ import ephem_toolkit.core.ccsds.odm as odm
 import ephem_toolkit.play_oem.config as config
 from ephem_toolkit.core.time_utils import datetime_to_tt_s, tt_s_to_datetime
 from ephem_toolkit.play_oem import time_range
-from ephem_toolkit.play_oem.app import player_3d_data_view_factory as trajectory_view_factory
+from ephem_toolkit.play_oem.app import (
+    player_3d_data_view_factory as trajectory_view_factory,
+)
 from ephem_toolkit.play_oem.app import player_app as app
 from ephem_toolkit.play_oem.app import (
     player_app_preferences,
@@ -28,9 +30,11 @@ from ephem_toolkit.play_oem.app import (
     player_wx_ui,
 )
 from ephem_toolkit.play_oem.app import player_app_support as app_support
+from ephem_toolkit.play_oem.app import (
+    player_data_view_factory as player_data_view_factory,
+)
+from ephem_toolkit.play_oem.app import player_data_view_factory as view_factory
 from ephem_toolkit.play_oem.app import player_panel_management as panel_management
-from ephem_toolkit.play_oem.app import player_standard_plot_factory as view_factory
-from ephem_toolkit.play_oem.app import player_data_view_factory as player_data_view_factory
 from ephem_toolkit.play_oem.app.player_store_data_view_refresh import (
     _append_affects_plot,
     _tier_affects_display,
@@ -879,7 +883,7 @@ def test_ground_station_updates_refresh_open_station_data_views(
     player._open_panels["ground-track"] = cast(
         Any,
         SimpleNamespace(
-            view=SimpleNamespace(
+            data_view=SimpleNamespace(
                 set_stations=lambda stations: updates.append(tuple(stations))
             )
         ),
@@ -887,7 +891,7 @@ def test_ground_station_updates_refresh_open_station_data_views(
     player._open_panels["pass-list"] = cast(
         Any,
         SimpleNamespace(
-            view=SimpleNamespace(
+            data_view=SimpleNamespace(
                 set_stations=lambda stations: updates.append(tuple(stations))
             )
         ),
@@ -957,7 +961,9 @@ def test_replacing_pass_panel_for_new_oem_retains_station_selection(
     )
     player._open_panels["panel"] = cast(
         Any,
-        SimpleNamespace(view=SimpleNamespace(selected_station_id=station.station_id)),
+        SimpleNamespace(
+            data_view=SimpleNamespace(selected_station_id=station.station_id)
+        ),
     )
     created: list[Any] = []
 
@@ -1965,7 +1971,12 @@ def test_plot_click_seeks_and_respects_toolbar_modes_and_non_time_axes(
     assert canvas.toolbar is not None
     click_event = SimpleNamespace(
         button=MouseButton.LEFT,
-        inaxes=SimpleNamespace(name="rectilinear"),
+        inaxes=SimpleNamespace(
+            name="rectilinear",
+            _play_oem_time_origin_s=100.0,
+            _play_oem_time_divisor_s=60.0,
+            _play_oem_seek_enabled=True,
+        ),
         xdata=1.0,
     )
 
@@ -1981,7 +1992,12 @@ def test_plot_click_seeks_and_respects_toolbar_modes_and_non_time_axes(
             "button_press_event",
             SimpleNamespace(
                 button=MouseButton.LEFT,
-                inaxes=SimpleNamespace(name="rectilinear"),
+                inaxes=SimpleNamespace(
+                    name="rectilinear",
+                    _play_oem_time_origin_s=100.0,
+                    _play_oem_time_divisor_s=60.0,
+                    _play_oem_seek_enabled=True,
+                ),
                 xdata=1.5,
             ),
         )
@@ -2075,7 +2091,12 @@ def test_all_open_data_views_stay_synchronized_for_seeks_and_time_plot_clicks(
             "button_press_event",
             SimpleNamespace(
                 button=MouseButton.LEFT,
-                inaxes=SimpleNamespace(name="rectilinear"),
+                inaxes=SimpleNamespace(
+                    name="rectilinear",
+                    _play_oem_time_origin_s=100.0,
+                    _play_oem_time_divisor_s=60.0,
+                    _play_oem_seek_enabled=True,
+                ),
                 xdata=elapsed_minutes,
             ),
         )
@@ -2664,7 +2685,7 @@ def test_incremental_panel_data_update_reuses_view_and_canvas(
     view = UpdatableView()
     canvas = FakeCanvas(None, 0, None)
     opened = SimpleNamespace(
-        view=view,
+        data_view=view,
         canvas=canvas,
         panel=SimpleNamespace(),
         applied_range=None,
@@ -3535,7 +3556,11 @@ def test_failed_view_change_restores_the_original_panel(
 
     failed_view = FailingView()
     errors: list[tuple[object, ...]] = []
-    monkeypatch.setattr(view_factory.rtn, "RtnDeltaView", lambda *_args: failed_view)
+    monkeypatch.setattr(
+        view_factory.rtn,
+        "RtnDeltaView",
+        lambda *_args, **_kwargs: failed_view,
+    )
     monkeypatch.setattr(app.wx, "MessageBox", lambda *args: errors.append(args))
     player.start()
     player._add_data_view_panel("middle")

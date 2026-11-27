@@ -22,6 +22,11 @@ classDiagram
         class PlayerPanelManagementMixin
         class PlayerStoreViewRefreshMixin
         class PlayerIncrementalLoadingMixin
+        class PlayerViewFactoryMixin
+        class Player3dViewFactoryMixin
+        class player_data_view_factory["player_data_view_factory.py <<module>>"]
+        class player_3d_data_view_factory["player_3d_data_view_factory.py <<module>>"]
+        class player_panel_management["player_panel_management.py <<module>>"]
     }
 
     namespace workspace {
@@ -69,8 +74,12 @@ classDiagram
         class StoreViewContext
         class StoreViewBinding
         class StoreSeriesPlotView
+        class StoreTimeSeriesView
         class StoreStationViewSupport
+        class GroundStationAnalysisMixin
         class TimeRangeSupport
+        class OrbitTimeSeriesView
+        class TimeSeriesWxPanelMixin
         class data_view_registry["views/data_view_registry.py <<module>>"]
         class DataViewRegistry
         class DataViewSpec
@@ -83,10 +92,22 @@ classDiagram
         class StateComponentsView
         class speed_altitude["views/speed_altitude.py <<module>>"]
         class SpeedAltitudeView
+        class rtn["views/rtn.py <<module>>"]
+        class RtnDeltaView
+        class angular_velocity["views/angular_velocity.py <<module>>"]
+        class AngularVelocityView
+        class direction_change["views/direction_change.py <<module>>"]
+        class DirectionChangeView
+        class distance["views/distance.py <<module>>"]
+        class GeocentricDistanceView
         class ground_track_view["views/ground_track.py <<module>>"]
         class GroundTrackView
-        class ground_station_access["views/ground_station_access.py <<module>>"]
-        class GroundStationAccessView
+        class ground_station["views/ground_station.py <<module>>"]
+        class GroundStationView
+        class ground_station_passes["views/ground_station_passes.py <<module>>"]
+        class GroundStationPassListView
+        class GroundStationSkyView
+        class trajectory3d["views/trajectory3d/ <<package>>"]
         class Trajectory3DView
     }
 
@@ -121,6 +142,11 @@ classDiagram
     PlayerApp --|> PlayerPanelManagementMixin
     PlayerApp --|> PlayerStoreViewRefreshMixin
     PlayerApp --|> PlayerIncrementalLoadingMixin
+    PlayerApp --|> PlayerViewFactoryMixin
+    PlayerApp --|> Player3dViewFactoryMixin
+    PlayerViewFactoryMixin ..> player_data_view_factory
+    Player3dViewFactoryMixin ..> player_3d_data_view_factory
+    PlayerPanelManagementMixin ..> player_panel_management
     PlayerAppState *-- StoreState
     PlayerAppState *-- LoadState
     PlayerAppState *-- TimelineRestoreState
@@ -160,21 +186,33 @@ classDiagram
     StoreViewBinding o-- StoreViewContext
     StoreViewBinding --> OemDataStore
     StoreSeriesPlotView --|> TimeRangeSupport
-    StateComponentsView --|> StoreSeriesPlotView
-    StateComponentsView --|> DataViewSpecMixin
-    SpeedAltitudeView --|> StoreSeriesPlotView
-    SpeedAltitudeView --|> DataViewSpecMixin
+    StoreTimeSeriesView --|> StoreSeriesPlotView
+    OrbitTimeSeriesView --|> StoreTimeSeriesView
+    OrbitTimeSeriesView --|> TimeSeriesWxPanelMixin
+    OrbitTimeSeriesView --|> DataViewSpecMixin
+    StateComponentsView --|> OrbitTimeSeriesView
+    SpeedAltitudeView --|> OrbitTimeSeriesView
+    RtnDeltaView --|> OrbitTimeSeriesView
+    AngularVelocityView --|> OrbitTimeSeriesView
+    DirectionChangeView --|> OrbitTimeSeriesView
+    GeocentricDistanceView --|> OrbitTimeSeriesView
     GroundTrackView --|> DataViewSpecMixin
-    GroundStationAccessView --|> StoreStationViewSupport
-    GroundStationAccessView --|> DataViewSpecMixin
+    GroundStationView --|> GroundStationAnalysisMixin
+    GroundStationView --|> StoreTimeSeriesView
+    GroundStationView --|> TimeSeriesWxPanelMixin
+    GroundStationPassListView --|> GroundStationAnalysisMixin
+    GroundStationSkyView --|> GroundStationAnalysisMixin
+    GroundStationAnalysisMixin --|> StoreStationViewSupport
     Trajectory3DView --|> DataViewSpecMixin
 
     PlayerApp --> StoreViewContext : captures and refreshes
     StoreViewContext --> StoreView : binds
     PlayerApp --> DataViewSpec : opens
     GroundTrackView --> GroundTrackRun
-    GroundStationAccessView --> GroundStation
-    GroundStationAccessView --> StationAccess
+    GroundStationView --> GroundStation
+    GroundStationView --> StationAccess
+    GroundStationPassListView --> GroundStation
+    GroundStationSkyView --> GroundStation
     StateComponentsView --> OrbitSeries
 
     DataViewPanelHost *-- MatplotlibPanel

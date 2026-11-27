@@ -10,21 +10,18 @@ and [Ground Track](../../tools/PLAY_OEM_GROUND_TRACK.md).
 GUI toolkit: **wxPython** is the sole GUI framework (§3). VTK is an optional embedded wx backend
 for the 3D Orbit view; Matplotlib/wx remains the fallback and the backend for 2D views.
 
-## 1. Historical origin: copy and modify `plot-oem`
+## 1. Package structure
 
-The initial prototype reused `plot_oem.py` (~870 lines), then split its plotting, data, and CLI
-responsibilities. This history does not describe the shipped loading or data-ownership path:
-the current direct-to-store architecture is documented in
-[PLAY_OEM_DATAFLOW.md](./PLAY_OEM_DATAFLOW.md).
+The shipped implementation is direct-to-store and view-centric. Its principal package areas are:
 
-| `plot_oem.py` piece | Destination in `play_oem/` | Change |
-|---|---|---|
-| `TimeUnit` | `time_unit.py` | copy verbatim |
-| `read_oem_states` | `data.py` | initial prototype; current playback loading streams directly into `OemDataStore` |
-| `OrbitSeries`, `compute_orbit_series` | `series.py` | copy verbatim; add `t_s` array use for lookup |
-| `plot_*` functions (7) | `views/*.py` | split into *build* (draw static data, return artists) and *update(t)* (move cursor) |
-| `plot_oem_cli.py` | `play_oem_cli.py` | adapt file, display, and view-selection options |
-| `__main__.py` | `__main__.py` | load and prepare OEM data, then launch the interactive application |
+| Package area | Responsibility |
+|---|---|
+| `app/` | wx application composition, factories, panel lifecycle, refresh, and playback actions |
+| `workspace/` | Main/Additional panes, feature navigation, stacks, timeline, and controls |
+| `views/` | Public data-view implementations and shared view support |
+| `oem_data_store/` | Raw snapshots, derived tiers, caches, scheduling, and query coverage |
+| `cursor.py`, `clock.py` | Store-backed playback cursor and clock |
+| `series.py`, `time_range.py`, `time_unit.py` | Compatibility series and display-time conversions |
 
 Keep `plot-oem` as the separate static plotting command and `play-oem` as the interactive
 playback application. Shared numerical/data-processing code may be extracted later only after
@@ -55,10 +52,14 @@ src/ephem_toolkit/play_oem/
     player_app.py      # wx application composition and lifecycle
     player_app_state.py # shared state dataclasses and protocols
     player_*_*.py      # focused loading, refresh, restore, preference, and action mixins
+    player_data_view_factory.py
+    player_3d_data_view_factory.py
+    player_panel_management.py
   workspace/
     core.py features.py ground_stations.py graph_stack.py timeline.py
   views/
-    base.py registry.py
+    data_view_base.py data_view_registry.py
+    orbit_time_series.py time_series_support.py plotting.py
     trajectory3d/       # Matplotlib and optional VTK backends
     ground_track.py
     ground_station_*.py # store-backed station views
@@ -77,7 +78,7 @@ is not a committed exact dependency set; clean installs resolve from the optiona
 constraints in `pyproject.toml`.
 
 The wxPython migration acceptance and its 105-test run are historical. The current complete
-`play-oem` suite was run on 2026-11-09 with Python 3.9: 593 passed and 4 skipped. This automated
+`play-oem` suite was run on 2026-11-26 with Python 3.9: 805 passed and 15 skipped. This automated
 result does not replace manual GUI input checks; Linux and Windows GUI installation/rendering
 remain unverified in this environment.
 
@@ -99,19 +100,12 @@ is still initialized, avoiding native wrapper destruction during interpreter tea
 
 ## 3. GUI toolkit decision
 
-Options:
-
-| Option | Pros | Cons |
-|---|---|---|
-| A. Matplotlib only (TkAgg/QtAgg), control window = a Matplotlib figure with `Slider`, `Button`, `RadioButtons` | no new deps; one event loop | clunky toolbar, widget look, slider/timer coupling |
-| B. Tkinter control window + Matplotlib figures (`TkAgg`); superseded by D | stdlib Tk, native-ish controls and toolbar, single Tk event loop shared by all figures; no new dependency | Tk must be available (usually bundled; not on some Linux distros); legacy Tk may have rendering limitations |
-| C. Qt (PySide6) | best widgets | heavy new dependency |
-| D. **wxPython workspace + embedded Matplotlib figures** (`WXAgg`, `FigureCanvasWxAgg`) | native widgets and toolbars on each platform; one wx event loop for controls and Matplotlib canvases; no Tk dependency | new GUI dependency with platform-dependent wheels; `wx.Slider` is integer-only; tests that create a `wx.App` need a display |
-
-**Decision: D (wxPython).** wxPython is the sole GUI framework for `play-oem`, per the migration
-directive. The Controls & Info pane, view-panel hosts, and any VTK widget are owned by one `wx.App`
-and one `MainLoop()`. Tk is removed from the runtime path (implementation plan steps 15–23). The
-`View`/`Clock` layers are toolkit-agnostic, so the GUI toolkit remains replaceable.
+**Decision: wxPython.** wxPython is the sole GUI framework for `play-oem`, using
+embedded Matplotlib figures (`WXAgg`, `FigureCanvasWxAgg`). Native widgets and toolbars share
+one wx event loop with Matplotlib canvases. The GUI dependency is platform-dependent and tests
+that create a `wx.App` need a usable wx display environment.
+The Controls & Info pane, view-panel hosts, and any VTK widget are owned by one `wx.App`
+and one `MainLoop()`. The `View`/`Clock` layers are toolkit-agnostic.
 
 ## 4. Core components
 
@@ -204,6 +198,28 @@ class View(Protocol):
   Azimuth Profile, Range Profile, and Ground Station Access. `all` expands to every registered
   view. The registry powers `--data-views` and panel selection.
 
+### 4.3 Data-view implementation pattern
+
+Dedicated data-view architecture references:
+
+- [Data Views Software Design](./PLAY_OEM_DATA_VIEWS_SOFTWARE_DESIGN.md)
+- [Data Views Implementation Guide](./PLAY_OEM_DATA_VIEWS_IMPLEMENTATION.md)
+- [Data-view class hierarchy](./PLAY_OEM_DATA_VIEWS_CLASS_HIERARCHY.mmd)
+- [Data-view data flow](./PLAY_OEM_DATA_VIEWS_DATA_FLOW.mmd)
+- [Data-view control flow](./PLAY_OEM_DATA_VIEWS_CONTROL_FLOW.mmd)
+
+Every public data-view class owns an implementation of the view lifecycle:
+`build`, `build_from_store`, `update`, `update_from_store`, `set_time_range`, and `close`.
+Shared support is inherited only for cross-view behavior. Standard orbit/diagnostic views inherit
+`OrbitTimeSeriesView`, which provides store/range state, elapsed-time axis conversion, wx
+canvas/panel/legend/status presentation, and click-to-seek behavior. Public modules contain the
+complete figure/store implementation for their view.
+
+The store-backed contract is snapshot-bound. `StoreViewContext` owns the stable snapshot and range
+for one refresh; `StoreViewBinding` owns tier subscriptions; and range-aware bases update only
+bounded data needed by visible panels. Specialized views keep the same build/store/update/close
+contract but may substitute native controls or 3D backends around it.
+
 ### 4.3.1 3D trajectory backends (Matplotlib/wx and VTK)
 
 Only the 3D trajectory is backend-pluggable; every 2D time-series view stays Matplotlib.
@@ -217,12 +233,13 @@ The `state` group opens the state-components view.
 The state-components view uses a 3-by-2 Matplotlib layout: position X/Y/Z and velocity VX/VY/VZ,
 with frame and unit labels, one shared elapsed-time axis, and synchronized cursor lines. Each 2D view
 is a `FigureCanvasWxAgg` canvas in an embedded view-panel host. Clicks map through per-axes plot bounds to preserve
-synchronized seeking. The PPM/PhotoImage raster path from the Tk implementation is removed in step 18.
+synchronized seeking.
 
 ```
 views/trajectory3d/
-  base.py            # Trajectory3DView protocol + backend selection
-  mpl_backend.py     # Axes3D (copied from plot_state_vectors, split build/update)
+  __init__.py        # Public lazy backend export
+  selection.py       # Backend choice and VTK/Matplotlib selection
+  mpl_backend.py     # Axes3D implementation
   vtk_backend.py     # VTK scene
 ```
 
@@ -263,8 +280,8 @@ requested with `draw_idle()` and playback updates are throttled to at most 10 Hz
   must be visually smoke-tested independently before claiming support.
 - Orbit polyline: the default store-backed path selects and display-decimates positions from the
   current raw snapshot, preserving segment boundaries and the selected time range; it then builds
-  `vtkPoints`, `vtkPolyLine` cells, and a `vtkPolyDataMapper` → `vtkActor` chain. The legacy
-  non-store backend path accepts orbit-series arrays.
+  `vtkPoints`, `vtkPolyLine` cells, and a `vtkPolyDataMapper` → `vtkActor` chain. The non-store
+  backend path accepts orbit-series arrays.
 - Earth: semi-transparent WGS84 ellipsoid (`vtkSphereSource` scaled by the flattening).
   Inertial-frame view with a static Earth in v1; a rotating, textured Earth needs the ECI→ECEF rotation at
   `t_now` (via `core/frame_utils`) and is a follow-up.
@@ -279,7 +296,7 @@ requested with `draw_idle()` and playback updates are throttled to at most 10 Hz
 Unlike the Matplotlib backend, VTK currently draws a WGS-84 Earth model and a direction-aware
 trajectory tail.
 
-**Step 20 outcome: `VTK-KEEP`; use the embedded wx interactor.** Host VTK through
+**Embedded VTK backend.** Host VTK through
 `vtkmodules.wx.wxVTKRenderWindowInteractor.wxVTKRenderWindowInteractor` inside the trajectory
 `DataViewPanelHost` in Main pane or Additional pane. Its wx event bindings deliver paint, resize, mouse,
 and keyboard events to the VTK interactor. The application owns the only GUI loop: call
@@ -287,10 +304,7 @@ and keyboard events to the VTK interactor. The application owns the only GUI loo
 the shared cursor changes. Do not call VTK's `Start()` or manually pump a second event loop. The
 VTK widget's own timer requests use `wx.Timer` events and therefore remain on the same loop.
 
-The prototype used wxPython 4.2.4 and VTK 9.6.2 on macOS. Eight wx timer callbacks completed while
-the scene rendered; a wx frame resize changed the VTK render-window size; simulated trackball
-mouse input moved the camera; and closing the frame shut down the loop cleanly. Linux and Windows
-were not available for this check and remain unverified. The VTK wx widget selects a
+The VTK wx widget selects a
 `wx.glcanvas.GLCanvas` base on GTK and a `wx.Window` base elsewhere, so Linux/Windows integration
 must be validated before claiming support there. The production fix registers the shared OpenGL
 factory and rejects a non-OpenGL render-window class, but that guard does not replace visual
@@ -467,8 +481,8 @@ bounded event queue can allow already in-flight batches to commit before the pau
 - App and CLI tests cover wx lifecycle, `--data-views`, config precedence, backend selection, and
   incremental replacement. Matplotlib-only tests can run headlessly; tests creating `wx.App`
   require a usable wx display environment.
-- Current complete package test check (2026-11-09): `PYTHONPATH=src python3 -m pytest -q
-  tests/ephem_toolkit/play_oem` — 593 passed, 4 skipped.
+- Current complete package test check (2026-11-26): `.venv/bin/python -m pytest -q
+  tests/ephem_toolkit/play_oem` — 805 passed, 15 skipped.
 - Manual visual/input checks and cross-platform GUI verification remain separate from this
   automated test result.
 

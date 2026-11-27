@@ -389,11 +389,26 @@ class StoreStationViewSupport:
         tiers: Sequence[TierName],
     ) -> None:
         self._station_store_context: StoreViewContext | None = None
+        self._store_context: StoreViewContext | None = None
         self._store_binding = StoreViewBinding(tiers)
 
     def _prepare_station_store_context(self, context: StoreViewContext) -> None:
         self._store_binding.bind(context)
         self._station_store_context = context
+        self._store_context = context
+
+    @property
+    def _active_station_store_context(self) -> object | None:
+        """Return the active station context through the unified store-state name."""
+        context = getattr(self, "_store_context", None)
+        if context is not None and callable(
+            getattr(context, "station_metrics_at", None)
+        ):
+            return context
+        context = getattr(self, "_station_store_context", None)
+        if isinstance(context, StoreViewContext):
+            return context
+        return None
 
     def _begin_station_store_update(
         self,
@@ -401,7 +416,7 @@ class StoreStationViewSupport:
         data_view_name: str,
     ) -> None:
         """Require an existing station view binding, then refresh it."""
-        if self._station_store_context is None:
+        if self._active_station_store_context is None:
             raise RuntimeError(f"{data_view_name} view was not built from a store")
         self._prepare_station_store_context(context)
 
@@ -410,15 +425,19 @@ class StoreStationViewSupport:
         bounds: ResolvedTimeRange | None,
         coverage: tuple[float, float],
     ) -> StoreViewContext:
-        return self._store_binding.with_range(bounds, coverage)
+        context = self._store_binding.with_range(bounds, coverage)
+        self._station_store_context = context
+        self._store_context = context
+        return context
 
     def _close_station_store(self) -> None:
         self._store_binding.close()
         self._station_store_context = None
+        self._store_context = None
 
     def _station_time_sampling(self) -> TimeSamplingPolicy:
         """Return store sampling policy or the normal policy for result-only data_views."""
-        context = getattr(self, "_station_store_context", None)
+        context = self._active_station_store_context
         if isinstance(context, StoreViewContext):
             return context.time_sampling
         return TimeSamplingPolicy()
@@ -994,7 +1013,7 @@ class StoreSeriesPlotView(TimeRangeSupport):
     ) -> StoreViewContext:
         return self._store_binding.with_range(bounds, coverage)
 
-    def _update_store_or_impl_cursor(self, time_s: float) -> None:
+    def _update_store_or_legacy_cursor(self, time_s: float) -> None:
         """Move every cursor using store context or the legacy OEM origin."""
         if self._cursor_artists is None:
             raise RuntimeError("view has not been built")

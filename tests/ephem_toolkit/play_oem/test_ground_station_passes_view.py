@@ -33,7 +33,7 @@ from ephem_toolkit.play_oem.views.ground_station_passes import (
     _can_fit_side_by_side,
     _utc_label,
 )
-from ephem_toolkit.play_oem.data_views import ground_station_passes as passes_view_module
+from ephem_toolkit.play_oem.views import ground_station_passes as passes_view_module
 
 
 @pytest.fixture(scope="module")

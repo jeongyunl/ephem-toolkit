@@ -37,14 +37,14 @@ The shared design must fit three patterns:
 
 1. **Migrated orbit/diagnostic time-series views.** `angular_velocity.py`,
    `direction_change.py`, `distance.py`, `rtn.py`, `speed_altitude.py`, and
-   `state_components.py` expose public classes built from `OrbitTimeSeriesView`.
-   Their ordinary `*_impl.py` plot classes prepare figures and store-owned
-   artists, while `OrbitTimeSeriesView` adds `StoreTimeSeriesView`,
-   `TimeSeriesWxPanelMixin`, expanded live status, floating legends, minimum-size
-   canvas behavior, and explicit seek metadata.
+   `state_components.py` expose canonical public view implementations. Each class
+   combines its public metadata and figure/store/wx behavior while inheriting
+   `OrbitTimeSeriesView` for `StoreTimeSeriesView`, `TimeSeriesWxPanelMixin`,
+   expanded live status, floating legends, minimum-size canvas behavior, and
+   explicit seek metadata.
 2. **Views that own their wx layout.** `ground_station.py` owns unified
-   profile/status/access renderers; `ground_station_pass_track.py` and
-   `ground_station_passes.py` own pass/Sky panels. These build native wx panels
+   profile/status/access renderers; `ground_station_passes.py` owns Pass List
+   and Sky panels. These build native wx panels
    containing controls, status text, and a `FigureCanvasWxAgg`.
 3. **Specialized Ground Track.** `ground_track.py` combines a custom pan
    toolbar, a map canvas, and a floating legend. The map axes use a fixed 2:1
@@ -116,8 +116,7 @@ The wrapper is introduced at the embedding boundary, so view build and update
 contracts do not change. `DataViewPanelHost` retains its redraw throttling,
 cursor blitting, mouse-wheel routing, sizing, and visibility behavior while
 receiving a `MatplotlibPanel` and using its exposed canvas and toolbar. Native
-specialized canvases that are not in the wrapper path retain their compact
-legacy spacing.
+specialized canvases outside the wrapper retain their compact native spacing.
 
 ### `FloatingMatplotlibLegend`
 
@@ -126,7 +125,7 @@ legacy spacing.
 artist handles through `set_handles`; the widget creates and styles a
 figure-level legend, draws it to measure its renderer bounds, sizes the figure
 to fit, applies the 2-physical-pixel inset, and converts its minimum canvas size
-to wx logical pixels. View code no longer manages a separate legend figure,
+to wx logical pixels. View code manages artist handles rather than a separate legend figure,
 backend canvas, or DPI conversion.
 
 The widget is for floating legend content rather than ordinary in-axes

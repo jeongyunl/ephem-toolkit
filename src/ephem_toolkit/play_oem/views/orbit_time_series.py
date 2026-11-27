@@ -13,7 +13,7 @@ from matplotlib.backends.backend_wxagg import NavigationToolbar2WxAgg
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 
-from .. import series, time_unit
+from .. import time_unit
 from ..time_range import ResolvedTimeRange
 from ..widgets import FloatingMatplotlibLegend, PanelCorner, PanelInteraction
 from .data_view_base import (
@@ -29,14 +29,13 @@ class OrbitTimeSeriesView(
     TimeSeriesWxPanelMixin,
     StoreTimeSeriesView,
 ):
-    """Adapt an existing orbit plot into the shared time-series wx presentation."""
+    """Shared wx/store presentation for a standard time-series view implementation."""
 
     seek_on_click: bool = True
 
     def __init__(
         self,
         start_time_s: float,
-        *delegate_args: object,
         panel: wx.Window | None = None,
         on_seek: Callable[[float], None] | None = None,
     ) -> None:
@@ -44,47 +43,11 @@ class OrbitTimeSeriesView(
         self._initialize_time_series_wx()
         self._parent = panel
         self._on_seek = on_seek
-        self._delegate = self._create_delegate(start_time_s, *delegate_args)
         self._legend_panel: FloatingMatplotlibLegend | None = None
-
-    def __getattr__(self, name: str) -> Any:
-        """Preserve implementation test/runtime attributes while data stays delegated."""
-        delegate = self.__dict__.get("_delegate")
-        if delegate is not None:
-            return getattr(delegate, name)
-        raise AttributeError(name)
-
-    def _create_delegate(
-        self,
-        start_time_s: float,
-        *delegate_args: object,
-    ) -> Any:
-        raise NotImplementedError
 
     @property
     def status_label(self) -> str:
         return self.label
-
-    def build(
-        self,
-        orbit_series: series.OrbitSeries,
-        display_time_unit: time_unit.TimeUnit,
-    ) -> Figure | wx.Window:
-        figure = self._delegate.build(orbit_series, display_time_unit)
-        return self._present_figure(
-            figure,
-            start_time_s=float(self._delegate._store_start_time_s),
-            display_time_unit=display_time_unit,
-        )
-
-    def build_from_store(self, context: StoreViewContext) -> Figure | wx.Window:
-        figure = self._delegate.build_from_store(context)
-        self._store_context = getattr(self._delegate, "_store_context", context)
-        return self._present_figure(
-            figure,
-            start_time_s=float(context.coverage[0]),
-            display_time_unit=context.time_unit,
-        )
 
     def _present_figure(
         self,
@@ -132,7 +95,7 @@ class OrbitTimeSeriesView(
                 "button_press_event",
                 self._on_canvas_click,
             )
-        self.update(float(getattr(self._delegate, "_last_cursor_time_s", start_time_s)))
+        self.update(float(getattr(self, "_last_cursor_time_s", start_time_s)))
         return panel
 
     def _legend_handles(self, axes: tuple[Axes, ...]) -> tuple[Artist, ...]:
@@ -167,20 +130,19 @@ class OrbitTimeSeriesView(
         self._on_seek(absolute_s)
 
     def update_from_store(self, context: StoreViewContext) -> None:
-        method = getattr(self._delegate, "update_from_store", None)
-        if callable(method):
-            method(context)
-        self._store_context = getattr(self._delegate, "_store_context", context)
+        if self._store_context is None:
+            raise RuntimeError(f"{self.label} view was not built from a store")
+        self._prepare_store_context(context)
         if self._figure is not None:
             self._configure_time_series_axes(
                 tuple(self._figure.axes),
                 start_time_s=float(context.coverage[0]),
                 time_unit=context.time_unit,
             )
-        self.update(float(getattr(self._delegate, "_last_cursor_time_s", context.coverage[0])))
+        self.update(float(getattr(self, "_last_cursor_time_s", context.coverage[0])))
 
     def update(self, time_s: float) -> None:
-        self._delegate.update(time_s)
+        self._update_store_or_legacy_cursor(time_s)
         if self._time_series_status_label is not None:
             axis_time = self._axis_time(time_s)
             values: list[str] = []
@@ -211,24 +173,14 @@ class OrbitTimeSeriesView(
         bounds: ResolvedTimeRange | None,
         coverage: tuple[float, float],
     ) -> None:
-        method = getattr(self._delegate, "set_time_range", None)
-        if callable(method):
-            method(bounds, coverage)
-        context = getattr(self._delegate, "_store_context", None)
-        if context is not None:
-            context = context.with_range(bounds, coverage)
-            setattr(self._delegate, "_store_context", context)
-            self._store_context = context
+        if self._store_context is not None:
+            self._store_context = self._store_context_for_range(bounds, coverage)
+        super().set_time_range(bounds, coverage)
 
     def consume_cursor_only_update(self) -> bool:
-        method = getattr(self._delegate, "consume_cursor_only_update", None)
-        if callable(method):
-            return bool(method())
-        return False
+        return super().consume_cursor_only_update()
 
     def close(self) -> None:
         self._close_time_series_wx()
-        if callable(getattr(self._delegate, "close", None)):
-            self._delegate.close()
         self._legend_panel = None
         self._close_store_time_series()

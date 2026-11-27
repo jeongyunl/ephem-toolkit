@@ -11,7 +11,7 @@ time from about 60 ms to about 17 ms in wx, about 3.5×, and was kept.
 
 The historical live-app runs did not reach the configured 30 fps with 2 or 8 panels open, and
 reloading an OEM file did not change the steady-state rate. The resource-hardening check (Phase 4)
-has not started. Latest complete `play-oem` test run: 593 passed, 4 skipped, 18 warnings.
+has not started. Latest complete `play-oem` test run: 805 passed, 15 skipped, 18 warnings.
 
 | Phase | Change | Status | Outcome |
 |---|---|---|---|
@@ -130,7 +130,7 @@ Reload cost (load and replace, excluding the first file): ISS 1.0 s and JPSS 4.5
 - Agg pixel test: the blit output equals a fresh full draw; a limit change forces the fallback.
 - Flush-decision unit test: covers cursor-only, full-pending, scheduled-full, and blit-failure cases.
 - Range-change test: `consume_cursor_only_update()` is False after a range change and True after a cursor-only update.
-- Latest complete `play-oem` suite: 593 passed, 4 skipped, 18 warnings. This supersedes older
+- Latest complete `play-oem` suite: 805 passed, 15 skipped, 18 warnings. This supersedes older
   suite counts and failure notes in earlier report revisions.
 
 **Historical measurement** (wx, `FigureCanvasWxAgg`, 6-axis state view, 2280×1776 px, 60 frames; temporary script outside the repo, since deleted):

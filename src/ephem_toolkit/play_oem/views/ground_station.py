@@ -8,44 +8,38 @@ from typing import Protocol, cast
 import numpy as np
 import wx
 from matplotlib.axes import Axes
-from matplotlib.backend_bases import MouseButton
+from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.ticker import FuncFormatter
-from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg
 
 from .. import cursor as playback_cursor
 from ..display_time import UTC_DISPLAY, format_tt
 from ..ground_stations import GroundStation
+from ..matplotlib_helpers import create_figure, style_axes
 from ..oem_data_store import StationAccessView, StoreQuery, TierName
 from ..series import OrbitSeries
 from ..station_access import AccessInterval, StationAccess
 from ..station_analysis import StationAnalysisContext, StationAnalysisSelection
 from ..time_range import ResolvedTimeRange
 from ..time_unit import TimeUnit
-from ..matplotlib_helpers import create_figure, style_axes
 from ..widgets import (
-    FloatingPanel,
     FloatingMatplotlibLegend,
+    FloatingPanel,
     MatplotlibPanel,
     PanelCorner,
-    PanelInteraction,
-)
-from .plotting import (
-    MAX_DISPLAY_POINTS_PER_SEGMENT,
-    set_shared_x_limits,
-    time_bounds_to_axis,
 )
 from .data_view_base import (
     GroundStationAnalysisMixin,
-    StoreStationViewSupport,
     StoreTimeSeriesView,
     StoreViewContext,
     station_access_from_store,
     store_load_status_message,
 )
+from .plotting import (
+    MAX_DISPLAY_POINTS_PER_SEGMENT,
+)
 from .time_series_support import TimeSeriesWxPanelMixin
-
 
 ANALYSIS_PANEL_MODES = frozenset(
     ("elevation-profile", "azimuth-profile", "range-profile")
@@ -365,10 +359,11 @@ class GroundStationProfileRendererBase(
     def _prepare_access(self) -> None:
         self._results.clear()
         self._store_queries.clear()
-        if not self._oem_loaded or self._station_store_context is None:
+        store_context = self._active_station_store_context
+        if not self._oem_loaded or store_context is None:
             return
         for station in self._stations:
-            query = self._station_store_context.station_access(station)
+            query = store_context.station_access(station)
             self._store_queries[station.station_id] = query
             self._results[station.station_id] = station_access_from_store(query.value)
 
@@ -535,10 +530,11 @@ class GroundStationProfileRendererBase(
 
     def _update_status_text(self) -> None:
         station = self._selected_ground_station()
-        load_status = store_load_status_message(self._station_store_context)
+        store_context = self._active_station_store_context
+        load_status = store_load_status_message(store_context)
         if station is None:
             message = "No ground stations are configured. Add a station to continue."
-        elif not self._oem_loaded or self._station_store_context is None:
+        elif not self._oem_loaded or store_context is None:
             message = "Load an Earth-centered OEM to view station analysis."
         elif load_status is not None:
             message = load_status
@@ -547,7 +543,7 @@ class GroundStationProfileRendererBase(
         else:
             result = self._results.get(station.station_id)
             query = self._store_queries.get(station.station_id)
-            metrics = self._station_store_context.station_metrics_at(
+            metrics = store_context.station_metrics_at(
                 station,
                 self._current_time_s,
             )

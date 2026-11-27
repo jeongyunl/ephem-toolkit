@@ -47,6 +47,8 @@ flowchart TD
     subgraph APP["wx application"]
         direction TB
         CONTROLLER["PlayerApp mixins<br/>generation, snapshot, refresh,<br/>playback, and panel lifecycle"]
+        FACTORIES["View factories<br/>player_data_view_factory<br/>player_3d_data_view_factory"]
+        PANEL_LIFECYCLE["Panel management<br/>construction, replacement,<br/>rollback, and close"]
         LOAD_CONTROL["Generic load controls<br/>pause / resume request"]
         INITIAL_PLOT["Initial range gate<br/>wait for playback + plot coverage<br/>pause, draw, resume"]
         CONTEXT["StoreViewContext<br/>snapshot, range, coverage"]
@@ -54,6 +56,9 @@ flowchart TD
         RANGE["Playback and plot<br/>range hints"]
         TIER_NOTICE["Append, reset, and<br/>tier notices"]
         CONTROLLER --> CONTEXT
+        CONTROLLER --> FACTORIES
+        FACTORIES --> PANEL_LIFECYCLE
+        PANEL_LIFECYCLE --> CONTEXT
         CONTROLLER --> LOAD_CONTROL
         LOAD_CONTROL -->|"pause at next committed batch boundary<br/>resume producer"| SESSION
         CONTROLLER --> INITIAL_PLOT
@@ -71,7 +76,7 @@ flowchart TD
 
     subgraph VIEWS["Store-backed views"]
         direction TB
-        HISTORIES["2D histories<br/>State, kinematics, RTN,<br/>direction rates, distance"]
+        HISTORIES["2D history classes<br/>state_components, speed_altitude,<br/>rtn, angular_velocity,<br/>direction_change, distance"]
         TRAJECTORY["3D Orbit<br/>bounded raw display path"]
         TRACK_VIEW["Ground Track"]
         STATION_VIEWS["Station Status,<br/>profiles, Pass List, Sky View"]

@@ -1,0 +1,134 @@
+---
+title: Play-OEM data-view class hierarchy
+---
+classDiagram
+    direction TB
+
+    class DataView {
+        <<Protocol>>
+        +build(series, time_unit)
+        +update(t_s)
+        +set_time_range(bounds, coverage)
+        +close()
+    }
+
+    class StoreView {
+        <<Protocol>>
+        +build_from_store(context)
+        +update_from_store(context)
+        +set_time_range(bounds, coverage)
+        +close()
+    }
+
+    class StoreViewContext {
+        +OemDataStore store
+        +StoreSnapshot snapshot
+        +TimeUnit time_unit
+        +ResolvedTimeRange plot_range
+        +coverage
+        +series(group)
+        +ground_track()
+        +station_access(station)
+        +state_at(t_s)
+    }
+
+    class StoreViewBinding {
+        +bind(context)
+        +with_range(bounds, coverage)
+        +close()
+    }
+
+    class TimeRangeSupport {
+        +configure_time_range()
+        +set_time_range()
+        +consume_cursor_only_update()
+        +close_time_range()
+    }
+
+    class StoreSeriesPlotView {
+        +initialize_store_series()
+        +prepare_store_context()
+        +begin_store_context_update()
+        +close_store_series_plot()
+    }
+
+    class StoreTimeSeriesView {
+        +configure_time_series_axes()
+        +axis_time(t_s)
+        +absolute_time_from_axis(value)
+    }
+
+    class OrbitTimeSeriesView {
+        +present_figure()
+        +update_from_store(context)
+        +update(t_s)
+        +set_time_range(bounds, coverage)
+        +close()
+    }
+
+    class TimeSeriesWxPanelMixin {
+        +create_time_series_panel()
+        +create_time_series_status_panel()
+        +connect_canvas_event()
+        +close_time_series_wx()
+    }
+
+    class DataViewSpecMixin {
+        +view_spec(opener) DataViewSpec
+    }
+
+    class SpeedAltitudeView
+    class StateComponentsView
+    class RtnDeltaView
+    class AngularVelocityView
+    class DirectionChangeView
+    class GeocentricDistanceView
+
+    class GroundTrackView
+    class GroundStationAnalysisMixin
+    class StoreStationViewSupport
+    class GroundStationView
+    class GroundStationPanelRenderer
+    class GroundStationPassesView
+    class GroundStationPassListView
+    class GroundStationSkyView
+
+    class Trajectory3DView
+    class VTKTrajectory3DView
+
+    class DataViewRegistry
+    class DataViewSpec
+    class DataViewPreset
+
+    DataView <|.. StoreView : store extension
+    TimeRangeSupport <|-- StoreSeriesPlotView
+    StoreSeriesPlotView <|-- StoreTimeSeriesView
+    StoreTimeSeriesView <|-- OrbitTimeSeriesView
+    TimeSeriesWxPanelMixin <|-- OrbitTimeSeriesView
+    DataViewSpecMixin <|-- OrbitTimeSeriesView
+
+    OrbitTimeSeriesView <|-- SpeedAltitudeView
+    OrbitTimeSeriesView <|-- StateComponentsView
+    OrbitTimeSeriesView <|-- RtnDeltaView
+    OrbitTimeSeriesView <|-- AngularVelocityView
+    OrbitTimeSeriesView <|-- DirectionChangeView
+    OrbitTimeSeriesView <|-- GeocentricDistanceView
+
+    StoreStationViewSupport <|-- GroundStationAnalysisMixin
+    GroundStationAnalysisMixin <|-- GroundStationView
+    GroundStationView *-- GroundStationPanelRenderer : delegates presentation
+    StoreStationViewSupport <|-- GroundStationPassesView
+    DataViewSpecMixin <|-- GroundStationPassListView
+    GroundStationPassesView <|-- GroundStationPassListView
+    DataViewSpecMixin <|-- GroundStationSkyView
+    GroundStationPassesView <|-- GroundStationSkyView
+
+    DataViewSpecMixin <|-- GroundTrackView
+    DataViewSpecMixin <|-- Trajectory3DView
+    DataViewSpecMixin <|-- VTKTrajectory3DView
+
+    StoreViewContext --> StoreViewBinding : binding state
+    StoreViewBinding --> StoreViewContext : range-bound context
+    DataViewRegistry o-- DataViewSpec
+    DataViewRegistry o-- DataViewPreset
+    DataViewSpecMixin ..> DataViewSpec : creates

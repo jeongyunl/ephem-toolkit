@@ -162,11 +162,11 @@ project configuration files inspected.
 | --- | --- | --- |
 | `PlaybackData.cursor` and `PlayerApp.__init__` input | Both start with an `OemCursor`; `empty_playback_data` constructs that concrete cursor. These annotations remain unchanged. | No Pylance diagnostics in `playback_data.py`. |
 | `PlayerApp.cursor` and `PlayerAppState.cursor` | The app stores the initial cursor, installs `StoreCursor` on the first usable snapshot, and narrows to `StoreCursor` before `refresh`. The owner also calls shared `lookup`, `set_interpolation`, and `timestamps_s`. | No cursor-related Pylance diagnostics in `state.py` or `controller.py`; the controller had unrelated deprecation/unused-code warnings. Hover/type requests timed out. |
-| Direct view consumers | `ViewFactoryMixin` passes the app's current cursor to Ground Station and 3D views, including views opened after snapshot installation. Their previous `OemCursor`-only annotations did not describe that call path. | The consumers were included in post-change diagnostic requests, but the Pylance server timed out. |
+| View consumers | `ViewFactoryMixin` passes the app's current cursor to Ground Station and 3D views, including views opened after snapshot installation. Their previous `OemCursor`-only annotations did not describe that call path. | The consumers were included in post-change diagnostic requests, but the Pylance server timed out. |
 | Cursor-specific lifecycle | `OemCursor.append` remains owned-history-only; `StoreCursor.refresh` remains snapshot-only and is used behind an `isinstance` guard. | No behavior changes were made. |
 
 The smallest useful clarification is the `PlaybackCursor` union alias. The app
-attribute and state protocol, plus direct view-factory consumers, now use it;
+attribute and state protocol, plus view-factory consumers, now use it;
 the genuinely initial-only `PlaybackData` field and constructor parameter
 remain `OemCursor`. No shared protocol was added because concrete narrowing is
 already required for the distinct refresh lifecycle.

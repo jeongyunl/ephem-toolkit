@@ -8,8 +8,7 @@ open views. The controller binds those views to one snapshot and range through
 `StoreViewContext`; the diagram in [PLAY_OEM_DATAFLOW.mmd](./PLAY_OEM_DATAFLOW.mmd)
 describes this shipped path.
 
-An earlier prepared-batch prototype and its duplicate data owners were removed. The default
-application has a single direct-to-store loading path.
+The default application has a single direct-to-store loading path.
 
 The default playback range is the first two days of the OEM, and the default plot range
 follows playback. Saved settings override those defaults.
@@ -85,6 +84,15 @@ All registered views use store-bound query builders. The application does not re
 and station views do not have non-store data fallbacks. Each load generation owns one
 `OemDataStore`; a replacement store is installed only after it has usable rows.
 
+The public implementation shape is direct: standard orbit/diagnostic classes own their
+store queries, Matplotlib figures, cursor/range behavior, and wx presentation in modules
+such as `speed_altitude.py`, `rtn.py`, and `state_components.py`, with shared behavior supplied
+by `OrbitTimeSeriesView`, `StoreTimeSeriesView`, and plotting support. Specialized views use
+the same `build_from_store`, `update_from_store`, `set_time_range`, and `close` lifecycle while
+owning native layouts or backend-specific renderers. App construction is centralized in
+`player_data_view_factory.py` and `player_3d_data_view_factory.py`, while
+`player_panel_management.py` owns panel resource and replacement lifecycle.
+
 ## Remaining efficiency considerations
 
 - Station-access analysis remains station-specific. Its point-state conversion cache is separate
@@ -97,6 +105,13 @@ and station views do not have non-store data fallbacks. Each load generation own
 
 ## Related documents
 
+- [Data Views Software Design](./PLAY_OEM_DATA_VIEWS_SOFTWARE_DESIGN.md): view ownership,
+  lifecycle, registry, specialized patterns, and extension rules
+- [Data Views Implementation Guide](./PLAY_OEM_DATA_VIEWS_IMPLEMENTATION.md): implementation
+  and panel-refresh recipes
+- [Data-view data flow](./PLAY_OEM_DATA_VIEWS_DATA_FLOW.mmd): store-to-view data ownership
+- [Data-view control flow](./PLAY_OEM_DATA_VIEWS_CONTROL_FLOW.mmd): open, refresh, seek,
+  replace, and close sequence
 - [PLAY_OEM_INTERPOLATION.md](./PLAY_OEM_INTERPOLATION.md): interpolation policy, lookup rules,
   consumers, and gap behavior
 - [PLAY_OEM_CONCEPTS.md](./PLAY_OEM_CONCEPTS.md): shipped behavior and requirements

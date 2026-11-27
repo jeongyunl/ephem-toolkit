@@ -1,0 +1,63 @@
+---
+title: Play-OEM data-view data flow
+---
+flowchart LR
+    OEM[OEM file]
+    LOADER[Incremental loader]
+    STORE[OemDataStore]
+
+    subgraph STORE_DATA[Store-owned data]
+        RAW[Raw tier]
+        SERIES[Lazy series groups]
+        EARTH[Earth-fixed positions]
+        TRACK[Ground Track groups]
+        ACCESS[Station access profiles]
+        METRICS[Current station metrics]
+        FOOTPRINTS[Footprints]
+    end
+
+    subgraph CONTEXT[View context]
+        CONTEXT_NODE[StoreViewContext]
+        BINDING[StoreViewBinding]
+    end
+
+    subgraph VIEWS[Data views]
+        TIME[2D time-series views]
+        TRAJ[3D trajectory]
+        GT[Ground Track]
+        STATION[Station profiles/status]
+        PASSES[Pass List/Sky]
+    end
+
+    OEM --> LOADER
+    LOADER -->|reserve and commit| RAW
+    RAW --> SERIES
+    RAW --> EARTH
+    EARTH --> TRACK
+    RAW --> ACCESS
+    EARTH --> FOOTPRINTS
+    RAW --> METRICS
+
+    STORE --> RAW
+    CONTEXT_NODE --> BINDING
+    STORE --> CONTEXT_NODE
+
+    CONTEXT_NODE -->|series/range| TIME
+    CONTEXT_NODE -->|raw position/range| TRAJ
+    CONTEXT_NODE -->|earth-fixed/footprints| GT
+    CONTEXT_NODE -->|station access/metrics| STATION
+    CONTEXT_NODE -->|selected interval/profile| PASSES
+
+    SERIES --> TIME
+    TRACK --> GT
+    FOOTPRINTS --> GT
+    ACCESS --> STATION
+    METRICS --> STATION
+    ACCESS --> PASSES
+
+    classDef store fill:#e8f1ff,stroke:#2463a6,stroke-width:2px
+    classDef context fill:#fff7d6,stroke:#9a6700,stroke-width:2px
+    classDef view fill:#f4f4f4,stroke:#666,stroke-width:2px
+    class RAW,SERIES,EARTH,TRACK,ACCESS,METRICS,FOOTPRINTS store
+    class CONTEXT_NODE,BINDING context
+    class TIME,TRAJ,GT,STATION,PASSES view

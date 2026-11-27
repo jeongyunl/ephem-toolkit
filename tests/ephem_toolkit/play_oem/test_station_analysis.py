@@ -5,9 +5,10 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import Any, cast
 
-from matplotlib.figure import Figure
 import numpy as np
 import pytest
+import wx
+from matplotlib.figure import Figure
 
 from ephem_toolkit.play_oem.ground_stations import GroundStation
 from ephem_toolkit.play_oem.oem_data_store import (
@@ -33,6 +34,13 @@ from ephem_toolkit.play_oem.views.data_view_base import (
 from ephem_toolkit.play_oem.views.ground_station_analysis import (
     GroundStationAnalysisView,
 )
+
+
+@pytest.fixture(scope="module", autouse=True)
+def wx_app() -> Any:
+    app = wx.App(False)
+    yield app
+    app.Destroy()
 
 
 def test_context_publishes_station_and_interval_selection_without_redundant_events() -> None:
@@ -94,13 +102,19 @@ def test_range_profile_uses_cached_values_only_inside_plot_range() -> None:
         initial_range=ResolvedTimeRange(10.0, 20.0),
     )
     figure = Figure()
-    view._figure = figure
-    view._axes = figure.add_subplot(111)
+    renderer = view._ensure_renderer()
+    renderer._figure = figure
+    renderer._axes = figure.add_subplot(111)
 
-    view._draw_profile(result, station)
+    renderer._draw_profile(result, station)
 
-    line = view._axes.lines[-1]
-    times = line.get_xdata() * 60.0
+    segment_lines = [
+        artist
+        for artist in renderer._axes.lines
+        if str(artist.get_label()).endswith("· segment")
+    ]
+    line = segment_lines[-1]
+    times = np.asarray(line.get_xdata(), dtype=float) * 60.0
     assert 0 < len(times) <= 2000
     assert times[0] >= 10.0
     assert times[-1] <= 20.0
@@ -184,8 +198,11 @@ def test_store_station_view_refreshes_pending_data_and_reuses_profile_columns() 
     view._build_panel = lambda: cast(Any, None)
 
     try:
-        view.build_from_store(context)
-        assert not view._store_queries[station.station_id].coverage.complete
+        view._prepare_station_store_context(context)
+        renderer = view._ensure_renderer()
+        renderer._prepare_station_store_context(context)
+        renderer._prepare_access()
+        assert not renderer._store_queries[station.station_id].coverage.complete
 
         store.mark_complete(
             context.snapshot.epoch,
@@ -194,10 +211,12 @@ def test_store_station_view_refreshes_pending_data_and_reuses_profile_columns() 
         )
         refreshed = context.refresh()
         store.station_access(refreshed.snapshot, station, (0.0, 120.0), wait=True)
-        view.update_from_store(refreshed)
+        view._prepare_station_store_context(refreshed)
+        renderer._prepare_station_store_context(refreshed)
+        renderer._prepare_access()
 
-        query = view._store_queries[station.station_id]
-        profile = view._results[station.station_id].look_angle_profiles[0]
+        query = renderer._store_queries[station.station_id]
+        profile = renderer._results[station.station_id].look_angle_profiles[0]
         group = query.value.profiles[0].group
         assert query.coverage.complete
         assert np.shares_memory(profile.times_s, group.values)
@@ -224,14 +243,21 @@ def test_store_station_view_reports_pending_access_coverage() -> None:
     )
     view._build_panel = lambda: cast(Any, None)
     labels: list[str] = []
-    view._status_label = cast(Any, SimpleNamespace(SetLabel=labels.append))
+    renderer: Any = None
 
     try:
-        view.build_from_store(context)
-        view._update_status_text()
+        view._prepare_station_store_context(context)
+        renderer = view._ensure_renderer()
+        renderer._prepare_station_store_context(context)
+        renderer._prepare_access()
+        renderer._status_label = cast(
+            Any, SimpleNamespace(SetLabel=labels.append)
+        )
+        renderer._time_series_status_label = renderer._status_label
+        renderer._update_status_text()
 
-        assert not view._store_queries[station.station_id].coverage.complete
-        assert labels[-1] == "Station data is loading."
+        assert not renderer._store_queries[station.station_id].coverage.complete
+        assert "Station data is loading." in labels[-1]
     finally:
         view.close()
         store.close()
@@ -267,15 +293,21 @@ def test_store_station_view_reports_terminal_load_state(
     )
     view._build_panel = lambda: cast(Any, None)
     labels: list[str] = []
-    view._status_label = cast(Any, SimpleNamespace(SetLabel=labels.append))
 
     try:
-        view.build_from_store(context)
-        view._update_status_text()
+        view._prepare_station_store_context(context)
+        renderer = view._ensure_renderer()
+        renderer._prepare_station_store_context(context)
+        renderer._prepare_access()
+        renderer._status_label = cast(
+            Any, SimpleNamespace(SetLabel=labels.append)
+        )
+        renderer._time_series_status_label = renderer._status_label
+        renderer._update_status_text()
 
         assert view._store_context is not None
         assert view._store_context.snapshot.sample_count == 3
-        assert not view._store_queries[station.station_id].coverage.complete
+        assert not renderer._store_queries[station.station_id].coverage.complete
         assert labels[-1] == expected_message
     finally:
         view.close()
@@ -310,14 +342,23 @@ def test_store_station_view_renders_empty_access_as_empty_not_loading() -> None:
     )
     view._build_panel = lambda: cast(Any, None)
     labels: list[str] = []
-    view._status_label = cast(Any, SimpleNamespace(SetLabel=labels.append))
 
     try:
-        view.build_from_store(context)
-        view._update_status_text()
+        view._prepare_station_store_context(context)
+        renderer = view._ensure_renderer()
+        renderer._prepare_station_store_context(context)
+        renderer._prepare_access()
+        renderer._status_label = cast(
+            Any, SimpleNamespace(SetLabel=labels.append)
+        )
+        renderer._time_series_status_label = renderer._status_label
+        renderer._update_status_text()
 
-        assert view._store_queries[station.station_id].coverage.complete
-        assert labels[-1] == "No station profile samples are available in this range."
+        assert renderer._store_queries[station.station_id].coverage.complete
+        assert (
+            "No station profile samples are available in this range."
+            in labels[-1]
+        )
     finally:
         view.close()
         assert "station-access" not in store._tier_interest
@@ -367,18 +408,21 @@ def test_store_station_profile_keeps_multi_segment_runs_separate() -> None:
     )
     view._build_panel = lambda: cast(Any, None)
     figure = Figure()
-    view._figure = figure
-    view._axes = figure.add_subplot(111)
 
     try:
-        view.build_from_store(context)
-        result = view._results[station.station_id]
-        view._draw_profile(result, station)
+        view._prepare_station_store_context(context)
+        renderer = view._ensure_renderer()
+        renderer._prepare_station_store_context(context)
+        renderer._prepare_access()
+        renderer._figure = figure
+        renderer._axes = figure.add_subplot(111)
+        result = renderer._results[station.station_id]
+        renderer._draw_profile(result, station)
 
         assert len(result.look_angle_profiles) == 2
-        assert len(view._axes.lines) == 2
-        first_times = view._axes.lines[0].get_xdata() * 60.0
-        second_times = view._axes.lines[1].get_xdata() * 60.0
+        assert len(renderer._axes.lines) == 2
+        first_times = renderer._axes.lines[0].get_xdata() * 60.0
+        second_times = renderer._axes.lines[1].get_xdata() * 60.0
         assert first_times[0] >= 0.0
         assert first_times[-1] <= 120.0
         assert second_times[0] >= 240.0
@@ -414,16 +458,22 @@ def test_store_profile_plot_bounds_display_samples() -> None:
         selection_context=StationAnalysisContext(),
         initial_range=ResolvedTimeRange(0.0, 5000.0),
     )
-    view._store_context = cast(StoreViewContext, object())
     figure = Figure()
-    view._figure = figure
-    view._axes = figure.add_subplot(111)
+    renderer = view._ensure_renderer()
+    renderer._store_context = cast(StoreViewContext, object())
+    renderer._figure = figure
+    renderer._axes = figure.add_subplot(111)
 
-    view._draw_profile(result, station)
+    renderer._draw_profile(result, station)
 
-    line = view._axes.lines[-1]
+    segment_lines = [
+        artist
+        for artist in renderer._axes.lines
+        if str(artist.get_label()).endswith("· segment")
+    ]
+    line = segment_lines[-1]
     assert len(line.get_xdata()) <= 2000
-    times = line.get_xdata() * 60.0
+    times = np.asarray(line.get_xdata(), dtype=float) * 60.0
     assert times[0] >= 0.0
     assert times[-1] <= 5000.0
     np.testing.assert_allclose(np.diff(times) / 0.5, np.rint(np.diff(times) / 0.5))
@@ -457,14 +507,20 @@ def test_time_profiles_hide_samples_below_station_elevation_mask() -> None:
             initial_range=ResolvedTimeRange(0.0, 30.0),
         )
         figure = Figure()
-        view._figure = figure
-        view._axes = figure.add_subplot(111)
+        renderer = view._ensure_renderer()
+        renderer._figure = figure
+        renderer._axes = figure.add_subplot(111)
 
-        view._draw_profile(result, station)
+        renderer._draw_profile(result, station)
 
-        line = view._axes.lines[-1]
-        assert view._mask_filter_enabled
-        times = line.get_xdata() * 60.0
+        segment_lines = [
+            artist
+            for artist in renderer._axes.lines
+            if str(artist.get_label()).endswith("· segment")
+        ]
+        line = segment_lines[-1]
+        assert renderer._mask_filter_enabled
+        times = np.asarray(line.get_xdata(), dtype=float) * 60.0
         values = line.get_ydata()
         finite = np.isfinite(values)
         assert len(times) <= 2000
@@ -491,13 +547,13 @@ def test_time_profiles_hide_samples_below_station_elevation_mask() -> None:
             values[finite], np.interp(times[finite], profile.times_s, value_columns)
         )
 
-        view._mask_filter_control = cast(
+        renderer._mask_filter_control = cast(
             Any, SimpleNamespace(GetValue=lambda: False)
         )
-        view._on_mask_filter_toggled(cast(Any, None))
+        renderer._on_mask_filter_toggled(cast(Any, None))
 
-        assert not view._mask_filter_enabled
-        assert np.isfinite(view._axes.lines[-1].get_ydata()).all()
+        assert not renderer._mask_filter_enabled
+        assert np.isfinite(renderer._axes.lines[-1].get_ydata()).all()
 
 
 def test_empty_plot_range_does_not_prepare_historical_station_data() -> None:
@@ -515,4 +571,5 @@ def test_empty_plot_range_does_not_prepare_historical_station_data() -> None:
         initial_range=None,
     )
 
-    assert view._results == {}
+    renderer = view._ensure_renderer()
+    assert renderer._results == {}

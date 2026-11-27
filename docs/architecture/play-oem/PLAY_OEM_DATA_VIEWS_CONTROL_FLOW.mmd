@@ -1,0 +1,64 @@
+---
+title: Play-OEM data-view control flow
+---
+sequenceDiagram
+    autonumber
+    participant Loader as Incremental loader
+    participant App as PlayerApp
+    participant Panel as Panel management
+    participant Registry as DataViewRegistry
+    participant View as Data view
+    participant Store as OemDataStore
+
+    Loader->>Store: Commit raw snapshot
+    Loader->>App: Publish append/reset/tier notice
+    App->>App: Resolve range and coverage
+    App->>Store: Capture or refresh snapshot
+    Store-->>App: StoreViewContext
+
+    App->>Registry: Expand selection/preset
+    Registry-->>App: Ordered canonical view names
+
+    loop Each resolved view
+        App->>Panel: Open or replace panel
+        Panel->>View: Construct view
+        App->>View: build_from_store(context)
+        View->>Store: Query bounded derived/raw data
+        Store-->>View: Snapshot-bound query result
+        View-->>Panel: Figure or native wx window
+        Panel->>Panel: Attach content and resources
+    end
+
+    loop Incremental refresh
+        Loader->>App: Append/tier notice
+        App->>Store: Refresh view context
+        Store-->>App: Updated context
+        App->>View: update_from_store(context)
+        App->>View: set_time_range(resolved range, coverage)
+        App->>View: update(playback time)
+        View-->>Panel: Update artists/redraw
+    end
+
+    alt Range change
+        App->>View: set_time_range(bounds, coverage)
+        View->>Store: Query bounded range if needed
+        Store-->>View: Range-limited result
+        View-->>Panel: Update limits/artists
+    else Playback seek
+        App->>View: update(t_s)
+        View-->>Panel: Move cursor/update status
+    end
+
+    critical Panel replacement
+        Panel->>View: Construct candidate
+        App->>View: build_from_store(context)
+    option Build succeeds
+        Panel->>View: Release replaced view
+    option Build fails
+        Panel->>View: close candidate
+        Panel->>Panel: Restore original panel mapping
+    end
+
+    App->>View: close()
+    View->>Store: Unsubscribe tier interests
+    Panel->>Panel: Disconnect callbacks and destroy panel

@@ -17,8 +17,8 @@ from ..views.trajectory3d import selection as trajectory3d_selection
 from ..widgets.matplotlib_panel import MatplotlibPanel
 from .player_app_state import PlayerAppState
 from .player_app_support import (
-    EMPTY_DATA_VIEW_LABEL,
     EMPTY_DATA_VIEW,
+    EMPTY_DATA_VIEW_LABEL,
     PanelBuildResources,
     _EmptyDataView,
     _OpenDataView,
@@ -468,6 +468,12 @@ class PanelManagementMixin:
             if resources.canvas is not None:
                 panel.request_redraw()
         except Exception:
+            failed_data_view = resources.data_view
+            if failed_data_view is not None:
+                close = getattr(failed_data_view, "close", None)
+                if callable(close):
+                    close()
+                resources.data_view = None
             self._rollback_open_data_view(
                 name=name,
                 panel_id=panel_id,
@@ -504,7 +510,7 @@ class PanelManagementMixin:
             or event.xdata is None
             or (
                 data_view is not None
-                and not getattr(data_view, "seek_on_click", False)
+                and getattr(data_view, "seek_on_click", True) is False
             )
         ):
             return

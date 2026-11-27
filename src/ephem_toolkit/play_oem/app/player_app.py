@@ -29,8 +29,8 @@ from .. import (
     cursor,
     series,
     time_range,
-    time_unit,
     time_snapping,
+    time_unit,
     workspace,
 )
 from ..display_time import DISPLAY_TIME_ZONES, format_timestamp_text, format_tt
@@ -54,8 +54,11 @@ from ..views import data_view_registry as registry
 from ..views.angular_velocity import AngularVelocityView
 from ..views.direction_change import DirectionChangeView
 from ..views.distance import GeocentricDistanceView
+from ..views.ground_station_passes import (
+    GroundStationPassListView,
+    GroundStationSkyView,
+)
 from ..views.ground_track import GroundTrackView
-from ..views.ground_station_passes import GroundStationPassListView, GroundStationSkyView
 from ..views.rtn import RtnDeltaView
 from ..views.speed_altitude import SpeedAltitudeView
 from ..views.state_components import StateComponentsView
@@ -72,9 +75,10 @@ from .player_app_state import (
 )
 from .player_app_support import (
     DEFAULT_TICK_INTERVAL_MS,
-    EMPTY_DATA_VIEW_LABEL,
     EMPTY_DATA_VIEW,
+    EMPTY_DATA_VIEW_LABEL,
 )
+from .player_data_view_factory import PlayerViewFactoryMixin
 from .player_incremental_loader import (
     PlayerIncrementalLoadingMixin,
 )
@@ -82,14 +86,12 @@ from .player_incremental_metadata import PlayerIncrementalMetadataMixin
 from .player_incremental_snapshot import PlayerIncrementalSnapshotMixin
 from .player_panel_management import PanelManagementMixin
 from .player_playback_actions import PlaybackActionsMixin
-from .player_standard_plot_factory import PlayerStandardPlotFactoryMixin
 from .player_store_data_view_refresh import PlayerStoreViewRefreshMixin
 from .player_time_range_actions import (
     TimeRangeActionsMixin,
     playback_range_plot_rule,
 )
 from .player_timeline_restore import PlayerTimelineRestoreMixin
-from .player_data_view_factory import PlayerViewFactoryMixin
 from .player_wx_ui import PlayerWxUiMixin
 from .status_bar import PlaybackStatusBar
 
@@ -103,7 +105,6 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class PlayerApp(
-    PlayerStandardPlotFactoryMixin,
     Player3dViewFactoryMixin,
     PlayerIncrementalSnapshotMixin,
     PlayerIncrementalMetadataMixin,
