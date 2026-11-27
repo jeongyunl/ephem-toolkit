@@ -141,6 +141,7 @@ class GroundStationProfileRendererBase(
             tiers=("station-access",),
         )
         self._initialize_time_series_wx()
+        self._initialize_range_lifecycle(initial_range)
 
     def _build_panel(self, time_unit: TimeUnit) -> wx.Window:
         panel = wx.Panel(self._parent, wx.ID_ANY)
@@ -652,7 +653,6 @@ class GroundStationView(
         self._oem_loaded = oem_loaded
         self._on_station_manager = on_station_manager
         self._display_time_zone = display_time_zone
-        self._time_range = initial_range
         self._current_time_s = cursor.t_start
         self._stations = tuple(stations)
         self.seek_on_click = True
@@ -660,6 +660,7 @@ class GroundStationView(
         self._store_context: StoreViewContext | None = None
         self._station_store_context: StoreViewContext | None = None
         self._store_binding = StoreViewBinding(("station-access",))
+        self._initialize_range_lifecycle(initial_range)
 
         self._renderer: GroundStationPanelRenderer | None = None
         self._panel: wx.Window | None = None
@@ -702,7 +703,7 @@ class GroundStationView(
             oem_loaded=self._oem_loaded,
             on_station_manager=self._on_station_manager,
             selection_context=selection_context,
-            initial_range=self._time_range,
+            initial_range=self._range_bounds,
             display_time_zone=self._display_time_zone,
         )
 
@@ -710,18 +711,19 @@ class GroundStationView(
         return self._create_renderer()
 
     def build_from_store(self, context: StoreViewContext) -> wx.Window:
-        self._time_range = context.plot_range
         self._store_binding.bind(context)
         self._store_context = context
         self._station_store_context = context
+        self._apply_range_lifecycle(context.plot_range, context.coverage)
         self._panel = self._ensure_renderer().build_from_store(context)
         return self._panel
 
     def update_from_store(self, context: StoreViewContext) -> None:
-        self._time_range = context.plot_range
         self._store_binding.bind(context)
         self._store_context = context
         self._station_store_context = context
+        self._apply_range_lifecycle(context.plot_range, context.coverage)
+        self._mark_view_content_changed()
         if self._renderer is not None:
             self._renderer.update_from_store(context)
 
@@ -735,7 +737,8 @@ class GroundStationView(
         bounds: ResolvedTimeRange | None,
         coverage: tuple[float, float],
     ) -> None:
-        self._time_range = bounds
+        if not self._apply_range_lifecycle(bounds, coverage):
+            return
         if self._store_context is not None:
             context = self._store_binding.with_range(bounds, coverage)
             self._store_context = context

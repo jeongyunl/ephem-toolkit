@@ -206,6 +206,7 @@ class DirectionChangeView(OrbitTimeSeriesView):
         set_shared_x_limits(tuple(self._figure.axes), limits)
         self.update(self._last_cursor_time_s)
         style_axes(*self._figure.axes)
+        self._request_store_view_redraw()
 
 
 

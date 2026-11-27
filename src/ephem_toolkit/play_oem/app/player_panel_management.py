@@ -435,6 +435,7 @@ class PanelManagementMixin:
             self._insert_data_view_panel(panel, stack, replacing)
             resources.panel_inserted = True
             view = create_data_view(panel.data_view_scroller)
+            view = base.validate_data_view_protocol(view)
             resources.data_view = view
             content, requires_store_rebuild = self._build_view_content(view)
             resources.canvas, resources.toolbar, resources.click_callback_id = (

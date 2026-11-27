@@ -83,6 +83,9 @@ class _EmptyDataView:
     def set_time_range(self, _bounds, _coverage) -> None:
         pass
 
+    def consume_cursor_only_update(self) -> bool:
+        return False
+
     def update(self, _time_s: float) -> None:
         pass
 
@@ -133,6 +136,9 @@ class _PendingDataView:
 
     def set_time_range(self, _bounds, _coverage) -> None:
         pass
+
+    def consume_cursor_only_update(self) -> bool:
+        return False
 
     def update(self, _time_s: float) -> None:
         pass

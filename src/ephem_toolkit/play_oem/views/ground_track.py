@@ -41,7 +41,11 @@ from ..widgets import (
     PanelCorner,
     PanelInteraction,
 )
-from .data_view_base import StoreViewBinding, StoreViewContext
+from .data_view_base import (
+    RangeLifecycleSupport,
+    StoreViewBinding,
+    StoreViewContext,
+)
 from .compact_controls import compact_controls
 from .plotting import bounded_sample_indices
 from .data_view_registry import DataViewSpecMixin
@@ -198,7 +202,7 @@ def _boundary_runs(
     return split_ground_track_runs(coordinates, center_longitude_deg)
 
 
-class GroundTrackView(DataViewSpecMixin):
+class GroundTrackView(RangeLifecycleSupport, DataViewSpecMixin):
     """Map projection, track, current marker and coverage in a wx panel."""
 
     name = "ground-track"
@@ -266,12 +270,14 @@ class GroundTrackView(DataViewSpecMixin):
             ("ground-track", "earth-fixed", "footprints")
         )
         self._store_track_query: StoreQuery[GroundTrackGroups] | None = None
+        self._initialize_range_lifecycle()
 
     def build_from_store(self, context: StoreViewContext, /) -> wx.Window:
         """Build from range-bound, store-owned Ground Track results."""
         self._store_binding.bind(context)
         self._store_context = context
         self._effective_plot_range = context.bounds_s
+        self._apply_range_lifecycle(context.plot_range, context.coverage)
         return self._build_panel()
 
     def update_from_store(self, context: StoreViewContext, /) -> None:
@@ -281,6 +287,8 @@ class GroundTrackView(DataViewSpecMixin):
         self._store_binding.bind(context)
         self._store_context = context
         self._effective_plot_range = context.bounds_s
+        self._apply_range_lifecycle(context.plot_range, context.coverage)
+        self._mark_view_content_changed()
         self._update_track_artists()
         if self._last_time_s is not None:
             current_time = self._last_time_s
@@ -1123,6 +1131,8 @@ class GroundTrackView(DataViewSpecMixin):
     ) -> None:
         """Apply a range to the bound store query."""
         if self._store_context is None:
+            return
+        if not self._apply_range_lifecycle(bounds, _coverage):
             return
         context = self._store_binding.with_range(bounds, _coverage)
         self._store_context = context

@@ -18,6 +18,7 @@ from ..oem_data_store import ColumnGroupView, StoreQuery
 from ..time_range import ResolvedTimeRange
 from .data_view_base import (
     StoreViewContext,
+    store_empty_label,
 )
 from .orbit_time_series import OrbitTimeSeriesView
 from .plotting import (
@@ -151,6 +152,7 @@ class SpeedAltitudeView(OrbitTimeSeriesView):
         has_samples = bool(speed_patches or altitude_patches)
         if self._store_empty_artists is not None:
             for empty_artist in self._store_empty_artists:
+                empty_artist.set_text(store_empty_label(context))
                 empty_artist.set_visible(not has_samples)
 
         limits = time_bounds_to_axis(
@@ -162,6 +164,7 @@ class SpeedAltitudeView(OrbitTimeSeriesView):
         set_shared_x_limits(tuple(self._figure.axes), limits)
         if rescale_y and query is not None:
             self._rescale_store_axes(groups)
+        self._request_store_view_redraw()
 
     def _add_store_patches(
         self,

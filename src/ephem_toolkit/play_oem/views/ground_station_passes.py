@@ -26,6 +26,7 @@ from ..time_range import ResolvedTimeRange
 from ..time_unit import TimeUnit
 from ..widgets.matplotlib_panel import MatplotlibPanel
 from .data_view_base import (
+    RangeLifecycleSupport,
     StoreStationViewSupport,
     StoreViewContext,
     station_access_from_store,
@@ -67,7 +68,7 @@ def _utc_label(time_s: float) -> str:
     )
 
 
-class GroundStationPassesView(StoreStationViewSupport):
+class GroundStationPassesView(RangeLifecycleSupport, StoreStationViewSupport):
     """Inspect cached pass details and their topocentric sky paths."""
 
     heading = "Ground Station Passes"
@@ -130,9 +131,7 @@ class GroundStationPassesView(StoreStationViewSupport):
         self._access_results: tuple[StationAccess, ...] = ()
         self._initialize_station_store(("station-access",))
         self._store_queries: dict[str, StoreQuery[StationAccessView]] = {}
-        self._time_range_bounds: ResolvedTimeRange | None = None
-        self._time_range_applied = False
-        self._time_range_coverage: tuple[float, float] | None = None
+        self._initialize_range_lifecycle(initial_range)
         self._range_label_text = ""
         self._coverage_readout_text = ""
         self._status_text = ""
@@ -176,9 +175,7 @@ class GroundStationPassesView(StoreStationViewSupport):
         """Build from range-bound pass queries in a stable store snapshot."""
         self._prepare_station_store_context(context)
         self._prepare_range = context.plot_range
-        self._time_range_bounds = context.plot_range
-        self._time_range_applied = True
-        self._time_range_coverage = context.coverage
+        self._apply_range_lifecycle(context.plot_range, context.coverage)
         self._prepare_access()
         return self._build_panel()
 
@@ -186,9 +183,8 @@ class GroundStationPassesView(StoreStationViewSupport):
         """Refresh pass rows and sky data from a newer store snapshot."""
         self._begin_station_store_update(context, "Ground Station Passes")
         self._prepare_range = context.plot_range
-        self._time_range_bounds = context.plot_range
-        self._time_range_applied = True
-        self._time_range_coverage = context.coverage
+        self._mark_view_content_changed()
+        self._apply_range_lifecycle(context.plot_range, context.coverage)
         self._prepare_access()
         self._refresh_rows()
         self.update(self._current_time_s)
@@ -422,8 +418,8 @@ class GroundStationPassesView(StoreStationViewSupport):
         station = self._selected_station()
         result = self._result_for(station.station_id) if station is not None else None
         intervals = result.intervals if result is not None else ()
-        if self._time_range_applied:
-            bounds = self._time_range_bounds
+        if self._range_applied:
+            bounds = self._range_bounds
             visible = (
                 ()
                 if bounds is None
@@ -461,8 +457,8 @@ class GroundStationPassesView(StoreStationViewSupport):
         self._draw_sky_plot()
 
     def _update_range_label(self) -> None:
-        bounds = self._time_range_bounds
-        if not self._time_range_applied:
+        bounds = self._range_bounds
+        if not self._range_applied:
             bounds = ResolvedTimeRange(self._cursor.t_start, self._cursor.t_end)
         if bounds is None:
             label = "Plot Range: no effective range overlaps OEM coverage"
@@ -522,7 +518,7 @@ class GroundStationPassesView(StoreStationViewSupport):
             )
         elif not result.intervals:
             message = "No access intervals in OEM coverage meet this station's mask."
-        elif self._time_range_applied and self._time_range_bounds is None:
+        elif self._range_applied and self._range_bounds is None:
             message = "The current Plot Range does not overlap OEM coverage."
         elif not self._visible_intervals:
             message = (
@@ -995,15 +991,8 @@ class GroundStationPassesView(StoreStationViewSupport):
     def set_time_range(
         self, bounds: ResolvedTimeRange | None, coverage: tuple[float, float], /
     ) -> None:
-        if (
-            self._time_range_applied
-            and bounds == self._time_range_bounds
-            and coverage == self._time_range_coverage
-        ):
+        if not self._apply_range_lifecycle(bounds, coverage):
             return
-        self._time_range_bounds = bounds
-        self._time_range_applied = True
-        self._time_range_coverage = coverage
         if self._station_store_context is not None:
             self._station_store_context = self._station_store_context_for_range(
                 bounds, coverage
@@ -1046,9 +1035,7 @@ class GroundStationPassesView(StoreStationViewSupport):
         self._object_name = object_name
         self._oem_loaded = oem_loaded
         self._current_time_s = cursor.t_start
-        self._time_range_bounds = None
-        self._time_range_applied = False
-        self._time_range_coverage = None
+        self._initialize_range_lifecycle()
         self._selected_interval_key = None
         self._prepare_access()
         self._update_coverage_readout()

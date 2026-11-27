@@ -179,7 +179,10 @@ class TimeRangeActionsMixin:
                 opened.pending_time_s = selected_time
                 continue
             setter = getattr(opened.data_view, "set_time_range", None)
-            if callable(setter) and _range_needs_update(opened, resolved, coverage):
+            needs_update = callable(setter) and _range_needs_update(
+                opened, resolved, coverage
+            )
+            if needs_update:
                 setter(resolved, coverage)
                 opened.applied_range = resolved
                 opened.applied_coverage = coverage

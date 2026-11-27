@@ -30,7 +30,7 @@ import ephem_toolkit.core.wgs as wgs
 
 from ... import cursor
 from ...time_range import ResolvedTimeRange
-from ..data_view_base import StoreViewContext
+from ..data_view_base import RangeLifecycleSupport, StoreViewContext
 from ..plotting import MAX_MATPLOTLIB_3D_DISPLAY_POINTS
 from ..data_view_registry import DataViewSpecMixin
 from .selection import VTKBackendUnavailableError
@@ -58,7 +58,7 @@ TAIL_MINIMUM_SAMPLE_COUNT: int = 2
 """Minimum number of samples considered when selecting tail extent."""
 
 
-class VTKTrajectory3DView(DataViewSpecMixin):
+class VTKTrajectory3DView(RangeLifecycleSupport, DataViewSpecMixin):
     """Render the orbit, WGS84 Earth and cursor marker in an embedded VTK view."""
 
     name: str = "trajectory-3d"
@@ -115,6 +115,7 @@ class VTKTrajectory3DView(DataViewSpecMixin):
         self._store_positions_m: np.ndarray | None = None
         self._store_sample_times_s: np.ndarray | None = None
         self._store_display_spans: tuple[tuple[int, int], ...] = ()
+        self._initialize_range_lifecycle()
 
 
     def build_from_store(self, context: StoreViewContext) -> wx.Window:
@@ -123,6 +124,7 @@ class VTKTrajectory3DView(DataViewSpecMixin):
             raise RuntimeError("VTK trajectory view has already been built")
         self._store_context = context
         self._range_bounds = context.plot_range
+        self._apply_range_lifecycle(context.plot_range, context.coverage)
         self._range_applied = True
         self._current_time_s = context.coverage[0]
         self._store_positions_m = context.snapshot.positions_m
@@ -165,6 +167,8 @@ class VTKTrajectory3DView(DataViewSpecMixin):
             raise RuntimeError("VTK trajectory view was not built from a store")
         self._store_context = context
         self._range_bounds = context.plot_range
+        self._apply_range_lifecycle(context.plot_range, context.coverage)
+        self._mark_view_content_changed()
         self._store_positions_m = context.snapshot.positions_m
         self._store_sample_times_s = context.snapshot.raw[:, 0]
         self._refresh_store_display_path()
@@ -177,6 +181,8 @@ class VTKTrajectory3DView(DataViewSpecMixin):
         """Filter source positions before decimation without moving the camera."""
         if self._store_context is None:
             raise RuntimeError("VTK trajectory view was not built from a store")
+        if not self._apply_range_lifecycle(bounds, _coverage):
+            return
         self._store_context = self._store_context.with_range(bounds, _coverage)
         self._range_bounds = bounds
         self._store_positions_m = self._store_context.snapshot.positions_m

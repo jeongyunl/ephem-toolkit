@@ -41,6 +41,10 @@ def test_speed_altitude_view_builds_labeled_static_series_and_cursor() -> None:
     canvas = FigureCanvasAgg(figure)
     canvas.draw()
 
+    assert hasattr(view, "_range_axes")
+    assert view._range_axes == (figure.axes[0], figure.axes[1])
+    assert view._range_applied
+
     assert len(figure.axes) == 2
     assert figure.axes[0].get_ylabel() == "Speed (km/s)"
     assert figure.axes[1].get_ylabel() == "Altitude (km)"
@@ -152,6 +156,63 @@ def test_store_view_without_range_support_reports_full_redraw() -> None:
 
     assert view.consume_cursor_only_update() is False
 
+    view.close()
+
+
+def test_speed_altitude_update_from_store_rebuilds_for_new_range() -> None:
+    context = _store_context(complete=True)
+    view = SpeedAltitudeView(start_time_s=100.0)
+    figure = view.build_from_store(context)
+    FigureCanvasAgg(figure).draw()
+
+    ranged = context.with_range(
+        ResolvedTimeRange(220.0, 280.0),
+        context.coverage,
+    )
+    view.update_from_store(ranged)
+    assert view._store_patches[0]
+    assert view._store_patches[1]
+    assert all(not artist.get_visible() for artist in view._store_empty_artists or ())
+
+    empty = ranged.with_range(
+        ResolvedTimeRange(500.0, 600.0),
+        ranged.coverage,
+    )
+    view.update_from_store(empty)
+    assert not view._store_patches[0]
+    assert not view._store_patches[1]
+    assert all(artist.get_visible() for artist in view._store_empty_artists or ())
+    view.close()
+
+
+def test_speed_altitude_store_view_rebuilds_for_empty_and_new_ranges() -> None:
+    context = _store_context(complete=True)
+    view = SpeedAltitudeView(start_time_s=100.0)
+    figure = view.build_from_store(context)
+    FigureCanvasAgg(figure).draw()
+
+    view.set_time_range(ResolvedTimeRange(160.0, 220.0), context.coverage)
+    assert view._store_patches[0]
+    assert view._store_patches[1]
+    assert all(not artist.get_visible() for artist in view._store_empty_artists or ())
+
+    view.set_time_range(ResolvedTimeRange(160.0, 220.0), context.coverage)
+    assert view._store_patches[0]
+    assert view._store_patches[1]
+
+    view.set_time_range(ResolvedTimeRange(500.0, 600.0), context.coverage)
+    assert not view._store_patches[0]
+    assert not view._store_patches[1]
+    assert all(artist.get_visible() for artist in view._store_empty_artists or ())
+    assert all(
+        artist.get_text() == "No samples in plot range"
+        for artist in view._store_empty_artists or ()
+    )
+
+    view.set_time_range(ResolvedTimeRange(220.0, 280.0), context.coverage)
+    assert view._store_patches[0]
+    assert view._store_patches[1]
+    assert all(not artist.get_visible() for artist in view._store_empty_artists or ())
     view.close()
 
 

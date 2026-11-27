@@ -12,7 +12,7 @@ from mpl_toolkits.mplot3d.art3d import Path3DCollection
 from ... import cursor
 from ...matplotlib_helpers import create_figure, style_axes
 from ...time_range import ResolvedTimeRange
-from ..data_view_base import StoreViewContext
+from ..data_view_base import RangeLifecycleSupport, StoreViewContext
 from ..plotting import MAX_MATPLOTLIB_3D_DISPLAY_POINTS, decimate_indices
 from ..data_view_registry import DataViewSpecMixin
 
@@ -44,7 +44,7 @@ START_MARKER_SIZE: float = 55.0
 """Area of the first-sample marker in points squared."""
 
 
-class Trajectory3DView(DataViewSpecMixin):
+class Trajectory3DView(RangeLifecycleSupport, DataViewSpecMixin):
     """Plot the orbit path and move a marker from direction-independent cursor state."""
 
     name: str = "trajectory-3d"
@@ -90,6 +90,7 @@ class Trajectory3DView(DataViewSpecMixin):
         self._store_context: StoreViewContext | None = None
         self._store_positions_m: np.ndarray | None = None
         self._store_sample_times_s: np.ndarray | None = None
+        self._initialize_range_lifecycle()
 
     def build_from_store(self, context: StoreViewContext) -> Figure:
         """Build from raw position columns."""
@@ -106,6 +107,7 @@ class Trajectory3DView(DataViewSpecMixin):
         self._figure = figure
         self._store_context = context
         self._range_bounds = context.plot_range
+        self._apply_range_lifecycle(context.plot_range, context.coverage)
         self._range_applied = True
         self._current_time_s = context.coverage[0]
         self._store_positions_m = context.snapshot.positions_m
@@ -140,6 +142,8 @@ class Trajectory3DView(DataViewSpecMixin):
         previous_sample_count = self._store_context.snapshot.sample_count
         self._store_context = context
         self._range_bounds = context.plot_range
+        self._apply_range_lifecycle(context.plot_range, context.coverage)
+        self._mark_view_content_changed()
         self._store_positions_m = context.snapshot.positions_m
         self._store_sample_times_s = context.snapshot.raw[:, 0]
         self._refresh_store_trajectory(
@@ -156,6 +160,8 @@ class Trajectory3DView(DataViewSpecMixin):
         """Filter the orbit path and visible endpoint/current-state markers."""
         if self._store_context is None:
             raise RuntimeError("3D trajectory view was not built from a store")
+        if not self._apply_range_lifecycle(bounds, _coverage):
+            return
         self._store_context = self._store_context.with_range(bounds, _coverage)
         self._range_bounds = bounds
         self._store_positions_m = self._store_context.snapshot.positions_m

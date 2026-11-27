@@ -14,13 +14,25 @@ from ephem_toolkit.play_oem.time_snapping import snap_tt_s_to_utc_half_second
 from ephem_toolkit.play_oem.time_unit import TimeUnit
 from ephem_toolkit.play_oem.views.angular_velocity import AngularVelocityView
 from ephem_toolkit.play_oem.views.data_view_base import (
+    RangeLifecycleSupport,
     StoreStationViewSupport,
     StoreViewBinding,
     StoreViewContext,
+    validate_data_view_protocol,
 )
 from ephem_toolkit.play_oem.views.direction_change import DirectionChangeView
 from ephem_toolkit.play_oem.views.distance import GeocentricDistanceView
+from ephem_toolkit.play_oem.views.ground_station import GroundStationView
+from ephem_toolkit.play_oem.views.ground_station_passes import (
+    GroundStationPassListView,
+    GroundStationSkyView,
+)
+from ephem_toolkit.play_oem.views.ground_track import GroundTrackView
 from ephem_toolkit.play_oem.views.rtn import RtnDeltaView
+from ephem_toolkit.play_oem.views.speed_altitude import SpeedAltitudeView
+from ephem_toolkit.play_oem.views.state_components import StateComponentsView
+from ephem_toolkit.play_oem.views.trajectory3d.mpl_backend import Trajectory3DView
+from ephem_toolkit.play_oem.views.trajectory3d.vtk_backend import VTKTrajectory3DView
 
 
 def _store_context(
@@ -56,6 +68,69 @@ def _store_context(
         plot_range=plot_range,
         coverage=(100.0, 280.0),
     )
+
+
+def test_validate_data_view_protocol_reports_missing_lifecycle_methods() -> None:
+    class IncompleteView:
+        name = "incomplete"
+
+    with pytest.raises(TypeError, match="missing build_from_store"):
+        validate_data_view_protocol(IncompleteView())
+
+    class NonCallableView:
+        name = "non-callable"
+        build_from_store = None
+        update_from_store = None
+        update = None
+        set_time_range = None
+        close = None
+
+    with pytest.raises(TypeError, match="missing build_from_store"):
+        validate_data_view_protocol(NonCallableView())
+
+
+def test_range_lifecycle_support_unifies_range_and_redraw_state() -> None:
+    class View(RangeLifecycleSupport):
+        pass
+
+    view = View()
+    view._initialize_range_lifecycle()
+    first = ResolvedTimeRange(100.0, 220.0)
+    assert view._apply_range_lifecycle(first, (100.0, 280.0)) is True
+    assert view.consume_cursor_only_update() is False
+    assert view.consume_cursor_only_update() is False
+
+    view._mark_view_content_changed()
+    assert view.consume_cursor_only_update() is False
+    assert view.consume_cursor_only_update() is False
+
+    assert view._apply_range_lifecycle(first, (100.0, 280.0)) is False
+
+
+@pytest.mark.parametrize(
+    ("view_type", "name"),
+    (
+        (Trajectory3DView, "trajectory-3d"),
+        (SpeedAltitudeView, "speed-altitude"),
+        (StateComponentsView, "state-components"),
+        (RtnDeltaView, "rtn"),
+        (AngularVelocityView, "angular-velocity"),
+        (DirectionChangeView, "direction-change"),
+        (GeocentricDistanceView, "distance"),
+        (GroundTrackView, "ground-track"),
+        (GroundStationView, "elevation-profile"),
+        (GroundStationPassListView, "pass-list"),
+        (GroundStationSkyView, "sky-view"),
+        (VTKTrajectory3DView, "trajectory-3d"),
+    ),
+)
+def test_registered_views_share_canonical_protocol(view_type, name) -> None:
+    view = object.__new__(view_type)
+    if not hasattr(view, "name"):
+        view.name = name
+    validated = validate_data_view_protocol(view)
+    assert validated.name == name
+    assert callable(validated.consume_cursor_only_update)
 
 
 def _assert_store_paths(
@@ -359,6 +434,9 @@ def test_store_history_data_views_handle_empty_ranges(
     figure = view.build_from_store(context)
     FigureCanvasAgg(figure).draw()
 
+    assert hasattr(view, "_range_axes")
+    assert tuple(view._range_axes) == tuple(figure.axes)
+    assert view._range_applied
     assert view._store_query is not None
     if plot_range is None:
         assert view._store_query.coverage.requested_s is None

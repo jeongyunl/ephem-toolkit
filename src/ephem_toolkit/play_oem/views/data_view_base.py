@@ -6,7 +6,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field, replace
 from math import ceil
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, Protocol, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Protocol, TypeVar, cast, runtime_checkable
 
 import numpy as np
 from matplotlib.artist import Artist
@@ -555,6 +555,7 @@ def store_load_status_message(context: StoreViewContext | None) -> str | None:
     return None
 
 
+@runtime_checkable
 class DataView(Protocol):
     """Canonical store-bound view lifecycle used by the unified player."""
 
@@ -578,9 +579,37 @@ class DataView(Protocol):
         """Apply a range-only context update."""
         ...
 
+    def consume_cursor_only_update(self) -> bool:
+        """Return whether the latest update changes only playback cursor state."""
+        ...
+
     def close(self) -> None:
         """Release store subscriptions and presentation resources."""
         ...
+
+
+def validate_data_view_protocol(view: object) -> DataView:
+    """Return a view only when it implements the canonical unified lifecycle."""
+    missing: list[str] = []
+    name = getattr(view, "name", None)
+    if not isinstance(name, str) or not name.strip():
+        missing.append("name")
+    for method in (
+        "build_from_store",
+        "update_from_store",
+        "update",
+        "set_time_range",
+        "close",
+    ):
+        if not callable(getattr(view, method, None)):
+            missing.append(method)
+    if missing:
+        name = type(view).__name__
+        raise TypeError(
+            f"{name} does not implement the DataView protocol;"
+            f" missing {', '.join(missing)}"
+        )
+    return cast(DataView, view)
 
 
 def add_store_series_paths(
@@ -768,7 +797,48 @@ def set_raw_state_y_limits(
     axes.set_ylim(lower - padding, upper + padding)
 
 
-class TimeRangeSupport:
+class RangeLifecycleSupport:
+    """Canonical range-change and cursor-only redraw state for every data view."""
+
+    animated_cursor_updates: bool = False
+
+    def _initialize_range_lifecycle(
+        self,
+        bounds: ResolvedTimeRange | None = None,
+        coverage: tuple[float, float] | None = None,
+    ) -> None:
+        self._range_bounds = bounds
+        self._range_coverage = coverage
+        self._range_applied = bounds is not None
+        self._range_changed = True
+
+    def _apply_range_lifecycle(
+        self,
+        bounds: ResolvedTimeRange | None,
+        coverage: tuple[float, float],
+    ) -> bool:
+        changed = (
+            bounds != getattr(self, "_range_bounds", None)
+            or coverage != getattr(self, "_range_coverage", None)
+        )
+        if changed:
+            self._range_changed = True
+        self._range_bounds = bounds
+        self._range_coverage = coverage
+        self._range_applied = True
+        return changed
+
+    def _mark_view_content_changed(self) -> None:
+        self._range_changed = True
+
+    def consume_cursor_only_update(self) -> bool:
+        """Return whether only animated cursors changed since the prior update."""
+        range_changed = getattr(self, "_range_changed", True)
+        self._range_changed = False
+        return self.animated_cursor_updates and not range_changed
+
+
+class TimeRangeSupport(RangeLifecycleSupport):
     """Shared time-axis, range filtering, and cursor-visibility behavior."""
 
     # Views whose per-tick update changes only animated cursor artists.
@@ -782,17 +852,15 @@ class TimeRangeSupport:
         start_time_s: float,
         divisor_s: float,
     ) -> None:
+        self._initialize_range_lifecycle()
         self._range_axes = axes
         self._range_histories = histories
         self._range_cursors = cursor_artists
         self._range_start_time_s = start_time_s
         self._range_divisor_s = divisor_s
-        self._range_bounds: ResolvedTimeRange | None = None
         self._range_coverage = (start_time_s, start_time_s)
         self._last_cursor_time_s = start_time_s
-        self._range_applied = False
         self._range_active = False
-        self._range_changed = True
         self._setting_shared_xlim = False
         self._range_xlim_callbacks = [
             (
@@ -827,11 +895,7 @@ class TimeRangeSupport:
     ) -> None:
         if not hasattr(self, "_range_axes"):
             return
-        if bounds != self._range_bounds or coverage != self._range_coverage:
-            self._range_changed = True
-        self._range_bounds = bounds
-        self._range_coverage = coverage
-        self._range_applied = True
+        self._apply_range_lifecycle(bounds, coverage)
         self._range_active = bounds is None or (
             bounds.start_s > coverage[0] or bounds.end_s < coverage[1]
         )
@@ -859,18 +923,6 @@ class TimeRangeSupport:
             self._set_cursor_visibility(self._last_cursor_time_s)
         # Keep the current vertical zoom. Home on the navigation toolbar returns
         # to its captured full-data limits; this explicit hook serves other UIs.
-
-    def consume_cursor_only_update(self) -> bool:
-        """Return whether the time range is unchanged since the previous call.
-
-        Callers pair this with a cursor ``update``; a True result means the only
-        change was to animated cursors, so a cached background can be reused.
-        """
-        if not hasattr(self, "_range_changed"):
-            return False
-        range_changed = self._range_changed
-        self._range_changed = False
-        return self.animated_cursor_updates and not range_changed
 
     def restore_full_y_limits(self) -> None:
         """Restore build-time full-history Y bounds without changing shared X."""
@@ -932,6 +984,19 @@ class StoreSeriesPlotView(TimeRangeSupport):
         if self._figure is None:
             raise RuntimeError("store view has not been built")
         self._prepare_store_context(context)
+        axes = tuple(self._figure.axes)
+        cursor_artists = tuple(getattr(self, "_cursor_artists", ()) or ())
+        configured_axes = tuple(getattr(self, "_range_axes", ()) or ())
+        configured_cursors = tuple(getattr(self, "_range_cursors", ()) or ())
+        if configured_axes != axes or configured_cursors != cursor_artists:
+            self._configure_time_range(
+                axes,
+                (),
+                cursor_artists,
+                context.coverage[0],
+                context.time_unit.get_divisor_s(),
+            )
+        self._mark_view_content_changed()
         indexes = (
             tuple(range(len(self._figure.axes)))
             if axis_indexes is None
@@ -943,6 +1008,12 @@ class StoreSeriesPlotView(TimeRangeSupport):
         artist_groups = getattr(self, "_store_artists", ())
         for axes, artists in zip(self._figure.axes, artist_groups):
             clear_store_series_artists(axes, artists)
+
+    def _request_store_view_redraw(self) -> None:
+        """Request a canvas redraw after one store-backed rebuild completes."""
+        canvas = getattr(self, "_time_series_canvas", None)
+        if canvas is not None:
+            canvas.draw_idle()
 
     def _store_context_for_range(
         self,
