@@ -84,13 +84,13 @@ remain unverified in this environment.
 `__main__.py` creates exactly one `wx.App`; `PlayerApp` owns its event-loop lifecycle, playback
 clock, timer and main workspace frame. The frame has a File menu with **Open File...**, a status
 bar for load and error messages, and a `Workspace` that places a `Controls & Info` feature area
-beside the `Main Analysis` graph stack and optional `Comparison` stack. The workspace package
-composes its layout, feature navigation, graph stacks and shared timeline through focused modules.
-When another OEM is loaded, existing views are rebuilt in their graph-panel slots so the stack
-structure, panel sizing and scroll position remain intact. Graph views are hosted inside
-independently identified graph panels rather than detached plot frames. Closing one panel closes
+beside the `Main pane` data-view stack and optional `Additional pane` data-view stack. The workspace package
+composes its layout, feature navigation, data-view stacks and shared timeline through focused modules.
+When another OEM is loaded, existing views are rebuilt in their view-panel slots so the stack
+structure, panel sizing and scroll position remain intact. Data views are hosted inside
+independently identified data-view panels rather than detached plot frames. Closing one panel closes
 only its view and unsubscribes it from clock updates; closing the workspace frame stops the timer,
-closes all graph panels, removes observers and exits the one `MainLoop()`.
+closes all data-view panels, removes observers and exits the one `MainLoop()`.
 The VTK view disables its interactor, finalizes the render window, removes its renderer and breaks
 both interactor/render-window links before wx destroys the panel, so native VTK resources do not
 remain in an ownership cycle until interpreter shutdown. Once the event loop stops,
@@ -109,7 +109,7 @@ Options:
 | D. **wxPython workspace + embedded Matplotlib figures** (`WXAgg`, `FigureCanvasWxAgg`) | native widgets and toolbars on each platform; one wx event loop for controls and Matplotlib canvases; no Tk dependency | new GUI dependency with platform-dependent wheels; `wx.Slider` is integer-only; tests that create a `wx.App` need a display |
 
 **Decision: D (wxPython).** wxPython is the sole GUI framework for `play-oem`, per the migration
-directive. The Controls & Info pane, graph-panel hosts, and any VTK widget are owned by one `wx.App`
+directive. The Controls & Info pane, view-panel hosts, and any VTK widget are owned by one `wx.App`
 and one `MainLoop()`. Tk is removed from the runtime path (implementation plan steps 15–23). The
 `View`/`Clock` layers are toolkit-agnostic, so the GUI toolkit remains replaceable.
 
@@ -202,7 +202,7 @@ class View(Protocol):
   RTN, angular velocity, direction change, and distance; `access-overview` and `pass-study` are
   optional station presets; `access-overview` expands to Station Status, Elevation Profile,
   Azimuth Profile, Range Profile, and Ground Station Access. `all` expands to every registered
-  view. The registry powers `--plots` and panel selection.
+  view. The registry powers `--data-views` and panel selection.
 
 ### 4.3.1 3D trajectory backends (Matplotlib/wx and VTK)
 
@@ -216,7 +216,7 @@ The `state` group opens the state-components view.
 
 The state-components view uses a 3-by-2 Matplotlib layout: position X/Y/Z and velocity VX/VY/VZ,
 with frame and unit labels, one shared elapsed-time axis, and synchronized cursor lines. Each 2D view
-is a `FigureCanvasWxAgg` canvas in an embedded graph-panel host. Clicks map through per-axes plot bounds to preserve
+is a `FigureCanvasWxAgg` canvas in an embedded view-panel host. Clicks map through per-axes plot bounds to preserve
 synchronized seeking. The PPM/PhotoImage raster path from the Tk implementation is removed in step 18.
 
 ```
@@ -251,7 +251,7 @@ a broad exception handler. Both backends implement the same interface, so the to
 **Matplotlib/wx backend.** The initial overview draws the static orbit path, start/end markers,
 labeled axes and object/frame context in `build`; `update` moves the satellite marker from the shared
 cursor state. This backend does not currently draw an Earth model or a trajectory tail. The figure
-and navigation toolbar are hosted in a `GraphPanelHost` within either graph stack. Redraws are
+and navigation toolbar are hosted in a `DataViewPanelHost` within either data-view stack. Redraws are
 requested with `draw_idle()` and playback updates are throttled to at most 10 Hz.
 
 **VTK backend.** Scene built in `build`:
@@ -281,7 +281,7 @@ trajectory tail.
 
 **Step 20 outcome: `VTK-KEEP`; use the embedded wx interactor.** Host VTK through
 `vtkmodules.wx.wxVTKRenderWindowInteractor.wxVTKRenderWindowInteractor` inside the trajectory
-`GraphPanelHost` in Main Analysis or Comparison. Its wx event bindings deliver paint, resize, mouse,
+`DataViewPanelHost` in Main pane or Additional pane. Its wx event bindings deliver paint, resize, mouse,
 and keyboard events to the VTK interactor. The application owns the only GUI loop: call
 `widget.Enable(1)`, let wx's main loop drive the widget, and call `Render()` on the wx thread when
 the shared cursor changes. Do not call VTK's `Start()` or manually pump a second event loop. The
@@ -296,7 +296,7 @@ must be validated before claiming support there. The production fix registers th
 factory and rejects a non-OpenGL render-window class, but that guard does not replace visual
 verification of each platform's native wx/OpenGL context.
 
-After showing a trajectory graph panel, the application yields pending wx paint events and verifies
+After showing a trajectory data-view panel, the application yields pending wx paint events and verifies
 that the VTK render window completed its initial render. Backend selection errors are explicit:
 `vtk` reports a missing VTK package or failed wx/GL initialization with an install or
 graphics-support hint; `auto` falls back to Matplotlib only for those recognized VTK-unavailable
@@ -310,18 +310,18 @@ VTK tests are skipped via `pytest.importorskip("vtk")`.
 ### 4.4 Workspace panes
 
 The active workspace uses one `wx.Frame` with three named regions: **Controls & Info** at left,
-**Main Analysis** in the middle, and the optional **Comparison** pane at right. These names appear
+**Main pane** in the middle, and the optional **Additional pane** at right. These names appear
 in visible pane headings and matching wx window names. Controls & Info contains the feature rail and
 `wx.Simplebook`; its Settings page embeds display time-zone, render-rate, and interpolation controls, while OEM metadata has
-its own page, and current-state readouts live on the State page. Main Analysis and Comparison each
-contain an independently scrollable graph stack with per-panel lifecycle. Startup opens `overview`
-by default in Main Analysis: the 3D orbit and combined speed/altitude time-series view. `--plots`
-can replace that selection with individual views or named groups.
+its own page, and current-state readouts live on the State page. Main pane and Additional pane each
+contain an independently scrollable data-view stack with per-panel lifecycle. Startup opens `overview`
+by default in Main pane: the 3D orbit and combined speed/altitude time-series view. `--data-views`
+can replace that selection with individual data views or named presets.
 
 The Controls & Info pane uses a four-page feature rail: Settings, OEM file information,
 Ground Stations, and State. Settings contains display time-zone, render-rate, and interpolation
-controls; `Workspace` owns the shared playback timeline below the three-pane splitter. Main
-Analysis and Comparison own their graph stacks:
+controls; `Workspace` owns the shared playback timeline below the three-pane splitter. The
+Main pane and Additional pane own their data-view stacks:
 
 ```
 [Settings page]
@@ -346,8 +346,8 @@ station list | Add | inline edit/save/cancel/remove
 r=(x,y,z) km   v=(vx,vy,vz) km/s   speed=… km/s   altitude=… km
 Cursor: interpolated / sample / gap / unavailable
 
-[Main Analysis / Comparison]
-graph stacks with per-panel view selector, actions, and close controls
+[Main pane / Additional pane]
+data-view stacks with per-panel view selector, actions, and close controls
 ```
 
 - Settings page: the `ControlWindow` provides a UTC/local display time-zone selector, a render-rate
@@ -394,8 +394,8 @@ graph stacks with per-panel view selector, actions, and close controls
   requires that metadata plus the view's `seek_on_click` capability, ignores active toolbar
   pan/zoom modes, and seeks to `origin_s + xdata * divisor_s`. Spatial and non-time views
   explicitly opt out and do not infer seekability from their axes or a 3D-axis name.
-- The graph-panel selector opens individual registered views. Presets and `--plots` open named
-  groups; an already-open view is raised rather than duplicated. Closing one graph panel does not
+- The view-panel selector opens individual registered views. Presets and `--data-views` open named
+  groups; an already-open view is raised rather than duplicated. Closing one data-view panel does not
   affect the clock or other panels. Closing the workspace frame destroys all panels and stops the
   single wx event loop.
 - Current-state readouts on State come from the same `CursorState` as the plots, including explicit
@@ -410,8 +410,8 @@ graph stacks with per-panel view selector, actions, and close controls
 
 `PlayerApp` behavior is split across controller, view-factory, playback-action, and panel-management
 mixins. Their shared `PlayerAppState` protocol lives in `app/state.py`; `_plots` is a tuple there
-because the controller stores the expanded plot selection as an immutable tuple. The constructor
-still accepts any `Sequence[str]` for the initial plot selection.
+because the controller stores the expanded data-view selection as an immutable tuple. The constructor
+still accepts any `Sequence[str]` for the initial data-view selection.
 
 One `wx.Timer` (`wx.EVT_TIMER`) uses a millisecond interval approximating
 `1000/render_rate_fps`:
@@ -444,14 +444,14 @@ bounded event queue can allow already in-flight batches to commit before the pau
 
 ## 5. CLI flow (`__main__.py`)
 
-1. Parse the optional OEM path, `--plots`, `--3d-backend`, `--config-file`, `--state-file`, and `--config-dir`.
+1. Parse the optional OEM path, `--data-views`, `--3d-backend`, `--config-file`, `--state-file`, and `--config-dir`.
 2. Load user configuration and saved workspace state, then construct the `wx.App` and workspace
    with an empty startup model.
 3. Show the workspace and start the selected file's generation-scoped background load. The worker
    commits parsed rows directly to the store; the wx thread installs snapshots while deferring
    initial plot refreshes until playback and plot coverage are ready. It pauses the producer for
    initial graph drawing, then resumes it. Completion publishes validated metadata.
-4. Playback, seeking, and render-rate controls operate in the GUI. `--plots` defaults to
+4. Playback, seeking, and render-rate controls operate in the GUI. `--data-views` defaults to
    `overview`; `auto` selects VTK only when its wx integration initializes successfully, otherwise
    it uses Matplotlib with a notice. An explicit unavailable VTK request fails with an actionable
    error.
@@ -464,7 +464,7 @@ bounded event queue can allow already in-flight batches to commit before the pau
   incremental parsing, store queries, segment/gap handling, and view refresh.
 - View tests cover store-bound range queries, plot updates, click-to-seek, station selection, and
   explicit unavailable/partial-coverage states.
-- App and CLI tests cover wx lifecycle, `--plots`, config precedence, backend selection, and
+- App and CLI tests cover wx lifecycle, `--data-views`, config precedence, backend selection, and
   incremental replacement. Matplotlib-only tests can run headlessly; tests creating `wx.App`
   require a usable wx display environment.
 - Current complete package test check (2026-11-09): `PYTHONPATH=src python3 -m pytest -q

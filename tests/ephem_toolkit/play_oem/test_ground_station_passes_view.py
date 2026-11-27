@@ -15,7 +15,7 @@ from matplotlib.figure import Figure
 import pytest
 
 from ephem_toolkit.play_oem.ground_stations import GroundStation
-from ephem_toolkit.play_oem import graph_panel
+from ephem_toolkit.play_oem import data_view_panel
 from ephem_toolkit.play_oem.oem_data_store import OemDataStore
 from ephem_toolkit.play_oem.station_access import (
     AccessInterval,
@@ -25,7 +25,7 @@ from ephem_toolkit.play_oem.station_access import (
 from ephem_toolkit.play_oem.station_analysis import StationAnalysisContext
 from ephem_toolkit.play_oem.time_range import ResolvedTimeRange
 from ephem_toolkit.play_oem.time_unit import TimeUnit
-from ephem_toolkit.play_oem.views.base import StoreViewContext
+from ephem_toolkit.play_oem.views.data_view_base import StoreViewContext
 from ephem_toolkit.play_oem.views.ground_station_passes import (
     GroundStationPassListView,
     GroundStationPassesView,
@@ -33,7 +33,7 @@ from ephem_toolkit.play_oem.views.ground_station_passes import (
     _can_fit_side_by_side,
     _utc_label,
 )
-from ephem_toolkit.play_oem.views import ground_station_passes as passes_view_module
+from ephem_toolkit.play_oem.data_views import ground_station_passes as passes_view_module
 
 
 @pytest.fixture(scope="module")
@@ -467,7 +467,7 @@ def test_deferred_layout_callback_is_ignored_after_view_close(monkeypatch) -> No
     assert event.skipped
 
 
-def test_focused_pass_list_and_sky_views_share_interval_selection() -> None:
+def test_focused_pass_list_and_sky_data_views_share_interval_selection() -> None:
     station = GroundStation("site", "Site", 0.0, 0.0, 0.0, 10)
     interval = _interval(10.0, 20.0)
     context = StationAnalysisContext()
@@ -702,7 +702,7 @@ def test_sky_plot_draws_at_minimum_size_without_layout_warning() -> None:
     with warnings.catch_warnings(record=True) as warnings_record:
         warnings.simplefilter("always")
         view._draw_sky_plot()
-        graph_panel._minimize_figure_padding(figure)
+        data_view_panel._minimize_figure_padding(figure)
         canvas.draw()
 
     assert not any(

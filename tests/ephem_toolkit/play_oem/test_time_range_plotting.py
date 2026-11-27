@@ -8,7 +8,7 @@ from matplotlib.figure import Figure
 from ephem_toolkit.play_oem.time_range import ResolvedTimeRange
 from ephem_toolkit.play_oem.time_unit import TimeUnit
 from ephem_toolkit.play_oem.views.plotting import SegmentedPlotHistory
-from ephem_toolkit.play_oem.views.base import StoreTimeSeriesView
+from ephem_toolkit.play_oem.views.data_view_base import StoreTimeSeriesView
 
 
 def test_store_time_series_view_shares_axis_and_seek_conversion() -> None:
@@ -190,7 +190,7 @@ def test_speed_altitude_data_update_preserves_figure_and_line_artists() -> None:
         view.close()
 
 
-def test_time_series_views_accept_appended_data_in_place() -> None:
+def test_time_series_data_views_accept_appended_data_in_place() -> None:
     from ephem_toolkit.play_oem.series import compute_orbit_series
     from ephem_toolkit.play_oem.time_unit import TimeUnit
     from ephem_toolkit.play_oem.views.angular_velocity import AngularVelocityView
@@ -212,7 +212,7 @@ def test_time_series_views_accept_appended_data_in_place() -> None:
     updated = compute_orbit_series(
         [100.0, 160.0, 220.0, 280.0], states, TimeUnit.MINUTES
     )
-    views = (
+    data_views = (
         SpeedAltitudeView(100.0),
         AngularVelocityView(100.0, "ISS"),
         DirectionChangeView(100.0, "ISS"),
@@ -221,7 +221,7 @@ def test_time_series_views_accept_appended_data_in_place() -> None:
         StateComponentsView(100.0, "GCRF / Earth"),
     )
 
-    for view in views:
+    for view in data_views:
         figure = view.build(initial, TimeUnit.MINUTES)
         try:
             assert view.update_data(updated, TimeUnit.MINUTES)

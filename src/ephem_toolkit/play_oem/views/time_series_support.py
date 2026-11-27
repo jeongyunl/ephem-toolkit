@@ -1,4 +1,4 @@
-"""Reusable wx shell support for 2D time-series views."""
+"""Reusable wx shell support for 2D time-series data_views."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import wx
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg
 from matplotlib.figure import Figure
 
-from ..graph_panel import GRAPH_PANEL_MIN_SIZE
+from ..data_view_panel import DATA_VIEW_PANEL_MIN_SIZE
 from ..widgets import (
     FloatingPanel,
     MatplotlibPanel,
@@ -20,7 +20,7 @@ from .compact_controls import compact_controls
 
 
 class TimeSeriesWxPanelMixin:
-    """Own native wx embedding and floating-panel lifecycle for time-series views."""
+    """Own native wx embedding and floating-panel lifecycle for time-series data_views."""
 
     def _initialize_time_series_wx(self) -> None:
         """Initialize wx-owned fields before constructing a time-series panel."""
@@ -54,17 +54,17 @@ class TimeSeriesWxPanelMixin:
         panel.SetWindowVariant(wx.WINDOW_VARIANT_SMALL)
         if name is not None:
             panel.SetName(name)
-        panel.SetMinSize(panel.FromDIP(wx.Size(*GRAPH_PANEL_MIN_SIZE)))
+        panel.SetMinSize(panel.FromDIP(wx.Size(*DATA_VIEW_PANEL_MIN_SIZE)))
 
         plot_panel = MatplotlibPanel(
             panel,
             figure,
             toolbar_factory=toolbar_factory,
             preserve_aspect_ratio=preserve_aspect_ratio,
-            minimum_canvas_size=GRAPH_PANEL_MIN_SIZE,
+            minimum_canvas_size=DATA_VIEW_PANEL_MIN_SIZE,
         )
         canvas = plot_panel.canvas
-        canvas.SetMinSize(canvas.FromDIP(wx.Size(*GRAPH_PANEL_MIN_SIZE)))
+        canvas.SetMinSize(canvas.FromDIP(wx.Size(*DATA_VIEW_PANEL_MIN_SIZE)))
 
         root = wx.BoxSizer(wx.VERTICAL)
         root.Add(plot_panel, 1, wx.EXPAND)

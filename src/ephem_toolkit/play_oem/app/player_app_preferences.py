@@ -20,7 +20,7 @@ from ..saved_state import (
 )
 from ..views.ground_track import GroundTrackView
 from .player_app_state import PlayerAppState
-from .player_app_support import EMPTY_GRAPH_VIEW, PLAYER_FRAME_SIZE
+from .player_app_support import EMPTY_DATA_VIEW, PLAYER_FRAME_SIZE
 
 
 class PlayerAppPreferencesMixin:
@@ -51,11 +51,11 @@ class PlayerAppPreferencesMixin:
                 max(MIN_STORED_WINDOW_DIMENSION, height),
             )
 
-    def _capture_saved_open_views(self: PlayerAppState) -> None:
+    def _capture_saved_open_data_views(self: PlayerAppState) -> None:
         if self._saved_state is None:
             return
         for opened in self._open_panels.values():
-            view = opened.view
+            view = opened.data_view
             if isinstance(view, GroundTrackView) and view._axes is not None:
                 self._saved_state.ground_track_projection = view.projection_name
                 self._saved_state.ground_track_background = view.background_style
@@ -72,17 +72,17 @@ class PlayerAppPreferencesMixin:
                     float(ylim[0]),
                     float(ylim[1]),
                 )
-            setter = getattr(opened.view, "set_minimum_elevation", None)
+            setter = getattr(opened.data_view, "set_minimum_elevation", None)
             if setter is not None:
-                minimum_elevation = getattr(opened.view, "minimum_elevation_deg", None)
+                minimum_elevation = getattr(opened.data_view, "minimum_elevation_deg", None)
                 if isinstance(minimum_elevation, int):
                     self._saved_state.minimum_elevation_deg = minimum_elevation
                 break
         if self._oem_loaded:
-            self._saved_state.open_plots = [
-                opened.view_name
+            self._saved_state.open_data_views = [
+                opened.data_view_name
                 for opened in self._open_panels.values()
-                if opened.view_name != EMPTY_GRAPH_VIEW
+                if opened.data_view_name != EMPTY_DATA_VIEW
             ]
 
     def _saved_state_size(self: PlayerAppState) -> tuple[int, int]:
@@ -181,7 +181,7 @@ class PlayerAppPreferencesMixin:
         if save_geometry:
             self._capture_saved_window_geometry()
         self._saved_state.recent_files = list(self._recent_oem_paths[:MAX_RECENT_FILES])
-        self._capture_saved_open_views()
+        self._capture_saved_open_data_views()
         try:
             save_saved_state(self._saved_state, self._state_path)
         except OSError as error:

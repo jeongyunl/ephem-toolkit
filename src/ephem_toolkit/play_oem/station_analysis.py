@@ -1,4 +1,4 @@
-"""Selection state shared by Ground Station views in one graph stack."""
+"""Selection state shared by Ground Station data views in one data-view stack."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ IntervalKey = tuple[float, float]
 
 @dataclass(frozen=True)
 class StationAnalysisSelection:
-    """Station and stable interval identity selected in one graph stack."""
+    """Station and stable interval identity selected in one data-view stack."""
 
     station_id: str | None = None
     interval_key: IntervalKey | None = None

@@ -1,4 +1,4 @@
-"""Tests for the shared wx shell used by 2D time-series views."""
+"""Tests for the shared wx shell used by 2D time-series data_views."""
 
 from __future__ import annotations
 
@@ -10,11 +10,11 @@ from matplotlib.figure import Figure
 
 import wx
 
-from ephem_toolkit.play_oem.views.base import TimeSeriesWxPanelMixin
+from ephem_toolkit.play_oem.views.data_view_base import TimeSeriesWxPanelMixin
 from ephem_toolkit.play_oem.views.time_series_support import (
     TimeSeriesWxPanelMixin as DirectTimeSeriesWxPanelMixin,
 )
-from ephem_toolkit.play_oem.graph_panel import GRAPH_PANEL_MIN_SIZE
+from ephem_toolkit.play_oem.data_view_panel import DATA_VIEW_PANEL_MIN_SIZE
 
 
 class _TimeSeriesWxSupport(TimeSeriesWxPanelMixin):
@@ -83,7 +83,7 @@ def test_time_series_wx_support_builds_minimum_canvas_shell(wx_app: Any) -> None
         assert support._time_series_figure is figure
         assert (
             support._time_series_plot_panel.minimum_canvas_size
-            == GRAPH_PANEL_MIN_SIZE
+            == DATA_VIEW_PANEL_MIN_SIZE
         )
 
         floating = support._create_time_series_floating_panel(

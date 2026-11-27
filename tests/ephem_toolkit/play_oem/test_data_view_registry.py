@@ -4,22 +4,22 @@ from __future__ import annotations
 
 import pytest
 
-from ephem_toolkit.play_oem.views.registry import (
-    ViewGroup,
-    ViewRegistry,
-    ViewSpec,
+from ephem_toolkit.play_oem.views.data_view_registry import (
+    DataViewPreset,
+    DataViewRegistry,
+    DataViewSpec,
 )
 
 
-def make_registry() -> ViewRegistry:
-    registry = ViewRegistry(
+def make_registry() -> DataViewRegistry:
+    registry = DataViewRegistry(
         (
-            ViewGroup("overview", "Overview"),
-            ViewGroup("motion", "Motion"),
+            DataViewPreset("overview", "Overview"),
+            DataViewPreset("motion", "Motion"),
         )
     )
     registry.register(
-        ViewSpec(
+        DataViewSpec(
             "trajectory-3d",
             "3D Orbit",
             "overview",
@@ -27,7 +27,7 @@ def make_registry() -> ViewRegistry:
         )
     )
     registry.register(
-        ViewSpec(
+        DataViewSpec(
             "speed-altitude",
             "Speed / Altitude",
             "overview",
@@ -35,7 +35,7 @@ def make_registry() -> ViewRegistry:
         )
     )
     registry.register(
-        ViewSpec(
+        DataViewSpec(
             "rtn",
             "RTN Deltas",
             "motion",
@@ -63,12 +63,12 @@ def test_registry_expands_groups_and_all_from_registered_specs() -> None:
     )
 
 
-def test_registry_opens_resolved_views_once() -> None:
+def test_registry_opens_resolved_data_views_once() -> None:
     opened: list[str] = []
     registry = make_registry()
     registry.clear()
     registry.register(
-        ViewSpec(
+        DataViewSpec(
             "speed-altitude",
             "Speed / Altitude",
             "overview",
@@ -76,7 +76,7 @@ def test_registry_opens_resolved_views_once() -> None:
         )
     )
     registry.register(
-        ViewSpec(
+        DataViewSpec(
             "trajectory-3d",
             "3D Orbit",
             "overview",
@@ -92,15 +92,15 @@ def test_registry_opens_resolved_views_once() -> None:
 def test_registry_rejects_unknown_names_groups_and_duplicates() -> None:
     registry = make_registry()
 
-    with pytest.raises(ValueError, match="unknown plot name"):
+    with pytest.raises(ValueError, match="unknown data-view name"):
         registry.expand("not-a-view")
 
-    with pytest.raises(ValueError, match="unknown plot group"):
-        registry.open_group("state")
+    with pytest.raises(ValueError, match="unknown data-view preset"):
+        registry.open_preset("state")
 
     with pytest.raises(ValueError, match="already registered"):
         registry.register(
-            ViewSpec(
+            DataViewSpec(
                 "speed-altitude",
                 "Other Label",
                 "overview",
@@ -111,24 +111,24 @@ def test_registry_rejects_unknown_names_groups_and_duplicates() -> None:
 
 def test_view_spec_requires_canonical_fields() -> None:
     with pytest.raises(ValueError, match="name must be non-empty"):
-        ViewSpec("", "View", "overview", lambda: None)
+        DataViewSpec("", "DataView", "overview", lambda: None)
     with pytest.raises(ValueError, match="label must be non-empty"):
-        ViewSpec("view", "", "overview", lambda: None)
-    with pytest.raises(ValueError, match="group must be non-empty"):
-        ViewSpec("view", "View", "", lambda: None)
+        DataViewSpec("view", "", "overview", lambda: None)
+    with pytest.raises(ValueError, match="view preset must be non-empty"):
+        DataViewSpec("view", "DataView", "", lambda: None)
     with pytest.raises(TypeError, match="opener must be callable"):
-        ViewSpec("view", "View", "overview", None)  # type: ignore[arg-type]
+        DataViewSpec("view", "DataView", "overview", None)  # type: ignore[arg-type]
 
 
 def test_registry_rejects_specs_for_unknown_groups() -> None:
-    registry = ViewRegistry()
+    registry = DataViewRegistry()
 
-    with pytest.raises(ValueError, match="unknown view group"):
+    with pytest.raises(ValueError, match="unknown data-view preset"):
         registry.register(
-            ViewSpec("custom", "Custom", "custom", lambda: None)
+            DataViewSpec("custom", "Custom", "custom", lambda: None)
         )
 
 
 def test_group_all_is_reserved() -> None:
     with pytest.raises(ValueError, match="reserved"):
-        ViewGroup("all", "All")
+        DataViewPreset("all", "All")

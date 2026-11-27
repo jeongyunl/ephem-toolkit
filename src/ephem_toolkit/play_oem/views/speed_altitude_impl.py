@@ -15,7 +15,7 @@ from .. import series, time_unit
 from ..matplotlib_helpers import create_figure, style_axes
 from ..oem_data_store import ColumnGroupView, StoreQuery
 from ..time_range import ResolvedTimeRange
-from .base import (
+from .data_view_base import (
     StoreSeriesPlotView,
     StoreViewContext,
 )
@@ -72,7 +72,7 @@ class SpeedAltitudeImpl(StoreSeriesPlotView):
         Returns
         -------
         Figure
-            Matplotlib figure containing the two time-series plots.
+            Matplotlib figure containing the two time-series data_views.
 
         Raises
         ------

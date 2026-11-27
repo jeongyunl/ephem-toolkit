@@ -17,7 +17,7 @@ from matplotlib.collections import LineCollection
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 
-from ..graph_panel import GRAPH_PANEL_MIN_SIZE
+from ..data_view_panel import DATA_VIEW_PANEL_MIN_SIZE
 from ..ground_footprints import (
     GroundFootprintBoundary,
     GroundFootprints,
@@ -42,10 +42,10 @@ from ..widgets import (
     PanelCorner,
     PanelInteraction,
 )
-from .base import StoreViewBinding, StoreViewContext
+from .data_view_base import StoreViewBinding, StoreViewContext
 from .compact_controls import compact_controls
 from .plotting import bounded_sample_indices
-from .registry import ViewSpecMixin
+from .data_view_registry import DataViewSpecMixin
 
 PROJECTION_SPECS = {
     "Equirectangular": ("eqc", {}),
@@ -199,7 +199,7 @@ def _boundary_runs(
     return split_ground_track_runs(coordinates, center_longitude_deg)
 
 
-class GroundTrackView(ViewSpecMixin):
+class GroundTrackView(DataViewSpecMixin):
     """Map projection, track, current marker and coverage in a wx panel."""
 
     name = "ground-track"
@@ -300,7 +300,7 @@ class GroundTrackView(ViewSpecMixin):
         self._figure = create_figure((9.0, 5.0), constrained_layout=False)
         self._axes = self._figure.add_subplot(111)
         self._canvas = FigureCanvasWxAgg(panel, wx.ID_ANY, self._figure)
-        self._canvas.SetMinSize(GRAPH_PANEL_MIN_SIZE)
+        self._canvas.SetMinSize(DATA_VIEW_PANEL_MIN_SIZE)
         toolbar = GroundTrackToolbar(self._canvas, self._pan_map)
         toolbar.Realize()
         toolbar.pan()
@@ -457,7 +457,7 @@ class GroundTrackView(ViewSpecMixin):
         self._axes.callbacks.connect("xlim_changed", self._on_limits_changed)
         # Keep the map's height when the window narrows; scroll instead of
         # shrinking it. The controls row does not dictate the canvas width.
-        panel.SetMinSize(GRAPH_PANEL_MIN_SIZE)
+        panel.SetMinSize(DATA_VIEW_PANEL_MIN_SIZE)
 
         self._draw_map()
         self._refresh_station_controls()

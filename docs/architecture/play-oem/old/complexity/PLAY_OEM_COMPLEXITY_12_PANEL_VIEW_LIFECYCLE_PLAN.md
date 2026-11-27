@@ -29,7 +29,7 @@ The assessment candidates not yet completed are:
 
 | Candidate | Current evidence | Relative decision |
 | --- | --- | --- |
-| Panel and view lifecycle | `_open_view` is transactional across graph-panel insertion, view construction, Matplotlib/native content setup, and rollback. Close paths release canvas callbacks, view resources, store subscriptions, and panels. Existing tests exercise failure restoration, independent duplicate instances, close, and VTK cleanup. | Investigate next: failures here can leave stale panels, callbacks, subscriptions, or native resources; the contracts and regression cases are concrete and testable. |
+| Panel and view lifecycle | `_open_view` is transactional across view-panel insertion, view construction, Matplotlib/native content setup, and rollback. Close paths release canvas callbacks, view resources, store subscriptions, and panels. Existing tests exercise failure restoration, independent duplicate instances, close, and VTK cleanup. | Investigate next: failures here can leave stale panels, callbacks, subscriptions, or native resources; the contracts and regression cases are concrete and testable. |
 | Controller initialization and shared state | `PlayerApp.__init__` initializes loading, playback, config, and GUI state used by several mixins. The assessment identifies broad responsibility but no current state inconsistency or specific failing caller protocol. | Defer: broader scope and less direct behavior evidence; reconsider after lifecycle ownership is mapped. |
 
 This re-ranking is based on consequence, evidence, and validation cost, not
@@ -44,7 +44,7 @@ At planning time, the worktree is clean at commit
 ### Panel creation, replacement, and rollback
 
 `PanelManagementMixin._open_view` chooses or creates a stable panel ID, builds
-a `GraphPanelHost`, inserts or replaces the workspace panel, constructs the
+a `DataViewPanelHost`, inserts or replaces the workspace panel, constructs the
 view, builds legacy or store-backed content, applies range/time state, and
 attaches either a Matplotlib canvas/toolbar or native wx content. It then
 registers `_OpenView` state and publishes range hints. A failure during setup

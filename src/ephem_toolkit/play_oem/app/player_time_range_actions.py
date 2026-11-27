@@ -153,7 +153,7 @@ class TimeRangeActionsMixin:
         *,
         dragging: bool | None = None,
     ) -> None:
-        """Apply range and cursor state to visible views, deferring hidden panels."""
+        """Apply range and cursor state to visible data_views, deferring hidden panels."""
         coverage = (self.clock.t_start, self.clock.t_end)
         selected_time = self.clock.t_now if time_s is None else time_s
         context = self._store_state.view_context
@@ -178,19 +178,19 @@ class TimeRangeActionsMixin:
                 opened.has_pending_range = True
                 opened.pending_time_s = selected_time
                 continue
-            setter = getattr(opened.view, "set_time_range", None)
+            setter = getattr(opened.data_view, "set_time_range", None)
             if callable(setter) and _range_needs_update(opened, resolved, coverage):
                 setter(resolved, coverage)
                 opened.applied_range = resolved
                 opened.applied_coverage = coverage
             opened.range_initialized = True
-            opened.view.update(selected_time)
-            consume = getattr(opened.view, "consume_cursor_only_update", None)
+            opened.data_view.update(selected_time)
+            consume = getattr(opened.data_view, "consume_cursor_only_update", None)
             cursor_only = bool(consume()) if callable(consume) else False
             self._queue_time_range_redraw(opened.panel, cursor_only=cursor_only)
 
     def _is_time_range_panel_visible(self: PlayerAppState, panel: object) -> bool:
-        checker = getattr(self.workspace, "is_graph_panel_visible", None)
+        checker = getattr(self.workspace, "is_data_view_panel_visible", None)
         return bool(checker(panel)) if callable(checker) else True
 
     def _queue_time_range_redraw(
@@ -199,7 +199,7 @@ class TimeRangeActionsMixin:
         mark = getattr(panel, "mark_redraw", None)
         if callable(mark):
             mark(cursor_only=cursor_only)
-        queue = getattr(self.workspace, "queue_graph_redraw", None)
+        queue = getattr(self.workspace, "queue_data_view_redraw", None)
         if callable(queue):
             queue(panel)
         else:
@@ -217,14 +217,14 @@ class TimeRangeActionsMixin:
             (self.clock.playback_start, self.clock.playback_end),
             self.clock.t_now,
         )
-        setter = getattr(opened.view, "set_time_range", None)
+        setter = getattr(opened.data_view, "set_time_range", None)
         coverage = (self.clock.t_start, self.clock.t_end)
         if callable(setter) and _range_needs_update(opened, resolved, coverage):
             setter(resolved, coverage)
             opened.applied_range = resolved
             opened.applied_coverage = coverage
         opened.range_initialized = True
-        opened.view.update(self.clock.t_now)
+        opened.data_view.update(self.clock.t_now)
         opened.pending_time_s = None
         opened.pending_range = None
         opened.has_pending_range = False

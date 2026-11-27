@@ -1,4 +1,4 @@
-"""Derived orbit series used by OEM playback and views."""
+"""Derived orbit series used by OEM playback and data_views."""
 
 from __future__ import annotations
 

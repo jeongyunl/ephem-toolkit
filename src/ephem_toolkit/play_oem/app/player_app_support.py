@@ -1,4 +1,4 @@
-"""Shared application constants and graph-panel state models."""
+"""Shared application constants and data-data-view panel state models."""
 
 from __future__ import annotations
 
@@ -11,11 +11,11 @@ from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg, NavigationToolb
 from matplotlib.figure import Figure
 
 from .. import series, time_unit
-from ..graph_panel import GraphPanelHost
+from ..data_view_panel import DataViewPanelHost
 from ..matplotlib_helpers import create_figure
 from ..platform_support import is_linux
 from ..time_range import ResolvedTimeRange
-from ..views import base
+from ..views import data_view_base as base
 
 DEFAULT_TICK_INTERVAL_MS: int = 33
 """Default interval between playback timer events (ms)."""
@@ -29,11 +29,11 @@ PLAYER_FRAME_MIN_SIZE: tuple[int, int] = (920, 480)
 PLAYER_FRAME_SIZE: tuple[int, int] = (1100, 760)
 """Initial dashboard frame size (pixels)."""
 
-EMPTY_GRAPH_VIEW: str = "empty"
-"""Sentinel name for a graph panel with no selected view."""
+EMPTY_DATA_VIEW: str = "empty"
+"""Sentinel name for a data-view panel with no selected view."""
 
-EMPTY_GRAPH_LABEL: str = "Empty"
-"""Selector label for an unconfigured graph panel."""
+EMPTY_DATA_VIEW_LABEL: str = "Empty"
+"""Selector label for an unconfigured data-view panel."""
 
 
 def _configure_settings_backend_without_session_bus() -> None:
@@ -56,10 +56,10 @@ def _configure_settings_backend_without_session_bus() -> None:
         os.environ["GSETTINGS_BACKEND"] = "memory"
 
 
-class _EmptyGraphView:
-    """View placeholder shown before a graph type is selected."""
+class _EmptyDataView:
+    """DataView placeholder shown before a data-view type is selected."""
 
-    name = EMPTY_GRAPH_VIEW
+    name = EMPTY_DATA_VIEW
     seek_on_click = False
 
     def __init__(self, parent: wx.Window) -> None:
@@ -68,11 +68,11 @@ class _EmptyGraphView:
     def build(
         self, _series: series.OrbitSeries, _time_unit: time_unit.TimeUnit
     ) -> wx.Window:
-        empty_graph_prompt = wx.StaticText(
-            self._parent, wx.ID_ANY, "Select a graph view above"
+        empty_data_view_prompt = wx.StaticText(
+            self._parent, wx.ID_ANY, "Select a data view above"
         )
-        empty_graph_prompt.SetName("Empty graph prompt")
-        return empty_graph_prompt
+        empty_data_view_prompt.SetName("Empty data view prompt")
+        return empty_data_view_prompt
 
     def update(self, _t_s: float) -> None:
         pass
@@ -86,8 +86,8 @@ class _EmptyGraphView:
         pass
 
 
-class _PendingDataGraphView:
-    """Draw a selected graph panel while its OEM data is not available yet."""
+class _PendingDataView:
+    """Draw a selected data-view panel while its OEM data is not available yet."""
 
     name = "pending"
     seek_on_click = False
@@ -136,12 +136,12 @@ class _PendingDataGraphView:
 
 @dataclass
 class PanelBuildResources:
-    """Resources created while one graph panel is being opened."""
+    """Resources created while one data-view panel is being opened."""
 
-    panel: GraphPanelHost | None = None
-    """Graph panel host, when construction reached the host stage."""
-    view: base.View | None = None
-    """View instance, when construction reached the view stage."""
+    panel: DataViewPanelHost | None = None
+    """DataData-data-view panel host, when construction reached the host stage."""
+    data_view: base.DataView | None = None
+    """DataView instance, when construction reached the view stage."""
     canvas: FigureCanvasWxAgg | None = None
     """Matplotlib canvas, when the view uses a Matplotlib figure."""
     toolbar: NavigationToolbar2WxAgg | None = None
@@ -151,26 +151,26 @@ class PanelBuildResources:
     unsubscribe: Callable[[], None] | None = None
     """Clock observer unsubscribe callback."""
     panel_inserted: bool = False
-    """Whether the panel was inserted into or replaced in a graph stack."""
+    """Whether the panel was inserted into or replaced in a data-view stack."""
 
 
 @dataclass
-class _OpenView:
-    """Track one graph-panel instance and its deferred display state."""
+class _OpenDataView:
+    """Track one data-data-view panel instance and its deferred display state."""
 
     panel_id: str
     """Stable identity independent of the registered view type."""
 
-    view_name: str
+    data_view_name: str
     """Registered view type hosted by this panel instance."""
 
     stack: str
-    """Graph stack containing this panel instance."""
+    """DataData-view stack containing this panel instance."""
 
-    panel: GraphPanelHost
-    """Embedded graph-panel host."""
+    panel: DataViewPanelHost
+    """Embedded data-view panel host."""
 
-    view: base.View
+    data_view: base.DataView
     """Plot view rendered in the frame."""
 
     unsubscribe: Callable[[], None]

@@ -51,7 +51,7 @@ def test_lookup_returns_exact_sample_and_derived_values(
     assert result.altitude is not None
 
 
-def test_store_cursor_uses_read_only_raw_views_and_refreshes_prefix() -> None:
+def test_store_cursor_uses_read_only_raw_data_views_and_refreshes_prefix() -> None:
     store = OemDataStore()
     epoch = store.begin(3)
     first = store.reserve(2)

@@ -23,8 +23,8 @@ final controls should follow platform conventions.
 ### Selected design: G. Three-pane analysis workspace
 
 The left **Controls & Info** pane has a vertical icon-only feature rail for non-graph pages. The
-middle **Main Analysis** pane stacks zero or more independently selectable graph panels; the
-optional right **Comparison** pane can hold another independent stack. A shared time slider spans
+middle **Main pane** pane stacks zero or more independently selectable data-view panels; the
+optional right **Additional pane** pane can hold another independent stack. A shared time slider spans
 below all panes.
 
 ![G. Three-pane analysis workspace](./mockup-three-pane.svg)
@@ -33,7 +33,7 @@ below all panes.
 
 ![G. Three-pane analysis workspace with the right pane closed and Playback selected](./mockup-three-pane-right-closed-playback.svg)
 
-The horizontal bars between graph panels in the mockups indicate draggable sashes; their displayed
+The horizontal bars between data-view panels in the mockups indicate draggable sashes; their displayed
 panel proportions are illustrative. The implemented workspace also draws a horizontal rule above
 the shared timeline to distinguish it from the resizable analysis area.
 
@@ -52,10 +52,10 @@ Time-series axes use minutes for OEM spans shorter than one hour and hours for s
 or more; opening another OEM selects the unit again from that file's full time span.
 
 - **Fits:** users who want non-graph tools kept separate from a flexible, multi-plot analysis area.
-- **Trade-offs:** several narrow panes can reduce plot readability; graph stacks need clear add,
+- **Trade-offs:** several narrow panes can reduce plot readability; data-view stacks need clear add,
   remove, and empty-state behavior. The right pane should be optional so the middle pane can use
   the available width when it is closed.
-- **Pane names:** use **Controls & Info**, **Main Analysis**, and **Comparison** in visible pane
+- **Pane names:** use **Controls & Info**, **Main pane**, and **Additional pane** in visible pane
   headings and matching wx window names. These describe the left feature pages, the default graph
   stack, and the optional side-by-side analysis stack.
 - **Toolbar:** keep playback and non-graph features in the Controls & Info pane. Give every graph
@@ -64,7 +64,7 @@ or more; opening another OEM selects the unit again from that file's full time s
 - **Implementation:** use nested splitters for the left, middle, and optional right regions, with
   vertically stacked graph hosts in the middle and right. Make every pane boundary user-resizable:
   use draggable vertical sashes for side-by-side panes and horizontal sashes between vertically
-  stacked graph panels so each panel's height can be adjusted independently. Resizing a sash changes
+  stacked data-view panels so each panel's height can be adjusted independently. Resizing a sash changes
   its adjacent panes, subject to usable minimum widths and heights. Use a visible, grab-friendly
   3D sash style that remains distinguishable in dark mode; avoid thin-sash styling. Retain
   independent stack scrolling as the fallback when the panels cannot all fit. Use the vertical
@@ -77,29 +77,29 @@ or more; opening another OEM selects the unit again from that file's full time s
 
 #### Panel and navigation behavior
 
-- Put an **Add graph** action at the top of each graph stack. When a stack has no panels, show an
+- Put an **Add data view** action at the top of each data-view stack. When a stack has no panels, show an
   empty-state message and the same add action.
-- Give each graph panel a selector with an **Empty** option and a compact menu for moving it within
+- Give each data-view panel a selector with an **Empty** option and a compact menu for moving it within
   its stack, duplicating it, or closing it. New panels start empty until a view is selected. Keep
   panel selectors and plot actions local to their panel.
 - Provide draggable sashes for both split orientations: vertical sashes resize side-by-side
   regions, and horizontal sashes resize top/bottom regions, including the heights of individual
-  graph panels in a stack. Dragging a horizontal sash changes only the height of the graph panel
+  data-view panels in a stack. Dragging a horizontal sash changes only the height of the data-view panel
   directly above it; panels below keep their heights. The stack grows or shrinks by the same amount
   and scrolls when it exceeds the viewport. A sash resize should not reset unrelated pane sizes or
   selected views.
-- Below the bottom-most graph panel, a thin resize grip changes that panel's height by dragging
+- Below the bottom-most data-view panel, a thin resize grip changes that panel's height by dragging
   down or up. The stack scrolls one viewport past its content so the grip can be brought into view
   and dragged further. A sash resize should not reset unrelated pane sizes or
   selected views.
 - Keep sash handles wide enough to locate and drag, with visible theme-aware contrast in dark and
   light appearances.
-- Keep graph panels at or above a 320 x 280 pixel minimum; scroll each stack rather than
+- Keep data-view panels at or above a 320 x 280 pixel minimum; scroll each stack rather than
   compressing panels below those minimums when the available pane height is insufficient.
 - Closing the right pane hides it without discarding its panel selections, user-adjusted width, or
   panel-height allocations. Reopening it restores that state, while the middle pane expands into
   the freed space when it is closed.
-- Provide a **Comparison** toggle in the Main Analysis header to show or hide the optional pane,
+- Provide a **Additional pane** toggle in the Main pane header to show or hide the optional pane,
   and a close control in the Comparison header to hide it.
 - Give every icon button an accessible name and hover tooltip. Support keyboard focus,
   Up/Down navigation between feature pages, and keyboard activation; the selected page must be
@@ -136,17 +136,17 @@ or more; opening another OEM selects the unit again from that file's full time s
 ### wxPython integration implications
 
 The active `PlayerApp` uses one wx application and event loop for the workspace, control window,
-timers, and graph-panel hosts. The left/middle/right regions use nested vertical splitters; each
+timers, and view-panel hosts. The left/middle/right regions use nested vertical splitters; each
 middle and right stack uses its own scroll window and nested horizontal splitters between graph
 panels. These sub-pane splitters use the same live-update, 3D-sash style as the main splitters.
-Every `GraphPanelHost` has a 320 x 280 pixel minimum. Matplotlib canvases and native VTK wx content
-are hosted in an independent horizontal/vertical scroller inside their graph-panel host, while
+Every `DataViewPanelHost` has a 320 x 280 pixel minimum. Matplotlib canvases and native VTK wx content
+are hosted in an independent horizontal/vertical scroller inside their view-panel host, while
 the workspace maintains independent panel IDs and clock subscriptions. Stack-level scrolling
-continues to navigate between graph panels; panel-level scrolling is for content that exceeds an
+continues to navigate between data-view panels; panel-level scrolling is for content that exceeds an
 individual panel's viewport. Mouse-wheel input scrolls panel content first and hands off to the
-containing stack when that content reaches its scroll boundary, so the entire Main Analysis or
-Comparison stack can be scrolled from over a graph panel. Pane headings and wx window names are
-**Controls & Info**, **Main Analysis**, and **Comparison**.
+containing stack when that content reaches its scroll boundary, so the entire Main pane or
+Additional pane view stack can be scrolled from over a data-view panel. Pane headings and wx window names are
+**Controls & Info**, **Main pane**, and **Additional pane**.
 
 For the selected G layout, verify:
 
@@ -167,8 +167,8 @@ For the selected G layout, verify:
 ## Existing implementation context
 
 `play-oem` uses one wx application and event loop. wx owns the control window, workspace frame,
-nested splitters, graph-panel hosts, timers, and native controls. Matplotlib plots use WxAgg; the
-optional VTK wx interactor is embedded in a graph-panel host when initialization and render-context
+nested splitters, view-panel hosts, timers, and native controls. Matplotlib plots use WxAgg; the
+optional VTK wx interactor is embedded in a view-panel host when initialization and render-context
 validation succeed. Each panel host has an instance ID independent of its selected view type, while
 the app retains a one-per-registered-view default opening path. The playback clock, cursor lookup,
 data loading, and series computation remain independent of the GUI toolkit.

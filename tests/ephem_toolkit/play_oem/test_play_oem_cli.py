@@ -16,7 +16,7 @@ from ephem_toolkit.play_oem.play_oem_cli import (
     CONFIG_FILE_OPTION,
     STATE_FILE_OPTION,
     THREE_D_BACKEND_OPTION,
-    PLOTS_OPTION,
+    DATA_VIEWS_OPTION,
     build_arg_parser,
     parse_arguments,
 )
@@ -63,7 +63,7 @@ def test_input_path_is_parsed() -> None:
     args = parse_arguments(build_arg_parser(), ["orbit.oem"])
 
     assert args.input_oem == "orbit.oem"
-    assert args.plots == ("overview",)
+    assert args.data_views == ("overview",)
     assert args.three_d_backend == "auto"
     assert args.config_file is None
     assert args.state_file is None
@@ -163,10 +163,10 @@ def test_plots_option_preserves_canonical_names_and_groups(
 ) -> None:
     args = parse_arguments(
         build_arg_parser(),
-        ["orbit.oem", PLOTS_OPTION, selection],
+        ["orbit.oem", DATA_VIEWS_OPTION, selection],
     )
 
-    assert args.plots == expected
+    assert args.data_views == expected
 
 
 def test_plots_option_rejects_empty_selection(
@@ -175,7 +175,7 @@ def test_plots_option_rejects_empty_selection(
     with pytest.raises(SystemExit) as exc_info:
         parse_arguments(
             build_arg_parser(),
-            ["orbit.oem", PLOTS_OPTION, "overview,"],
+            ["orbit.oem", DATA_VIEWS_OPTION, "overview,"],
         )
 
     assert exc_info.value.code == 2
@@ -423,7 +423,7 @@ def test_cli_loads_oem_and_launches_player(
     config_path.write_text(
         "config_version = 1\n"
         "[display]\n"
-        'plots = ["overview"]\n'
+        'data_views = ["overview"]\n'
     )
     launched: dict[str, Any] = {}
 
@@ -437,7 +437,7 @@ def test_cli_loads_oem_and_launches_player(
             object_name,
             frame_context,
             *,
-            plots,
+            data_views,
             three_d_backend,
             tick_interval_ms,
             render_rate_fps,
@@ -453,7 +453,7 @@ def test_cli_loads_oem_and_launches_player(
             launched["cursor"] = cursor
             launched["object_name"] = object_name
             launched["frame_context"] = frame_context
-            launched["plots"] = plots
+            launched["data_views"] = data_views
             launched["three_d_backend"] = three_d_backend
             launched["tick_interval_ms"] = tick_interval_ms
             launched["dashboard_context"] = dashboard_context
@@ -479,7 +479,7 @@ def test_cli_loads_oem_and_launches_player(
     assert launched["oem_loaded"] is False
     assert launched["on_open_file"] is None
     assert launched["initial_file_path"] == str(input_oem)
-    assert launched["plots"] == ("overview",)
+    assert launched["data_views"] == ("overview",)
     assert launched["three_d_backend"] == "auto"
     assert launched["time_unit"].value == "hours"
     assert launched["clock"].rate == 1.0
@@ -519,7 +519,7 @@ def test_cli_uses_playback_defaults_from_config(
             _object_name,
             _frame_context,
             *,
-            plots,
+            data_views,
             three_d_backend,
             tick_interval_ms,
             render_rate_fps,

@@ -75,7 +75,7 @@ boundary would add indirection. Existing rollback guarantees remain covered.
 ## Outcome
 
 The identity/replacement decisions already form a contiguous block before
-`GraphPanelHost` construction and the setup `try` block. Closed-app checking,
+`DataViewPanelHost` construction and the setup `try` block. Closed-app checking,
 range-hint publication, stack selection, default-instance focus/ID assignment,
 explicit-ID validation, replacement selection, and collision checks have
 observable ordering. In particular, range hints are published before stack

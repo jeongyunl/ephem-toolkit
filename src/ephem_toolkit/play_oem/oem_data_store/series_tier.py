@@ -153,7 +153,7 @@ def query_series(
 
         if buffer is None or memo is None or ready is None:
             ready_spans = ()
-            group_views = ()
+            group_data_views = ()
         else:
             stride = 1
             row_count = stop - start
@@ -167,7 +167,7 @@ def query_series(
                     stop,
                     ready_value=True,
                 )
-                group_views = tuple(
+                group_data_views = tuple(
                     store._make_column_group_view(
                         buffer[
                             start
@@ -192,7 +192,7 @@ def query_series(
                     < span.stop
                 )
         ready_by_group.append(ready_spans)
-        result[group] = group_views
+        result[group] = group_data_views
 
     base_coverage = _time_coverage(snapshot, bounds)
     if selected_groups:

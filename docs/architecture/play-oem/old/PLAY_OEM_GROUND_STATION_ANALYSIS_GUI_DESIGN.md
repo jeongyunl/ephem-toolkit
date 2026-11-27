@@ -1,7 +1,7 @@
 # `play-oem` — Ground Station Visual Analysis GUI Design
 
 This document specifies station overlays on the existing Ground Track map and a pass-inspection
-graph view containing a pass table and sky-oriented plot. It extends the shared
+data view containing a pass table and sky-oriented plot. It extends the shared
 [three-pane workspace](./PLAY_OEM_GUI_DESIGN.md) and the implemented
 [Ground Track](./PLAY_OEM_GROUND_TRACK_GUI_DESIGN.md) and
 [Ground Station Access](./PLAY_OEM_GROUND_STATIONS_GUI_DESIGN.md) designs. Technical
@@ -39,11 +39,11 @@ longitude, backgrounds, pan/zoom, spacecraft track, subpoint, and coverage bound
 Do not draw station coverage footprints in this enhancement. The station marker layer is
 time-independent and does not implicitly trigger access preparation.
 
-## Ground Station Passes graph view
+## Ground Station Passes data view
 
 Register **Ground Station Passes** as a new selectable graph type. Keep the existing Ground
 Station Access view focused on its elevation-versus-time graph. A pass view is opened from a
-graph-panel selector or from a station marker's **Open Passes** action.
+view-panel selector or from a station marker's **Open Passes** action.
 
 ### Header and table
 
@@ -105,9 +105,9 @@ indicator.
 
 ## Workspace and selection behavior
 
-- Ground Station Passes is an ordinary graph-panel view with the existing panel selector, move,
+- Ground Station Passes is an ordinary view-panel view with the existing panel selector, move,
   duplicate, replace, close, and scroll behavior.
-- Keep pass-row selection and sky-plot selection local to one Ground Station Passes panel.
+- Keep pass-row selection and sky-data-view selection local to one Ground Station Passes panel.
   Multiple panels may inspect different stations or passes without changing each other's
   selection.
 - A Ground Track marker's **Open Passes** action seeds the new view with that station ID. If the
@@ -142,7 +142,7 @@ indicator.
 - Use line patterns and marker shapes in addition to color for station selection, mask, and pass
   boundaries.
 - Label all angles, distances, and times with units or UTC context.
-- Respect dark and light themes and the graph panel's minimum size. Keep useful table columns
+- Respect dark and light themes and the data-view panel's minimum size. Keep useful table columns
   visible at normal widths; allow horizontal table scrolling only when necessary.
 - Preserve the application's existing timeline and map navigation controls; do not add wheel zoom
   to the access graph or sky plot.

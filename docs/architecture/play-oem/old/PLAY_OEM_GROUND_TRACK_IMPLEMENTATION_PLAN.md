@@ -4,7 +4,7 @@ This report records the completed Ground Track view implementation and its verif
 
 ## Outcome
 
-Ground Track is available as an individual graph view and through the `all` group. It uses the shared playback cursor and supports Earth-centered OEM data in ITRF-family and supported inertial frames. Unsupported centers, frames, or conversions are reported within the view without preventing other graphs from opening.
+Ground Track is available as an individual data view and through the `all` group. It uses the shared playback cursor and supports Earth-centered OEM data in ITRF-family and supported inertial frames. Unsupported centers, frames, or conversions are reported within the view without preventing other graphs from opening.
 
 The map offers Robinson and Equirectangular projections, adjustable center longitude, three bundled offline backgrounds, and coverage outlines at 0° and the selected minimum elevation. It supports zoom and horizontal map rotation; horizontal panning reprojects around the pointer-driven center longitude while keeping the map centered. Vertical panning is constrained by the poles and disabled at full-world scale. Minimum elevation is an integer from 0° to 90°, shared across Ground Track panels and saved in application state. The view’s Matplotlib toolbar is hidden; its own Home, zoom, and Pan controls remain available.
 

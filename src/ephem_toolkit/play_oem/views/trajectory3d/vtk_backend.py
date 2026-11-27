@@ -30,9 +30,9 @@ import ephem_toolkit.core.wgs as wgs
 
 from ... import cursor, series, time_unit
 from ...time_range import ResolvedTimeRange
-from ..base import StoreViewContext
+from ..data_view_base import StoreViewContext
 from ..plotting import MAX_MATPLOTLIB_3D_DISPLAY_POINTS
-from ..registry import ViewSpecMixin
+from ..data_view_registry import DataViewSpecMixin
 from .selection import VTKBackendUnavailableError
 from .selection import select_segmented_positions
 
@@ -58,7 +58,7 @@ TAIL_MINIMUM_SAMPLE_COUNT: int = 2
 """Minimum number of samples considered when selecting tail extent."""
 
 
-class VTKTrajectory3DView(ViewSpecMixin):
+class VTKTrajectory3DView(DataViewSpecMixin):
     """Render the orbit, WGS84 Earth and cursor marker in an embedded VTK view."""
 
     name: str = "trajectory-3d"
@@ -78,7 +78,7 @@ class VTKTrajectory3DView(ViewSpecMixin):
         Parameters
         ----------
         parent : wx.Window
-            Graph-panel content scroller that owns the render-window widget.
+            Data-view panel content scroller that owns the render-window widget.
         oem_cursor : cursor.StoreCursor
             State lookup used to position the satellite marker.
         object_name : str
@@ -131,7 +131,7 @@ class VTKTrajectory3DView(ViewSpecMixin):
         Returns
         -------
         wx.Window
-            VTK render-window widget embedded in the graph-panel host.
+            VTK render-window widget embedded in the data-view panel host.
 
         Raises
         ------
@@ -599,7 +599,7 @@ class VTKTrajectory3DView(ViewSpecMixin):
             raise RuntimeError("store-backed orbit positions are not initialized")
         snapshot = self._store_context.snapshot
         bounds = self._store_context.plot_range
-        position_views: list[np.ndarray] = []
+        position_data_views: list[np.ndarray] = []
         segment_spans: list[tuple[int, int]] = []
         first_selected = 0
         last_selected = 0
@@ -623,11 +623,11 @@ class VTKTrajectory3DView(ViewSpecMixin):
             count = stop - first
             stride = max(1, ceil(count / MAX_MATPLOTLIB_3D_DISPLAY_POINTS))
             segment_view = self._store_positions_m[first:stop:stride]
-            position_views.append(segment_view)
+            position_data_views.append(segment_view)
             segment_spans.append((point_offset, point_offset + len(segment_view)))
             point_offset += len(segment_view)
-        if position_views:
-            display_positions_km = np.concatenate(position_views, axis=0)
+        if position_data_views:
+            display_positions_km = np.concatenate(position_data_views, axis=0)
             np.multiply(display_positions_km, 0.001, out=display_positions_km)
         else:
             display_positions_km = np.empty((0, 3), dtype=np.float64)

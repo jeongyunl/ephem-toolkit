@@ -151,7 +151,7 @@ data through the existing panel lifecycle. Replacing an OEM updates open access 
 rebuilds them through the established view factory; closing a panel releases its clock observer and
 plotting resources.
 
-Register the individual graph view as `ground-station-access`, labeled **Ground Station Access**.
+Register the individual data view as `ground-station-access`, labeled **Ground Station Access**.
 Keep the existing `overview` group unchanged and include this view in `all` through the registry's
 existing group construction. The view remains openable with zero stations and displays an empty
 state with a route to station management.

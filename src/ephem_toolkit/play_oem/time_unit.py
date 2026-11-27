@@ -1,4 +1,4 @@
-"""Time-axis units for OEM playback and plot views."""
+"""Time-axis units for OEM playback and plot data_views."""
 
 from __future__ import annotations
 

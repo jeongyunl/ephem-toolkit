@@ -1,6 +1,6 @@
 # `play-oem` — Ground Track View Software Design
 
-This document records the software architecture for the Ground Track graph view in
+This document records the software architecture for the Ground Track data view in
 `play-oem`. The feature is registered; live visual validation remains outstanding. This
 design follows the shared playback architecture in
 [PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md) and the workspace interaction
@@ -12,7 +12,7 @@ End-user guidance is in [PLAY_OEM_GROUND_TRACK.md](../../tools/PLAY_OEM_GROUND_T
 ## Purpose
 
 Show the satellite's sub-satellite path on Earth and move a marker along that path with the
-shared playback clock. The view is an ordinary graph panel: it can be selected, moved, replaced,
+shared playback clock. The view is an ordinary data-view panel: it can be selected, moved, replaced,
 or closed using the existing panel controls, and it stays synchronized with other open views.
 
 ## Proposed user-facing contract
@@ -29,10 +29,10 @@ or closed using the existing panel controls, and it stays synchronized with othe
   navigation; center and projection remain per-panel session preferences.
 - Draw each OEM segment independently. Do not connect across segment gaps or across the map's
   current seam at center longitude ±180°.
-- Let the user select the map projection independently in each Ground Track graph panel.
+- Let the user select the map projection independently in each Ground Track data-view panel.
 - Identify the Earth-fixed frame and geodetic convention used. The proposed target is ITRF and
   WGS-84 geodetic latitude/longitude.
-- If the OEM center or reference frame cannot be supported, show an actionable graph-panel
+- If the OEM center or reference frame cannot be supported, show an actionable view-panel
   message instead of a misleading or silently incorrect path.
 - Do not change the `overview` group. Include the new view in `all` through the registry's
   existing group construction.
@@ -126,7 +126,7 @@ play_oem/
 Keep the coordinate preparation independent of wxPython and Matplotlib so frame support,
 segment handling, and seam splitting can be tested without a display. Keep the renderer within
 the existing `View` lifecycle (`build`, `update`, `close`) and return a Matplotlib `Figure` for
-hosting in `GraphPanelHost`. Replace or invalidate cached ground-track data whenever another OEM
+hosting in `DataViewPanelHost`. Replace or invalidate cached ground-track data whenever another OEM
 is loaded, and release figure artists when a panel closes.
 
 The current generic Matplotlib click handler interprets `event.xdata` as elapsed time. On a
@@ -170,7 +170,7 @@ The proposed projection choices are:
 
 Projection selection is a per-panel **Projection** control. Changing it resets that panel to the
 full-world extent around its current center longitude and leaves the shared playback time and
-other graph panels alone. Both poles must be visible simultaneously in every available
+other data-view panels alone. Both poles must be visible simultaneously in every available
 projection. Do not add a projection that clips either pole or only shows one hemisphere.
 
 Provide a per-panel **Center longitude** control in degrees east, normalized to `[-180°, 180°)`.
@@ -181,14 +181,14 @@ center may therefore change the displayed center longitude. Longitude wrapping a
 handled without a jump or an out-of-range displayed value. Retain the panel's center while the
 marker and footprints move; playback must not make the map follow the satellite automatically.
 
-Support map navigation within each graph panel: the Matplotlib toolbar provides zoom and pan,
+Support map navigation within each data-view panel: the Matplotlib toolbar provides zoom and pan,
 the mouse wheel zooms about the pointer while it is over the map, and horizontal/vertical
 scrollbars let the user scroll the enlarged map through the panel viewport. Every navigation
 action updates **Center longitude** to the visible map center. Preserve each panel's zoom and
 center while the playback marker and footprints update. A home/reset action restores the
 full-world extent around the current center longitude. Changing projection restores the
 full-world extent and retains the current center longitude. Map navigation must not seek the
-playback clock or scroll the surrounding graph stack when the pointer is over the map.
+playback clock or scroll the surrounding data-view stack when the pointer is over the map.
 
 Retain a panel's projection and center for the current session when it is redrawn or the OEM is
 replaced. Whether to persist the preferred projection and center across application restarts
@@ -206,7 +206,7 @@ The graph must communicate unsupported or unavailable data without hiding the re
 - Non-Earth center: explain that ground track requires an Earth-centered OEM.
 - Unknown or unsupported OEM frame: identify the frame and explain that conversion is
   unavailable.
-- Missing frame-conversion kernels or conversion error: report the failure in the graph panel or
+- Missing frame-conversion kernels or conversion error: report the failure in the data-view panel or
   status area and preserve playback and other views.
 - Cursor in a data gap: keep the path segments visible and mark the current position unavailable.
 - Empty/no-OEM application: show the normal empty graph state or a prompt to load an Earth-centered
@@ -231,7 +231,7 @@ Implementation should cover:
 - Minimum-elevation control range, default, persistence, and redraw/update behavior.
 - Cursor marker placement at exact samples, interpolated times, both playback directions, and
   times inside OEM gaps.
-- OEM replacement, graph-panel replacement/close, and cache invalidation.
+- OEM replacement, view-panel replacement/close, and cache invalidation.
 - A regression check proving map clicks cannot invoke time-series click-to-seek.
 - Toolbar and wheel zoom, pan, scrollbar navigation, preserved extent during playback,
   center-longitude synchronization, and projection-change reset behavior.

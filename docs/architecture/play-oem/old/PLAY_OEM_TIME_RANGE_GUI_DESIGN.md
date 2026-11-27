@@ -41,7 +41,7 @@ following playback, or a mixture of fixed and relative endpoints.
   resolved endpoints after clipping to OEM coverage.
 - **Playback offset** always refers to the playback clock, never the computer's current time.
 
-Use one editor for both graph stacks. No individual graph has an independent range control.
+Use one editor for both data-view stacks. No individual graph has an independent range control.
 Maintain **plot range ⊆ OEM coverage** and **playback range ⊆ OEM coverage**.
 Plot and playback ranges may overlap, extend beyond one another, or be disjoint. Plot edits never change playback
 bounds or seek the clock. The default is **All OEM data**, with playback bounds initially
@@ -223,7 +223,7 @@ Keep From and To in two compact rows at normal and minimum widths. At narrow siz
 only helper/status text below its row when necessary; keep the label, input, and Fixed time checkbox together.
 Errors may add a temporary line rather than crowding the inputs. Keep the slider full width
 and all controls reachable through existing timeline scrolling. Verify long timestamps,
-high DPI, light/dark appearance, and coincident targets. Preserve graph-stack scroll positions.
+high DPI, light/dark appearance, and coincident targets. Preserve view stack scroll positions.
 
 ## Review checklist for implementation
 

@@ -20,7 +20,7 @@ import ephem_toolkit.core.ccsds.odm as odm
 import ephem_toolkit.play_oem.config as config
 from ephem_toolkit.core.time_utils import datetime_to_tt_s, tt_s_to_datetime
 from ephem_toolkit.play_oem import time_range
-from ephem_toolkit.play_oem.app import player_3d_view_factory as trajectory_view_factory
+from ephem_toolkit.play_oem.app import player_3d_data_view_factory as trajectory_view_factory
 from ephem_toolkit.play_oem.app import player_app as app
 from ephem_toolkit.play_oem.app import (
     player_app_preferences,
@@ -30,8 +30,8 @@ from ephem_toolkit.play_oem.app import (
 from ephem_toolkit.play_oem.app import player_app_support as app_support
 from ephem_toolkit.play_oem.app import player_panel_management as panel_management
 from ephem_toolkit.play_oem.app import player_standard_plot_factory as view_factory
-from ephem_toolkit.play_oem.app import player_view_factory as player_view_factory
-from ephem_toolkit.play_oem.app.player_store_view_refresh import (
+from ephem_toolkit.play_oem.app import player_data_view_factory as player_data_view_factory
+from ephem_toolkit.play_oem.app.player_store_data_view_refresh import (
     _append_affects_plot,
     _tier_affects_display,
 )
@@ -52,7 +52,7 @@ from ephem_toolkit.play_oem.oem_data_store import (
     TierNotice,
 )
 from ephem_toolkit.play_oem.play_oem_cli import (
-    PLOTS_OPTION,
+    DATA_VIEWS_OPTION,
     build_arg_parser,
     parse_arguments,
 )
@@ -127,7 +127,7 @@ def test_playback_rate_selection_handles_direction_progression_and_reset(
     selected_rate: float,
     expected_rate: float,
 ) -> None:
-    player, _views, _canvases, _frames = make_app(
+    player, _data_views, _canvases, _frames = make_app(
         monkeypatch, clock=make_clock(rate=initial_rate, playing=True)
     )
 
@@ -148,7 +148,7 @@ def test_direction_play_button_preserves_current_speed_and_resumes(
     direction: int,
     expected_rate: float,
 ) -> None:
-    player, _views, _canvases, _frames = make_app(
+    player, _data_views, _canvases, _frames = make_app(
         monkeypatch, clock=make_clock(rate=initial_rate, playing=False)
     )
 
@@ -173,7 +173,7 @@ def test_one_x_speed_button_sets_rate_without_starting_paused_playback(
     initial_rate: float,
     selected_rate: float,
 ) -> None:
-    player, _views, _canvases, _frames = make_app(
+    player, _data_views, _canvases, _frames = make_app(
         monkeypatch, clock=make_clock(rate=initial_rate, playing=False)
     )
 
@@ -187,7 +187,7 @@ def test_one_x_speed_button_sets_rate_without_starting_paused_playback(
 def test_playback_speed_selection_while_paused_does_not_start_playback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    player, _views, _canvases, _frames = make_app(
+    player, _data_views, _canvases, _frames = make_app(
         monkeypatch, clock=make_clock(playing=False)
     )
 
@@ -201,7 +201,7 @@ def test_playback_speed_selection_while_paused_does_not_start_playback(
 def test_timeline_tooltip_omits_fractional_seconds(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    player, _views, _canvases, _frames = make_app(monkeypatch)
+    player, _data_views, _canvases, _frames = make_app(monkeypatch)
 
     assert "." not in player._timeline_tooltip_at(0.12345)
 
@@ -314,7 +314,7 @@ class FakeFrame:
         if handler is not None:
             handler(FakeEvent())
         # A native frame destroys its descendant windows after EVT_CLOSE.
-        for panel in FakeGraphPanelHost.instances:
+        for panel in FakeDataViewPanelHost.instances:
             panel.Destroy()
         self.destroyed = True
         return True
@@ -326,6 +326,10 @@ class FakeFrame:
 class FakeStaticText:
     def __init__(self, _parent, _id: int, label: str) -> None:
         self.label = label
+        self.name = ""
+
+    def SetName(self, name: str) -> None:
+        self.name = name
 
     def SetLabel(self, label: str) -> None:
         self.label = label
@@ -424,8 +428,8 @@ class FakeToolbar:
         return nullcontext()
 
 
-class FakeGraphPanelHost:
-    instances: list[FakeGraphPanelHost] = []
+class FakeDataViewPanelHost:
+    instances: list[FakeDataViewPanelHost] = []
 
     def __init__(
         self,
@@ -442,14 +446,14 @@ class FakeGraphPanelHost:
         self.title = title
         self.on_close = on_close
         self.panel_id = panel_id
-        self.graph_scroller = object()
+        self.data_view_scroller = object()
         self.canvas = None
         self.toolbar = None
         self.native_content = None
         self.focused = False
         self.destroyed = False
         self.redraw_requests = 0
-        self.view_choices = _kwargs.get("view_choices", ())
+        self.data_view_choices = _kwargs.get("data_view_choices", ())
         self.selected_view = _kwargs.get("selected_view")
         self.on_view_selected = _kwargs.get("on_view_selected")
         self.on_duplicate = _kwargs.get("on_duplicate")
@@ -607,9 +611,9 @@ class FakeWorkspace:
         self.details = details
         self.settings_page = object()
         self.state_page = object()
-        self.main_analysis_stack = object()
-        self.comparison_stack = object()
-        self.graph_panels = []
+        self.main_stack = object()
+        self.additional_stack = object()
+        self.data_view_panels = []
         self.progress = 0.0
         self.current_utc = ""
         self.time_scrubber_viewport = _kwargs.get("time_scrubber_viewport")
@@ -669,22 +673,22 @@ class FakeWorkspace:
     def update_playback_state(self, playing: bool, rate: float) -> None:
         self.playback_state = (playing, rate)
 
-    def add_graph_panel(self, panel, stack: str = "middle") -> None:
+    def add_data_view_panel(self, panel, stack: str = "middle") -> None:
         panel.stack = stack
-        self.graph_panels.append(panel)
+        self.data_view_panels.append(panel)
 
-    def remove_graph_panel(self, panel, stack: str = "middle") -> None:
-        self.graph_panels.remove(panel)
+    def remove_data_view_panel(self, panel, stack: str = "middle") -> None:
+        self.data_view_panels.remove(panel)
 
-    def replace_graph_panel(self, old_panel, new_panel, stack: str = "middle") -> None:
+    def replace_data_view_panel(self, old_panel, new_panel, stack: str = "middle") -> None:
         new_panel.stack = stack
-        self.graph_panels[self.graph_panels.index(old_panel)] = new_panel
+        self.data_view_panels[self.data_view_panels.index(old_panel)] = new_panel
 
-    def draw_initial_graphs(self) -> None:
-        for panel in self.graph_panels:
+    def draw_initial_data_views(self) -> None:
+        for panel in self.data_view_panels:
             panel.draw_initial()
 
-    def queue_graph_redraw(self, panel) -> None:
+    def queue_data_view_redraw(self, panel) -> None:
         panel.draw_if_needed()
 
     def close(self) -> None:
@@ -719,7 +723,7 @@ def make_clock(
 def make_app(
     monkeypatch: pytest.MonkeyPatch,
     *,
-    plots: tuple[str, ...] = ("overview",),
+     data_views: tuple[str, ...] = ("overview",),
     three_d_backend: str = "matplotlib",
     existing_wx_app: FakeWxApp | None = None,
     clock: PlaybackClock | None = None,
@@ -732,9 +736,9 @@ def make_app(
     oem_loaded: bool = True,
 ) -> tuple[Any, list[FakeView], list[FakeCanvas], list[FakeFrame]]:
     frames: list[FakeFrame] = []
-    views: list[FakeView] = []
+    created_data_views: list[FakeView] = []
     canvases: list[FakeCanvas] = []
-    FakeGraphPanelHost.instances = []
+    FakeDataViewPanelHost.instances = []
     monkeypatch.setattr(app.wx, "GetApp", lambda: existing_wx_app)
     monkeypatch.setattr(app.wx, "App", FakeWxApp)
     monkeypatch.setattr(
@@ -747,13 +751,14 @@ def make_app(
     )
     monkeypatch.setattr(app.wx, "MenuBar", FakeMenuBar)
     monkeypatch.setattr(app.wx, "Menu", FakeMenu)
-    monkeypatch.setattr(app.wx, "StaticText", FakeStaticText)
+    monkeypatch.setattr(app.wx, "StaticText", FakeEmptyContent)
+    monkeypatch.setattr(app.wx, "Window", FakeNativeWindow)
     monkeypatch.setattr(app.wx, "BoxSizer", FakeBoxSizer)
     monkeypatch.setattr(app.wx, "Timer", FakeTimer)
     monkeypatch.setattr(app.wx, "CallAfter", lambda callback, *args: callback(*args))
     monkeypatch.setattr(app.control_window, "ControlWindow", FakeControlWindow)
     monkeypatch.setattr(app.workspace, "Workspace", FakeWorkspace)
-    monkeypatch.setattr(panel_management, "GraphPanelHost", FakeGraphPanelHost)
+    monkeypatch.setattr(panel_management, "DataViewPanelHost", FakeDataViewPanelHost)
     def matplotlib_panel(
         parent,
         figure,
@@ -789,32 +794,32 @@ def make_app(
         canvases.append(canvas)
         return canvas
 
-    def create_view(*_args, **_kwargs) -> FakeView:
+    def create_data_view(*_args, **_kwargs) -> FakeView:
         view = FakeView()
-        views.append(view)
+        created_data_views.append(view)
         return view
 
     def create_trajectory_view(*args, **kwargs) -> FakeView:
-        view = create_view(*args, **kwargs)
+        view = create_data_view(*args, **kwargs)
         view.preserve_canvas_aspect_ratio = True
         return view
 
-    monkeypatch.setattr(view_factory.speed_altitude, "SpeedAltitudeView", create_view)
-    monkeypatch.setattr(view_factory.rtn, "RtnDeltaView", create_view)
+    monkeypatch.setattr(view_factory.speed_altitude, "SpeedAltitudeView", create_data_view)
+    monkeypatch.setattr(view_factory.rtn, "RtnDeltaView", create_data_view)
     monkeypatch.setattr(
-        view_factory.angular_velocity, "AngularVelocityView", create_view
+        view_factory.angular_velocity, "AngularVelocityView", create_data_view
     )
     monkeypatch.setattr(
-        view_factory.direction_change, "DirectionChangeView", create_view
+        view_factory.direction_change, "DirectionChangeView", create_data_view
     )
-    monkeypatch.setattr(view_factory.distance, "GeocentricDistanceView", create_view)
+    monkeypatch.setattr(view_factory.distance, "GeocentricDistanceView", create_data_view)
     monkeypatch.setattr(
-        player_view_factory.ground_track_view,
+        player_data_view_factory.ground_track_view,
         "GroundTrackView",
-        create_view,
+        create_data_view,
     )
     monkeypatch.setattr(
-        view_factory.state_components, "StateComponentsView", create_view
+        view_factory.state_components, "StateComponentsView", create_data_view
     )
     monkeypatch.setattr(
         trajectory_view_factory.trajectory3d,
@@ -832,7 +837,7 @@ def make_app(
         make_store_cursor(timestamps, make_states())[1],
         "TEST",
         "GCRF / Earth",
-        plots=plots,
+        data_views=data_views,
         three_d_backend=three_d_backend,
         tick_interval_ms=tick_interval_ms,
         render_rate_fps=render_rate_fps,
@@ -842,7 +847,7 @@ def make_app(
         initial_file_path=initial_file_path,
         oem_loaded=oem_loaded,
     )
-    return player, views, canvases, frames
+    return player, created_data_views, canvases, frames
 
 
 def test_ground_station_edits_persist_to_selected_user_config(
@@ -850,7 +855,7 @@ def test_ground_station_edits_persist_to_selected_user_config(
 ) -> None:
     config_path = tmp_path / "play-oem.toml"
     config_path.write_text("config_version = 1\n")
-    player, _views, _canvases, _frames = make_app(monkeypatch, config_path=config_path)
+    player, _data_views, _canvases, _frames = make_app(monkeypatch, config_path=config_path)
     station = GroundStation("station", "Site", 10.0, 20.0, 30.0)
 
     player._update_ground_stations([station])
@@ -864,10 +869,10 @@ def test_ground_station_edits_persist_to_selected_user_config(
     assert loaded.ground_stations_configured
 
 
-def test_ground_station_updates_refresh_open_station_views(
+def test_ground_station_updates_refresh_open_station_data_views(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    player, _views, _canvases, _frames = make_app(monkeypatch)
+    player, _data_views, _canvases, _frames = make_app(monkeypatch)
     station = GroundStation("station", "Site", 10.0, 20.0, 30.0)
     updates: list[tuple[GroundStation, ...]] = []
     monkeypatch.setattr(player, "_save_ground_stations_config", lambda: None)
@@ -897,21 +902,21 @@ def test_ground_station_updates_refresh_open_station_views(
 def test_canonical_saved_panel_names_open_focused_station_panels(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    player, _views, _canvases, _frames = make_app(monkeypatch)
+    player, _data_views, _canvases, _frames = make_app(monkeypatch)
     opened: list[str] = []
     monkeypatch.setattr(
         player,
-        "_open_view",
-        lambda name, _create_view, **_kwargs: opened.append(name),
+        "_open_data_view",
+        lambda name, _create_data_view, **_kwargs: opened.append(name),
     )
 
-    player.open_panel_view("elevation-profile", panel_id="elevation")
-    player.open_panel_view("removed-view", panel_id="removed")
-    player.open_panel_view("pass-list", panel_id="passes")
+    player.open_panel_data_view("elevation-profile", panel_id="elevation")
+    player.open_panel_data_view("removed-view", panel_id="removed")
+    player.open_panel_data_view("pass-list", panel_id="passes")
 
     assert opened == [
         "elevation-profile",
-        app_support.EMPTY_GRAPH_VIEW,
+        app_support.EMPTY_DATA_VIEW,
         "pass-list",
     ]
 
@@ -919,7 +924,7 @@ def test_canonical_saved_panel_names_open_focused_station_panels(
 def test_comparison_station_selection_follows_only_when_enabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    player, _views, _canvases, _frames = make_app(monkeypatch)
+    player, _data_views, _canvases, _frames = make_app(monkeypatch)
     main = player._station_analysis_contexts["middle"]
     comparison = player._station_analysis_contexts["right"]
 
@@ -944,7 +949,7 @@ def test_comparison_station_selection_follows_only_when_enabled(
 def test_replacing_pass_panel_for_new_oem_retains_station_selection(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    player, _views, _canvases, _frames = make_app(monkeypatch)
+    player, _data_views, _canvases, _frames = make_app(monkeypatch)
     station = GroundStation("station", "Site", 10.0, 20.0, 30.0)
     player._ground_stations = [station]
     monkeypatch.setattr(
@@ -956,10 +961,10 @@ def test_replacing_pass_panel_for_new_oem_retains_station_selection(
     )
     created: list[Any] = []
 
-    def capture_view(_name, create_view, **_kwargs) -> None:
-        created.append(create_view(cast(Any, None)))
+    def capture_view(_name, create_data_view, **_kwargs) -> None:
+        created.append(create_data_view(cast(Any, None)))
 
-    monkeypatch.setattr(player, "_open_view", capture_view)
+    monkeypatch.setattr(player, "_open_data_view", capture_view)
 
     player.open_pass_list_view(
         panel_id="panel",
@@ -973,7 +978,7 @@ def test_replacing_pass_panel_for_new_oem_retains_station_selection(
 def test_focus_ground_station_pass_changes_plot_range_without_seeking(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    player, _views, _canvases, _frames = make_app(
+    player, _data_views, _canvases, _frames = make_app(
         monkeypatch, clock=make_clock(t_now=150.0, playing=True)
     )
     initial_time = player.clock.t_now
@@ -1002,7 +1007,7 @@ def test_open_file_dialog_accepts_lower_and_uppercase_oem_extensions(
             pass
 
     monkeypatch.setattr(app.wx, "FileDialog", FakeFileDialog)
-    player, _views, _canvases, _frames = make_app(monkeypatch)
+    player, _data_views, _canvases, _frames = make_app(monkeypatch)
 
     player._on_open_file(cast(app.wx.CommandEvent, None))
 
@@ -1011,12 +1016,12 @@ def test_open_file_dialog_accepts_lower_and_uppercase_oem_extensions(
     )
 
 
-def test_start_uses_one_wx_app_and_opens_the_selected_views(
+def test_start_uses_one_wx_app_and_opens_the_selected_data_views(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    player, views, canvases, frames = make_app(
+    player, data_views, canvases, frames = make_app(
         monkeypatch,
-        plots=("state-components",),
+        data_views=("state-components",),
         clock=make_clock(t_now=150.0, rate=-10.0, playing=True, loop=True),
         tick_interval_ms=40,
     )
@@ -1027,11 +1032,11 @@ def test_start_uses_one_wx_app_and_opens_the_selected_views(
     assert len(frames) == 1
     assert frames[0].title == "play-oem (3D backend: matplotlib)"
     assert frames[0].shown
-    assert len(views) == len(canvases) == 1
-    assert player._open_views["state-components"].panel in player.workspace.graph_panels
-    content_scroller = player._open_views["state-components"].panel.graph_scroller
+    assert len(data_views) == len(canvases) == 1
+    assert player._open_data_views["state-components"].panel in player.workspace.data_view_panels
+    content_scroller = player._open_data_views["state-components"].panel.data_view_scroller
     assert canvases[0].parent is content_scroller
-    assert views[0].updated_times == [150.0]
+    assert data_views[0].updated_times == [150.0]
     assert player._timer.interval == 40
     assert player._timer.running
     assert player.clock.t_now == 150.0
@@ -1046,14 +1051,14 @@ def test_start_uses_one_wx_app_and_opens_the_selected_views(
     player.close()
 
 
-def test_wx_timer_advances_clock_and_updates_timeline_and_views(
+def test_wx_timer_advances_clock_and_updates_timeline_and_data_views(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
 ) -> None:
     monotonic_time = [0.0]
     monkeypatch.setattr(app.time, "monotonic", lambda: monotonic_time[0])
     config_path = tmp_path / "play-oem.toml"
-    player, views, canvases, _frames = make_app(
+    player, data_views, canvases, _frames = make_app(
         monkeypatch,
         clock=make_clock(rate=10.0, playing=True),
         config_path=config_path,
@@ -1066,7 +1071,7 @@ def test_wx_timer_advances_clock_and_updates_timeline_and_views(
         monotonic_time[0] += 1.0
         player._on_timer(SimpleNamespace())
         assert player.clock.t_now == expected_time
-        assert all(view.updated_times[-1] == expected_time for view in views)
+        assert all(view.updated_times[-1] == expected_time for view in data_views)
 
     assert player.workspace.progress == pytest.approx(0.3)
     assert player.workspace.current_utc
@@ -1088,7 +1093,7 @@ def test_wx_timer_advances_clock_and_updates_timeline_and_views(
 def test_start_moves_focus_out_of_settings_controls(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    player, _views, _canvases, _frames = make_app(monkeypatch)
+    player, _data_views, _canvases, _frames = make_app(monkeypatch)
 
     player.start()
 
@@ -1101,7 +1106,7 @@ def test_interpolation_settings_update_cursor_and_save_to_config(
     tmp_path,
 ) -> None:
     config_path = tmp_path / "play-oem.toml"
-    player, _views, _canvases, _frames = make_app(monkeypatch, config_path=config_path)
+    player, _data_views, _canvases, _frames = make_app(monkeypatch, config_path=config_path)
     interpolation_calls: list[tuple[str | None, int | None]] = []
     set_interpolation = StoreCursor.set_interpolation
 
@@ -1132,7 +1137,7 @@ def test_active_interpolation_summary_identifies_oem_metadata_source(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
 ) -> None:
-    player, _views, _canvases, _frames = make_app(
+    player, _data_views, _canvases, _frames = make_app(
         monkeypatch, config_path=tmp_path / "play-oem.toml"
     )
     player._oem_interpolation = "Lagrange"
@@ -1149,7 +1154,7 @@ def test_active_interpolation_summary_identifies_oem_metadata_source(
 def test_explicit_render_rate_is_not_reconstructed_from_rounded_interval(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    player, _views, _canvases, _frames = make_app(
+    player, _data_views, _canvases, _frames = make_app(
         monkeypatch,
         tick_interval_ms=34,
         render_rate_fps=30,
@@ -1449,7 +1454,7 @@ def test_native_partial_startup_cleanup_destroys_real_wx_frame(
                 StoreCursor.empty(),
                 "TEST",
                 "GCRF / Earth",
-                plots=("overview",),
+                data_views=("overview",),
                 oem_loaded=False,
             )
 
@@ -1459,10 +1464,10 @@ def test_native_partial_startup_cleanup_destroys_real_wx_frame(
         assert not timers[0].IsRunning()
         assert subscriptions == []
         assert len(closed_workspaces) == 1
-        assert closed_workspaces[0]._graph_redraw_timer is None
+        assert closed_workspaces[0]._data_view_redraw_timer is None
         assert all(
             timer is None
-            for timer in closed_workspaces[0]._graph_scroll_timers.values()
+            for timer in closed_workspaces[0]._data_view_scroll_timers.values()
         )
 
         frame = frames[0]
@@ -1488,9 +1493,9 @@ def test_playback_pause_state_updates_when_playback_reaches_an_endpoint(
 ) -> None:
     monotonic_time = [0.0]
     monkeypatch.setattr(app.time, "monotonic", lambda: monotonic_time[0])
-    player, _views, _canvases, _frames = make_app(
+    player, _data_views, _canvases, _frames = make_app(
         monkeypatch,
-        plots=("state-components",),
+        data_views=("state-components",),
         clock=make_clock(t_now=199.5, playing=True),
         tick_interval_ms=1000,
     )
@@ -1508,7 +1513,7 @@ def test_playback_pause_state_updates_when_playback_reaches_an_endpoint(
 def test_workspace_timeline_uses_the_existing_fraction_seek_callback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    player, _views, _canvases, _frames = make_app(monkeypatch)
+    player, _data_views, _canvases, _frames = make_app(monkeypatch)
     player.start()
 
     player.workspace.on_seek(0.5)
@@ -1523,8 +1528,8 @@ def test_matplotlib_cursor_updates_use_full_redraw_not_partial_blits(
 ) -> None:
     from matplotlib.backends.backend_agg import FigureCanvasAgg
 
-    player, _views, _canvases, _frames = make_app(
-        monkeypatch, plots=("speed-altitude",)
+    player, _data_views, _canvases, _frames = make_app(
+        monkeypatch, data_views=("speed-altitude",)
     )
     def agg_panel(
         parent,
@@ -1545,7 +1550,7 @@ def test_matplotlib_cursor_updates_use_full_redraw_not_partial_blits(
     monkeypatch.setattr(panel_management, "MatplotlibPanel", agg_panel)
 
     player.start()
-    opened = player._open_views["speed-altitude"]
+    opened = player._open_data_views["speed-altitude"]
     canvas = opened.canvas
     assert canvas is not None and canvas.supports_blit
     redraw_calls: list[bool] = []
@@ -1566,7 +1571,7 @@ def test_matplotlib_cursor_updates_use_full_redraw_not_partial_blits(
     player.clock.seek(150.0)
     assert len(redraw_calls) == 1
     assert not partial_blit_calls
-    assert all(not artist.get_animated() for artist in opened.view.cursor_artists)
+    assert all(not artist.get_animated() for artist in opened.data_view.cursor_artists)
     player.close()
 
 
@@ -1575,9 +1580,9 @@ def test_slow_redraw_skips_frames_and_catches_up_the_clock(
 ) -> None:
     monotonic_values = iter((0.0, 0.05, 0.09, 0.16))
     monkeypatch.setattr(app.time, "monotonic", lambda: next(monotonic_values))
-    player, views, canvases, _frames = make_app(
+    player, data_views, canvases, _frames = make_app(
         monkeypatch,
-        plots=("trajectory-3d",),
+        data_views=("trajectory-3d",),
         clock=make_clock(playing=True),
         tick_interval_ms=50,
     )
@@ -1592,7 +1597,7 @@ def test_slow_redraw_skips_frames_and_catches_up_the_clock(
     assert player.clock.t_now == pytest.approx(100.15)
     # The callback at 0.09 s misses a frame deadline and is skipped; the 0.16 s
     # callback consumes the two elapsed periods in one step and redraws once.
-    assert views[0].updated_times == pytest.approx([100.0, 100.05, 100.15])
+    assert data_views[0].updated_times == pytest.approx([100.0, 100.05, 100.15])
     assert canvas.draw_idle_count == 3
     player.close()
 
@@ -1600,7 +1605,7 @@ def test_slow_redraw_skips_frames_and_catches_up_the_clock(
 def test_time_entry_changes_clock_only_for_valid_in_range_values(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    player, _views, _canvases, _frames = make_app(monkeypatch)
+    player, _data_views, _canvases, _frames = make_app(monkeypatch)
 
     player.workspace.callbacks["seek_to_time"]("not-a-time")
     assert player.clock.t_now == 100.0
@@ -1621,21 +1626,21 @@ def test_time_entry_changes_clock_only_for_valid_in_range_values(
     player.close()
 
 
-def test_clock_notifications_update_views_and_existing_plot_is_raised(
+def test_clock_notifications_update_data_views_and_existing_plot_is_raised(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    player, views, _canvases, frames = make_app(
+    player, data_views, _canvases, frames = make_app(
         monkeypatch,
-        plots=("overview", "trajectory-3d"),
+        data_views=("overview", "trajectory-3d"),
     )
     player.start()
-    plot_panels = [view.panel for view in player._open_views.values()]
+    plot_panels = [view.panel for view in player._open_data_views.values()]
 
     player.clock.seek(150.0)
-    player.open_group("overview")
-    player.open_view("trajectory-3d")
+    player.open_preset("overview")
+    player.open_data_view("trajectory-3d")
 
-    assert all(view.updated_times == [100.0, 150.0] for view in views)
+    assert all(view.updated_times == [100.0, 150.0] for view in data_views)
     assert all(panel.focused for panel in plot_panels)
     assert len(frames) == 1
 
@@ -1645,18 +1650,18 @@ def test_clock_notifications_update_views_and_existing_plot_is_raised(
 def test_time_series_can_resize_freely_while_3d_keeps_canvas_aspect(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    player, _views, _canvases, _frames = make_app(
+    player, _data_views, _canvases, _frames = make_app(
         monkeypatch,
-        plots=("speed-altitude", "trajectory-3d"),
+        data_views=("speed-altitude", "trajectory-3d"),
     )
     player.start()
 
     assert (
-        player._open_views["speed-altitude"].panel.plot_panel.preserve_aspect_ratio
+        player._open_data_views["speed-altitude"].panel.plot_panel.preserve_aspect_ratio
         is False
     )
     assert (
-        player._open_views["trajectory-3d"].panel.plot_panel.preserve_aspect_ratio
+        player._open_data_views["trajectory-3d"].panel.plot_panel.preserve_aspect_ratio
         is True
     )
 
@@ -1668,20 +1673,20 @@ def test_cli_selection_opens_through_the_dashboard_registry(
 ) -> None:
     cli_args = parse_arguments(
         build_arg_parser(),
-        ["orbit.oem", PLOTS_OPTION, "state"],
+        ["orbit.oem", DATA_VIEWS_OPTION, "state"],
     )
-    player, _views, _canvases, frames = make_app(monkeypatch, plots=cli_args.plots)
+    player, _data_views, _canvases, frames = make_app(monkeypatch, data_views=cli_args.data_views)
 
     player.start()
 
-    assert set(player._open_views) == {"state-components"}
+    assert set(player._open_data_views) == {"state-components"}
     assert len(frames) == 1
 
-    player.open_group("state")
-    player.open_view("trajectory-3d")
+    player.open_preset("state")
+    player.open_data_view("trajectory-3d")
 
     assert len(frames) == 1
-    assert set(player._open_views) == {"state-components", "trajectory-3d"}
+    assert set(player._open_data_views) == {"state-components", "trajectory-3d"}
 
     player.close()
 
@@ -1689,66 +1694,66 @@ def test_cli_selection_opens_through_the_dashboard_registry(
 def test_rtn_selection_opens_through_the_dashboard_registry(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    player, views, _canvases, _frames = make_app(monkeypatch, plots=("rtn",))
+    player, data_views, _canvases, _frames = make_app(monkeypatch, data_views=("rtn",))
 
     player.start()
 
-    assert len(views) == 1
-    assert set(player._open_views) == {"rtn"}
+    assert len(data_views) == 1
+    assert set(player._open_data_views) == {"rtn"}
     player.close()
 
 
 def test_angular_velocity_selection_opens_through_the_dashboard_registry(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    player, views, _canvases, _frames = make_app(
-        monkeypatch, plots=("angular-velocity",)
+    player, data_views, _canvases, _frames = make_app(
+        monkeypatch, data_views=("angular-velocity",)
     )
 
     player.start()
 
-    assert len(views) == 1
-    assert set(player._open_views) == {"angular-velocity"}
+    assert len(data_views) == 1
+    assert set(player._open_data_views) == {"angular-velocity"}
     player.close()
 
 
 def test_direction_change_selection_opens_through_the_dashboard_registry(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    player, views, _canvases, _frames = make_app(
-        monkeypatch, plots=("direction-change",)
+    player, data_views, _canvases, _frames = make_app(
+        monkeypatch, data_views=("direction-change",)
     )
 
     player.start()
 
-    assert len(views) == 1
-    assert set(player._open_views) == {"direction-change"}
+    assert len(data_views) == 1
+    assert set(player._open_data_views) == {"direction-change"}
     player.close()
 
 
 def test_distance_selection_opens_through_the_dashboard_registry(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    player, views, _canvases, _frames = make_app(monkeypatch, plots=("distance",))
+    player, data_views, _canvases, _frames = make_app(monkeypatch, data_views=("distance",))
 
     player.start()
 
-    assert len(views) == 1
-    assert set(player._open_views) == {"distance"}
+    assert len(data_views) == 1
+    assert set(player._open_data_views) == {"distance"}
     player.close()
 
     player.close()
 
 
-def test_motion_group_opens_all_diagnostic_views(
+def test_motion_group_opens_all_diagnostic_data_views(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    player, views, _canvases, _frames = make_app(monkeypatch, plots=("motion",))
+    player, data_views, _canvases, _frames = make_app(monkeypatch, data_views=("motion",))
 
     player.start()
 
-    assert len(views) == 5
-    assert set(player._open_views) == {
+    assert len(data_views) == 5
+    assert set(player._open_data_views) == {
         "rtn",
         "angular-velocity",
         "direction-change",
@@ -1759,30 +1764,30 @@ def test_motion_group_opens_all_diagnostic_views(
 
 
 @pytest.mark.parametrize(
-    "view_name",
+    "data_view_name",
     ("rtn", "angular-velocity", "direction-change", "distance", "ground-track"),
 )
-def test_closing_one_diagnostic_view_keeps_other_motion_views_open(
+def test_closing_one_diagnostic_view_keeps_other_motion_data_views_open(
     monkeypatch: pytest.MonkeyPatch,
-    view_name: str,
+    data_view_name: str,
 ) -> None:
-    player, views, _canvases, _frames = make_app(monkeypatch, plots=("motion",))
+    player, data_views, _canvases, _frames = make_app(monkeypatch, data_views=("motion",))
     player.start()
 
-    player.close_view(view_name)
+    player.close_view(data_view_name)
 
-    assert view_name not in player._open_views
-    assert len(player._open_views) == 4
-    view_names = (
+    assert data_view_name not in player._open_data_views
+    assert len(player._open_data_views) == 4
+    data_view_names = (
         "rtn",
         "angular-velocity",
         "direction-change",
         "distance",
         "ground-track",
     )
-    assert views[view_names.index(view_name)].closed
+    assert data_views[data_view_names.index(data_view_name)].closed
     assert all(
-        view.closed == (name == view_name) for name, view in zip(view_names, views)
+        view.closed == (name == data_view_name) for name, view in zip(data_view_names, data_views)
     )
     player.close()
 
@@ -1799,21 +1804,21 @@ def test_auto_3d_backend_falls_back_to_matplotlib_with_warning(
     monkeypatch.setattr(
         app.trajectory3d_selection, "create_vtk_view", fail_to_create_vtk_view
     )
-    player, views, _canvases, frames = make_app(
+    player, data_views, _canvases, frames = make_app(
         monkeypatch,
-        plots=("trajectory-3d",),
+        data_views=("trajectory-3d",),
         three_d_backend="auto",
     )
 
     player.start()
 
-    assert len(views) == 1
+    assert len(data_views) == 1
     assert player._selected_3d_backend == "matplotlib"
     assert player.frame.title == "play-oem (3D backend: matplotlib)"
     assert len(frames) == 1
-    assert len(FakeGraphPanelHost.instances) == 2
-    assert FakeGraphPanelHost.instances[0].destroyed
-    assert not FakeGraphPanelHost.instances[1].destroyed
+    assert len(FakeDataViewPanelHost.instances) == 2
+    assert FakeDataViewPanelHost.instances[0].destroyed
+    assert not FakeDataViewPanelHost.instances[1].destroyed
     assert "falling back to Matplotlib" in capsys.readouterr().err
 
     player.close()
@@ -1839,31 +1844,31 @@ def test_auto_3d_backend_falls_back_when_vtk_render_context_fails(
         "validate_vtk_render_context",
         fail_render_context,
     )
-    player, views, _canvases, frames = make_app(
+    player, data_views, _canvases, frames = make_app(
         monkeypatch,
-        plots=("trajectory-3d",),
+        data_views=("trajectory-3d",),
         three_d_backend="auto",
     )
 
     player.start()
 
-    assert len(views) == 1
+    assert len(data_views) == 1
     assert vtk_view.closed
     assert player._selected_3d_backend == "matplotlib"
     assert len(frames) == 1
-    assert len(FakeGraphPanelHost.instances) == 2
-    assert FakeGraphPanelHost.instances[0].destroyed
-    assert not FakeGraphPanelHost.instances[1].destroyed
+    assert len(FakeDataViewPanelHost.instances) == 2
+    assert FakeDataViewPanelHost.instances[0].destroyed
+    assert not FakeDataViewPanelHost.instances[1].destroyed
     assert "VTK did not complete its initial render" in capsys.readouterr().err
 
     player.close()
 
 
-def test_vtk_view_is_embedded_in_a_graph_panel_host(
+def test_vtk_view_is_embedded_in_a_data_view_panel_host(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     vtk_view = FakeNativeView()
-    validated_views: list[FakeView] = []
+    validated_data_views: list[FakeView] = []
     monkeypatch.setattr(app.wx, "Window", FakeNativeWindow)
     monkeypatch.setattr(
         app.trajectory3d_selection, "create_vtk_view", lambda *_args: vtk_view
@@ -1871,23 +1876,23 @@ def test_vtk_view_is_embedded_in_a_graph_panel_host(
     monkeypatch.setattr(
         app.trajectory3d_selection,
         "validate_vtk_render_context",
-        validated_views.append,
+        validated_data_views.append,
     )
-    player, _views, _canvases, frames = make_app(
+    player, _data_views, _canvases, frames = make_app(
         monkeypatch,
-        plots=("trajectory-3d",),
+        data_views=("trajectory-3d",),
         three_d_backend="vtk",
     )
 
     player.start()
 
-    opened = player._open_views["trajectory-3d"]
+    opened = player._open_data_views["trajectory-3d"]
     assert len(frames) == 1
-    assert opened.view is vtk_view
+    assert opened.data_view is vtk_view
     assert opened.panel.native_content is not None
-    assert opened.panel.parent is player.workspace.main_analysis_stack
+    assert opened.panel.parent is player.workspace.main_stack
     assert opened.panel.panel_id == opened.panel_id
-    assert validated_views == [vtk_view]
+    assert validated_data_views == [vtk_view]
 
     player.close()
 
@@ -1906,19 +1911,19 @@ def test_explicit_vtk_backend_reports_initialization_failure(
     monkeypatch.setattr(
         app.trajectory3d_selection, "create_vtk_view", fail_to_create_vtk_view
     )
-    player, views, _canvases, frames = make_app(
+    player, data_views, _canvases, frames = make_app(
         monkeypatch,
-        plots=("trajectory-3d",),
+        data_views=("trajectory-3d",),
         three_d_backend="vtk",
     )
 
     with pytest.raises(RuntimeError, match="playback,vtk"):
         player.start()
 
-    assert views == []
+    assert data_views == []
     assert len(frames) == 1
-    assert len(FakeGraphPanelHost.instances) == 1
-    assert FakeGraphPanelHost.instances[0].destroyed
+    assert len(FakeDataViewPanelHost.instances) == 1
+    assert FakeDataViewPanelHost.instances[0].destroyed
     assert not player._open_panels
     assert player._selected_3d_backend is None
 
@@ -1934,15 +1939,15 @@ def test_matplotlib_backend_does_not_load_vtk(
     monkeypatch.setattr(
         app.trajectory3d_selection, "create_vtk_view", fail_if_vtk_loaded
     )
-    player, views, _canvases, _frames = make_app(
+    player, data_views, _canvases, _frames = make_app(
         monkeypatch,
-        plots=("trajectory-3d",),
+        data_views=("trajectory-3d",),
         three_d_backend="matplotlib",
     )
 
     player.start()
 
-    assert len(views) == 1
+    assert len(data_views) == 1
     assert player._selected_3d_backend == "matplotlib"
 
     player.close()
@@ -1951,9 +1956,9 @@ def test_matplotlib_backend_does_not_load_vtk(
 def test_plot_click_seeks_and_respects_toolbar_modes_and_non_time_axes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    player, views, canvases, _frames = make_app(
+    player, data_views, canvases, _frames = make_app(
         monkeypatch,
-        plots=("speed-altitude",),
+        data_views=("speed-altitude",),
     )
     player.start()
     canvas = canvases[0]
@@ -1967,7 +1972,7 @@ def test_plot_click_seeks_and_respects_toolbar_modes_and_non_time_axes(
     canvas.emit("button_press_event", click_event)
 
     assert player.clock.t_now == 160.0
-    assert views[0].updated_times == [100.0, 160.0]
+    assert data_views[0].updated_times == [100.0, 160.0]
     assert player.workspace.current_utc
 
     for toolbar_mode in ("pan/zoom", "zoom rect"):
@@ -2002,9 +2007,9 @@ def test_plot_click_seeks_and_respects_toolbar_modes_and_non_time_axes(
 def test_plot_click_uses_axis_time_metadata_and_seek_opt_out(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    player, _views, _canvases, _frames = make_app(
+    player, _data_views, _canvases, _frames = make_app(
         monkeypatch,
-        plots=("speed-altitude",),
+        data_views=("speed-altitude",),
     )
     player.start()
     toolbar = SimpleNamespace(mode="")
@@ -2045,12 +2050,12 @@ def test_plot_click_uses_axis_time_metadata_and_seek_opt_out(
     player.close()
 
 
-def test_all_open_views_stay_synchronized_for_seeks_and_time_plot_clicks(
+def test_all_open_data_views_stay_synchronized_for_seeks_and_time_plot_clicks(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    player, views, canvases, _frames = make_app(
+    player, data_views, canvases, _frames = make_app(
         monkeypatch,
-        plots=(
+        data_views=(
             "trajectory-3d",
             "state-components",
             "speed-altitude",
@@ -2063,7 +2068,7 @@ def test_all_open_views_stay_synchronized_for_seeks_and_time_plot_clicks(
     player.start()
     player.clock.seek(150.0)
 
-    assert all(view.updated_times[-1] == 150.0 for view in views)
+    assert all(view.updated_times[-1] == 150.0 for view in data_views)
 
     for canvas, elapsed_minutes in zip(canvases[1:], (0.5, 1.0, 1.25, 1.5, 1.6, 1.65)):
         canvas.emit(
@@ -2074,7 +2079,7 @@ def test_all_open_views_stay_synchronized_for_seeks_and_time_plot_clicks(
                 xdata=elapsed_minutes,
             ),
         )
-        assert all(view.updated_times[-1] == player.clock.t_now for view in views)
+        assert all(view.updated_times[-1] == player.clock.t_now for view in data_views)
 
     assert player.clock.t_now == 199.0
 
@@ -2084,12 +2089,12 @@ def test_all_open_views_stay_synchronized_for_seeks_and_time_plot_clicks(
 def test_closing_one_plot_unsubscribes_only_that_view(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    player, views, canvases, frames = make_app(
+    player, data_views, canvases, frames = make_app(
         monkeypatch,
-        plots=("state-components",),
+        data_views=("state-components",),
     )
     player.start()
-    plot_panel = player._open_views["state-components"].panel
+    plot_panel = player._open_data_views["state-components"].panel
 
     player.close_view("state-components")
     player.clock.seek(160.0)
@@ -2097,20 +2102,20 @@ def test_closing_one_plot_unsubscribes_only_that_view(
     assert plot_panel.destroyed
     assert canvases[0].disconnected_callbacks == [1]
     assert canvases[0].callbacks == {}
-    assert views[0].closed
-    assert views[0].close_calls == 1
-    assert views[0].updated_times == [100.0]
+    assert data_views[0].closed
+    assert data_views[0].close_calls == 1
+    assert data_views[0].updated_times == [100.0]
     assert not player._closed
     assert player._timer.running
 
     player.clock.play()
-    player.open_view("state-components")
-    reopened_view = views[-1]
+    player.open_data_view("state-components")
+    reopened_view = data_views[-1]
     assert reopened_view.updated_times == [160.0]
 
     player.clock.tick(1.0)
     assert reopened_view.updated_times == [160.0, 161.0]
-    assert views[0].updated_times == [100.0]
+    assert data_views[0].updated_times == [100.0]
 
     player.close()
 
@@ -2118,37 +2123,37 @@ def test_closing_one_plot_unsubscribes_only_that_view(
 def test_controller_owns_one_clock_dispatch_and_hidden_panels_catch_up(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    player, views, _canvases, _frames = make_app(monkeypatch, plots=("speed-altitude",))
+    player, data_views, _canvases, _frames = make_app(monkeypatch, data_views=("speed-altitude",))
     player.start()
     opened = next(iter(player._open_panels.values()))
     shown = [True]
     monkeypatch.setattr(
         player.workspace,
-        "is_graph_panel_visible",
+        "is_data_view_panel_visible",
         lambda _panel: shown[0],
         raising=False,
     )
     monkeypatch.setattr(
         player.workspace,
-        "queue_graph_redraw",
+        "queue_data_view_redraw",
         lambda _panel: None,
         raising=False,
     )
 
     assert len(player.clock._observers) == 1
-    player.open_panel_view("speed-altitude", panel_id="duplicate")
+    player.open_panel_data_view("speed-altitude", panel_id="duplicate")
     assert len(player.clock._observers) == 1
     player.clock.seek(150.0)
-    assert views[0].updated_times[-1] == 150.0
+    assert data_views[0].updated_times[-1] == 150.0
 
     shown[0] = False
     player.clock.seek(160.0)
     player.clock.seek(170.0)
-    assert views[0].updated_times[-1] == 150.0
+    assert data_views[0].updated_times[-1] == 150.0
     assert opened.pending_time_s == 170.0
     shown[0] = True
     player._sync_open_panel(opened.panel_id)
-    assert views[0].updated_times[-1] == 170.0
+    assert data_views[0].updated_times[-1] == 170.0
     assert opened.pending_time_s is None
 
     player.close_panel("duplicate")
@@ -2156,18 +2161,18 @@ def test_controller_owns_one_clock_dispatch_and_hidden_panels_catch_up(
     player.close()
 
 
-def test_panel_instances_can_duplicate_views_and_keep_independent_lifecycles(
+def test_panel_instances_can_duplicate_data_views_and_keep_independent_lifecycles(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    player, views, _canvases, _frames = make_app(
+    player, data_views, _canvases, _frames = make_app(
         monkeypatch,
-        plots=("speed-altitude",),
+        data_views=("speed-altitude",),
     )
     player.start()
-    default = player._open_views["speed-altitude"]
+    default = player._open_data_views["speed-altitude"]
 
-    player.open_panel_view("speed-altitude", panel_id="duplicate-middle")
-    player.open_panel_view("speed-altitude", panel_id="duplicate-right", stack="right")
+    player.open_panel_data_view("speed-altitude", panel_id="duplicate-middle")
+    player.open_panel_data_view("speed-altitude", panel_id="duplicate-right", stack="right")
     middle_duplicate = player._open_panels["duplicate-middle"]
     right_duplicate = player._open_panels["duplicate-right"]
 
@@ -2178,8 +2183,8 @@ def test_panel_instances_can_duplicate_views_and_keep_independent_lifecycles(
     )
     assert default.panel.panel_id == default.panel_id
     assert middle_duplicate.panel.panel_id == "duplicate-middle"
-    assert right_duplicate.panel.parent is player.workspace.comparison_stack
-    assert dict(middle_duplicate.panel.view_choices)["speed-altitude"] == (
+    assert right_duplicate.panel.parent is player.workspace.additional_stack
+    assert dict(middle_duplicate.panel.data_view_choices)["speed-altitude"] == (
         "Speed / Altitude"
     )
     assert middle_duplicate.panel.selected_view == "speed-altitude"
@@ -2188,31 +2193,31 @@ def test_panel_instances_can_duplicate_views_and_keep_independent_lifecycles(
     player.close_panel("duplicate-middle")
     player.clock.seek(160.0)
 
-    assert views[0].updated_times == [100.0, 150.0, 160.0]
-    assert views[1].closed
-    assert views[1].updated_times == [100.0, 150.0]
-    assert views[2].updated_times == [100.0, 150.0, 160.0]
+    assert data_views[0].updated_times == [100.0, 150.0, 160.0]
+    assert data_views[1].closed
+    assert data_views[1].updated_times == [100.0, 150.0]
+    assert data_views[2].updated_times == [100.0, 150.0, 160.0]
     assert "duplicate-middle" not in player._open_panels
 
     right_duplicate.panel.on_view_selected("rtn")
-    assert views[2].closed
-    assert player._open_panels["duplicate-right"].view_name == "rtn"
+    assert data_views[2].closed
+    assert player._open_panels["duplicate-right"].data_view_name == "rtn"
     assert player._open_panels["duplicate-right"].panel.panel_id == "duplicate-right"
     player.clock.seek(170.0)
-    assert views[-1].updated_times == [160.0, 170.0]
+    assert data_views[-1].updated_times == [160.0, 170.0]
 
     player.close_panel("duplicate-right")
     player.clock.seek(180.0)
-    assert views[-1].updated_times == [160.0, 170.0]
-    assert views[0].updated_times[-1] == 180.0
+    assert data_views[-1].updated_times == [160.0, 170.0]
+    assert data_views[0].updated_times[-1] == 180.0
     player.close()
 
 
 def test_incremental_replacement_keeps_old_oem_until_first_batch(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
-    player, _views, _canvases, _frames = make_app(
-        monkeypatch, plots=("speed-altitude",)
+    player, _data_views, _canvases, _frames = make_app(
+        monkeypatch, data_views=("speed-altitude",)
     )
     old_clock = player.clock
     source = tmp_path / "replacement.oem"
@@ -2270,8 +2275,8 @@ def test_incremental_replacement_keeps_old_oem_until_first_batch(
 def test_replacement_refreshes_cancelled_active_store_context(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
-    player, _views, _canvases, _frames = make_app(
-        monkeypatch, plots=("speed-altitude",), oem_loaded=False
+    player, _data_views, _canvases, _frames = make_app(
+        monkeypatch, data_views=("speed-altitude",), oem_loaded=False
     )
     player._incremental_loader = IncrementalLoader(batch_size=1, queue_size=1)
     source = tmp_path / "long-load.oem"
@@ -2332,9 +2337,9 @@ def test_start_shows_workspace_before_initial_oem_batch(
         "2026-01-01T00:00:10 7000 1 0 0 7.5 0\n",
         encoding="utf-8",
     )
-    player, _views, _canvases, frames = make_app(
+    player, _data_views, _canvases, frames = make_app(
         monkeypatch,
-        plots=("speed-altitude",),
+        data_views=("speed-altitude",),
         initial_file_path=str(source),
         oem_loaded=False,
     )
@@ -2376,8 +2381,8 @@ def test_new_oem_defaults_playback_to_first_24_hours(
         f"{end:%Y-%m-%dT%H:%M:%S} 7000 1 0 0 7.5 0\n",
         encoding="utf-8",
     )
-    player, _views, _canvases, _frames = make_app(
-        monkeypatch, plots=("speed-altitude",), oem_loaded=False
+    player, _data_views, _canvases, _frames = make_app(
+        monkeypatch, data_views=("speed-altitude",), oem_loaded=False
     )
 
     player._load_oem_file(str(source))
@@ -2398,8 +2403,8 @@ def test_new_oem_defaults_playback_to_first_24_hours(
 def test_failed_incremental_replacement_leaves_current_oem_installed(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
-    player, _views, _canvases, _frames = make_app(
-        monkeypatch, plots=("speed-altitude",)
+    player, _data_views, _canvases, _frames = make_app(
+        monkeypatch, data_views=("speed-altitude",)
     )
     old_clock = player.clock
     bad_source = tmp_path / "bad.oem"
@@ -2434,7 +2439,7 @@ def test_terminal_load_events_end_active_range_drag(
     kind: LoadEventKind,
     expected_dragging: bool,
 ) -> None:
-    player, _views, _canvases, _frames = make_app(monkeypatch)
+    player, _data_views, _canvases, _frames = make_app(monkeypatch)
     event = LoadEvent(1, kind, 0)
     monkeypatch.setattr(
         player._incremental_loader,
@@ -2454,7 +2459,7 @@ def test_terminal_load_events_end_active_range_drag(
 def test_terminal_load_event_does_not_force_refresh_after_range_drag_end(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    player, _views, _canvases, _frames = make_app(monkeypatch)
+    player, _data_views, _canvases, _frames = make_app(monkeypatch)
     event = LoadEvent(1, LoadEventKind.COMPLETE, 0)
     monkeypatch.setattr(
         player._incremental_loader,
@@ -2469,7 +2474,7 @@ def test_terminal_load_event_does_not_force_refresh_after_range_drag_end(
     refresh_calls: list[dict[str, bool]] = []
     monkeypatch.setattr(
         player,
-        "_refresh_incremental_views",
+        "_refresh_incremental_data_views",
         lambda **kwargs: refresh_calls.append(kwargs),
     )
 
@@ -2555,21 +2560,21 @@ def test_controller_bounds_incremental_load_events_per_tick() -> None:
         ),
     ],
 )
-def test_tier_notices_target_only_dependent_views(
+def test_tier_notices_target_only_dependent_data_views(
     tier: TierName,
     group: SeriesGroupName | None,
     expected_view_ids: set[str],
 ) -> None:
     notice = TierNotice(1, tier, group, None, 0, 1)
 
-    assert app.PlayerApp._views_for_tier_notice(notice) == expected_view_ids
+    assert app.PlayerApp._data_views_for_tier_notice(notice) == expected_view_ids
 
 
 def test_incremental_store_appends_extend_clock_and_complete_full_history(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
-    player, _views, _canvases, _frames = make_app(
-        monkeypatch, plots=("speed-altitude",)
+    player, _data_views, _canvases, _frames = make_app(
+        monkeypatch, data_views=("speed-altitude",)
     )
     player._incremental_loader = app.IncrementalLoader(batch_size=1)
     source = tmp_path / "growing.oem"
@@ -2623,10 +2628,10 @@ def test_incremental_store_appends_extend_clock_and_complete_full_history(
     opened = next(
         opened
         for opened in player._open_panels.values()
-        if opened.view_name == "speed-altitude"
+        if opened.data_view_name == "speed-altitude"
     )
     updated_contexts = []
-    opened.view.update_from_store = updated_contexts.append
+    opened.data_view.update_from_store = updated_contexts.append
     notice = TierNotice(store.snapshot().epoch, "series", "kinematics", None, 0, 1)
     player._store_notice_queue.put((store, notice))
     player._store_notice_queue.put((store, notice))
@@ -2642,7 +2647,7 @@ def test_incremental_store_appends_extend_clock_and_complete_full_history(
 def test_incremental_panel_data_update_reuses_view_and_canvas(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    player, _views, _canvases, _frames = make_app(monkeypatch)
+    player, _data_views, _canvases, _frames = make_app(monkeypatch)
     calls = []
 
     class UpdatableView:
@@ -2670,7 +2675,7 @@ def test_incremental_panel_data_update_reuses_view_and_canvas(
 
     assert player._update_incremental_panel_data("incremental")
 
-    assert opened.view is view
+    assert opened.data_view is view
     assert opened.canvas is canvas
     assert opened.range_initialized
     assert calls[0][0] == "data"
@@ -2683,12 +2688,12 @@ def test_incremental_panel_data_update_reuses_view_and_canvas(
     player.close()
 
 
-def test_partial_initial_range_refresh_excludes_all_views(
+def test_partial_initial_range_refresh_excludes_all_data_views(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    player, _views, _canvases, _frames = make_app(monkeypatch)
-    player._open_panels["station"] = SimpleNamespace(view_name="elevation-profile")
-    player._open_panels["series"] = SimpleNamespace(view_name="speed-altitude")
+    player, _data_views, _canvases, _frames = make_app(monkeypatch)
+    player._open_panels["station"] = SimpleNamespace(data_view_name="elevation-profile")
+    player._open_panels["series"] = SimpleNamespace(data_view_name="speed-altitude")
     player._load_state.initial_range_ready = True
     player._load_state.coverage_complete = False
 
@@ -2704,10 +2709,10 @@ def test_partial_initial_range_refresh_excludes_all_views(
     player.close()
 
 
-def test_loading_completion_does_not_queue_store_views(
+def test_loading_completion_does_not_queue_store_data_views(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    player, _views, _canvases, _frames = make_app(monkeypatch)
+    player, _data_views, _canvases, _frames = make_app(monkeypatch)
     context = SimpleNamespace(refresh=lambda: context)
     player._store_state.active = None
     player._store_state.view_context = context
@@ -2735,10 +2740,10 @@ def test_loading_completion_does_not_queue_store_views(
 def test_store_refresh_rebuilds_panels_opened_before_the_store(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    player, _views, _canvases, _frames = make_app(monkeypatch)
+    player, _data_views, _canvases, _frames = make_app(monkeypatch)
     opened = SimpleNamespace(
         panel_id="pre-store",
-        view_name="speed-altitude",
+        data_view_name="speed-altitude",
         stack="middle",
         requires_store_rebuild=True,
     )
@@ -2746,9 +2751,9 @@ def test_store_refresh_rebuilds_panels_opened_before_the_store(
     player._refresh_state.pending_store_view_ids.add(opened.panel_id)
     player._store_state.view_context = object()
     replacements = []
-    player.open_panel_view = lambda *args, **kwargs: replacements.append((args, kwargs))
+    player.open_panel_data_view = lambda *args, **kwargs: replacements.append((args, kwargs))
 
-    player._refresh_store_views()
+    player._refresh_store_data_views()
 
     assert replacements == [
         (
@@ -2764,7 +2769,7 @@ def test_store_refresh_rebuilds_panels_opened_before_the_store(
     player.close()
 
 
-def test_incremental_timeline_uses_declared_domain_and_defers_initial_views(
+def test_incremental_timeline_uses_declared_domain_and_defers_initial_data_views(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
     source = tmp_path / "loading-timeline.oem"
@@ -2803,8 +2808,8 @@ def test_incremental_timeline_uses_declared_domain_and_defers_initial_views(
         original_validate(line, label)
 
     monkeypatch.setattr(odm, "validate_odm_line", block_second_row)
-    player, _views, _canvases, _frames = make_app(
-        monkeypatch, plots=("speed-altitude",), oem_loaded=False
+    player, _data_views, _canvases, _frames = make_app(
+        monkeypatch, data_views=("speed-altitude",), oem_loaded=False
     )
     player._incremental_loader = app.IncrementalLoader(batch_size=2)
     session = None
@@ -2833,7 +2838,7 @@ def test_incremental_timeline_uses_declared_domain_and_defers_initial_views(
         assert "Not loaded yet" in player._timeline_tooltip_at(0.9)
 
         # Keep the scrubber interactive while the requested playback range is
-        # unavailable, but don't create or notify plot views yet.
+        # unavailable, but don't create or notify plot data_views yet.
         assert not player._open_panels
         player._seek_to_fraction(0.9)
         assert not player._open_panels
@@ -2929,9 +2934,9 @@ def test_incremental_load_preserves_and_restores_saved_file_ranges(
         },
     )
     monkeypatch.setattr(player_app_preferences, "save_saved_state", lambda _state, _path=None: None)
-    player, _views, _canvases, _frames = make_app(
+    player, _data_views, _canvases, _frames = make_app(
         monkeypatch,
-        plots=("speed-altitude",),
+        data_views=("speed-altitude",),
         saved_state=saved_state,
         oem_loaded=False,
     )
@@ -2942,16 +2947,16 @@ def test_incremental_load_preserves_and_restores_saved_file_ranges(
         player._load_oem_file(str(source))
         session = player._incremental_loader.session
         assert session is not None
-        draw_initial_graphs = player.workspace.draw_initial_graphs
+        draw_initial_data_views = player.workspace.draw_initial_data_views
 
         def record_initial_draw() -> None:
             snapshot = player._store_state.active.snapshot()
             initial_draws.append(
                 (snapshot.sample_count, session.paused, session.finished)
             )
-            draw_initial_graphs()
+            draw_initial_data_views()
 
-        player.workspace.draw_initial_graphs = record_initial_draw
+        player.workspace.draw_initial_data_views = record_initial_draw
 
         deadline = time.monotonic() + 8.0
         while (
@@ -3072,7 +3077,7 @@ def test_custom_state_path_is_used_when_saving(
         "save_saved_state",
         lambda state, path=None: (saved_paths.append(path), state)[1],
     )
-    player, _views, _canvases, _frames = make_app(
+    player, _data_views, _canvases, _frames = make_app(
         monkeypatch,
         state_path=state_path,
         saved_state=SavedAppState(),
@@ -3104,7 +3109,7 @@ def test_initial_file_settings_are_applied_and_saved(
         },
     )
     monkeypatch.setattr(player_app_preferences, "save_saved_state", lambda _state, _path=None: None)
-    player, _views, _canvases, _frames = make_app(
+    player, _data_views, _canvases, _frames = make_app(
         monkeypatch,
         saved_state=saved_state,
         initial_file_path=file_path,
@@ -3154,7 +3159,7 @@ def test_live_time_scrubber_zoom_is_saved_during_restore_lock(
         },
     )
     monkeypatch.setattr(player_app_preferences, "save_saved_state", lambda _state, _path=None: None)
-    player, _views, _canvases, _frames = make_app(
+    player, _data_views, _canvases, _frames = make_app(
         monkeypatch,
         saved_state=saved_state,
         initial_file_path=file_path,
@@ -3203,7 +3208,7 @@ def test_metadata_without_stored_scrubber_uses_defaults_once(
 
     monkeypatch.setattr(odm, "validate_odm_line", block_row)
     old_path = "/tmp/old.oem"
-    player, _views, _canvases, _frames = make_app(
+    player, _data_views, _canvases, _frames = make_app(
         monkeypatch,
         saved_state=SavedAppState(),
         initial_file_path=old_path,
@@ -3338,7 +3343,7 @@ def test_incremental_load_previews_saved_timeline_from_metadata(
 
     monkeypatch.setattr(odm, "validate_odm_line", block_row)
     old_path = "/tmp/old.oem"
-    player, _views, _canvases, _frames = make_app(
+    player, _data_views, _canvases, _frames = make_app(
         monkeypatch,
         saved_state=saved_state,
         initial_file_path=old_path,
@@ -3441,7 +3446,7 @@ def test_window_position_is_restored_clamped_and_saved(
     monkeypatch.setattr(app.wx, "Display", FakeDisplay)
     monkeypatch.setattr(player_app_preferences, "save_saved_state", lambda _state, _path=None: None)
     saved_state = SavedAppState(position=(1800, 900))
-    player, _views, _canvases, frames = make_app(
+    player, _data_views, _canvases, frames = make_app(
         monkeypatch,
         saved_state=saved_state,
     )
@@ -3460,28 +3465,28 @@ def test_window_position_is_restored_clamped_and_saved(
     player.close()
 
 
-def test_new_graph_panel_starts_empty_and_can_switch_between_empty_and_a_view(
+def test_new_data_view_panel_starts_empty_and_can_switch_between_empty_and_a_view(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    player, views, _canvases, _frames = make_app(
+    player, data_views, _canvases, _frames = make_app(
         monkeypatch,
-        plots=("speed-altitude",),
+        data_views=("speed-altitude",),
     )
     monkeypatch.setattr(app.wx, "Window", FakeNativeWindow)
     monkeypatch.setattr(app.wx, "StaticText", FakeEmptyContent)
     player.start()
 
-    player._add_graph_panel("middle")
+    player._add_data_view_panel("middle")
 
-    empty_panel = player._open_panels[FakeGraphPanelHost.instances[-1].panel_id]
-    assert empty_panel.view_name == app_support.EMPTY_GRAPH_VIEW
-    assert empty_panel.panel.selected_view == app_support.EMPTY_GRAPH_VIEW
-    assert empty_panel.panel.view_choices[0] == (
-        app_support.EMPTY_GRAPH_VIEW,
-        app_support.EMPTY_GRAPH_LABEL,
+    empty_panel = player._open_panels[FakeDataViewPanelHost.instances[-1].panel_id]
+    assert empty_panel.data_view_name == app_support.EMPTY_DATA_VIEW
+    assert empty_panel.panel.selected_view == app_support.EMPTY_DATA_VIEW
+    assert empty_panel.panel.data_view_choices[0] == (
+        app_support.EMPTY_DATA_VIEW,
+        app_support.EMPTY_DATA_VIEW_LABEL,
     )
-    assert empty_panel.panel.view_choices == (
-        (app_support.EMPTY_GRAPH_VIEW, app_support.EMPTY_GRAPH_LABEL),
+    assert empty_panel.panel.data_view_choices == (
+        (app_support.EMPTY_DATA_VIEW, app_support.EMPTY_DATA_VIEW_LABEL),
         ("trajectory-3d", "3D Orbit"),
         ("speed-altitude", "Speed / Altitude"),
         ("state-components", "State Components"),
@@ -3494,22 +3499,22 @@ def test_new_graph_panel_starts_empty_and_can_switch_between_empty_and_a_view(
         ("azimuth-profile", "Azimuth Profile"),
         ("range-profile", "Range Profile"),
         ("pass-list", "Pass List"),
-        ("sky-view", "Sky View"),
+        ("sky-view", "Sky DataView"),
     )
-    assert empty_panel.panel.native_content.label == "Select a graph view above"
+    assert empty_panel.panel.native_content.label == "Select a data view above"
 
     empty_panel.panel.on_view_selected("rtn")
     rtn_panel = player._open_panels[empty_panel.panel_id]
     assert empty_panel.panel.destroyed
-    assert rtn_panel.view_name == "rtn"
-    assert player.workspace.graph_panels.index(rtn_panel.panel) == 1
+    assert rtn_panel.data_view_name == "rtn"
+    assert player.workspace.data_view_panels.index(rtn_panel.panel) == 1
 
-    rtn_panel.panel.on_view_selected(app_support.EMPTY_GRAPH_VIEW)
+    rtn_panel.panel.on_view_selected(app_support.EMPTY_DATA_VIEW)
     empty_again = player._open_panels[empty_panel.panel_id]
-    assert views[-1].closed
-    assert views[-1].close_calls == 1
-    assert empty_again.view_name == app_support.EMPTY_GRAPH_VIEW
-    assert player.workspace.graph_panels.index(empty_again.panel) == 1
+    assert data_views[-1].closed
+    assert data_views[-1].close_calls == 1
+    assert empty_again.data_view_name == app_support.EMPTY_DATA_VIEW
+    assert player.workspace.data_view_panels.index(empty_again.panel) == 1
 
     player.close()
 
@@ -3517,9 +3522,9 @@ def test_new_graph_panel_starts_empty_and_can_switch_between_empty_and_a_view(
 def test_failed_view_change_restores_the_original_panel(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    player, _views, _canvases, _frames = make_app(
+    player, _data_views, _canvases, _frames = make_app(
         monkeypatch,
-        plots=("speed-altitude",),
+        data_views=("speed-altitude",),
     )
     monkeypatch.setattr(app.wx, "Window", FakeNativeWindow)
     monkeypatch.setattr(app.wx, "StaticText", FakeEmptyContent)
@@ -3533,14 +3538,14 @@ def test_failed_view_change_restores_the_original_panel(
     monkeypatch.setattr(view_factory.rtn, "RtnDeltaView", lambda *_args: failed_view)
     monkeypatch.setattr(app.wx, "MessageBox", lambda *args: errors.append(args))
     player.start()
-    player._add_graph_panel("middle")
+    player._add_data_view_panel("middle")
 
-    original = player._open_panels[FakeGraphPanelHost.instances[-1].panel_id]
-    original_index = player.workspace.graph_panels.index(original.panel)
+    original = player._open_panels[FakeDataViewPanelHost.instances[-1].panel_id]
+    original_index = player.workspace.data_view_panels.index(original.panel)
     original.panel.on_view_selected("rtn")
 
     assert player._open_panels[original.panel_id] is original
-    assert player.workspace.graph_panels[original_index] is original.panel
+    assert player.workspace.data_view_panels[original_index] is original.panel
     assert not original.panel.destroyed
     assert failed_view.closed
     assert failed_view.close_calls == 1
@@ -3551,12 +3556,12 @@ def test_failed_view_change_restores_the_original_panel(
 def test_failed_forced_replacement_preserves_default_view_lookup(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    player, _views, _canvases, _frames = make_app(
+    player, _data_views, _canvases, _frames = make_app(
         monkeypatch,
-        plots=("speed-altitude",),
+        data_views=("speed-altitude",),
     )
     player.start()
-    original = player._open_views["speed-altitude"]
+    original = player._open_data_views["speed-altitude"]
 
     class FailingView(FakeView):
         def build(self, _series, _time_unit):
@@ -3564,7 +3569,7 @@ def test_failed_forced_replacement_preserves_default_view_lookup(
 
     failed_view = FailingView()
     with pytest.raises(RuntimeError, match="view refresh failed"):
-        player._open_view(
+        player._open_data_view(
             "speed-altitude",
             lambda _panel: failed_view,
             panel_id=original.panel_id,
@@ -3572,11 +3577,11 @@ def test_failed_forced_replacement_preserves_default_view_lookup(
         )
 
     assert player._open_panels[original.panel_id] is original
-    assert player._open_views["speed-altitude"] is original
+    assert player._open_data_views["speed-altitude"] is original
     assert not original.panel.destroyed
     assert failed_view.close_calls == 1
 
-    player.open_view("speed-altitude")
+    player.open_data_view("speed-altitude")
     assert original.panel.focused
     assert len(player._open_panels) == 1
     player.close()
@@ -3585,12 +3590,12 @@ def test_failed_forced_replacement_preserves_default_view_lookup(
 def test_panel_action_duplicates_as_a_new_independent_instance(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    player, views, _canvases, _frames = make_app(
+    player, data_views, _canvases, _frames = make_app(
         monkeypatch,
-        plots=("speed-altitude",),
+        data_views=("speed-altitude",),
     )
     player.start()
-    original = player._open_views["speed-altitude"]
+    original = player._open_data_views["speed-altitude"]
 
     original.panel.on_duplicate()
 
@@ -3598,18 +3603,18 @@ def test_panel_action_duplicates_as_a_new_independent_instance(
     duplicate = next(
         opened for opened in player._open_panels.values() if opened is not original
     )
-    assert duplicate.view_name == original.view_name
+    assert duplicate.data_view_name == original.data_view_name
     assert duplicate.panel_id != original.panel_id
-    assert duplicate.view is not original.view
+    assert duplicate.data_view is not original.data_view
     player.close_panel(duplicate.panel_id)
-    assert views[1].closed
+    assert data_views[1].closed
     player.close()
 
 
-def test_closing_primary_frame_stops_timer_and_closes_all_views(
+def test_closing_primary_frame_stops_timer_and_closes_all_data_views(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    player, views, _canvases, frames = make_app(monkeypatch)
+    player, data_views, _canvases, frames = make_app(monkeypatch)
     player.start()
 
     frames[0].Close(force=True)
@@ -3617,10 +3622,10 @@ def test_closing_primary_frame_stops_timer_and_closes_all_views(
 
     assert player._closed
     assert not player._timer.running
-    assert all(view.closed for view in views)
-    assert all(view.close_calls == 1 for view in views)
+    assert all(view.closed for view in data_views)
+    assert all(view.close_calls == 1 for view in data_views)
     assert all(frame.destroyed for frame in frames)
-    assert all(view.updated_times == [100.0] for view in views)
+    assert all(view.updated_times == [100.0] for view in data_views)
     player.close()
 
 
@@ -3651,8 +3656,8 @@ def test_closing_while_oem_parse_is_blocked_cancels_without_waiting(
         original_validate(line, label)
 
     monkeypatch.setattr(odm, "validate_odm_line", block_parser)
-    player, _views, _canvases, _frames = make_app(
-        monkeypatch, plots=("speed-altitude",), oem_loaded=False
+    player, _data_views, _canvases, _frames = make_app(
+        monkeypatch, data_views=("speed-altitude",), oem_loaded=False
     )
     session = None
     store = None
@@ -3746,7 +3751,7 @@ def test_native_wx_close_during_oem_parse_cancels_and_destroys_resources(
             StoreCursor.empty(),
             "TEST",
             "GCRF / Earth",
-            plots=("overview",),
+            data_views=("overview",),
             oem_loaded=False,
         )
         player.start()
@@ -3790,7 +3795,7 @@ def test_native_wx_close_during_oem_parse_cancels_and_destroys_resources(
 def test_incremental_update_scope_restores_previous_flag_on_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    player, _views, _canvases, _frames = make_app(monkeypatch)
+    player, _data_views, _canvases, _frames = make_app(monkeypatch)
     try:
         with pytest.raises(RuntimeError, match="clock update failed"):
             with player._installing_incremental_update():
@@ -3810,8 +3815,8 @@ def test_incremental_update_scope_restores_previous_flag_on_failure(
 def test_sigint_is_forwarded_with_call_after_and_previous_handler_restored(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    player, _views, _canvases, frames = make_app(
-        monkeypatch, plots=("state-components",)
+    player, _data_views, _canvases, frames = make_app(
+        monkeypatch, data_views=("state-components",)
     )
     signal_handlers: list[Any] = []
     previous_handler = object()
@@ -3841,7 +3846,7 @@ def test_sigint_is_forwarded_with_call_after_and_previous_handler_restored(
     assert player.workspace is None
     assert player.control_window is None
     assert player._timer is None
-    assert not player._view_registry.registered_views
+    assert not player._data_view_registry.registered_data_views
     assert len(signal_handlers) == 2
     assert signal_handlers[1] is previous_handler
 
@@ -3883,7 +3888,7 @@ def test_existing_wx_app_is_reused_instead_of_created_twice(
         make_store_cursor([100.0, 200.0], make_states())[1],
         "TEST",
         "GCRF / Earth",
-        plots=("state-components",),
+        data_views=("state-components",),
     )
 
     assert player.wx_app is existing_app

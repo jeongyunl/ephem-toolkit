@@ -1,4 +1,4 @@
-"""Store-backed history views must retain store-owned coordinate buffers."""
+"""Store-backed history data_views must retain store-owned coordinate buffers."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from ephem_toolkit.play_oem.time_range import ResolvedTimeRange
 from ephem_toolkit.play_oem.time_snapping import snap_tt_s_to_utc_half_second
 from ephem_toolkit.play_oem.time_unit import TimeUnit
 from ephem_toolkit.play_oem.views.angular_velocity import AngularVelocityView
-from ephem_toolkit.play_oem.views.base import (
+from ephem_toolkit.play_oem.views.data_view_base import (
     StoreStationViewSupport,
     StoreViewBinding,
     StoreViewContext,
@@ -190,7 +190,7 @@ def test_station_store_support_rejects_updates_before_build() -> None:
     assert support._store_context is None
 
 
-def test_store_series_views_use_bounded_aligned_timestamps() -> None:
+def test_store_series_data_views_use_bounded_aligned_timestamps() -> None:
     context = _store_context()
 
     query = context.series("rtn")
@@ -245,7 +245,7 @@ def test_series_display_limit_is_respected_after_alignment() -> None:
         ),
     ],
 )
-def test_store_history_views_use_store_owned_paths(
+def test_store_history_data_views_use_store_owned_paths(
     view_type, query_group, scales
 ) -> None:
     context = _store_context()
@@ -351,7 +351,7 @@ def test_store_history_views_use_store_owned_paths(
         )
     ],
 )
-def test_store_history_views_handle_empty_ranges(
+def test_store_history_data_views_handle_empty_ranges(
     view_type, plot_range, empty_label
 ) -> None:
     context = _store_context(plot_range=plot_range)
@@ -378,7 +378,7 @@ def test_store_history_views_handle_empty_ranges(
     "view_type",
     (RtnDeltaView, AngularVelocityView, DirectionChangeView, GeocentricDistanceView),
 )
-def test_store_history_views_report_insufficient_samples(view_type) -> None:
+def test_store_history_data_views_report_insufficient_samples(view_type) -> None:
     store = OemDataStore()
     store.begin(1)
     context = StoreViewContext.capture(

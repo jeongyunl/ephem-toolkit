@@ -1,4 +1,4 @@
-"""Compare wx-migrated Matplotlib views with the recorded Tk-era baseline."""
+"""Compare wx-migrated Matplotlib data_views with the recorded Tk-era baseline."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ BASELINE_PATH = TEST_DATA_DIRECTORY / "play_oem_tk_baseline.json"
 OEM_PATH = TEST_DATA_DIRECTORY / "ISS_2026-05-20.OEM"
 
 
-def test_migrated_views_preserve_baseline_data_labels_and_cursor_locations() -> None:
+def test_migrated_data_views_preserve_baseline_data_labels_and_cursor_locations() -> None:
     baseline = json.loads(BASELINE_PATH.read_text(encoding="utf-8"))
     _, timestamps_s, states_m = read_oem_states(OEM_PATH)
     assert len(timestamps_s) == baseline["oem"]["sample_count"]

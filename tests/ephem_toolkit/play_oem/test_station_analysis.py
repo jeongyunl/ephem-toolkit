@@ -26,7 +26,7 @@ from ephem_toolkit.play_oem.station_analysis import (
 )
 from ephem_toolkit.play_oem.time_range import ResolvedTimeRange
 from ephem_toolkit.play_oem.time_unit import TimeUnit
-from ephem_toolkit.play_oem.views.base import (
+from ephem_toolkit.play_oem.views.data_view_base import (
     StoreViewContext,
     station_access_from_store,
 )

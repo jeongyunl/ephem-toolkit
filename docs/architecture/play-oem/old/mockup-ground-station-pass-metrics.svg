@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="620" viewBox="0 0 1600 620" role="img" aria-labelledby="title desc">
   <title id="title">Optional pass-comparison graph mockups</title>
-  <desc id="desc">Three optional small graph panels compare peak elevation, closest slant range, and complete pass duration. Values are illustrative and incomplete durations are not plotted.</desc>
+  <desc id="desc">Three optional small data-view panels compare peak elevation, closest slant range, and complete pass duration. Values are illustrative and incomplete durations are not plotted.</desc>
   <defs>
     <style>
       .bg{fill:#f1f4f8}.card{fill:#fff;stroke:#cbd5e1;stroke-width:1.5}.plot{fill:#fbfdff;stroke:#d5dee9;stroke-width:1}
@@ -14,7 +14,7 @@
     </style>
   </defs>
   <rect class="bg" width="1600" height="620"/>
-  <text class="ink heading" x="30" y="35">Optional Pass Comparison Panels</text>
+  <text class="ink heading" x="30" y="35">Optional Pass Additional pane Panels</text>
   <text class="muted small" x="30" y="56">Simple per-pass views using existing AccessInterval metrics · illustrative values only</text>
 
   <g transform="translate(30 78)">

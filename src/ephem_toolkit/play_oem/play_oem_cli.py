@@ -8,16 +8,16 @@ import sys
 
 import ephem_toolkit.core.cli as cli
 from .views.trajectory3d.selection import THREE_D_BACKEND_CHOICES
-from .views.registry import parse_plot_selection
+from .views.data_view_registry import parse_data_view_selection
 
-PLOTS_OPTION = "--plots"
+DATA_VIEWS_OPTION = "--data-views"
 THREE_D_BACKEND_OPTION = "--3d-backend"
 CONFIG_FILE_OPTION = "--config-file"
 STATE_FILE_OPTION = "--state-file"
 CONFIG_DIR_OPTION = "--config-dir"
 THEME_OPTION = "--theme"
 CONFIG_OPTION_DESTINATIONS = {
-    PLOTS_OPTION: "plots",
+    DATA_VIEWS_OPTION: "data_views",
     THREE_D_BACKEND_OPTION: "three_d_backend",
     CONFIG_FILE_OPTION: "config_file",
     STATE_FILE_OPTION: "state_file",
@@ -25,9 +25,9 @@ CONFIG_OPTION_DESTINATIONS = {
 }
 
 
-def _parse_plots(value: str) -> tuple[str, ...]:
+def _parse_data_views(value: str) -> tuple[str, ...]:
     try:
-        return parse_plot_selection(value)
+        return parse_data_view_selection(value)
     except ValueError as error:
         raise argparse.ArgumentTypeError(str(error)) from error
 
@@ -41,8 +41,8 @@ class PlayOemArgs(argparse.Namespace):
     """3D trajectory rendering backend."""
     theme: str
     """Application appearance: system, light, or dark."""
-    plots: tuple[str, ...]
-    """View names selected for launch."""
+    data_views: tuple[str, ...]
+    """DataView names selected for launch."""
     config_file: str | None
     """Optional path to a user config TOML file."""
     state_file: str | None
@@ -55,14 +55,14 @@ class PlayOemArgs(argparse.Namespace):
 
 def build_arg_parser() -> argparse.ArgumentParser:
     """Build the command-line parser for OEM playback."""
-    # CLI options select the file and views; playback settings live in the GUI.
+    # CLI options select the file and data_views; playback settings live in the GUI.
     parser = cli.build_arg_parser(
         description="Interactively explore and play a CCSDS OEM ephemeris.",
         epilog=(
             "Examples:\n"
             "  play-oem\n"
             "  play-oem orbit.oem\n"
-            f"  play-oem orbit.oem {PLOTS_OPTION} overview"
+            f"  play-oem orbit.oem {DATA_VIEWS_OPTION} overview"
         ),
     )
     parser.prog = "play-oem"
@@ -92,13 +92,14 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Application theme (default: system).",
     )
     parser.add_argument(
-        PLOTS_OPTION,
-        type=_parse_plots,
+        DATA_VIEWS_OPTION,
+        dest="data_views",
+        type=_parse_data_views,
         default=("overview",),
         metavar="<list>",
         help=(
-            "Comma-separated plot names or groups to open "
-            "(default: overview; groups: overview, state, motion, "
+            "Comma-separated data-view names or presets to open "
+            "(default: overview; presets: overview, state, motion, "
             "access-overview, pass-study, all)."
         ),
     )

@@ -145,7 +145,7 @@ class ControlWindow:
         time_snapping_row.SetName("Time snapping control row")
         time_snapping_row.SetScrollRate(10, 0)
         self.time_snapping_checkbox = wx.CheckBox(
-            time_snapping_row, wx.ID_ANY, "Snap plots to UTC half-seconds"
+            time_snapping_row, wx.ID_ANY, "Snap data_views to UTC half-seconds"
         )
         self.time_snapping_checkbox.SetName("Time snapping")
         self.time_snapping_checkbox.SetValue(time_snapping)

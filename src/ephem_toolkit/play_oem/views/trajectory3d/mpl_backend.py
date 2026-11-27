@@ -12,9 +12,9 @@ from mpl_toolkits.mplot3d.art3d import Path3DCollection
 from ... import cursor, series, time_unit
 from ...matplotlib_helpers import create_figure, style_axes
 from ...time_range import ResolvedTimeRange
-from ..base import StoreViewContext
+from ..data_view_base import StoreViewContext
 from ..plotting import MAX_MATPLOTLIB_3D_DISPLAY_POINTS, decimate_indices
-from ..registry import ViewSpecMixin
+from ..data_view_registry import DataViewSpecMixin
 
 CARTESIAN_COMPONENT_COUNT: int = 3
 """Number of Cartesian coordinates in a position vector."""
@@ -44,7 +44,7 @@ START_MARKER_SIZE: float = 55.0
 """Area of the first-sample marker in points squared."""
 
 
-class Trajectory3DView(ViewSpecMixin):
+class Trajectory3DView(DataViewSpecMixin):
     """Plot the orbit path and move a marker from direction-independent cursor state."""
 
     name: str = "trajectory-3d"

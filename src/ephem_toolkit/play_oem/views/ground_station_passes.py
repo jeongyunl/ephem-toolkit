@@ -26,14 +26,14 @@ from ..station_analysis import StationAnalysisContext, StationAnalysisSelection
 from ..time_range import ResolvedTimeRange
 from ..time_unit import TimeUnit
 from ..widgets.matplotlib_panel import MatplotlibPanel
-from .base import (
+from .data_view_base import (
     StoreStationViewSupport,
     StoreViewContext,
     station_access_from_store,
     store_load_status_message,
 )
 from .plotting import bounded_sample_indices
-from .registry import ViewSpecMixin
+from .data_view_registry import DataViewSpecMixin
 
 _TABLE_COLUMN_WIDTHS = (190, 90, 150, 155, 155)
 _TABLE_PANEL_MIN_WIDTH = sum(_TABLE_COLUMN_WIDTHS)
@@ -1062,8 +1062,8 @@ class GroundStationPassesView(StoreStationViewSupport):
         self._panel = None
 
 
-class GroundStationPassListView(ViewSpecMixin, GroundStationPassesView):
-    """Show the pass table without embedding its linked Sky View."""
+class GroundStationPassListView(DataViewSpecMixin, GroundStationPassesView):
+    """Show the pass table without embedding its linked Sky DataView."""
 
     name = "pass-list"
     label = "Pass List"
@@ -1088,13 +1088,13 @@ class GroundStationPassListView(ViewSpecMixin, GroundStationPassesView):
         return
 
 
-class GroundStationSkyView(ViewSpecMixin, GroundStationPassesView):
+class GroundStationSkyView(DataViewSpecMixin, GroundStationPassesView):
     """Show the selected-pass polar plot without embedding its list."""
 
     name = "sky-view"
-    label = "Sky View"
+    label = "Sky DataView"
     group = "pass-study"
-    heading = "Sky View"
+    heading = "Sky DataView"
 
     def _update_analysis_layout(self) -> None:
         if self._closed:

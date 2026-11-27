@@ -5,7 +5,7 @@
 > for shipped behavior and remaining acceptance work.
 
 **Status: Proposed.** This design decomposes the existing Ground Station Access and Ground
-Station Passes composites into small graph-panel views that share one station-access data source.
+Station Passes composites into small view-panel views that share one station-access data source.
 
 The previous implementation is recorded in the archived
 [implementation report](./PLAY_OEM_GROUND_STATION_ANALYSIS_IMPLEMENTATION_REPORT.md).
@@ -15,7 +15,7 @@ The interface and workspace configurations for this proposal are in the
 ## Goals
 
 - Replace the two composite station views with focused panels that each answer one question.
-- Let users combine a small number of panels in the existing Main Analysis and Comparison stacks.
+- Let users combine a small number of panels in the existing Main pane and Additional pane view stacks.
 - Reuse access intervals, sampled station metrics, Plot Range, and exact-sample ECEF conversions.
 - Preserve current playback, coverage, gap, and minimum-elevation semantics.
 - Keep every panel useful on its own; selection links between panels are explicit.
@@ -161,7 +161,7 @@ pass-bounded view.
 ## Selection and workspace state
 
 Keep station and interval selection local to each stack by default. This preserves the ability to
-compare different stations in Main Analysis and Comparison. Views in the same stack may share a
+compare different stations in Main pane and Additional pane. Views in the same stack may share a
 small `StationAnalysisContext` containing:
 
 ```text
@@ -170,8 +170,8 @@ selected_interval_key  # stable interval identity, not a row index
 ```
 
 The context carries selection only; Plot Range and playback remain app-wide. A Pass List selection
-updates peer Pass Strip, Sky View, and Pass Ground Track panels in that stack. A Comparison stack
-can optionally follow Main Analysis selection; it remains independent unless the user links it.
+updates peer Pass Strip, Sky View, and Pass Ground Track panels in that stack. A Additional pane view stack
+can optionally follow Main pane selection; it remains independent unless the user links it.
 Opening a view from a pass row seeds its station and interval identity.
 
 Station edits retain a selected station when its ID remains configured, clear stale interval
@@ -181,7 +181,7 @@ context subscription.
 
 ## Registry and compatibility
 
-Register each panel as an ordinary graph view with a concise label. Keep the `overview` group
+Register each panel as an ordinary data view with a concise label. Keep the `overview` group
 unchanged. Provide two explicit station-analysis presets:
 
 - **Access Overview:** Station Status, Pass Strip, and Elevation Profile.

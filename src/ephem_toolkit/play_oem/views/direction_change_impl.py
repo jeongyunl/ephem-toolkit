@@ -13,7 +13,7 @@ from .. import series, time_unit
 from ..matplotlib_helpers import create_figure, style_axes
 from ..oem_data_store import ColumnGroupView, StoreQuery
 from ..time_range import ResolvedTimeRange
-from .base import (
+from .data_view_base import (
     StoreSeriesPlotView,
     StoreViewContext,
     add_store_series_paths,

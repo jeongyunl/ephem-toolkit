@@ -1,4 +1,4 @@
-"""Graph-panel creation, replacement and resource lifecycle for PlayerApp."""
+"""Data-data-view panel creation, replacement and resource lifecycle for PlayerApp."""
 
 from __future__ import annotations
 
@@ -11,23 +11,23 @@ from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg, NavigationToolb
 from matplotlib.figure import Figure
 
 from .. import time_range
-from ..graph_panel import GraphPanelHost
-from ..views import base
+from ..data_view_panel import DataViewPanelHost
+from ..views import data_view_base as base
 from ..views.trajectory3d import selection as trajectory3d_selection
 from ..widgets.matplotlib_panel import MatplotlibPanel
 from .player_app_state import PlayerAppState
 from .player_app_support import (
-    EMPTY_GRAPH_LABEL,
-    EMPTY_GRAPH_VIEW,
+    EMPTY_DATA_VIEW_LABEL,
+    EMPTY_DATA_VIEW,
     PanelBuildResources,
-    _EmptyGraphView,
-    _OpenView,
-    _PendingDataGraphView,
+    _EmptyDataView,
+    _OpenDataView,
+    _PendingDataView,
 )
 
 
 def _release_view_resources(
-    view: base.View | None,
+    data_view: base.DataView | None,
     canvas: FigureCanvasWxAgg | None,
     click_callback_id: int | None,
     unsubscribe: Callable[[], None] | None,
@@ -36,62 +36,62 @@ def _release_view_resources(
         canvas.mpl_disconnect(click_callback_id)
     if unsubscribe is not None:
         unsubscribe()
-    if view is not None:
-        view.close()
+    if data_view is not None:
+        data_view.close()
 
 
 class PanelManagementMixin:
-    """Manage graph panel instances and their associated rendering resources."""
+    """Manage data-view panel instances and their associated rendering resources."""
 
-    def _rollback_open_view(
+    def _rollback_open_data_view(
         self: PlayerAppState,
         *,
         name: str,
         panel_id: str,
         stack: str,
-        replacing: _OpenView | None,
-        panel: GraphPanelHost | None,
+        replacing: _OpenDataView | None,
+        panel: DataViewPanelHost | None,
         panel_inserted: bool,
-        view: base.View | None,
+        data_view: base.DataView | None,
         canvas: FigureCanvasWxAgg | None,
         click_callback_id: int | None,
         unsubscribe: Callable[[], None] | None,
     ) -> None:
         if replacing is None:
             self._open_panels.pop(panel_id, None)
-            default = self._open_views.get(name)
+            default = self._open_data_views.get(name)
             if default is not None and default.panel_id == panel_id:
-                self._open_views.pop(name)
-        _release_view_resources(view, canvas, click_callback_id, unsubscribe)
+                self._open_data_views.pop(name)
+        _release_view_resources(data_view, canvas, click_callback_id, unsubscribe)
         if panel is not None:
             try:
                 if panel_inserted:
                     if replacing is None:
-                        self.workspace.remove_graph_panel(panel, stack=stack)
+                        self.workspace.remove_data_view_panel(panel, stack=stack)
                     else:
-                        self.workspace.replace_graph_panel(
+                        self.workspace.replace_data_view_panel(
                             panel, replacing.panel, stack=stack
                         )
             finally:
                 panel.Destroy()
 
-    def _create_graph_panel(
+    def _create_data_view_panel(
         self: PlayerAppState,
         name: str,
         panel_id: str,
         stack: str,
         stack_parent: wx.Window,
-        panel_ref: list[GraphPanelHost | None],
-    ) -> GraphPanelHost:
-        return GraphPanelHost(
+        panel_ref: list[DataViewPanelHost | None],
+    ) -> DataViewPanelHost:
+        return DataViewPanelHost(
             stack_parent,
-            self._panel_view_label(name),
+            self._panel_data_view_label(name),
             lambda: self.close_panel(panel_id),
             is_visible=lambda: self._panel_is_visible(panel_ref[0]),
-            on_redraw_request=self.workspace.queue_graph_redraw,
+            on_redraw_request=self.workspace.queue_data_view_redraw,
             on_show=lambda: self._sync_open_panel(panel_id),
             panel_id=panel_id,
-            view_choices=self._panel_view_choices,
+            data_view_choices=self._panel_data_view_choices,
             selected_view=name,
             on_view_selected=lambda selected: self._select_panel_view(
                 selected, panel_id, stack
@@ -102,13 +102,13 @@ class PanelManagementMixin:
         )
 
     def _panel_is_visible(
-        self: PlayerAppState, panel: GraphPanelHost | None
+        self: PlayerAppState, panel: DataViewPanelHost | None
     ) -> bool:
-        return panel is not None and self.workspace.is_graph_panel_visible(panel)
+        return panel is not None and self.workspace.is_data_view_panel_visible(panel)
 
     def _build_view_content(
         self: PlayerAppState,
-        view: base.View,
+        data_view: base.DataView,
     ) -> tuple[object, bool]:
         resolved_range = time_range.resolve_plot_range(
             self.plot_time_range,
@@ -118,32 +118,32 @@ class PanelManagementMixin:
         )
         coverage = (self.clock.t_start, self.clock.t_end)
         store_context = self._store_state.view_context
-        store_builder = getattr(view, "build_from_store", None)
+        store_builder = getattr(data_view, "build_from_store", None)
         requires_store_rebuild = store_context is None and callable(store_builder)
         if store_context is not None and callable(store_builder):
             store_context = store_context.with_range(resolved_range, coverage)
             self._store_state.view_context = store_context
             content = store_builder(store_context)
         else:
-            content = view.build(self.series, self.time_unit)
-        set_time_range = getattr(view, "set_time_range", None)
+            content = data_view.build(self.series, self.time_unit)
+        set_time_range = getattr(data_view, "set_time_range", None)
         if callable(set_time_range):
             set_time_range(resolved_range, coverage)
-        view.update(self.clock.t_now)
+        data_view.update(self.clock.t_now)
         return content, requires_store_rebuild
 
     def _attach_view_content(
         self: PlayerAppState,
         name: str,
-        panel: GraphPanelHost,
+        panel: DataViewPanelHost,
         content: object,
         *,
-        view: base.View | None = None,
+        data_view: base.DataView | None = None,
         preserve_aspect_ratio: bool = False,
     ) -> tuple[FigureCanvasWxAgg | None, NavigationToolbar2WxAgg | None, int | None]:
         if isinstance(content, Figure):
             plot_panel = MatplotlibPanel(
-                panel.graph_scroller,
+                panel.data_view_scroller,
                 content,
                 toolbar_factory=NavigationToolbar2WxAgg,
                 preserve_aspect_ratio=preserve_aspect_ratio,
@@ -158,7 +158,7 @@ class PanelManagementMixin:
             panel.set_matplotlib_content(plot_panel)
             click_callback_id = canvas.mpl_connect(
                 "button_press_event",
-                lambda event: self._on_plot_click(event, toolbar, view),
+                lambda event: self._on_plot_click(event, toolbar, data_view),
             )
             return canvas, toolbar, click_callback_id
         if isinstance(content, wx.Window):
@@ -169,29 +169,29 @@ class PanelManagementMixin:
             f"{type(content).__name__!r}"
         )
 
-    def _insert_graph_panel(
+    def _insert_data_view_panel(
         self: PlayerAppState,
-        panel: GraphPanelHost,
+        panel: DataViewPanelHost,
         stack: str,
-        replacing: _OpenView | None,
+        replacing: _OpenDataView | None,
     ) -> None:
         if replacing is None:
-            self.workspace.add_graph_panel(panel, stack=stack)
+            self.workspace.add_data_view_panel(panel, stack=stack)
         else:
-            self.workspace.replace_graph_panel(replacing.panel, panel, stack=stack)
+            self.workspace.replace_data_view_panel(replacing.panel, panel, stack=stack)
 
     def _size_opened_panel(
         self: PlayerAppState,
         name: str,
-        panel: GraphPanelHost,
-        replacing: _OpenView | None,
+        panel: DataViewPanelHost,
+        replacing: _OpenDataView | None,
     ) -> None:
-        if name == EMPTY_GRAPH_VIEW:
+        if name == EMPTY_DATA_VIEW:
             return
-        if replacing is not None and replacing.view_name != EMPTY_GRAPH_VIEW:
+        if replacing is not None and replacing.data_view_name != EMPTY_DATA_VIEW:
             return
         natural_height = getattr(panel, "natural_content_height", None)
-        size_to_content = getattr(self.workspace, "size_graph_panel_to_content", None)
+        size_to_content = getattr(self.workspace, "size_data_view_panel_to_content", None)
         if callable(natural_height) and callable(size_to_content):
             size_to_content(panel, natural_height())
 
@@ -201,18 +201,18 @@ class PanelManagementMixin:
         panel_id: str,
         name: str,
         stack: str,
-        panel: GraphPanelHost,
+        panel: DataViewPanelHost,
         resources: PanelBuildResources,
         requires_store_rebuild: bool,
-    ) -> _OpenView:
-        if resources.view is None or resources.unsubscribe is None:
+    ) -> _OpenDataView:
+        if resources.data_view is None or resources.unsubscribe is None:
             raise RuntimeError("panel resources are incomplete")
-        opened_state = _OpenView(
+        opened_state = _OpenDataView(
             panel_id,
             name,
             stack,
             panel,
-            resources.view,
+            resources.data_view,
             resources.unsubscribe,
             resources.canvas,
             resources.toolbar,
@@ -226,12 +226,12 @@ class PanelManagementMixin:
         name: str,
         panel_id: str | None,
         force_replace: bool,
-    ) -> tuple[str, str | None, _OpenView | None, bool, bool]:
+    ) -> tuple[str, str | None, _OpenDataView | None, bool, bool]:
         """Resolve default-instance, explicit-instance, and replacement state."""
         is_default_instance = panel_id is None
-        replacing: _OpenView | None = None
+        replacing: _OpenDataView | None = None
         if is_default_instance:
-            existing = self._open_views.get(name)
+            existing = self._open_data_views.get(name)
             if existing is not None:
                 existing.panel.SetFocus()
                 return name, None, None, True, True
@@ -241,20 +241,20 @@ class PanelManagementMixin:
         else:
             existing = self._open_panels.get(panel_id)
             if existing is not None:
-                if existing.view_name == name and not force_replace:
+                if existing.data_view_name == name and not force_replace:
                     existing.panel.SetFocus()
                     return name, panel_id, None, False, True
                 replacing = existing
-                if force_replace and self._open_views.get(name) is existing:
+                if force_replace and self._open_data_views.get(name) is existing:
                     is_default_instance = True
         if panel_id in self._open_panels and replacing is None:
             raise ValueError(f"panel instance already exists: {panel_id!r}")
         return name, panel_id, replacing, is_default_instance, False
 
-    def open_view(self: PlayerAppState, name: str) -> None:
-        self._view_registry.open_view(name)
+    def open_data_view(self: PlayerAppState, name: str) -> None:
+        self._data_view_registry.open_data_view(name)
 
-    def open_panel_view(
+    def open_panel_data_view(
         self: PlayerAppState,
         name: str,
         *,
@@ -262,21 +262,21 @@ class PanelManagementMixin:
         stack: str = "middle",
         force_replace: bool = False,
     ) -> None:
-        """Open a view in the graph-panel instance identified by ``panel_id``."""
-        if name == EMPTY_GRAPH_VIEW:
-            self._open_view(
+        """Open a view in the data-data-view panel instance identified by ``panel_id``."""
+        if name == EMPTY_DATA_VIEW:
+            self._open_data_view(
                 name,
-                _EmptyGraphView,
+                _EmptyDataView,
                 panel_id=panel_id,
                 stack=stack,
                 force_replace=force_replace,
             )
             return
-        if name not in self._view_registry.registered_views:
-            print(f"Error: unknown view name {name!r}")
-            self._open_view(
-                EMPTY_GRAPH_VIEW,
-                _EmptyGraphView,
+        if name not in self._data_view_registry.registered_data_views:
+            print(f"Error: unknown data-view name {name!r}")
+            self._open_data_view(
+                EMPTY_DATA_VIEW,
+                _EmptyDataView,
                 panel_id=panel_id,
                 stack=stack,
                 force_replace=force_replace,
@@ -307,13 +307,13 @@ class PanelManagementMixin:
         }
         openers[name](panel_id=panel_id, stack=stack, force_replace=force_replace)
 
-    def _add_graph_panel(self: PlayerAppState, stack: str) -> None:
+    def _add_data_view_panel(self: PlayerAppState, stack: str) -> None:
         try:
-            self.open_panel_view(EMPTY_GRAPH_VIEW, panel_id=uuid4().hex, stack=stack)
+            self.open_panel_data_view(EMPTY_DATA_VIEW, panel_id=uuid4().hex, stack=stack)
         except Exception as error:
             wx.MessageBox(
-                f"Could not add a graph panel: {error}",
-                "Graph panel error",
+                f"Could not add a data-view panel: {error}",
+                "DataData-view panel error",
                 wx.OK | wx.ICON_ERROR,
                 self.frame,
             )
@@ -322,11 +322,11 @@ class PanelManagementMixin:
         self: PlayerAppState, name: str, panel_id: str, stack: str
     ) -> None:
         try:
-            self.open_panel_view(name, panel_id=panel_id, stack=stack)
+            self.open_panel_data_view(name, panel_id=panel_id, stack=stack)
         except Exception as error:
             wx.MessageBox(
-                f"Could not create {self._panel_view_label(name)}: {error}",
-                "Graph view error",
+                f"Could not create {self._panel_data_view_label(name)}: {error}",
+                "Data view error",
                 wx.OK | wx.ICON_ERROR,
                 self.frame,
             )
@@ -334,34 +334,34 @@ class PanelManagementMixin:
     def _move_panel(self: PlayerAppState, panel_id: str, offset: int) -> None:
         opened = self._open_panels.get(panel_id)
         if opened is not None:
-            self.workspace.move_graph_panel(opened.panel, opened.stack, offset)
+            self.workspace.move_data_view_panel(opened.panel, opened.stack, offset)
 
     def _duplicate_panel(self: PlayerAppState, panel_id: str) -> None:
         opened = self._open_panels.get(panel_id)
         if opened is None:
             return
         try:
-            self.open_panel_view(
-                opened.view_name,
+            self.open_panel_data_view(
+                opened.data_view_name,
                 panel_id=uuid4().hex,
                 stack=opened.stack,
             )
         except Exception as error:
             wx.MessageBox(
-                f"Could not duplicate graph panel: {error}",
-                "Graph panel error",
+                f"Could not duplicate data-view panel: {error}",
+                "DataData-view panel error",
                 wx.OK | wx.ICON_ERROR,
                 self.frame,
             )
 
-    def open_group(self: PlayerAppState, name: str) -> None:
-        self._view_registry.open_group(name)
+    def open_preset(self: PlayerAppState, name: str) -> None:
+        self._data_view_registry.open_preset(name)
 
-    def open_plots(self: PlayerAppState, selection: Sequence[str]) -> None:
-        self._view_registry.open(selection)
+    def open_data_views(self: PlayerAppState, selection: Sequence[str]) -> None:
+        self._data_view_registry.open(selection)
 
-    def open_pending_plots(self: PlayerAppState, selection: Sequence[str]) -> None:
-        """Show selected graph panels before the first OEM batch is ready."""
+    def open_pending_data_views(self: PlayerAppState, selection: Sequence[str]) -> None:
+        """Show selected data-view panels before the first OEM batch is ready."""
         for name in selection:
             self._open_pending_data_view(name)
 
@@ -373,9 +373,9 @@ class PanelManagementMixin:
         stack: str = "middle",
         force_replace: bool = False,
     ) -> None:
-        self._open_view(
+        self._open_data_view(
             name,
-            lambda panel: _PendingDataGraphView(panel, self._panel_view_label(name)),
+            lambda panel: _PendingDataView(panel, self._panel_data_view_label(name)),
             panel_id=panel_id,
             stack=stack,
             force_replace=force_replace,
@@ -383,18 +383,18 @@ class PanelManagementMixin:
 
     def close_view(self: PlayerAppState, name: str) -> None:
         """Close the default panel instance for a registered view."""
-        opened = self._open_views.get(name)
+        opened = self._open_data_views.get(name)
         if opened is not None:
             self.close_panel(opened.panel_id)
 
     def close_panel(self: PlayerAppState, panel_id: str) -> None:
-        """Close one graph-panel instance by its stable identifier."""
-        self._dispose_open_view(panel_id)
+        """Close one data-data-view panel instance by its stable identifier."""
+        self._dispose_open_data_view(panel_id)
 
-    def _open_view(
+    def _open_data_view(
         self: PlayerAppState,
         name: str,
-        create_view: Callable[[wx.Window], base.View],
+        create_data_view: Callable[[wx.Window], base.DataView],
         *,
         panel_id: str | None = None,
         stack: str = "middle",
@@ -404,11 +404,11 @@ class PanelManagementMixin:
             raise RuntimeError("cannot open a view in a closed PlayerApp")
         self._publish_range_hint()
         if stack == "middle":
-            stack_parent = self.workspace.main_analysis_stack
+            stack_parent = self.workspace.main_stack
         elif stack == "right":
-            stack_parent = self.workspace.comparison_stack
+            stack_parent = self.workspace.additional_stack
         else:
-            raise ValueError(f"unknown graph stack {stack!r}")
+            raise ValueError(f"unknown data-view stack {stack!r}")
 
         _, resolved_panel_id, replacing, is_default_instance, stopped = (
             self._resolve_panel_target(name, panel_id, force_replace)
@@ -420,23 +420,23 @@ class PanelManagementMixin:
 
         resources = PanelBuildResources()
         try:
-            panel_ref: list[GraphPanelHost | None] = [None]
-            panel = self._create_graph_panel(
+            panel_ref: list[DataViewPanelHost | None] = [None]
+            panel = self._create_data_view_panel(
                 name, panel_id, stack, stack_parent, panel_ref
             )
             resources.panel = panel
             panel_ref[0] = panel
-            self._insert_graph_panel(panel, stack, replacing)
+            self._insert_data_view_panel(panel, stack, replacing)
             resources.panel_inserted = True
-            view = create_view(panel.graph_scroller)
-            resources.view = view
+            view = create_data_view(panel.data_view_scroller)
+            resources.data_view = view
             content, requires_store_rebuild = self._build_view_content(view)
             resources.canvas, resources.toolbar, resources.click_callback_id = (
                 self._attach_view_content(
                     name,
                     panel,
                     content,
-                    view=view,
+                    data_view=view,
                     preserve_aspect_ratio=bool(
                         getattr(
                             view,
@@ -451,7 +451,7 @@ class PanelManagementMixin:
             # populated graph with another must retain the user's chosen height.
             self._size_opened_panel(name, panel, replacing)
 
-            # Clock updates use one controller-owned dispatch across all views.
+            # Clock updates use one controller-owned dispatch across all data views.
             resources.unsubscribe = lambda: None
             opened_state = self._register_opened_view(
                 panel_id=panel_id,
@@ -468,14 +468,14 @@ class PanelManagementMixin:
             if resources.canvas is not None:
                 panel.request_redraw()
         except Exception:
-            self._rollback_open_view(
+            self._rollback_open_data_view(
                 name=name,
                 panel_id=panel_id,
                 stack=stack,
                 replacing=replacing,
                 panel=resources.panel,
                 panel_inserted=resources.panel_inserted,
-                view=resources.view,
+                data_view=resources.data_view,
                 canvas=resources.canvas,
                 click_callback_id=resources.click_callback_id,
                 unsubscribe=resources.unsubscribe,
@@ -483,10 +483,10 @@ class PanelManagementMixin:
             raise
         self._open_panels[panel_id] = opened_state
         if is_default_instance:
-            self._open_views[name] = opened_state
+            self._open_data_views[name] = opened_state
         if replacing is not None:
             try:
-                self._release_open_view_resources(replacing)
+                self._release_open_data_view_resources(replacing)
             finally:
                 replacing.panel.Destroy()
         self._publish_range_hint()
@@ -495,14 +495,17 @@ class PanelManagementMixin:
         self: PlayerAppState,
         event: MouseEvent,
         toolbar: NavigationToolbar2WxAgg,
-        view: base.View | None = None,
+        data_view: base.DataView | None = None,
     ) -> None:
         if (
             getattr(toolbar, "mode", "")
             or event.button != MouseButton.LEFT
             or event.inaxes is None
             or event.xdata is None
-            or (view is not None and not getattr(view, "seek_on_click", False))
+            or (
+                data_view is not None
+                and not getattr(data_view, "seek_on_click", False)
+            )
         ):
             return
         origin_s = getattr(event.inaxes, "_play_oem_time_origin_s", None)
@@ -516,29 +519,29 @@ class PanelManagementMixin:
         self.clock.seek(target_time_s)
         self._update_time_display()
 
-    def _panel_view_label(self: PlayerAppState, name: str) -> str:
-        if name == EMPTY_GRAPH_VIEW:
-            return EMPTY_GRAPH_LABEL
-        return self._view_registry.label_for(name)
+    def _panel_data_view_label(self: PlayerAppState, name: str) -> str:
+        if name == EMPTY_DATA_VIEW:
+            return EMPTY_DATA_VIEW_LABEL
+        return self._data_view_registry.label_for(name)
 
-    def _dispose_open_view(self: PlayerAppState, panel_id: str) -> None:
+    def _dispose_open_data_view(self: PlayerAppState, panel_id: str) -> None:
         opened = self._open_panels.pop(panel_id, None)
         if opened is None:
             return
         try:
-            self._release_open_view_resources(opened)
+            self._release_open_data_view_resources(opened)
         finally:
             try:
-                self.workspace.remove_graph_panel(opened.panel, stack=opened.stack)
+                self.workspace.remove_data_view_panel(opened.panel, stack=opened.stack)
             finally:
                 opened.panel.Destroy()
         self._publish_range_hint()
 
-    def _release_open_view_resources(self: PlayerAppState, opened: _OpenView) -> None:
-        if self._open_views.get(opened.view_name) is opened:
-            self._open_views.pop(opened.view_name)
+    def _release_open_data_view_resources(self: PlayerAppState, opened: _OpenDataView) -> None:
+        if self._open_data_views.get(opened.data_view_name) is opened:
+            self._open_data_views.pop(opened.data_view_name)
         _release_view_resources(
-            opened.view,
+            opened.data_view,
             opened.canvas,
             opened.click_callback_id,
             opened.unsubscribe,

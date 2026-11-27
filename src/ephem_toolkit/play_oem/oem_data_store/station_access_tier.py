@@ -1,4 +1,4 @@
-"""Station-access profile views, interval assembly, and cache policy."""
+"""Station-access profile data_views, interval assembly, and cache policy."""
 
 from __future__ import annotations
 
@@ -167,7 +167,7 @@ def query_station_access(
             cancel_event=cancel_event,
         )
 
-    profile_views = []
+    profile_data_views = []
     intervals = []
     coverage_spans = []
     cursor = _StoreStationCursor(
@@ -189,7 +189,7 @@ def query_station_access(
                 )
                 for span in ready_spans:
                     values = tier.buffer[span.first : span.stop]
-                    profile_views.append(
+                    profile_data_views.append(
                         LookAngleProfileView(
                             store._make_column_group_view(
                                 values,
@@ -272,7 +272,7 @@ def query_station_access(
     )
     value = StationAccessView(
         selected_station,
-        tuple(profile_views),
+        tuple(profile_data_views),
         cached_intervals if cached_intervals is not None else tuple(intervals),
         (
             "An access interval reaches an OEM segment gap; "

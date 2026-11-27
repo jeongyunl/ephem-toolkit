@@ -23,7 +23,7 @@ from .time_range import (
     TimeRangeEndpoint,
     validate_plot_range,
 )
-from .views.registry import parse_plot_selection
+from .views.data_view_registry import parse_data_view_selection
 
 STATE_VERSION = 11
 MAX_RECENT_FILES = 15
@@ -74,7 +74,7 @@ class SavedAppState:
     position: tuple[int, int] | None = None
     recent_files: list[str] = field(default_factory=list)
     file_settings: dict[str, FileSettings] = field(default_factory=dict)
-    open_plots: list[str] | None = None
+    open_data_views: list[str] | None = None
     minimum_elevation_deg: int = DEFAULT_MINIMUM_ELEVATION_DEG
     ground_track_projection: str = DEFAULT_GROUND_TRACK_PROJECTION
     ground_track_background: str = DEFAULT_GROUND_TRACK_BACKGROUND
@@ -342,24 +342,24 @@ def load_saved_state(path: str | Path | None = None) -> SavedAppState:
     workspace = document.get("workspace", {})
     if not isinstance(workspace, dict):
         return _state_error(state_path, "[workspace] must be a TOML table")
-    if set(workspace) - {"open_plots"}:
-        unknown = sorted(set(workspace) - {"open_plots"})[0]
+    if set(workspace) - {"open_data_views"}:
+        unknown = sorted(set(workspace) - {"open_data_views"})[0]
         return _state_error(state_path, f"unknown key workspace.{unknown!s}")
-    open_plots = workspace.get("open_plots", [])
-    if not isinstance(open_plots, list) or any(
-        not isinstance(item, str) for item in open_plots
+    open_data_views = workspace.get("open_data_views", [])
+    if not isinstance(open_data_views, list) or any(
+        not isinstance(item, str) for item in open_data_views
     ):
         return _state_error(
-            state_path, "workspace.open_plots must be an array of strings"
+            state_path, "workspace.open_data_views must be an array of strings"
         )
     try:
-        parsed_open_plots = (
-            parse_plot_selection(",".join(cast(list[str], open_plots)))
-            if open_plots
+        parsed_open_data_views = (
+            parse_data_view_selection(",".join(cast(list[str], open_data_views)))
+            if open_data_views
             else ()
         )
     except ValueError as error:
-        return _state_error(state_path, f"invalid workspace.open_plots: {error}")
+        return _state_error(state_path, f"invalid workspace.open_data_views: {error}")
 
     ground_track = document.get("ground_track", {})
     if not isinstance(ground_track, dict):
@@ -457,7 +457,7 @@ def load_saved_state(path: str | Path | None = None) -> SavedAppState:
         position=position,
         recent_files=_unique_recent_paths(paths)[:MAX_RECENT_FILES],
         file_settings=file_settings,
-        open_plots=list(parsed_open_plots),
+        open_data_views=list(parsed_open_data_views),
         minimum_elevation_deg=minimum_elevation,
         ground_track_projection=projection,
         ground_track_background=background,
@@ -506,7 +506,11 @@ def _toml_string(value: str) -> str:
 def serialize_saved_state(state: SavedAppState) -> str:
     """Serialize the known state schema as deterministic TOML."""
     paths = _unique_recent_paths(state.recent_files)[:MAX_RECENT_FILES]
-    plots = parse_plot_selection(",".join(state.open_plots)) if state.open_plots else ()
+    data_views = (
+        parse_data_view_selection(",".join(state.open_data_views))
+        if state.open_data_views
+        else ()
+    )
     encoded_paths = ",\n".join(f"    {_toml_string(path)}" for path in paths)
     path_body = f"\n{encoded_paths}\n" if paths else "\n"
     normalized_file_settings: dict[str, FileSettings] = {}
@@ -590,7 +594,7 @@ def serialize_saved_state(state: SavedAppState) -> str:
         f"{position_line}"
         "\n"
         "[workspace]\n"
-        f"open_plots = [{', '.join(_toml_string(name) for name in plots)}]\n\n"
+        f"open_data_views = [{', '.join(_toml_string(name) for name in data_views)}]\n\n"
         "[ground_track]\n"
         f"minimum_elevation_deg = {int(state.minimum_elevation_deg)}\n\n"
         f"projection = {_toml_string(state.ground_track_projection)}\n"

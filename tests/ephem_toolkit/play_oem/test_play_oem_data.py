@@ -106,7 +106,7 @@ def test_oem_slider_bounds_reject_non_utc_time_systems() -> None:
         )
 
 
-def test_direct_store_load_exposes_oem_metadata_and_raw_views(iss_oem_path: Path) -> None:
+def test_direct_store_load_exposes_oem_metadata_and_raw_data_views(iss_oem_path: Path) -> None:
     store = _load_store(iss_oem_path)
     snapshot = store.snapshot()
     metadata = dict(snapshot.meta)

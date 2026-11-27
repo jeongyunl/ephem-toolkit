@@ -1,6 +1,6 @@
 # `play-oem` — Ground Track View GUI Design
 
-This document defines the selected user-facing design for the Ground Track graph view. The
+This document defines the selected user-facing design for the Ground Track data view. The
 feature is implemented; live visual validation remains outstanding. It extends the three-pane
 graph workspace described in
 [PLAY_OEM_GUI_DESIGN.md](./old/PLAY_OEM_GUI_DESIGN.md) and follows the coordinate and lifecycle
@@ -11,7 +11,7 @@ For user instructions, see [PLAY_OEM_GROUND_TRACK.md](../../tools/PLAY_OEM_GROUN
 
 Show where the satellite passes over Earth during the loaded OEM and follow its current position
 while playback is paused, running forward, running in reverse, or being seeked. Ground Track is a
-graph view in the existing graph panels, not a separate application window.
+data view in the existing data-view panels, not a separate application window.
 
 ## Selected final design
 
@@ -50,7 +50,7 @@ Offer these full-world projections:
 Apply the selected projection and center longitude consistently to the map background or
 coastlines, graticule, OEM track, current marker, and both footprint boundaries. Changing
 projection resets only that panel to its full-world extent while retaining its center longitude.
-It does not change playback time or other graph panels.
+It does not change playback time or other data-view panels.
 
 Draw the complete usable OEM ground track as a static path. Keep distinct OEM segments separate
 and split the path at the map seam, which is `Center longitude ±180°`. Do not join the beginning
@@ -77,9 +77,9 @@ not add a separate timeline, playback controller, or independent legend panel.
 
 - Label the graph type **Ground Track** and expose it as the `ground-track` view in each panel's
   existing selector.
-- Open it in Main Analysis or Comparison like any other graph view. Respect the panel's existing
+- Open it in Main pane or Comparison like any other data view. Respect the panel's existing
   move, duplicate, replace, close, and scroll behavior.
-- Keep the current `overview` composition unchanged. Add Ground Track to the `all` view group
+- Keep the current `overview` composition unchanged. Add Ground Track to the `all` view preset
   through normal registry behavior; do not add it to `overview` by default.
 - Restore the active time marker when the panel opens or the OEM changes.
 - When no OEM is loaded, use the existing empty graph/prompt pattern and do not show placeholder
@@ -90,7 +90,7 @@ not add a separate timeline, playback controller, or independent legend panel.
 Start at the full-world extent. Support toolbar zoom and pan, mouse-wheel zoom centered on the
 pointer, and horizontal and vertical scrollbars when zoomed. With pan active, click-and-drag on
 the map moves the visible map area. Keep map navigation local to the Ground Track panel; pointer
-and drag interactions over the map must not scroll the graph stack.
+and drag interactions over the map must not scroll the data-view stack.
 
 After wheel zoom, toolbar zoom, click-and-drag pan, or scrollbar movement, update **Center
 longitude** to the longitude at the center of the visible map. Editing **Center longitude** moves
@@ -111,7 +111,7 @@ clearly mark the position as unavailable.
 ## Layout, labels, and accessibility
 
 - Preserve each projection's intended aspect and full-world extent without stretching it to fill
-  a differently shaped graph panel. For Equirectangular, the full-world longitude-to-latitude
+  a differently shaped data-view panel. For Equirectangular, the full-world longitude-to-latitude
   extent is 2:1. Leave unused space rather than distorting geographic shapes.
 - Label axes **Longitude (deg)** and **Geodetic latitude (deg)**. Show west/east and north/south
   sign conventions through ordinary signed ticks and labels.
@@ -121,13 +121,13 @@ clearly mark the position as unavailable.
   spacecraft marker or unavailable position.
 - Give the figure an informative title including the spacecraft/object name when available.
   Provide a textual current-coordinate readout in addition to the marker position.
-- Keep labels, controls, and toolbar actions reachable at the graph panel's minimum size. Verify
+- Keep labels, controls, and toolbar actions reachable at the data-view panel's minimum size. Verify
   dark and light appearance and keyboard focus in a live wx session.
 
 ## Empty and error states
 
 If the OEM is not Earth-centered, its reference frame is unsupported, or the required frame
-conversion fails, show a concise explanation inside the graph panel and leave other workspace
+conversion fails, show a concise explanation inside the data-view panel and leave other workspace
 views usable. Identify the center or frame that caused the limitation when known. Do not display
 a plausible-looking map with coordinates derived from an invalid assumption.
 
@@ -162,7 +162,7 @@ graticule and ground track only; record coastlines as follow-up work.
 - Map clicks and drags do not seek or change playback; drag pans when pan mode is active.
 - Other views and the shared timeline continue to work while the map is open.
 - Unsupported center/frame and cursor-gap states are explicit and do not affect other panels.
-- The view opens in either graph stack, replaces/closes cleanly, and updates after OEM replacement.
+- The view opens in either data-view stack, replaces/closes cleanly, and updates after OEM replacement.
 - Keyboard focus, marker shape, text readout, and theme contrast make the state understandable
   without color alone.
 

@@ -1,7 +1,7 @@
 # `play-oem` User Configuration
 
 `play-oem` reads a user config file for display and playback defaults, and an app-maintained state
-file for window size, recent files, and open graph views. Both files use plain-text TOML and live
+file for window size, recent files, and open data views. Both files use plain-text TOML and live
 in the same XDG-style config directory. You can edit the user config file with any text editor;
 the state file is maintained by the application.
 
@@ -56,7 +56,7 @@ render_rate_fps = 30
 
 [display]
 three_d_backend = "auto"
-plots = ["overview"]
+data_views = ["overview"]
 time_zone = "UTC"
 
 [interpolation]
@@ -103,7 +103,7 @@ time_scrubber = { current_time_tt = 806400240.0, viewport_tt = [806400120.0, 806
 playback_range = [806400120.0, 806400480.0]
 
 [workspace]
-open_plots = ["trajectory-3d", "speed-altitude"]
+open_data_views = ["trajectory-3d", "speed-altitude"]
 
 [ground_track]
 minimum_elevation_deg = 10
@@ -143,10 +143,10 @@ coverage, that value is ignored.
 
 The state file also remembers Ground Track settings, including projection, background, center
 longitude, map extent, and minimum elevation, and restores them on the next launch. It also
-remembers the graph views open when you exit. On the next launch, those
-views are restored unless you provide `--plots` or set `display.plots` in `play-oem.toml`.
-The saved values are view names such as `trajectory-3d` and `speed-altitude`; plot groups are
-expanded to their individual views when saved.
+remembers the data views open when you exit. On the next launch, those
+data views are restored unless you provide `--data-views` or set `display.data_views` in `play-oem.toml`.
+The saved values are view names such as `trajectory-3d` and `speed-altitude`; data-view presets are
+expanded to their individual data views when saved.
 When you change the Settings pane's render rate, the selected render rate FPS is saved as
 `playback.render_rate_fps` in `play-oem.toml` when the application exits. The app updates only
 that setting, preserving the other user-config values. The legacy `playback.fps` key is still
@@ -178,7 +178,7 @@ overrides into `play-oem.toml`.
 | Setting | Description |
 |---|---|
 | `three_d_backend` | 3D renderer: `"auto"`, `"vtk"`, or `"matplotlib"`. `"auto"` selects an available supported backend. |
-| `plots` | Views or view groups to open at launch. This uses the same names and groups as `--plots`; for example, `["overview"]` or `["state", "motion"]`. |
+| `data_views` | Data views or data-view presets to open at launch. This uses the same names and presets as `--data-views`; for example, `["overview"]` or `["state", "motion"]`. |
 | `time_zone` | Timestamp display zone: `"UTC"` (default) or `"local"` for the machine's local time zone. The Settings pane can change this value. |
 
 ### Interpolation
@@ -202,7 +202,7 @@ The input file is selected for an individual run. `play-oem` opens its workspace
 the OEM into its data store on a background worker. Playback and views can use committed samples
 while loading continues through EOF validation. The application can pause and resume that
 producer at committed-batch boundaries while retaining the current load and its loaded samples.
-For initial plots, it pauses once the requested playback and plot range is loaded, draws those
+For initial views, it pauses once the requested playback and plot range is loaded, draws those
 graphs, and resumes the same load.
 The time-axis unit follows the loaded span:
 minutes for spans shorter than one hour and hours for spans of one hour or more. Seek to a loaded

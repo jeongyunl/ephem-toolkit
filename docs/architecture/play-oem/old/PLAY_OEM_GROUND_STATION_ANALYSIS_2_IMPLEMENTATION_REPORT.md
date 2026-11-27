@@ -11,7 +11,7 @@
   Azimuth Profile, Range Profile, Pass List, Sky View, and Pass Ground Track.
 - Added the optional Access Overview and Pass Study presets while preserving the existing
   `overview` default and legacy Ground Station Access/Passes selections.
-- Added per-stack station/pass selection sharing. Main Analysis and Comparison remain independent
+- Added per-stack station/pass selection sharing. Main pane and Additional pane remain independent
   unless Follow selection is enabled.
 - Reused store-backed station-access and Earth-fixed data for profiles, pass intervals, and
   pass-bounded ground tracks. Panels do not independently prepare full OEM histories.
@@ -19,7 +19,7 @@
   explicit Focus pass and Seek to peak actions, and distinct unavailable/empty states.
 - Added a responsive paired Pass List/Sky View layout for the Ground Track **Open Passes**
   workflow. The named Pass Study preset opens the two independently selectable panels as stackable
-  graph panels.
+  data-view panels.
 
 ## Validation
 

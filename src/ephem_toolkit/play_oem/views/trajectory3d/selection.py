@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from ... import cursor
-from .. import base
+from .. import data_view_base
 from ..plotting import MAX_MATPLOTLIB_3D_DISPLAY_POINTS, decimate_indices
 
 
@@ -87,7 +87,7 @@ def create_vtk_view(
     Parameters
     ----------
     parent : wx.Window
-        wx graph-panel host that will own the VTK render-window widget.
+        wx data-view panel host that will own the VTK render-window widget.
     oem_cursor : cursor.StoreCursor
         State lookup used to position the satellite marker.
     object_name : str
@@ -100,7 +100,7 @@ def create_vtk_view(
     Returns
     -------
     VTKTrajectory3DView
-        A view that embeds VTK in the supplied graph-panel host.
+        A view that embeds VTK in the supplied data-view panel host.
 
     Raises
     ------
@@ -123,8 +123,8 @@ def create_vtk_view(
     )
 
 
-def validate_vtk_render_context(view: base.View) -> None:
-    """Verify that an embedded VTK view rendered after its graph panel was shown."""
+def validate_vtk_render_context(view: data_view_base.DataView) -> None:
+    """Verify that an embedded VTK view rendered after its data-view panel was shown."""
     from .vtk_backend import VTKTrajectory3DView
 
     if isinstance(view, VTKTrajectory3DView):

@@ -25,7 +25,7 @@ ability to arrange or hide views to suit the current analysis.
 
 ### D. Notebook-first workspace
 
-Users switch among view groups while playback controls stay visible in a fixed toolbar or bottom
+Users switch among view presets while playback controls stay visible in a fixed toolbar or bottom
 strip. Overview displays the 3D trajectory and speed/altitude plot together; other tabs provide
 State, Motion, or distance diagnostics.
 
@@ -76,7 +76,7 @@ windows remain separate.
 - **Trade-offs:** leaves less room for telemetry and can become crowded at narrow widths; separate
   plot windows remain.
 - **Toolbar:** a compact transport row with play/pause, reverse, speed presets, seek, and shortcuts
-  for view groups; put less-used actions under an overflow/details control.
+  for view presets; put less-used actions under an overflow/details control.
 - **Implementation:** retain the existing control frame and per-view plot frames; use wx sizers
   to reorganize the transport and readouts without changing plot ownership.
 

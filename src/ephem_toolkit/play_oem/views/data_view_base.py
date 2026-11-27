@@ -1,4 +1,4 @@
-"""Toolkit-neutral interface for playback plot views."""
+"""Toolkit-neutral interface for playback plot data_views."""
 
 from __future__ import annotations
 
@@ -118,8 +118,8 @@ def _snap_series_groups(
     return MappingProxyType(sampled_groups)
 
 
-class View(Protocol):
-    """Lifecycle shared by all playback views."""
+class DataView(Protocol):
+    """Lifecycle shared by all playback data views."""
 
     name: str
     def build(self, series: OrbitSeries, time_unit: TimeUnit, /) -> Figure | wx.Window:
@@ -382,7 +382,7 @@ class StoreViewBinding:
 
 
 class StoreStationViewSupport:
-    """Shared store binding lifecycle for ground-station views."""
+    """Shared store binding lifecycle for ground-station data_views."""
 
     def _initialize_station_store(
         self,
@@ -398,11 +398,11 @@ class StoreStationViewSupport:
     def _begin_station_store_update(
         self,
         context: StoreViewContext,
-        view_name: str,
+        data_view_name: str,
     ) -> None:
         """Require an existing station view binding, then refresh it."""
         if self._station_store_context is None:
-            raise RuntimeError(f"{view_name} view was not built from a store")
+            raise RuntimeError(f"{data_view_name} view was not built from a store")
         self._prepare_station_store_context(context)
 
     def _station_store_context_for_range(
@@ -417,7 +417,7 @@ class StoreStationViewSupport:
         self._station_store_context = None
 
     def _station_time_sampling(self) -> TimeSamplingPolicy:
-        """Return store sampling policy or the normal policy for result-only views."""
+        """Return store sampling policy or the normal policy for result-only data_views."""
         context = getattr(self, "_station_store_context", None)
         if isinstance(context, StoreViewContext):
             return context.time_sampling
@@ -425,7 +425,7 @@ class StoreStationViewSupport:
 
 
 class GroundStationAnalysisMixin(StoreStationViewSupport):
-    """Shared station selection and store-state support for Ground Station views."""
+    """Shared station selection and store-state support for Ground Station data_views."""
 
     def _initialize_ground_station_analysis(
         self,
@@ -589,7 +589,7 @@ def add_store_series_paths(
     mask_zero: bool = False,
     minimum_samples: int = 1,
 ) -> tuple[Artist, ...]:
-    """Plot strided store views without copying their coordinate values."""
+    """Plot strided store data_views without copying their coordinate values."""
     artists: list[Artist] = []
     current_label = label
     for group in groups:
@@ -937,7 +937,7 @@ class TimeRangeSupport:
 
 
 class StoreSeriesPlotView(TimeRangeSupport):
-    """Shared lifecycle for store-backed 2D series plots."""
+    """Shared lifecycle for store-backed 2D series data_views."""
 
     preserve_canvas_aspect_ratio = False
 
@@ -1026,7 +1026,7 @@ class StoreSeriesPlotView(TimeRangeSupport):
 
 
 class StoreTimeSeriesView(StoreSeriesPlotView):
-    """Common base for 2D plots whose x-axis represents absolute OEM time."""
+    """Common base for 2D data_views whose x-axis represents absolute OEM time."""
 
     seek_on_click: bool = True
 
@@ -1131,4 +1131,11 @@ class StoreTimeSeriesView(StoreSeriesPlotView):
         self._close_store_series_plot()
 
 
-from .time_series_support import TimeSeriesWxPanelMixin  # noqa: E402
+def __getattr__(name: str) -> object:
+    if name == "TimeSeriesWxPanelMixin":
+        from .time_series_support import TimeSeriesWxPanelMixin
+
+        return TimeSeriesWxPanelMixin
+    raise AttributeError(name)
+
+

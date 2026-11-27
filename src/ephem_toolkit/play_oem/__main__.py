@@ -32,14 +32,14 @@ def main(argv: Sequence[str] | None = None) -> None:
         save_ground_stations(ground_stations, paths.config_file)
         saved_state.ground_stations = []
     initial_render_rate_fps = user_config.render_rate_fps
-    if "plots" in cli_args.provided_options:
-        selected_plots = cli_args.plots
-    elif user_config.plots_configured:
-        selected_plots = user_config.plots
-    elif saved_state.open_plots:
-        selected_plots = saved_state.open_plots
+    if "data_views" in cli_args.provided_options:
+        selected_data_views = cli_args.data_views
+    elif user_config.data_views_configured:
+        selected_data_views = user_config.data_views
+    elif saved_state.open_data_views:
+        selected_data_views = saved_state.open_data_views
     else:
-        selected_plots = user_config.plots
+        selected_data_views = user_config.data_views
     selected_backend = (
         cli_args.three_d_backend
         if "three_d_backend" in cli_args.provided_options
@@ -78,7 +78,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         initial_data.frame_context,
         dashboard_context=initial_data.dashboard_context,
         metadata_details=initial_data.metadata_details,
-        plots=selected_plots,
+        data_views=selected_data_views,
         three_d_backend=selected_backend,
         theme=cli_args.theme,
         tick_interval_ms=math.ceil(1000 / initial_render_rate_fps),

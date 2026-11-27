@@ -99,7 +99,7 @@ controller, panel-management, and test call sites now pass `panel_id` and
 `stack` by keyword; calls that use the default stack omit only `stack`.
 
 The focused five-module regression run passed all 157 tests, including app
-panel selection, duplicate panel placement, replacement rollback, graph-panel
+panel selection, duplicate panel placement, replacement rollback, view-panel
 lifecycle, and pending-data paths. Alias handling, panel identity, defaults,
 and cleanup behavior are unchanged.
 

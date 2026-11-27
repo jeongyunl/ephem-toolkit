@@ -27,7 +27,7 @@ classDiagram
     namespace workspace {
         class workspace_core["workspace/core.py <<module>>"]
         class Workspace
-        class GraphStackMixin
+        class DataViewStackMixin
         class TimelineMixin
         class FeatureNavigationMixin
     }
@@ -59,8 +59,8 @@ classDiagram
     }
 
     namespace views {
-        class views_base["views/base.py <<module>>"]
-        class View {
+        class data_view_base["views/data_view_base.py <<module>>"]
+        class DataView {
             <<Protocol>>
         }
         class StoreView {
@@ -71,11 +71,11 @@ classDiagram
         class StoreSeriesPlotView
         class StoreStationViewSupport
         class TimeRangeSupport
-        class views_registry["views/registry.py <<module>>"]
-        class ViewRegistry
-        class ViewSpec
-        class ViewGroup
-        class ViewSpecMixin
+        class data_view_registry["views/data_view_registry.py <<module>>"]
+        class DataViewRegistry
+        class DataViewSpec
+        class DataViewPreset
+        class DataViewSpecMixin
     }
 
     namespace concrete_views {
@@ -99,7 +99,7 @@ classDiagram
     }
 
     namespace widgets {
-        class GraphPanelHost
+        class DataViewPanelHost
         class MatplotlibPanel
         class PlaybackTimeScrubber
         class ControlWindow
@@ -114,9 +114,9 @@ classDiagram
     PlayerApp *-- Workspace
     PlayerApp *-- IncrementalLoader
     PlayerApp *-- PlayerAppState
-    PlayerApp *-- ViewRegistry
+    PlayerApp *-- DataViewRegistry
     PlayerApp *-- ControlWindow
-    PlayerApp o-- GraphPanelHost : hosts panels
+    PlayerApp o-- DataViewPanelHost : hosts panels
 
     PlayerApp --|> PlayerPanelManagementMixin
     PlayerApp --|> PlayerStoreViewRefreshMixin
@@ -129,9 +129,9 @@ classDiagram
     PlayerCoreConfig --> StoreCursor
 
     Workspace --|> FeatureNavigationMixin
-    Workspace --|> GraphStackMixin
+    Workspace --|> DataViewStackMixin
     Workspace --|> TimelineMixin
-    Workspace o-- GraphPanelHost
+    Workspace o-- DataViewPanelHost
     Workspace o-- ControlWindow
     Workspace o-- PlaybackTimeScrubber
 
@@ -151,33 +151,33 @@ classDiagram
     StoreCursor *-- CursorState
     StoreCursor --> StoreSnapshot
 
-    ViewRegistry o-- ViewSpec
-    ViewRegistry o-- ViewGroup
-    ViewSpecMixin ..> ViewSpec : creates
-    View <|.. StoreView
+    DataViewRegistry o-- DataViewSpec
+    DataViewRegistry o-- DataViewPreset
+    DataViewSpecMixin ..> DataViewSpec : creates
+    DataView <|.. StoreView
     StoreViewContext --> OemDataStore
     StoreViewContext --> StoreSnapshot
     StoreViewBinding o-- StoreViewContext
     StoreViewBinding --> OemDataStore
     StoreSeriesPlotView --|> TimeRangeSupport
     StateComponentsView --|> StoreSeriesPlotView
-    StateComponentsView --|> ViewSpecMixin
+    StateComponentsView --|> DataViewSpecMixin
     SpeedAltitudeView --|> StoreSeriesPlotView
-    SpeedAltitudeView --|> ViewSpecMixin
-    GroundTrackView --|> ViewSpecMixin
+    SpeedAltitudeView --|> DataViewSpecMixin
+    GroundTrackView --|> DataViewSpecMixin
     GroundStationAccessView --|> StoreStationViewSupport
-    GroundStationAccessView --|> ViewSpecMixin
-    Trajectory3DView --|> ViewSpecMixin
+    GroundStationAccessView --|> DataViewSpecMixin
+    Trajectory3DView --|> DataViewSpecMixin
 
     PlayerApp --> StoreViewContext : captures and refreshes
     StoreViewContext --> StoreView : binds
-    PlayerApp --> ViewSpec : opens
+    PlayerApp --> DataViewSpec : opens
     GroundTrackView --> GroundTrackRun
     GroundStationAccessView --> GroundStation
     GroundStationAccessView --> StationAccess
     StateComponentsView --> OrbitSeries
 
-    GraphPanelHost *-- MatplotlibPanel
+    DataViewPanelHost *-- MatplotlibPanel
     note for OemDataStore "Owns raw OEM samples, lazy derived tiers, caches, and snapshots."
     note for StoreViewContext "Stable snapshot plus resolved plot range and coverage for a view refresh."
     note for PlayerApp "Composes lifecycle mixins and owns the one wx application event loop."

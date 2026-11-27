@@ -13,7 +13,7 @@ from matplotlib.text import Text
 from .. import series, time_unit
 from ..matplotlib_helpers import create_figure, style_axes
 from ..time_range import ResolvedTimeRange
-from .base import (
+from .data_view_base import (
     StoreSeriesPlotView,
     StoreViewContext,
     add_raw_state_paths,
@@ -30,7 +30,7 @@ FIGURE_SIZE_INCHES: tuple[float, float] = (10.0, 8.0)
 MAX_STATE_COMPONENT_DISPLAY_POINTS_PER_SEGMENT: int = 500
 """Display-point cap for each state-component line."""
 STATE_COMPONENT_COLUMN_COUNT: int = 2
-"""Number of columns for position and velocity plots."""
+"""Number of columns for position and velocity data_views."""
 
 
 class StateComponentsImpl(StoreSeriesPlotView):
@@ -187,7 +187,7 @@ class StateComponentsImpl(StoreSeriesPlotView):
         Returns
         -------
         Figure
-            Matplotlib figure containing position and velocity component plots.
+            Matplotlib figure containing position and velocity component data_views.
 
         Raises
         ------

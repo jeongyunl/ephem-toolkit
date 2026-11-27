@@ -133,7 +133,7 @@
     <path class="green" d="M1224 365 C1262 340 1295 290 1334 254 S1392 200 1420 183 M1420 368 C1451 348 1474 317 1490 294"/>
     <text class="muted tiny" x="1218" y="430">UTC · wraps at north are broken</text>
     <line class="rule" x1="14" y1="501" x2="1522" y2="501"/>
-    <text class="muted tiny" x="24" y="526">Shared playback and Plot Range apply to both analysis stacks.</text><text class="muted tiny" x="1490" y="526" text-anchor="end">Comparison may be closed</text>
+    <text class="muted tiny" x="24" y="526">Shared playback and Plot Range apply to both analysis stacks.</text><text class="muted tiny" x="1490" y="526" text-anchor="end">Additional pane may be closed</text>
   </g>
 
   <g transform="translate(32 1372)">
@@ -151,7 +151,7 @@
     <text class="muted tiny" x="28" y="251">UTC Plot Range</text><text class="ink small" x="28" y="270">12:00–18:00</text>
     <text class="muted tiny" x="28" y="309">Follow selection</text>
     <rect class="tag" x="28" y="321" width="90" height="22" rx="11"/><text class="tagtext" x="73" y="336" text-anchor="middle">ON</text>
-    <text class="muted tiny" x="28" y="377">Comparison Sky View</text>
+    <text class="muted tiny" x="28" y="377">Additional pane Sky View</text>
     <text class="muted tiny" x="28" y="392">follows selected list row.</text>
     <rect class="pane" x="246" y="78" width="802" height="411" rx="6"/>
     <text class="muted tiny" x="262" y="99">MAIN ANALYSIS · PASS LIST</text>

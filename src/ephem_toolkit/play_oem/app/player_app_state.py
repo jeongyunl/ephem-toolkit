@@ -25,14 +25,14 @@ from .. import (
     time_snapping,
 )
 from ..ground_stations import GroundStation
-from ..graph_panel import GraphPanelHost
+from ..data_view_panel import DataViewPanelHost
 from ..incremental_loader import IncrementalLoader, LoadEvent
 from ..oem_data_store import OemDataStore, StoreNotice, StoreSnapshot, TierNotice
 from ..saved_state import SavedAppState
 from ..station_analysis import StationAnalysisContext
-from ..views import base, ground_station_passes, registry
-from ..views.base import StoreViewContext
-from .player_app_support import PanelBuildResources, _OpenView
+from ..views import data_view_base as base, ground_station_passes, data_view_registry as registry
+from ..views.data_view_base import StoreViewContext
+from .player_app_support import PanelBuildResources, _OpenDataView
 
 if TYPE_CHECKING:
     from .status_bar import PlaybackStatusBar
@@ -47,13 +47,13 @@ class PlayerCoreConfig:
     series: series.OrbitSeries
     """Computed orbit-series source."""
     time_unit: time_unit.TimeUnit
-    """Display unit used by plot views."""
+    """Display unit used by plot data_views."""
     cursor: cursor.StoreCursor
     """OEM state cursor."""
     object_name: str
     """Object name used in titles and labels."""
     frame_context: str
-    """Reference-frame context used by plot views."""
+    """Reference-frame context used by plot data_views."""
     dashboard_context: dict[str, str]
     """Initial dashboard metadata."""
     metadata_details: tuple[tuple[str, str], ...]
@@ -243,7 +243,7 @@ class TimelinePlayerState(Protocol):
 
 
 class RefreshPlayerState(Protocol):
-    """View refresh scheduling state."""
+    """DataView refresh scheduling state."""
 
     _refresh_state: RefreshState
 
@@ -312,20 +312,20 @@ class PlayerAppState(
     _use_oem_interpolation: bool
     _interpolation_method: str
     _interpolation_degree: int
-    _open_panels: dict[str, _OpenView]
-    _open_views: dict[str, _OpenView]
+    _open_panels: dict[str, _OpenDataView]
+    _open_data_views: dict[str, _OpenDataView]
     _clock_unsubscribe: Callable[[], None]
     plot_time_range: time_range.PlotTimeRange
-    _panel_view_choices: tuple[tuple[str, str], ...]
-    _plots: tuple[str, ...]
-    _unknown_plots: tuple[str, ...]
+    _panel_data_view_choices: tuple[tuple[str, str], ...]
+    _data_views: tuple[str, ...]
+    _unknown_data_views: tuple[str, ...]
     _requested_3d_backend: str
     _selected_3d_backend: str | None
     _started: bool
     status_bar: PlaybackStatusBar
     _tick_interval_ms: int
     _timer: wx.Timer
-    _view_registry: registry.ViewRegistry
+    _data_view_registry: registry.DataViewRegistry
     _recent_oem_menu: wx.Menu
     _recent_menu_parent: wx.Menu
     _recent_menu_item_ids: list[int]
@@ -338,15 +338,15 @@ class PlayerAppState(
     _oem_interpolation_degree: int | None
 
     @staticmethod
-    def _views_for_tier_notice(notice: TierNotice) -> set[str]: ...
-    def open_plots(self, selection: Sequence[str]) -> None: ...
-    def _refresh_graph_stack_layouts(self) -> None: ...
+    def _data_views_for_tier_notice(notice: TierNotice) -> set[str]: ...
+    def open_data_views(self, selection: Sequence[str]) -> None: ...
+    def _refresh_data_view_stack_layouts(self) -> None: ...
     def _update_incremental_panel_data(self, panel_id: str) -> bool: ...
 
-    def _open_view(
+    def _open_data_view(
         self,
         name: str,
-        create_view: Callable[[wx.Window], base.View],
+        create_data_view: Callable[[wx.Window], base.DataView],
         *,
         panel_id: str | None = None,
         stack: str = "middle",
@@ -386,7 +386,7 @@ class PlayerAppState(
     def _open_focused_pass_view(
         self,
         name: str,
-        view_class: type[
+        data_view_class: type[
             ground_station_passes.GroundStationPassListView
             | ground_station_passes.GroundStationSkyView
         ],
@@ -413,7 +413,7 @@ class PlayerAppState(
     def _on_open_file(self, _event: wx.CommandEvent) -> None: ...
     def _formatted_dashboard_context(self) -> dict[str, str]: ...
     def _formatted_metadata_details(self) -> tuple[tuple[str, str], ...]: ...
-    def _add_graph_panel(self, stack: str) -> None: ...
+    def _add_data_view_panel(self, stack: str) -> None: ...
     def _open_pending_data_view(
         self,
         name: str,
@@ -424,31 +424,31 @@ class PlayerAppState(
     ) -> None: ...
     def _resolve_panel_target(
         self, name: str, panel_id: str | None, force_replace: bool
-    ) -> tuple[str, str | None, _OpenView | None, bool, bool]: ...
-    def _create_graph_panel(
+    ) -> tuple[str, str | None, _OpenDataView | None, bool, bool]: ...
+    def _create_data_view_panel(
         self,
         name: str,
         panel_id: str,
         stack: str,
         stack_parent: wx.Window,
-        panel_ref: list[GraphPanelHost | None],
-    ) -> GraphPanelHost: ...
-    def _panel_is_visible(self, panel: GraphPanelHost | None) -> bool: ...
-    def _insert_graph_panel(
-        self, panel: GraphPanelHost, stack: str, replacing: _OpenView | None
+        panel_ref: list[DataViewPanelHost | None],
+    ) -> DataViewPanelHost: ...
+    def _panel_is_visible(self, panel: DataViewPanelHost | None) -> bool: ...
+    def _insert_data_view_panel(
+        self, panel: DataViewPanelHost, stack: str, replacing: _OpenDataView | None
     ) -> None: ...
-    def _build_view_content(self, view: base.View) -> tuple[object, bool]: ...
+    def _build_view_content(self, data_view: base.DataView) -> tuple[object, bool]: ...
     def _attach_view_content(
         self,
         name: str,
-        panel: GraphPanelHost,
+        panel: DataViewPanelHost,
         content: object,
         *,
-        view: base.View | None = None,
+        data_view: base.DataView | None = None,
         preserve_aspect_ratio: bool = False,
     ) -> tuple[FigureCanvasWxAgg | None, NavigationToolbar2WxAgg | None, int | None]: ...
     def _size_opened_panel(
-        self, name: str, panel: GraphPanelHost, replacing: _OpenView | None
+        self, name: str, panel: DataViewPanelHost, replacing: _OpenDataView | None
     ) -> None: ...
     def _register_opened_view(
         self,
@@ -456,20 +456,20 @@ class PlayerAppState(
         panel_id: str,
         name: str,
         stack: str,
-        panel: GraphPanelHost,
+        panel: DataViewPanelHost,
         resources: PanelBuildResources,
         requires_store_rebuild: bool,
-    ) -> _OpenView: ...
-    def _rollback_open_view(
+    ) -> _OpenDataView: ...
+    def _rollback_open_data_view(
         self,
         *,
         name: str,
         panel_id: str,
         stack: str,
-        replacing: _OpenView | None,
-        panel: GraphPanelHost | None,
+        replacing: _OpenDataView | None,
+        panel: DataViewPanelHost | None,
         panel_inserted: bool,
-        view: base.View | None,
+        data_view: base.DataView | None,
         canvas: FigureCanvasWxAgg | None,
         click_callback_id: int | None,
         unsubscribe: Callable[[], None] | None,
@@ -546,7 +546,7 @@ class PlayerAppState(
     def _set_ground_track_minimum_elevation(self, value: int) -> None: ...
     def _update_ground_stations(self, stations: list[GroundStation]) -> None: ...
     def _seek_from_ground_station_timeline(self, time_s: float) -> None: ...
-    def open_panel_view(
+    def open_panel_data_view(
         self,
         name: str,
         *,
@@ -558,14 +558,14 @@ class PlayerAppState(
     def _move_panel(self, panel_id: str, offset: int) -> None: ...
     def _duplicate_panel(self, panel_id: str) -> None: ...
     def close_panel(self, panel_id: str) -> None: ...
-    def _panel_view_label(self, name: str) -> str: ...
-    def _dispose_open_view(self, panel_id: str) -> None: ...
-    def _release_open_view_resources(self, opened: _OpenView) -> None: ...
+    def _panel_data_view_label(self, name: str) -> str: ...
+    def _dispose_open_data_view(self, panel_id: str) -> None: ...
+    def _release_open_data_view_resources(self, opened: _OpenDataView) -> None: ...
     def _on_plot_click(
         self,
         event: MouseEvent,
         toolbar: NavigationToolbar2WxAgg,
-        view: base.View | None = None,
+        data_view: base.DataView | None = None,
     ) -> None: ...
     def _toggle_playback(self) -> None: ...
     def _seek_to_fraction(self, progress: float) -> None: ...
@@ -589,7 +589,7 @@ class PlayerAppState(
         dragging: bool | None = None,
     ) -> None: ...
     def _should_defer_incremental_view_refresh(self) -> bool: ...
-    def _refresh_incremental_views(self, *, force: bool = False) -> None: ...
+    def _refresh_incremental_data_views(self, *, force: bool = False) -> None: ...
     def _load_oem_file(self, path: str) -> None: ...
     def _start_incremental_load(self, path: str) -> None: ...
     def _poll_incremental_load(self) -> None: ...
@@ -617,7 +617,7 @@ class PlayerAppState(
     def _finish_incremental_metadata(self, completion: object) -> None: ...
     def _saved_state_size(self) -> tuple[int, int]: ...
     def _capture_saved_window_geometry(self) -> None: ...
-    def _capture_saved_open_views(self) -> None: ...
+    def _capture_saved_open_data_views(self) -> None: ...
     def _restore_saved_window_size(self) -> None: ...
     def _restore_saved_window_position(self) -> None: ...
     def _save_application_state(
@@ -646,7 +646,7 @@ class PlayerAppState(
     def _subscribe_store_notices(self, store: OemDataStore) -> None: ...
     def _drain_store_notices(self) -> None: ...
     def _queue_store_view_refresh(self, view_ids: set[str] | None = None) -> None: ...
-    def _refresh_store_views(self) -> None: ...
+    def _refresh_store_data_views(self) -> None: ...
     def _begin_time_range_edit(self) -> None: ...
     def _apply_playback_bounds(self, start_s: float, end_s: float) -> None: ...
     def _apply_plot_time_range(

@@ -1,4 +1,4 @@
-"""Declarative view names, groups, and opening behavior for play-oem."""
+"""Declarative data-view names, presets, and opening behavior for play-oem."""
 
 from __future__ import annotations
 
@@ -6,8 +6,8 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
 @dataclass(frozen=True)
-class ViewSpec:
-    """Canonical metadata and opener for one Play-OEM view."""
+class DataViewSpec:
+    """Canonical metadata and opener for one Play-OEM data view."""
 
     name: str
     label: str
@@ -19,11 +19,11 @@ class ViewSpec:
         label = self.label.strip()
         group = self.group.strip()
         if not name:
-            raise ValueError("view name must be non-empty")
+            raise ValueError("data-view name must be non-empty")
         if not label:
-            raise ValueError("view label must be non-empty")
+            raise ValueError("data-view label must be non-empty")
         if not group:
-            raise ValueError("view group must be non-empty")
+            raise ValueError("view preset must be non-empty")
         if not callable(self.opener):
             raise TypeError("view opener must be callable")
         object.__setattr__(self, "name", name)
@@ -32,8 +32,8 @@ class ViewSpec:
 
 
 @dataclass(frozen=True)
-class ViewGroup:
-    """Canonical view group metadata."""
+class DataViewPreset:
+    """Canonical data-view preset metadata."""
 
     name: str
     label: str
@@ -42,17 +42,17 @@ class ViewGroup:
         name = self.name.strip()
         label = self.label.strip()
         if not name:
-            raise ValueError("view group name must be non-empty")
+            raise ValueError("data-view preset name must be non-empty")
         if not label:
-            raise ValueError("view group label must be non-empty")
+            raise ValueError("data-view preset label must be non-empty")
         if name == "all":
-            raise ValueError("all is reserved for derived view-group expansion")
+            raise ValueError("all is reserved for derived preset expansion")
         object.__setattr__(self, "name", name)
         object.__setattr__(self, "label", label)
 
 
-class ViewSpecMixin:
-    """Expose a view class as declarative registry metadata."""
+class DataViewSpecMixin:
+    """Expose a data-view class as declarative registry metadata."""
 
     name: str
     label: str
@@ -62,9 +62,9 @@ class ViewSpecMixin:
     def view_spec(
         cls,
         opener: Callable[[], None],
-    ) -> ViewSpec:
+    ) -> DataViewSpec:
         """Build a registry specification for this view class."""
-        return ViewSpec(
+        return DataViewSpec(
             name=cls.name,
             label=cls.label,
             group=cls.group,
@@ -73,42 +73,42 @@ class ViewSpecMixin:
 
 
 
-class ViewRegistry:
-    """Expand plot selections and open registered views without duplicates."""
+class DataViewRegistry:
+    """Expand data-view selections and open registered data views without duplicates."""
 
-    def __init__(self, groups: Sequence[ViewGroup] = ()) -> None:
-        self._groups: dict[str, ViewGroup] = {}
-        for group in groups:
-            if not isinstance(group, ViewGroup):
-                raise TypeError("groups must contain ViewGroup instances")
-            if group.name in self._groups:
-                raise ValueError(f"group is already registered: {group.name!r}")
-            self._groups[group.name] = group
-        self._specs: dict[str, ViewSpec] = {}
+    def __init__(self, presets: Sequence[DataViewPreset] = ()) -> None:
+        self._groups: dict[str, DataViewPreset] = {}
+        for preset in presets:
+            if not isinstance(preset, DataViewPreset):
+                raise TypeError("presets must contain DataViewPreset instances")
+            if preset.name in self._groups:
+                raise ValueError(f"preset is already registered: {preset.name!r}")
+            self._groups[preset.name] = preset
+        self._specs: dict[str, DataViewSpec] = {}
 
     @property
-    def registered_views(self) -> tuple[str, ...]:
+    def registered_data_views(self) -> tuple[str, ...]:
         """Return registered view names in display registration order."""
         return tuple(self._specs)
 
     def label_for(self, name: str) -> str:
-        """Return a view or group label."""
+        """Return a data view or preset label."""
         if name in self._specs:
             return self._specs[name].label
         if name in self._groups:
             return self._groups[name].label
         if name == "all":
             return "All"
-        raise ValueError(f"unknown plot name: {name!r}")
+        raise ValueError(f"unknown data-view name: {name!r}")
 
-    def register(self, spec: ViewSpec) -> None:
+    def register(self, spec: DataViewSpec) -> None:
         """Register one declarative view specification."""
-        if not isinstance(spec, ViewSpec):
-            raise TypeError("spec must be a ViewSpec")
+        if not isinstance(spec, DataViewSpec):
+            raise TypeError("spec must be a DataViewSpec")
         if spec.name in self._specs:
             raise ValueError(f"view is already registered: {spec.name!r}")
         if spec.group not in self._groups:
-            raise ValueError(f"unknown view group: {spec.group!r}")
+            raise ValueError(f"unknown data-view preset: {spec.group!r}")
         self._specs[spec.name] = spec
 
     def clear(self) -> None:
@@ -116,13 +116,13 @@ class ViewRegistry:
         self._specs.clear()
 
     def expand(self, selection: str | Sequence[str]) -> tuple[str, ...]:
-        """Expand comma-separated views and groups into unique view names."""
+        """Expand comma-separated data views and groups into unique view names."""
         if isinstance(selection, str):
             names = [name.strip() for name in selection.split(",")]
         else:
             names = [name.strip() for item in selection for name in item.split(",")]
         if not names or any(not name for name in names):
-            raise ValueError("at least one non-empty plot name is required")
+            raise ValueError("at least one non-empty data-view name is required")
 
         expanded: list[str] = []
         for name in names:
@@ -143,7 +143,7 @@ class ViewRegistry:
                     + list(self._specs)
                 )
                 raise ValueError(
-                    f"unknown plot name {name!r}; choose from: {known_names}"
+                    f"unknown data-view name {name!r}; choose from: {known_names}"
                 )
             for member in members:
                 if member not in expanded:
@@ -154,31 +154,31 @@ class ViewRegistry:
         """Return whether every view in a selection has an opener."""
         return all(name in self._specs for name in self.expand(selection))
 
-    def open_view(self, name: str) -> None:
+    def open_data_view(self, name: str) -> None:
         """Open or raise one registered view."""
         if name not in self._specs:
-            raise ValueError(f"unknown view name: {name!r}")
+            raise ValueError(f"unknown data-view name: {name!r}")
         self.open((name,))
 
-    def open_group(self, name: str) -> None:
-        """Open or raise all views in a registered group."""
+    def open_preset(self, name: str) -> None:
+        """Open or raise all data views in a registered preset."""
         if name != "all" and name not in self._groups:
-            raise ValueError(f"unknown plot group: {name!r}")
+            raise ValueError(f"unknown data-view preset: {name!r}")
         self.open((name,))
 
     def open(self, selection: str | Sequence[str]) -> None:
-        """Open a selection only when all its views are implemented."""
-        view_names = self.expand(selection)
-        unavailable = [name for name in view_names if name not in self._specs]
+        """Open a selection only when all its data views are implemented."""
+        data_view_names = self.expand(selection)
+        unavailable = [name for name in data_view_names if name not in self._specs]
         if unavailable:
             names = ", ".join(unavailable)
-            raise ValueError(f"plots are not implemented yet: {names}")
-        for name in view_names:
+            raise ValueError(f" data_views are not implemented yet: {names}")
+        for name in data_view_names:
             self._specs[name].opener()
 
 
-def parse_plot_selection(value: str) -> tuple[str, ...]:
-    """Parse canonical comma-separated names or groups without aliases."""
+def parse_data_view_selection(value: str) -> tuple[str, ...]:
+    """Parse canonical comma-separated data-view names or presets without aliases."""
     names = tuple(name.strip() for name in value.split(","))
     if not names or any(not name for name in names):
         raise ValueError("at least one non-empty plot name is required")

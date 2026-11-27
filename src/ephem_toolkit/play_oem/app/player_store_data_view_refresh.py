@@ -53,7 +53,7 @@ def _tier_affects_display(
 
 
 class PlayerStoreViewRefreshMixin:
-    """Route store notices to the graph panels affected by a store revision."""
+    """Route store notices to the view panels affected by a store revision."""
 
     def _subscribe_store_notices(self: PlayerAppState, store: OemDataStore) -> None:
         self._store_notice_unsubscribe()
@@ -94,19 +94,19 @@ class PlayerStoreViewRefreshMixin:
                 if _tier_affects_display(
                     notice, snapshot, self._resolved_plot_range(), self.clock.t_now
                 ):
-                    affected.update(self._views_for_tier_notice(notice))
+                    affected.update(self._data_views_for_tier_notice(notice))
 
         if refresh_all:
             self._queue_store_view_refresh()
         elif affected:
             self._queue_store_view_refresh(affected)
         if self._refresh_state.pending_store_view_ids:
-            self._refresh_store_views()
+            self._refresh_store_data_views()
 
     @staticmethod
-    def _views_for_tier_notice(notice: TierNotice) -> set[str]:
+    def _data_views_for_tier_notice(notice: TierNotice) -> set[str]:
         if notice.tier == "series":
-            group_views = {
+            group_data_views = {
                 "kinematics": {"speed-altitude", "distance"},
                 "rtn": {"rtn"},
                 "direction-rates": {"angular-velocity", "direction-change"},
@@ -114,7 +114,7 @@ class PlayerStoreViewRefreshMixin:
             }
             if notice.group is None:
                 return set()
-            return set(group_views.get(notice.group, ()))
+            return set(group_data_views.get(notice.group, ()))
         if notice.tier in ("earth-fixed", "ground-track", "footprints"):
             return {"ground-track"}
         if notice.tier == "station-access":
@@ -138,7 +138,7 @@ class PlayerStoreViewRefreshMixin:
             candidates = {
                 panel_id: opened
                 for panel_id, opened in self._open_panels.items()
-                if opened.view_name in view_ids
+                if opened.data_view_name in view_ids
             }
         self._refresh_state.pending_store_view_ids.update(
             candidates
@@ -153,7 +153,7 @@ class PlayerStoreViewRefreshMixin:
             and not self._load_state.coverage_complete
         )
 
-    def _refresh_store_views(self: PlayerAppState) -> None:
+    def _refresh_store_data_views(self: PlayerAppState) -> None:
         if self._should_suppress_partial_store_view_refresh():
             self._refresh_state.incremental_view_refresh_pending = True
             return
@@ -179,8 +179,8 @@ class PlayerStoreViewRefreshMixin:
             if opened is None:
                 continue
             if opened.requires_store_rebuild:
-                self.open_panel_view(
-                    opened.view_name,
+                self.open_panel_data_view(
+                    opened.data_view_name,
                     panel_id=panel_id,
                     stack=opened.stack,
                     force_replace=True,
@@ -190,30 +190,30 @@ class PlayerStoreViewRefreshMixin:
                 self._resolved_plot_range(),
                 (self.clock.t_start, self.clock.t_end),
             )
-            update = getattr(opened.view, "update_from_store", None)
+            update = getattr(opened.data_view, "update_from_store", None)
             try:
                 if callable(update):
                     update(view_context)
-                    set_time_range = getattr(opened.view, "set_time_range", None)
+                    set_time_range = getattr(opened.data_view, "set_time_range", None)
                     if callable(set_time_range):
                         set_time_range(view_context.plot_range, view_context.coverage)
                     opened.applied_range = view_context.plot_range
                     opened.applied_coverage = view_context.coverage
                     opened.range_initialized = True
-                    opened.view.update(self.clock.t_now)
+                    opened.data_view.update(self.clock.t_now)
                     if opened.canvas is not None:
                         opened.canvas.draw_idle()
                     else:
                         opened.panel.request_redraw()
                 else:
-                    self.open_panel_view(
-                        opened.view_name,
+                    self.open_panel_data_view(
+                        opened.data_view_name,
                         panel_id=panel_id,
                         stack=opened.stack,
                         force_replace=True,
                     )
             except Exception as error:
-                self.status_bar.set_message(f"Could not refresh OEM views: {error}")
+                self.status_bar.set_message(f"Could not refresh OEM data_views: {error}")
 
         if self._refresh_state.pending_store_view_ids:
             return
@@ -244,10 +244,10 @@ class PlayerStoreViewRefreshMixin:
             )
         )
 
-    def _refresh_incremental_views(
+    def _refresh_incremental_data_views(
         self: PlayerAppState, *, force: bool = False
     ) -> None:
-        """Rebuild plots at a bounded rate, or immediately when loading ends."""
+        """Rebuild data_views at a bounded rate, or immediately when loading ends."""
         if self._should_suppress_partial_store_view_refresh():
             self._refresh_state.incremental_view_refresh_pending = True
             return
@@ -256,12 +256,12 @@ class PlayerStoreViewRefreshMixin:
             return
         if self._store_state.active is not None:
             if not self._open_panels and self._oem_loaded:
-                self.open_plots(self._plots)
-                self.workspace.draw_initial_graphs()
-                wx.CallAfter(self._refresh_graph_stack_layouts)
+                self.open_data_views(self._data_views)
+                self.workspace.draw_initial_data_views()
+                wx.CallAfter(self._refresh_data_view_stack_layouts)
             if not self._refresh_state.pending_store_view_ids:
                 self._queue_store_view_refresh()
-            self._refresh_store_views()
+            self._refresh_store_data_views()
             self._refresh_state.incremental_view_refresh_pending = bool(
                 self._refresh_state.pending_store_view_ids
             )
@@ -275,7 +275,7 @@ class PlayerStoreViewRefreshMixin:
         ):
             return
         panel_layout = tuple(
-            (opened.panel_id, opened.view_name, opened.stack)
+            (opened.panel_id, opened.data_view_name, opened.stack)
             for opened in self._open_panels.values()
         )
         for context in self._station_analysis_contexts.values():
@@ -283,23 +283,23 @@ class PlayerStoreViewRefreshMixin:
         refresh_succeeded = False
         try:
             if panel_layout:
-                for panel_id, view_name, stack in panel_layout:
+                for panel_id, data_view_name, stack in panel_layout:
                     if self._update_incremental_panel_data(panel_id):
                         continue
-                    self.open_panel_view(
-                        view_name,
+                    self.open_panel_data_view(
+                        data_view_name,
                         panel_id=panel_id,
                         stack=stack,
                         force_replace=True,
                     )
             elif self._oem_loaded:
-                self.open_plots(self._plots)
-            self.workspace.draw_initial_graphs()
-            wx.CallAfter(self._refresh_graph_stack_layouts)
+                self.open_data_views(self._data_views)
+            self.workspace.draw_initial_data_views()
+            wx.CallAfter(self._refresh_data_view_stack_layouts)
             self._refresh_state.last_incremental_view_refresh_monotonic_s = now
             refresh_succeeded = True
         except Exception as error:
-            self.status_bar.set_message(f"Could not refresh OEM views: {error}")
+            self.status_bar.set_message(f"Could not refresh OEM data_views: {error}")
         finally:
             self._refresh_state.incremental_view_refresh_pending = not refresh_succeeded
         retired_store = self._store_state.retired
@@ -314,7 +314,7 @@ class PlayerStoreViewRefreshMixin:
         opened = self._open_panels.get(panel_id)
         if opened is None:
             return False
-        update_data = getattr(opened.view, "update_data", None)
+        update_data = getattr(opened.data_view, "update_data", None)
         if not callable(update_data) or not update_data(self.series, self.time_unit):
             return False
 
@@ -325,13 +325,13 @@ class PlayerStoreViewRefreshMixin:
             self.clock.t_now,
         )
         coverage = (self.clock.t_start, self.clock.t_end)
-        set_time_range = getattr(opened.view, "set_time_range", None)
+        set_time_range = getattr(opened.data_view, "set_time_range", None)
         if callable(set_time_range):
             set_time_range(resolved_range, coverage)
         opened.applied_range = resolved_range
         opened.applied_coverage = coverage
         opened.range_initialized = True
-        opened.view.update(self.clock.t_now)
+        opened.data_view.update(self.clock.t_now)
         if opened.canvas is not None:
             opened.canvas.draw_idle()
         else:

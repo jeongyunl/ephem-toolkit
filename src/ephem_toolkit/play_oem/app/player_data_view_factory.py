@@ -38,7 +38,7 @@ _PassView = TypeVar(
 
 
 class PlayerViewFactoryMixin:
-    """Create registered views using the current playback and OEM context."""
+    """Create registered data_views using the current playback and OEM context."""
 
     _selected_3d_backend: str | None
 
@@ -50,7 +50,7 @@ class PlayerViewFactoryMixin:
         stack: str,
         force_replace: bool,
     ) -> None:
-        self._open_view(
+        self._open_data_view(
             name,
             lambda panel: ground_station_view.GroundStationView(
                 panel,
@@ -117,7 +117,7 @@ class PlayerViewFactoryMixin:
         force_replace: bool = False,
     ) -> None:
         """Open a Ground Track panel backed by the active OEM store."""
-        self._open_view(
+        self._open_data_view(
             "ground-track",
             lambda panel: ground_track_view.GroundTrackView(
                 panel,
@@ -159,15 +159,15 @@ class PlayerViewFactoryMixin:
     def _open_focused_pass_view(
         self: PlayerAppState,
         name: str,
-        view_class: type[_PassView],
+        data_view_class: type[_PassView],
         panel_id: str | None,
         stack: str,
         force_replace: bool,
         initial_station_id: str | None = None,
     ) -> None:
-        self._open_view(
+        self._open_data_view(
             name,
-            lambda panel: view_class(
+            lambda panel: data_view_class(
                 panel,
                 self.cursor,
                 self._ground_stations,
@@ -224,7 +224,7 @@ class PlayerViewFactoryMixin:
         force_replace: bool = False,
     ) -> None:
         """Open or raise the speed and altitude plot."""
-        self._open_view(
+        self._open_data_view(
             "speed-altitude",
             lambda panel: speed_altitude.SpeedAltitudeView(
                 self.clock.t_start,
@@ -243,7 +243,7 @@ class PlayerViewFactoryMixin:
         force_replace: bool = False,
     ) -> None:
         """Open or raise the RTN position-delta plot."""
-        self._open_view(
+        self._open_data_view(
             "rtn",
             lambda panel: rtn.RtnDeltaView(
                 self.clock.t_start,
@@ -263,7 +263,7 @@ class PlayerViewFactoryMixin:
         force_replace: bool = False,
     ) -> None:
         """Open or raise the angular-velocity plot."""
-        self._open_view(
+        self._open_data_view(
             "angular-velocity",
             lambda panel: angular_velocity.AngularVelocityView(
                 self.clock.t_start,
@@ -283,7 +283,7 @@ class PlayerViewFactoryMixin:
         force_replace: bool = False,
     ) -> None:
         """Open or raise the direction-change plot."""
-        self._open_view(
+        self._open_data_view(
             "direction-change",
             lambda panel: direction_change.DirectionChangeView(
                 self.clock.t_start,
@@ -303,7 +303,7 @@ class PlayerViewFactoryMixin:
         force_replace: bool = False,
     ) -> None:
         """Open or raise the geocentric-distance plot."""
-        self._open_view(
+        self._open_data_view(
             "distance",
             lambda panel: distance.GeocentricDistanceView(
                 self.clock.t_start,
@@ -323,7 +323,7 @@ class PlayerViewFactoryMixin:
         force_replace: bool = False,
     ) -> None:
         """Open or raise the Cartesian state-components plot."""
-        self._open_view(
+        self._open_data_view(
             "state-components",
             lambda panel: state_components.StateComponentsView(
                 self.clock.t_start,
@@ -348,7 +348,7 @@ class PlayerViewFactoryMixin:
             return
 
         try:
-            self._open_view(
+            self._open_data_view(
                 "trajectory-3d",
                 lambda panel: trajectory3d_selection.create_vtk_view(
                     panel,
@@ -385,7 +385,7 @@ class PlayerViewFactoryMixin:
         stack: str = "middle",
         force_replace: bool = False,
     ) -> None:
-        self._open_view(
+        self._open_data_view(
             "trajectory-3d",
             lambda _panel: trajectory3d.Trajectory3DView(
                 self.cursor,

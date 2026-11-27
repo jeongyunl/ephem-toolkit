@@ -45,12 +45,12 @@ def _gtk_style() -> tuple[ctypes.CDLL, int]:
         -1,
         None,
     )
-    # Keep the provider alive with the cached library for all Ground Track views.
+    # Keep the provider alive with the cached library for all Ground Track data_views.
     return gtk, provider
 
 
 def compact_controls(controls: tuple[wx.Window, ...]) -> None:
-    """Reduce GTK padding only for these controls, leaving other views alone."""
+    """Reduce GTK padding only for these controls, leaving other data_views alone."""
     if not is_gtk() or not controls:
         return
     gtk, provider = _gtk_style()

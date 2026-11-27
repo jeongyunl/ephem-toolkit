@@ -1,4 +1,4 @@
-"""Graph stack and splitter behavior for the playback workspace."""
+"""Data-data-view stack and splitter behavior for the playback workspace."""
 
 from __future__ import annotations
 
@@ -8,39 +8,39 @@ from typing import Protocol, cast
 
 import wx
 
-from ..graph_panel import GRAPH_PANEL_MIN_SIZE, GraphPanelHost
+from ..data_view_panel import DATA_VIEW_PANEL_MIN_SIZE, DataViewPanelHost
 from .constants import (
-    GRAPH_REDRAW_INTERVAL_MS,
-    GRAPH_SCROLL_SETTLE_MS,
-    DEFAULT_GRAPH_PANEL_HEIGHT,
-    MAX_NATURAL_GRAPH_PANEL_HEIGHT,
-    MIN_GRAPH_PANEL_HEIGHT,
-    MIN_GRAPH_PANE_WIDTH,
+    DATA_VIEW_REDRAW_INTERVAL_MS,
+    DATA_VIEW_SCROLL_SETTLE_MS,
+    DEFAULT_DATA_VIEW_PANEL_HEIGHT,
+    MAX_NATURAL_DATA_VIEW_PANEL_HEIGHT,
+    MIN_DATA_VIEW_PANEL_HEIGHT,
+    MIN_DATA_VIEW_PANE_WIDTH,
     SASH_DRAG_MIN_PANE,
 )
 from ..widgets.tooltips import set_tooltip
 
 
-class _GraphStackState(Protocol):
-    """Workspace-owned graph panes and stack bookkeeping used by this mixin."""
+class _DataViewStackState(Protocol):
+    """Workspace-owned data-view panes and stack bookkeeping used by this mixin."""
 
     _add_buttons: dict[str, wx.Button]
     _bottom_drag_start: dict[str, tuple[int, int]]
-    _comparison_toggle: wx.ToggleButton | None
+    _additional_pane_toggle: wx.ToggleButton | None
     _follow_selection_toggle: wx.CheckBox | None
-    _workspace_preset_choice: wx.Choice | None
+    _view_preset_choice: wx.Choice | None
     _empty_panels: dict[str, wx.Panel]
-    _graph_panel_heights: dict[GraphPanelHost, int]
-    _graph_panels: dict[str, list[GraphPanelHost]]
-    _graph_redraw_timer: wx.CallLater | None
-    _visible_graph_panels: set[GraphPanelHost]
-    _graph_scroll_timers: dict[str, wx.CallLater | None]
-    _on_add_graph: Callable[[str], None] | None
+    _data_view_panel_heights: dict[DataViewPanelHost, int]
+    _data_view_panels: dict[str, list[DataViewPanelHost]]
+    _data_view_redraw_timer: wx.CallLater | None
+    _visible_data_view_panels: set[DataViewPanelHost]
+    _data_view_scroll_timers: dict[str, wx.CallLater | None]
+    _on_add_data_view: Callable[[str], None] | None
     _on_open_preset: Callable[[str], None] | None
     _on_follow_selection: Callable[[bool], None] | None
     _pane_close_buttons: dict[str, wx.Button]
-    _pending_graph_redraws: deque[GraphPanelHost]
-    _queued_graph_redraws: set[GraphPanelHost]
+    _pending_data_view_redraws: deque[DataViewPanelHost]
+    _queued_data_view_redraws: set[DataViewPanelHost]
     _right_pane_visible: bool
     _right_pane_width: int
     _stack_bottom_padding_active: dict[str, bool]
@@ -50,21 +50,21 @@ class _GraphStackState(Protocol):
     _stack_sizers: dict[str, wx.BoxSizer]
     _stack_windows: dict[str, wx.ScrolledWindow]
     _stacks_fitting: set[str]
-    comparison_pane: wx.Panel
-    graph_panes_splitter: wx.SplitterWindow
-    main_analysis_pane: wx.Panel
+    additional_pane: wx.Panel
+    data_view_panes_splitter: wx.SplitterWindow
+    main_pane: wx.Panel
 
-    def _apply_graph_sash_heights(self, window: wx.Window | None) -> None: ...
+    def _apply_data_view_sash_heights(self, window: wx.Window | None) -> None: ...
 
-    def _bottom_graph_panel(self, stack: str) -> GraphPanelHost | None: ...
+    def _bottom_data_view_panel(self, stack: str) -> DataViewPanelHost | None: ...
 
     def _detach_stack_bottom_padding(self, stack: str) -> None: ...
 
-    def _draw_next_graph_panel(self) -> None: ...
+    def _draw_next_data_view_panel(self) -> None: ...
 
-    def _layout_graph_stack(self, stack: str) -> None: ...
+    def _layout_data_view_stack(self, stack: str) -> None: ...
 
-    def _make_graph_stack(self, parent: wx.Window, stack: str) -> wx.ScrolledWindow: ...
+    def _make_data_view_stack(self, parent: wx.Window, stack: str) -> wx.ScrolledWindow: ...
 
     def _on_bottom_handle_down(self, stack: str, event: wx.MouseEvent) -> None: ...
 
@@ -72,102 +72,103 @@ class _GraphStackState(Protocol):
 
     def _on_bottom_handle_up(self, stack: str, event: wx.MouseEvent) -> None: ...
 
-    def _on_graph_sash_changing(
+    def _on_data_view_sash_changing(
         self, stack: str, splitter: wx.SplitterWindow, event: wx.SplitterEvent
     ) -> None: ...
 
     def _on_stack_scroll(self, stack: str, event: wx.ScrollWinEvent) -> None: ...
 
-    def _flush_visible_graph_redraws(self, stack: str) -> None: ...
+    def _flush_visible_data_view_redraws(self, stack: str) -> None: ...
 
     def _on_stack_size(self, stack: str, event: wx.SizeEvent) -> None: ...
 
     def _remove_panel_from_splitter(
-        self, stack: str, splitter: wx.SplitterWindow, panel: GraphPanelHost
+        self, stack: str, splitter: wx.SplitterWindow, panel: DataViewPanelHost
     ) -> bool: ...
 
     def _remove_panel_from_stack_tree(
-        self, stack: str, panel: GraphPanelHost
+        self, stack: str, panel: DataViewPanelHost
     ) -> None: ...
 
-    def _request_add_graph(self, stack: str) -> None: ...
+    def _request_add_data_view(self, stack: str) -> None: ...
 
     def _request_stack_redraws(self, stack: str) -> None: ...
 
-    def request_visible_graph_redraws(self) -> None: ...
+    def request_visible_data_view_redraws(self) -> None: ...
 
-    def _resize_graph_panel(
-        self, stack: str, panel: GraphPanelHost, height: int
+    def _resize_data_view_panel(
+        self, stack: str, panel: DataViewPanelHost, height: int
     ) -> None: ...
 
     def show_right_pane(self, visible: bool) -> None: ...
 
-    def add_graph_panel(self, panel: GraphPanelHost, stack: str = "middle") -> None: ...
+    def add_data_view_panel(self, panel: DataViewPanelHost, stack: str = "middle") -> None: ...
 
-    def remove_graph_panel(
-        self, panel: GraphPanelHost, stack: str = "middle"
+    def remove_data_view_panel(
+        self, panel: DataViewPanelHost, stack: str = "middle"
     ) -> None: ...
 
     def _stack_subtree_height(self, window: wx.Window) -> int: ...
 
-    def _sync_graph_panel_heights(self, stack: str) -> None: ...
+    def _sync_data_view_panel_heights(self, stack: str) -> None: ...
 
     def _update_stack_scrollbar_visibility(self, stack: str) -> None: ...
 
     def _update_stack_virtual_size(self, stack: str) -> None: ...
 
-    def is_graph_panel_visible(self, panel: GraphPanelHost) -> bool: ...
+    def is_data_view_panel_visible(self, panel: DataViewPanelHost) -> bool: ...
 
 
-class GraphStackMixin:
-    """Implement graph panel stacks, splitters, scrolling and redraw scheduling."""
+class DataViewStackMixin:
+    """Implement data-data-view stacks, splitters, scrolling and redraw scheduling."""
 
-    def show_right_pane(self: _GraphStackState, visible: bool) -> None:
-        """Show or hide the optional graph stack while retaining its contents."""
+
+    def show_right_pane(self: _DataViewStackState, visible: bool) -> None:
+        """Show or hide the optional data-view stack while retaining its contents."""
         if visible == self._right_pane_visible:
             return
         if visible:
-            client_width = self.graph_panes_splitter.GetClientSize().width
-            sash_size = self.graph_panes_splitter.GetSashSize()
+            client_width = self.data_view_panes_splitter.GetClientSize().width
+            sash_size = self.data_view_panes_splitter.GetSashSize()
             if client_width > 0:
                 max_right_width = max(
-                    MIN_GRAPH_PANE_WIDTH,
-                    client_width - MIN_GRAPH_PANE_WIDTH - sash_size,
+                    MIN_DATA_VIEW_PANE_WIDTH,
+                    client_width - MIN_DATA_VIEW_PANE_WIDTH - sash_size,
                 )
                 right_width = min(self._right_pane_width, max_right_width)
                 sash_position = client_width - right_width - sash_size
             else:
-                sash_position = MIN_GRAPH_PANE_WIDTH
-            self.graph_panes_splitter.SplitVertically(
-                self.main_analysis_pane, self.comparison_pane, sash_position
+                sash_position = MIN_DATA_VIEW_PANE_WIDTH
+            self.data_view_panes_splitter.SplitVertically(
+                self.main_pane, self.additional_pane, sash_position
             )
         else:
-            client_width = self.graph_panes_splitter.GetClientSize().width
+            client_width = self.data_view_panes_splitter.GetClientSize().width
             if client_width > 0:
                 self._right_pane_width = max(
-                    MIN_GRAPH_PANE_WIDTH,
+                    MIN_DATA_VIEW_PANE_WIDTH,
                     client_width
-                    - self.graph_panes_splitter.GetSashPosition()
-                    - self.graph_panes_splitter.GetSashSize(),
+                    - self.data_view_panes_splitter.GetSashPosition()
+                    - self.data_view_panes_splitter.GetSashSize(),
                 )
-            self.graph_panes_splitter.Unsplit(self.comparison_pane)
+            self.data_view_panes_splitter.Unsplit(self.additional_pane)
         self._right_pane_visible = visible
-        if self._comparison_toggle is not None:
-            self._comparison_toggle.SetValue(visible)
+        if self._additional_pane_toggle is not None:
+            self._additional_pane_toggle.SetValue(visible)
         if self._follow_selection_toggle is not None:
             self._follow_selection_toggle.Enable(visible)
-        self.graph_panes_splitter.Layout()
+        self.data_view_panes_splitter.Layout()
         if visible:
             self._request_stack_redraws("right")
 
-    def add_graph_panel(
-        self: _GraphStackState, panel: GraphPanelHost, stack: str = "middle"
+    def add_data_view_panel(
+        self: _DataViewStackState, panel: DataViewPanelHost, stack: str = "middle"
     ) -> None:
-        """Add a graph host, separating adjacent panels with horizontal splitters."""
-        if stack not in self._graph_panels:
-            raise ValueError(f"unknown graph stack {stack!r}")
-        if panel in self._graph_panels[stack]:
-            raise ValueError("graph panel is already in this stack")
+        """Add a data-view panel host, separating adjacent panels with horizontal splitters."""
+        if stack not in self._data_view_panels:
+            raise ValueError(f"unknown data-view stack {stack!r}")
+        if panel in self._data_view_panels[stack]:
+            raise ValueError("data-view panel is already in this stack")
 
         # The new splitter is appended to the sizer, so remove the tail first.
         self._detach_stack_bottom_padding(stack)
@@ -181,10 +182,10 @@ class GraphStackMixin:
             root.Reparent(window)
             sizer.Add(root, 1, wx.EXPAND)
         else:
-            for existing_panel in self._graph_panels[stack]:
-                self._graph_panel_heights.setdefault(
+            for existing_panel in self._data_view_panels[stack]:
+                self._data_view_panel_heights.setdefault(
                     existing_panel,
-                    max(MIN_GRAPH_PANEL_HEIGHT, existing_panel.GetSize().height),
+                    max(MIN_DATA_VIEW_PANEL_HEIGHT, existing_panel.GetSize().height),
                 )
             root_min_height = root.GetMinSize().height
             new_splitter = wx.SplitterWindow(
@@ -200,63 +201,63 @@ class GraphStackMixin:
                 panel.Reparent(window)
                 new_splitter.Destroy()
                 sizer.Add(root, 1, wx.EXPAND)
-                raise RuntimeError(f"could not split graph stack {stack!r}")
+                raise RuntimeError(f"could not split data-view stack {stack!r}")
             new_splitter.Bind(
                 wx.EVT_SPLITTER_SASH_POS_CHANGING,
                 lambda event, stack=stack, new_splitter=new_splitter: (
-                    self._on_graph_sash_changing(stack, new_splitter, event)
+                    self._on_data_view_sash_changing(stack, new_splitter, event)
                 ),
             )
             root = new_splitter
             sizer.Add(root, 1, wx.EXPAND)
 
-        self._graph_panels[stack].append(panel)
+        self._data_view_panels[stack].append(panel)
         if adding_to_existing_stack:
-            self._graph_panel_heights.setdefault(panel, DEFAULT_GRAPH_PANEL_HEIGHT)
+            self._data_view_panel_heights.setdefault(panel, DEFAULT_DATA_VIEW_PANEL_HEIGHT)
         self._stack_roots[stack] = root
-        self._layout_graph_stack(stack)
-        self._apply_graph_sash_heights(root)
+        self._layout_data_view_stack(stack)
+        self._apply_data_view_sash_heights(root)
 
-    def remove_graph_panel(
-        self: _GraphStackState, panel: GraphPanelHost, stack: str = "middle"
+    def remove_data_view_panel(
+        self: _DataViewStackState, panel: DataViewPanelHost, stack: str = "middle"
     ) -> None:
-        """Remove a graph host and collapse its splitter without disturbing others."""
-        if stack not in self._graph_panels:
-            raise ValueError(f"unknown graph stack {stack!r}")
-        if panel not in self._graph_panels[stack]:
+        """Remove a data-view panel host and collapse its splitter without disturbing others."""
+        if stack not in self._data_view_panels:
+            raise ValueError(f"unknown data-view stack {stack!r}")
+        if panel not in self._data_view_panels[stack]:
             return
         # Removing a panel can replace the root item that follows the tail.
         self._detach_stack_bottom_padding(stack)
         self._remove_panel_from_stack_tree(stack, panel)
-        self._graph_panels[stack].remove(panel)
-        self._visible_graph_panels.discard(panel)
-        self._graph_panel_heights.pop(panel, None)
-        if panel in self._queued_graph_redraws:
-            self._pending_graph_redraws = deque(
-                queued for queued in self._pending_graph_redraws if queued is not panel
+        self._data_view_panels[stack].remove(panel)
+        self._visible_data_view_panels.discard(panel)
+        self._data_view_panel_heights.pop(panel, None)
+        if panel in self._queued_data_view_redraws:
+            self._pending_data_view_redraws = deque(
+                queued for queued in self._pending_data_view_redraws if queued is not panel
             )
-            self._queued_graph_redraws.remove(panel)
-        if not self._pending_graph_redraws and self._graph_redraw_timer is not None:
-            if self._graph_redraw_timer.IsRunning():
-                self._graph_redraw_timer.Stop()
-            self._graph_redraw_timer = None
-        self._layout_graph_stack(stack)
-        self._apply_graph_sash_heights(self._stack_roots[stack])
+            self._queued_data_view_redraws.remove(panel)
+        if not self._pending_data_view_redraws and self._data_view_redraw_timer is not None:
+            if self._data_view_redraw_timer.IsRunning():
+                self._data_view_redraw_timer.Stop()
+            self._data_view_redraw_timer = None
+        self._layout_data_view_stack(stack)
+        self._apply_data_view_sash_heights(self._stack_roots[stack])
 
-    def replace_graph_panel(
-        self: _GraphStackState,
-        old_panel: GraphPanelHost,
-        new_panel: GraphPanelHost,
+    def replace_data_view_panel(
+        self: _DataViewStackState,
+        old_panel: DataViewPanelHost,
+        new_panel: DataViewPanelHost,
         stack: str = "middle",
     ) -> None:
-        """Replace a graph host, preserving panel height, order and scroll position."""
-        if stack not in self._graph_panels:
-            raise ValueError(f"unknown graph stack {stack!r}")
-        panels = self._graph_panels[stack]
+        """Replace a data-view panel host, preserving panel height, order and scroll position."""
+        if stack not in self._data_view_panels:
+            raise ValueError(f"unknown data-view stack {stack!r}")
+        panels = self._data_view_panels[stack]
         if old_panel not in panels:
-            raise ValueError("graph panel is not in this stack")
+            raise ValueError("data-view panel is not in this stack")
         if new_panel in panels:
-            raise ValueError("replacement graph panel is already in this stack")
+            raise ValueError("replacement data-view panel is already in this stack")
 
         # ReplaceWindow and root replacement change which item owns the stack slot.
         self._detach_stack_bottom_padding(stack)
@@ -276,59 +277,59 @@ class GraphStackMixin:
             parent = old_panel.GetParent()
             if not isinstance(parent, wx.SplitterWindow):
                 raise RuntimeError(
-                    f"graph panel {old_panel.panel_id!r} has an invalid parent"
+                    f"data-view panel {old_panel.panel_id!r} has an invalid parent"
                 )
             new_panel.Reparent(parent)
             if not parent.ReplaceWindow(old_panel, new_panel):
                 new_panel.Reparent(window)
                 raise RuntimeError(
-                    f"could not replace graph panel {old_panel.panel_id!r}"
+                    f"could not replace data-view panel {old_panel.panel_id!r}"
                 )
             # ReplaceWindow leaves the old native window alive until Destroy();
             # park it so scrolling/layout cannot allocate the retired panel.
             old_panel.Reparent(window.GetParent())
 
         panels[panels.index(old_panel)] = new_panel
-        self._visible_graph_panels.discard(old_panel)
-        self._graph_panel_heights[new_panel] = self._graph_panel_heights.pop(
+        self._visible_data_view_panels.discard(old_panel)
+        self._data_view_panel_heights[new_panel] = self._data_view_panel_heights.pop(
             old_panel, old_panel.GetSize().height
         )
-        self._layout_graph_stack(stack)
-        self._apply_graph_sash_heights(self._stack_roots[stack])
+        self._layout_data_view_stack(stack)
+        self._apply_data_view_sash_heights(self._stack_roots[stack])
         window.Scroll(*view_start)
 
-    def size_graph_panel_to_content(
-        self: _GraphStackState, panel: GraphPanelHost, natural_height: int
+    def size_data_view_panel_to_content(
+        self: _DataViewStackState, panel: DataViewPanelHost, natural_height: int
     ) -> None:
         """Size a newly populated panel to its content, within usable height limits."""
         stack = next(
-            (name for name, panels in self._graph_panels.items() if panel in panels),
+            (name for name, panels in self._data_view_panels.items() if panel in panels),
             None,
         )
         if stack is None:
-            raise ValueError("graph panel is not in a stack")
-        # Keep small native views usable and cap large figures; the outer stack
+            raise ValueError("data-view panel is not in a stack")
+        # Keep small native data views usable and cap large figures; the outer stack
         # provides scrolling when the resulting panels do not fit the viewport.
-        self._graph_panel_heights[panel] = min(
-            max(natural_height, MIN_GRAPH_PANEL_HEIGHT),
-            MAX_NATURAL_GRAPH_PANEL_HEIGHT,
+        self._data_view_panel_heights[panel] = min(
+            max(natural_height, MIN_DATA_VIEW_PANEL_HEIGHT),
+            MAX_NATURAL_DATA_VIEW_PANEL_HEIGHT,
         )
-        self._layout_graph_stack(stack)
-        self._apply_graph_sash_heights(self._stack_roots[stack])
+        self._layout_data_view_stack(stack)
+        self._apply_data_view_sash_heights(self._stack_roots[stack])
 
-    def refresh_graph_stack_layouts(self: _GraphStackState) -> None:
+    def refresh_data_view_stack_layouts(self: _DataViewStackState) -> None:
         """Recalculate stack scroll ranges after the frame reaches its shown size."""
         # Initial panel insertion can happen before GTK assigns final viewport sizes.
-        for stack in self._graph_panels:
-            self._layout_graph_stack(stack)
+        for stack in self._data_view_panels:
+            self._layout_data_view_stack(stack)
 
-    def move_graph_panel(
-        self: _GraphStackState, panel: GraphPanelHost, stack: str, offset: int
+    def move_data_view_panel(
+        self: _DataViewStackState, panel: DataViewPanelHost, stack: str, offset: int
     ) -> None:
         """Move a live panel within its stack without recreating its view."""
-        if stack not in self._graph_panels:
-            raise ValueError(f"unknown graph stack {stack!r}")
-        panels = self._graph_panels[stack]
+        if stack not in self._data_view_panels:
+            raise ValueError(f"unknown data-view stack {stack!r}")
+        panels = self._data_view_panels[stack]
         current_index = panels.index(panel)
         target_index = min(max(current_index + offset, 0), len(panels) - 1)
         if target_index == current_index:
@@ -338,50 +339,50 @@ class GraphStackMixin:
         reordered.insert(target_index, reordered.pop(current_index))
         stack_window = self._stack_windows[stack]
         for existing_panel in tuple(panels):
-            self.remove_graph_panel(existing_panel, stack)
+            self.remove_data_view_panel(existing_panel, stack)
             existing_panel.Reparent(stack_window)
         for existing_panel in reordered:
-            self.add_graph_panel(existing_panel, stack)
+            self.add_data_view_panel(existing_panel, stack)
 
-    def request_visible_graph_redraws(self: _GraphStackState) -> None:
+    def request_visible_data_view_redraws(self: _DataViewStackState) -> None:
         """Refresh graphs only when they enter a stack's visible viewport."""
         visible_panels = {
             panel
-            for panels in self._graph_panels.values()
+            for panels in self._data_view_panels.values()
             for panel in panels
-            if self.is_graph_panel_visible(panel)
+            if self.is_data_view_panel_visible(panel)
         }
-        newly_visible = visible_panels - self._visible_graph_panels
-        self._visible_graph_panels = visible_panels
+        newly_visible = visible_panels - self._visible_data_view_panels
+        self._visible_data_view_panels = visible_panels
         for panel in newly_visible:
             panel.notify_viewport_visible()
 
-    def queue_graph_redraw(self: _GraphStackState, panel: GraphPanelHost) -> None:
+    def queue_data_view_redraw(self: _DataViewStackState, panel: DataViewPanelHost) -> None:
         """Queue one visible panel for the shared redraw budget."""
-        if not self.is_graph_panel_visible(panel):
+        if not self.is_data_view_panel_visible(panel):
             return
-        if panel in self._queued_graph_redraws:
+        if panel in self._queued_data_view_redraws:
             return
-        self._pending_graph_redraws.append(panel)
-        self._queued_graph_redraws.add(panel)
-        if self._graph_redraw_timer is None:
-            self._graph_redraw_timer = wx.CallLater(1, self._draw_next_graph_panel)
+        self._pending_data_view_redraws.append(panel)
+        self._queued_data_view_redraws.add(panel)
+        if self._data_view_redraw_timer is None:
+            self._data_view_redraw_timer = wx.CallLater(1, self._draw_next_data_view_panel)
 
-    def draw_initial_graphs(self: _GraphStackState) -> None:
-        """Draw currently visible plots before the playback timer starts."""
-        if self._graph_redraw_timer is not None:
-            if self._graph_redraw_timer.IsRunning():
-                self._graph_redraw_timer.Stop()
-            self._graph_redraw_timer = None
-        pending = tuple(self._pending_graph_redraws)
-        self._pending_graph_redraws.clear()
-        self._queued_graph_redraws.clear()
+    def draw_initial_data_views(self: _DataViewStackState) -> None:
+        """Draw currently visible data views before the playback timer starts."""
+        if self._data_view_redraw_timer is not None:
+            if self._data_view_redraw_timer.IsRunning():
+                self._data_view_redraw_timer.Stop()
+            self._data_view_redraw_timer = None
+        pending = tuple(self._pending_data_view_redraws)
+        self._pending_data_view_redraws.clear()
+        self._queued_data_view_redraws.clear()
         for panel in pending:
-            if self.is_graph_panel_visible(panel):
+            if self.is_data_view_panel_visible(panel):
                 panel.draw_initial()
 
-    def is_graph_panel_visible(self: _GraphStackState, panel: GraphPanelHost) -> bool:
-        """Check whether a graph host intersects its scroll stack's viewport."""
+    def is_data_view_panel_visible(self: _DataViewStackState, panel: DataViewPanelHost) -> bool:
+        """Check whether a data-view panel host intersects its scroll stack's viewport."""
         # A queued redraw can outlive the native wx window (for example while
         # deferred destruction is being processed). Check the native window
         # before making further calls on a wrapper that may outlive it.
@@ -392,12 +393,12 @@ class GraphStackMixin:
             # wxPython keeps the Python wrapper reachable after wxWidgets has
             # deleted its native window; calls through that wrapper then fail.
             return False
-        if not any(panel in panels for panels in self._graph_panels.values()):
+        if not any(panel in panels for panels in self._data_view_panels.values()):
             return False
         stack = next(
-            stack for stack, panels in self._graph_panels.items() if panel in panels
+            stack for stack, panels in self._data_view_panels.items() if panel in panels
         )
-        scroll_timer = self._graph_scroll_timers[stack]
+        scroll_timer = self._data_view_scroll_timers[stack]
         if scroll_timer is not None and scroll_timer.IsRunning():
             return False
         if not panel.IsShownOnScreen():
@@ -405,7 +406,7 @@ class GraphStackMixin:
         stack_window = next(
             (
                 self._stack_windows[stack]
-                for stack, panels in self._graph_panels.items()
+                for stack, panels in self._data_view_panels.items()
                 if panel in panels
             ),
             None,
@@ -418,7 +419,7 @@ class GraphStackMixin:
         return panel.GetScreenRect().Intersects(visible_rect)
 
     def _remove_panel_from_stack_tree(
-        self: _GraphStackState, stack: str, panel: GraphPanelHost
+        self: _DataViewStackState, stack: str, panel: DataViewPanelHost
     ) -> None:
         root = self._stack_roots[stack]
         if root is panel:
@@ -429,17 +430,17 @@ class GraphStackMixin:
             self._stack_roots[stack] = None
             return
         if not isinstance(root, wx.SplitterWindow):
-            raise RuntimeError(f"graph stack {stack!r} has an invalid splitter tree")
+            raise RuntimeError(f"data-view stack {stack!r} has an invalid splitter tree")
         if not self._remove_panel_from_splitter(stack, root, panel):
             raise RuntimeError(
-                f"graph panel {panel.panel_id!r} is missing from its stack"
+                f"data-view panel {panel.panel_id!r} is missing from its stack"
             )
 
     def _remove_panel_from_splitter(
-        self: _GraphStackState,
+        self: _DataViewStackState,
         stack: str,
         splitter: wx.SplitterWindow,
-        panel: GraphPanelHost,
+        panel: DataViewPanelHost,
     ) -> bool:
         first_pane = splitter.GetWindow1()
         second_pane = splitter.GetWindow2()
@@ -463,7 +464,7 @@ class GraphStackMixin:
                 parent = splitter.GetParent()
                 if not isinstance(parent, wx.SplitterWindow):
                     raise RuntimeError(
-                        f"graph stack {stack!r} has a broken splitter hierarchy"
+                        f"data-view stack {stack!r} has a broken splitter hierarchy"
                     )
                 parent_first = parent.GetWindow1()
                 parent_second = parent.GetWindow2()
@@ -483,7 +484,7 @@ class GraphStackMixin:
                         parent_first, sibling, parent_sash_position
                     )
                 if not split_succeeded:
-                    raise RuntimeError(f"could not restore graph stack {stack!r}")
+                    raise RuntimeError(f"could not restore data-view stack {stack!r}")
             return True
 
         if isinstance(first_pane, wx.SplitterWindow) and (
@@ -496,12 +497,12 @@ class GraphStackMixin:
             return True
         return False
 
-    def _stack_subtree_height(self: _GraphStackState, window: wx.Window) -> int:
+    def _stack_subtree_height(self: _DataViewStackState, window: wx.Window) -> int:
         """Return the height a stack subtree needs: panel heights plus internal sashes."""
         if not isinstance(window, wx.SplitterWindow):
-            # Stack leaves are graph hosts; wx exposes splitter children as Windows.
-            return self._graph_panel_heights.get(
-                cast(GraphPanelHost, window), MIN_GRAPH_PANEL_HEIGHT
+            # Stack leaves are data-view panel hosts; wx exposes splitter children as Windows.
+            return self._data_view_panel_heights.get(
+                cast(DataViewPanelHost, window), MIN_DATA_VIEW_PANEL_HEIGHT
             )
         return (
             self._stack_subtree_height(window.GetWindow1())
@@ -509,7 +510,7 @@ class GraphStackMixin:
             + self._stack_subtree_height(window.GetWindow2())
         )
 
-    def _layout_graph_stack(self: _GraphStackState, stack: str) -> None:
+    def _layout_data_view_stack(self: _DataViewStackState, stack: str) -> None:
         """Synchronize the empty state, minimum sizes, and scroll layout."""
 
         def minimum_height(window: wx.Window) -> int:
@@ -517,12 +518,12 @@ class GraphStackMixin:
                 return self._stack_subtree_height(window)
             # wx clamps a sash to the minimum size of the panes on both sides, so
             # panels inside a splitter advertise only a small floor. The real
-            # panel floor is enforced through _graph_panel_heights.
+            # panel floor is enforced through _data_view_panel_heights.
             first_pane, second_pane = window.GetWindow1(), window.GetWindow2()
             for child in (first_pane, second_pane):
                 if not isinstance(child, wx.SplitterWindow):
                     child.SetMinSize(
-                        wx.Size(GRAPH_PANEL_MIN_SIZE[0], SASH_DRAG_MIN_PANE)
+                        wx.Size(DATA_VIEW_PANEL_MIN_SIZE[0], SASH_DRAG_MIN_PANE)
                     )
             height = (
                 minimum_height(first_pane)
@@ -530,14 +531,14 @@ class GraphStackMixin:
                 + minimum_height(second_pane)
             )
             window.SetMinimumPaneSize(SASH_DRAG_MIN_PANE)
-            window.SetMinSize((GRAPH_PANEL_MIN_SIZE[0], height))
+            window.SetMinSize((DATA_VIEW_PANEL_MIN_SIZE[0], height))
             return height
 
         root = self._stack_roots[stack]
         if root is not None:
             if not isinstance(root, wx.SplitterWindow):
                 root.SetMinSize(
-                    wx.Size(GRAPH_PANEL_MIN_SIZE[0], self._stack_subtree_height(root))
+                    wx.Size(DATA_VIEW_PANEL_MIN_SIZE[0], self._stack_subtree_height(root))
                 )
             minimum_height(root)
 
@@ -572,14 +573,14 @@ class GraphStackMixin:
         else:
             # Keep panels at their requested heights rather than stretching them to
             # the viewport, and keep the resize handle directly below the stack.
-            bottom_panel = self._bottom_graph_panel(stack)
+            bottom_panel = self._bottom_data_view_panel(stack)
             bottom_parent = (
                 bottom_panel.GetParent() if bottom_panel is not None else None
             )
             handle_height = (
                 bottom_parent.GetSashSize()
                 if isinstance(bottom_parent, wx.SplitterWindow)
-                else self.graph_panes_splitter.GetDefaultSashSize()
+                else self.data_view_panes_splitter.GetDefaultSashSize()
             )
             handle.SetMinSize(wx.Size(-1, handle_height))
             sizer.GetItem(root).SetProportion(0)
@@ -597,7 +598,7 @@ class GraphStackMixin:
         self._update_stack_virtual_size(stack)
         self._update_stack_scrollbar_visibility(stack)
 
-    def _detach_stack_bottom_padding(self: _GraphStackState, stack: str) -> None:
+    def _detach_stack_bottom_padding(self: _DataViewStackState, stack: str) -> None:
         """Remove the trailing sizer spacer before changing stack items."""
         if not self._stack_bottom_padding_active[stack]:
             return
@@ -607,7 +608,7 @@ class GraphStackMixin:
         sizer.Detach(sizer.GetItemCount() - 1)
         self._stack_bottom_padding_active[stack] = False
 
-    def _update_stack_virtual_size(self: _GraphStackState, stack: str) -> None:
+    def _update_stack_virtual_size(self: _DataViewStackState, stack: str) -> None:
         """Fit the stack, including trailing space for scrolling the last panel upward."""
         if stack in self._stacks_fitting:
             return
@@ -632,7 +633,7 @@ class GraphStackMixin:
         finally:
             self._stacks_fitting.discard(stack)
 
-    def _update_stack_scrollbar_visibility(self: _GraphStackState, stack: str) -> None:
+    def _update_stack_scrollbar_visibility(self: _DataViewStackState, stack: str) -> None:
         window = self._stack_windows[stack]
         has_overflow = window.GetScrollRange(wx.VERTICAL) > window.GetScrollThumb(
             wx.VERTICAL
@@ -643,61 +644,61 @@ class GraphStackMixin:
         self._stack_overflowing[stack] = has_overflow
         window.AlwaysShowScrollbars(False, has_overflow)
 
-    def _on_stack_size(self: _GraphStackState, stack: str, event: wx.SizeEvent) -> None:
+    def _on_stack_size(self: _DataViewStackState, stack: str, event: wx.SizeEvent) -> None:
         self._update_stack_virtual_size(stack)
         self._update_stack_scrollbar_visibility(stack)
         event.Skip()
 
-    def _sync_graph_panel_heights(self: _GraphStackState, stack: str) -> None:
-        for panel in self._graph_panels[stack]:
-            self._graph_panel_heights[panel] = panel.GetSize().height
+    def _sync_data_view_panel_heights(self: _DataViewStackState, stack: str) -> None:
+        for panel in self._data_view_panels[stack]:
+            self._data_view_panel_heights[panel] = panel.GetSize().height
 
-    def _bottom_graph_panel(
-        self: _GraphStackState, stack: str
-    ) -> GraphPanelHost | None:
+    def _bottom_data_view_panel(
+        self: _DataViewStackState, stack: str
+    ) -> DataViewPanelHost | None:
         pane = self._stack_roots[stack]
         while isinstance(pane, wx.SplitterWindow):
             pane = pane.GetWindow2()
         if pane is None:
             return None
-        return cast(GraphPanelHost, pane)
+        return cast(DataViewPanelHost, pane)
 
     def _on_bottom_handle_down(
-        self: _GraphStackState, stack: str, event: wx.MouseEvent
+        self: _DataViewStackState, stack: str, event: wx.MouseEvent
     ) -> None:
-        panel = self._bottom_graph_panel(stack)
+        panel = self._bottom_data_view_panel(stack)
         if panel is None:
             return
-        self._sync_graph_panel_heights(stack)
+        self._sync_data_view_panel_heights(stack)
         self._bottom_drag_start[stack] = (
             wx.GetMousePosition().y,
-            self._graph_panel_heights[panel],
+            self._data_view_panel_heights[panel],
         )
         self._stack_handles[stack].CaptureMouse()
 
     def _on_bottom_handle_motion(
-        self: _GraphStackState, stack: str, event: wx.MouseEvent
+        self: _DataViewStackState, stack: str, event: wx.MouseEvent
     ) -> None:
         start = self._bottom_drag_start.get(stack)
-        panel = self._bottom_graph_panel(stack)
+        panel = self._bottom_data_view_panel(stack)
         if start is None or panel is None or not event.Dragging():
             return
         start_y, start_height = start
         # Use screen coordinates: the handle itself moves as the panel grows.
-        self._resize_graph_panel(
+        self._resize_data_view_panel(
             stack, panel, start_height + wx.GetMousePosition().y - start_y
         )
 
     def _on_bottom_handle_up(
-        self: _GraphStackState, stack: str, event: wx.MouseEvent
+        self: _DataViewStackState, stack: str, event: wx.MouseEvent
     ) -> None:
         self._bottom_drag_start.pop(stack, None)
         handle = self._stack_handles[stack]
         if handle.HasCapture():
             handle.ReleaseMouse()
 
-    def _on_graph_sash_changing(
-        self: _GraphStackState,
+    def _on_data_view_sash_changing(
+        self: _DataViewStackState,
         stack: str,
         splitter: wx.SplitterWindow,
         event: wx.SplitterEvent,
@@ -714,81 +715,81 @@ class GraphStackMixin:
         pane = splitter.GetWindow1()
         while isinstance(pane, wx.SplitterWindow):
             pane = pane.GetWindow2()
-        panel = cast(GraphPanelHost, pane)
-        self._resize_graph_panel(stack, panel, self._graph_panel_heights[panel] + delta)
+        panel = cast(DataViewPanelHost, pane)
+        self._resize_data_view_panel(stack, panel, self._data_view_panel_heights[panel] + delta)
 
-    def _resize_graph_panel(
-        self: _GraphStackState, stack: str, panel: GraphPanelHost, height: int
+    def _resize_data_view_panel(
+        self: _DataViewStackState, stack: str, panel: DataViewPanelHost, height: int
     ) -> None:
-        self._graph_panel_heights[panel] = max(MIN_GRAPH_PANEL_HEIGHT, height)
-        self._layout_graph_stack(stack)
-        self._apply_graph_sash_heights(self._stack_roots[stack])
+        self._data_view_panel_heights[panel] = max(MIN_DATA_VIEW_PANEL_HEIGHT, height)
+        self._layout_data_view_stack(stack)
+        self._apply_data_view_sash_heights(self._stack_roots[stack])
 
-    def _apply_graph_sash_heights(
-        self: _GraphStackState, window: wx.Window | None
+    def _apply_data_view_sash_heights(
+        self: _DataViewStackState, window: wx.Window | None
     ) -> None:
         """Set every sash so each panel keeps its requested height, top-down."""
         if not isinstance(window, wx.SplitterWindow):
             return
         window.SetSashPosition(self._stack_subtree_height(window.GetWindow1()))
-        self._apply_graph_sash_heights(window.GetWindow1())
-        self._apply_graph_sash_heights(window.GetWindow2())
+        self._apply_data_view_sash_heights(window.GetWindow1())
+        self._apply_data_view_sash_heights(window.GetWindow2())
 
-    def _make_graph_pane(
-        self: _GraphStackState, parent: wx.Window, stack: str, title: str
+    def _make_data_view_pane(
+        self: _DataViewStackState, parent: wx.Window, stack: str, title: str
     ) -> tuple[wx.Panel, wx.ScrolledWindow]:
-        graph_pane = wx.Panel(parent, wx.ID_ANY)
-        graph_pane.SetName(title)
+        data_view_pane = wx.Panel(parent, wx.ID_ANY)
+        data_view_pane.SetName(title)
         pane_sizer = wx.BoxSizer(wx.VERTICAL)
         pane_header_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        pane_title_label = wx.StaticText(graph_pane, wx.ID_ANY, title)
+        pane_title_label = wx.StaticText(data_view_pane, wx.ID_ANY, title)
         pane_title_label.SetName(title)
         pane_header_sizer.Add(pane_title_label, 1, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 8)
-        add_graph_button = wx.Button(graph_pane, wx.ID_ANY, "Add graph")
-        add_graph_button.SetName(f"Add graph to {stack} stack")
-        set_tooltip(add_graph_button, f"Add a graph to {title}")
-        self._add_buttons[stack] = add_graph_button
-        add_graph_button.Bind(
+        add_view_button = wx.Button(data_view_pane, wx.ID_ANY, "Add data view")
+        add_view_button.SetName(f"Add data view to {stack} data-view stack")
+        set_tooltip(add_view_button, f"Add a data view to {title}")
+        self._add_buttons[stack] = add_view_button
+        add_view_button.Bind(
             wx.EVT_BUTTON,
-            lambda _event, stack=stack: self._request_add_graph(stack),
+            lambda _event, stack=stack: self._request_add_data_view(stack),
         )
-        pane_header_sizer.Add(add_graph_button, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4)
+        pane_header_sizer.Add(add_view_button, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4)
         if stack == "middle":
             preset_choices = (
-                "Workspace preset",
+                "Data-view preset",
                 "Access Overview",
                 "Pass Study",
             )
             preset_choice = wx.Choice(
-                graph_pane, wx.ID_ANY, choices=list(preset_choices)
+                data_view_pane, wx.ID_ANY, choices=list(preset_choices)
             )
-            preset_choice.SetName("Open workspace preset")
+            preset_choice.SetName("Open view preset")
             preset_choice.SetSelection(0)
-            self._workspace_preset_choice = preset_choice
+            self._view_preset_choice = preset_choice
             preset_choice.Bind(
                 wx.EVT_CHOICE,
-                lambda event: self._on_workspace_preset_selected(event.GetSelection()),
+                lambda event: self._on_view_preset_selected(event.GetSelection()),
             )
             pane_header_sizer.Add(
                 preset_choice, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4
             )
-            comparison_toggle = wx.ToggleButton(graph_pane, wx.ID_ANY, "Comparison")
-            self._comparison_toggle = comparison_toggle
-            comparison_toggle.SetName("Toggle Comparison pane")
-            set_tooltip(comparison_toggle, "Show or hide the Comparison pane")
-            comparison_toggle.SetValue(False)
-            comparison_toggle.Bind(
+            additional_toggle = wx.ToggleButton(data_view_pane, wx.ID_ANY, "Additional pane")
+            self._additional_pane_toggle = additional_toggle
+            additional_toggle.SetName("Toggle Additional pane")
+            set_tooltip(additional_toggle, "Show or hide the Additional pane")
+            additional_toggle.SetValue(False)
+            additional_toggle.Bind(
                 wx.EVT_TOGGLEBUTTON,
-                lambda _event: self.show_right_pane(comparison_toggle.GetValue()),
+                lambda _event: self.show_right_pane(additional_toggle.GetValue()),
             )
             pane_header_sizer.Add(
-                comparison_toggle, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4
+                additional_toggle, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4
             )
             follow_selection_toggle = wx.CheckBox(
-                graph_pane, wx.ID_ANY, "Follow selection"
+                data_view_pane, wx.ID_ANY, "Follow selection"
             )
             follow_selection_toggle.SetName(
-                "Follow Main Analysis station and pass selection"
+                "Follow Main pane station and pass selection"
             )
             follow_selection_toggle.Enable(False)
             follow_selection_toggle.Bind(
@@ -807,9 +808,9 @@ class GraphStackMixin:
                 4,
             )
         else:
-            close_pane_button = wx.Button(graph_pane, wx.ID_ANY, "Close pane")
-            close_pane_button.SetName("Close Comparison pane")
-            set_tooltip(close_pane_button, "Hide the Comparison pane")
+            close_pane_button = wx.Button(data_view_pane, wx.ID_ANY, "Close pane")
+            close_pane_button.SetName("Close Additional pane")
+            set_tooltip(close_pane_button, "Hide the Additional pane")
             close_pane_button.Bind(
                 wx.EVT_BUTTON, lambda _event: self.show_right_pane(False)
             )
@@ -818,30 +819,30 @@ class GraphStackMixin:
                 close_pane_button, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4
             )
         pane_sizer.Add(pane_header_sizer, 0, wx.EXPAND)
-        graph_stack_window = self._make_graph_stack(graph_pane, stack)
-        graph_stack_window.SetName(f"{title} graph stack")
+        data_view_stack_window = self._make_data_view_stack(data_view_pane, stack)
+        data_view_stack_window.SetName(f"{title} data-view stack")
         pane_sizer.Add(
-            graph_stack_window, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4
+            data_view_stack_window, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4
         )
-        graph_pane.SetSizer(pane_sizer)
-        return graph_pane, graph_stack_window
+        data_view_pane.SetSizer(pane_sizer)
+        return data_view_pane, data_view_stack_window
 
-    def _on_workspace_preset_selected(self: _GraphStackState, selection: int) -> None:
+    def _on_view_preset_selected(self: _DataViewStackState, selection: int) -> None:
         if selection == 0:
             return
         preset_names = ("access-overview", "pass-study")
         if selection < 1 or selection > len(preset_names):
-            raise ValueError(f"unknown workspace preset selection: {selection}")
+            raise ValueError(f"unknown view preset selection: {selection}")
         try:
             if self._on_open_preset is None:
-                raise RuntimeError("workspace preset handler is not configured")
+                raise RuntimeError("view preset handler is not configured")
             self._on_open_preset(preset_names[selection - 1])
         finally:
-            if self._workspace_preset_choice is not None:
-                self._workspace_preset_choice.SetSelection(0)
+            if self._view_preset_choice is not None:
+                self._view_preset_choice.SetSelection(0)
 
-    def _make_graph_stack(
-        self: _GraphStackState, parent: wx.Window, stack: str
+    def _make_data_view_stack(
+        self: _DataViewStackState, parent: wx.Window, stack: str
     ) -> wx.ScrolledWindow:
         stack_scroller = wx.ScrolledWindow(parent, wx.ID_ANY, style=wx.VSCROLL)
         stack_scroller.AlwaysShowScrollbars(False, False)
@@ -850,22 +851,22 @@ class GraphStackMixin:
         empty_state_panel = wx.Panel(stack_scroller, wx.ID_ANY)
         empty_state_sizer = wx.BoxSizer(wx.VERTICAL)
         empty_state_label = wx.StaticText(
-            empty_state_panel, wx.ID_ANY, "No graph panels"
+            empty_state_panel, wx.ID_ANY, "No data-view panels"
         )
         empty_state_label.SetName(f"{stack} stack empty state")
         empty_state_sizer.Add(empty_state_label, 0, wx.ALL, 12)
-        add_graph_button = wx.Button(empty_state_panel, wx.ID_ANY, "Add graph")
-        add_graph_button.SetName(f"Add graph to empty {stack} stack")
-        add_graph_button.Bind(
+        add_view_button = wx.Button(empty_state_panel, wx.ID_ANY, "Add data view")
+        add_view_button.SetName(f"Add data view to empty {stack} data-view stack")
+        add_view_button.Bind(
             wx.EVT_BUTTON,
-            lambda _event, stack=stack: self._request_add_graph(stack),
+            lambda _event, stack=stack: self._request_add_data_view(stack),
         )
-        empty_state_sizer.Add(add_graph_button, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 12)
+        empty_state_sizer.Add(add_view_button, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 12)
         empty_state_panel.SetSizer(empty_state_sizer)
         stack_sizer.Add(empty_state_panel, 0, wx.EXPAND)
         bottom_resize_handle = wx.Panel(stack_scroller, wx.ID_ANY)
         bottom_resize_handle.SetMinSize(
-            wx.Size(-1, self.graph_panes_splitter.GetDefaultSashSize())
+            wx.Size(-1, self.data_view_panes_splitter.GetDefaultSashSize())
         )
         bottom_resize_handle.SetBackgroundColour(
             wx.SystemSettings.GetColour(wx.SYS_COLOUR_3DSHADOW)
@@ -900,41 +901,41 @@ class GraphStackMixin:
         self._empty_panels[stack] = empty_state_panel
         return stack_scroller
 
-    def _request_add_graph(self: _GraphStackState, stack: str) -> None:
-        if self._on_add_graph is None:
-            raise RuntimeError("graph-panel creation handler is not configured")
-        self._on_add_graph(stack)
+    def _request_add_data_view(self: _DataViewStackState, stack: str) -> None:
+        if self._on_add_data_view is None:
+            raise RuntimeError("data-data-view panel creation handler is not configured")
+        self._on_add_data_view(stack)
 
-    def _request_stack_redraws(self: _GraphStackState, stack: str) -> None:
-        for panel in self._graph_panels[stack]:
+    def _request_stack_redraws(self: _DataViewStackState, stack: str) -> None:
+        for panel in self._data_view_panels[stack]:
             panel.request_redraw()
 
-    def _draw_next_graph_panel(self: _GraphStackState) -> None:
-        self._graph_redraw_timer = None
-        while self._pending_graph_redraws:
-            panel = self._pending_graph_redraws.popleft()
-            self._queued_graph_redraws.remove(panel)
-            if self.is_graph_panel_visible(panel):
+    def _draw_next_data_view_panel(self: _DataViewStackState) -> None:
+        self._data_view_redraw_timer = None
+        while self._pending_data_view_redraws:
+            panel = self._pending_data_view_redraws.popleft()
+            self._queued_data_view_redraws.remove(panel)
+            if self.is_data_view_panel_visible(panel):
                 panel.draw_if_needed()
                 break
-        if self._pending_graph_redraws:
-            self._graph_redraw_timer = wx.CallLater(
-                GRAPH_REDRAW_INTERVAL_MS, self._draw_next_graph_panel
+        if self._pending_data_view_redraws:
+            self._data_view_redraw_timer = wx.CallLater(
+                DATA_VIEW_REDRAW_INTERVAL_MS, self._draw_next_data_view_panel
             )
 
     def _on_stack_scroll(
-        self: _GraphStackState, stack: str, event: wx.ScrollWinEvent
+        self: _DataViewStackState, stack: str, event: wx.ScrollWinEvent
     ) -> None:
         event.Skip()
-        timer = self._graph_scroll_timers[stack]
+        timer = self._data_view_scroll_timers[stack]
         if timer is not None and timer.IsRunning():
             timer.Stop()
-        self._visible_graph_panels.clear()
-        self._graph_scroll_timers[stack] = wx.CallLater(
-            GRAPH_SCROLL_SETTLE_MS,
-            lambda stack=stack: self._flush_visible_graph_redraws(stack),
+        self._visible_data_view_panels.clear()
+        self._data_view_scroll_timers[stack] = wx.CallLater(
+            DATA_VIEW_SCROLL_SETTLE_MS,
+            lambda stack=stack: self._flush_visible_data_view_redraws(stack),
         )
 
-    def _flush_visible_graph_redraws(self: _GraphStackState, stack: str) -> None:
-        self._graph_scroll_timers[stack] = None
-        self.request_visible_graph_redraws()
+    def _flush_visible_data_view_redraws(self: _DataViewStackState, stack: str) -> None:
+        self._data_view_scroll_timers[stack] = None
+        self.request_visible_data_view_redraws()

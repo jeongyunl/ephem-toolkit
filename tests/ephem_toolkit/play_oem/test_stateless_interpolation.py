@@ -1,4 +1,4 @@
-"""Tests for interpolation over store-owned sample views."""
+"""Tests for interpolation over store-owned sample data_views."""
 
 from __future__ import annotations
 

@@ -14,7 +14,7 @@ the state at that clock.
 ## Name
 
 `play-oem` (package `ephem_toolkit.play_oem`). Chosen to sit beside `plot-oem`, `slice-oem`,
-`diff-oem`, etc. `plot-oem` remains a separate command for static diagnostic plots; `play-oem`
+`diff-oem`, etc. `plot-oem` remains a separate command for static diagnostic views; `play-oem`
 is the interactive playback application.
 
 ## Concepts
@@ -25,8 +25,13 @@ is the interactive playback application.
 | **Playback clock** | A single shared `t_now` in the timeline. Only the clock advances; views only read it. |
 | **Playback speed** | Ratio of simulated seconds to wall-clock seconds (`|rate|` 1x … 9000x); the sign indicates direction. |
 | **Cursor state** | The OEM state at `t_now`, interpolated from the OEM samples (using the OEM's `INTERPOLATION` metadata when present). |
-| **View** | A plot window that renders a series or trajectory and a cursor/marker at `t_now`. |
-| **View group** | A named collection of related views opened together (Overview, State, Motion, Access Overview, Pass Study, All). |
+| **Workspace** | The complete play-oem application layout. |
+| **Main pane** | The primary pane containing data-view panels. |
+| **Additional pane** | An optional secondary pane providing more space for data-view panels. |
+| **Data view** | A registered presentation of OEM data, such as 3D Orbit or Speed / Altitude. |
+| **Data-view panel** | A panel instance that hosts a data view. |
+| **Data-view preset** | A named collection of related data views opened together (Overview, State, Motion, Access Overview, Pass Study, All). |
+| **Plot** | The graphical axes or rendering produced inside a data view. |
 | **Control window** | The Controls & Info pane: display-time-zone, render-rate, and interpolation controls on Settings; current-state readouts on State; OEM context; and Ground Stations. Playback controls and navigation live in the shared timeline. Closing the app window quits the app. |
 
 Time-series views (velocity magnitude, altitude, RTN deltas, and station profiles) query the
@@ -35,7 +40,7 @@ with `t_now`. Trajectory views render a range-bounded orbit path and move the sa
 with `t_now`; the optional VTK backend also renders a direction-aware tail.
 
 The default experience is a compact **Overview** dashboard, not every plot at once: it opens
-the 3D orbit and speed/altitude view. Users can open individual views or a larger group from
+the 3D orbit and speed/altitude view. Users can open individual data views or a larger group from
 the toolbar. The dashboard keeps the current state and data context visible regardless of
 which views are open.
 
@@ -79,11 +84,11 @@ which views are open.
    sample values from interpolated values. Play-OEM currently accepts `TIME_SYSTEM = UTC` only;
    unsupported time systems are reported before their state rows are loaded. The display time
    zone is configurable independently of the OEM time system.
-7. **View selection**: the graph-panel selector opens individual views; workspace presets open
-   `Access Overview` and `Pass Study`. The `--plots` groups also include `Overview` (default),
+7. **View selection**: the view-panel selector opens individual data views; data-view presets open
+   `Access Overview` and `Pass Study`. The `--data-views` groups also include `Overview` (default),
    `State`, `Motion`, and `All`. Opening an already open view raises it; closing a view does not
    affect the clock. `All` opens every registered view, including the 3D orbit, state and motion
-   plots, Ground Track, and the Ground Station panels.
+   views, Ground Track, and the Ground Station panels.
 8. **Render rate**: an FPS slider in the Settings pane selects 1–30 frames per second (default
    30). Playback advances by whole selected frame periods. When rendering overruns, consume all
    elapsed frame periods in one clock update and redraw once, dropping intermediate frames.
@@ -106,7 +111,7 @@ play-oem [<input_oem>] [OPTIONS]
 | Option | Description |
 |--------|-------------|
 | `<input_oem>` | Input CCSDS OEM path (same as `plot-oem`). |
-| `--plots <list>` | Comma-separated canonical view names or groups to open at launch (default: `overview`; groups: `overview`, `state`, `motion`, `access-overview`, `pass-study`, `all`). |
+| `--data-views <list>` | Comma-separated canonical view names or groups to open at launch (default: `overview`; groups: `overview`, `state`, `motion`, `access-overview`, `pass-study`, `all`). |
 | `--3d-backend {auto,vtk,matplotlib}` | Renderer for 3D views (default `auto`: VTK when its wx integration is available, otherwise Matplotlib). Explicit `vtk` reports an actionable error if unavailable. |
 | `--theme {system,light,dark}` | Appearance preference (default `system`). On wxPython builds that expose OS appearance APIs, `light` or `dark` requests that appearance; unsupported requests are reported. |
 | `--config-file <path>` | Load user defaults from the specified TOML file instead of the default configuration location. |
@@ -127,7 +132,7 @@ positions as soon as the first batch is installed, even if those playback bounds
 yet. The current-time thumb is anchored at the saved playback start throughout loading; it does not
 drift with coverage progress, and the clock takes over at that same time once the sample is loaded.
 Playback speed, direction, seeking, and frame rate are controlled in the GUI. Use `plot-oem`
-for saved diagnostic plots; `play-oem` is the interactive playback command.
+for saved diagnostic views; `play-oem` is the interactive playback command.
 
 **F4. Data and computation reuse**
 

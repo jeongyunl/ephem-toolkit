@@ -23,7 +23,7 @@ from ephem_toolkit.core.interpolator.interpolation_spec import (
 )
 from .ground_stations import GroundStation, parse_ground_station_records
 from .display_time import DISPLAY_TIME_ZONES, UTC_DISPLAY
-from .views.registry import parse_plot_selection
+from .views.data_view_registry import parse_data_view_selection
 from .views.trajectory3d.selection import THREE_D_BACKEND_CHOICES
 
 CONFIG_DIRECTORY = "ephem-toolkit"
@@ -82,8 +82,8 @@ class PlayOemConfig:
     display_time_zone: str = UTC_DISPLAY
     time_snapping: bool = True
     three_d_backend: str = "auto"
-    plots: tuple[str, ...] = ("overview",)
-    plots_configured: bool = False
+    data_views: tuple[str, ...] = ("overview",)
+    data_views_configured: bool = False
     ground_stations: tuple[GroundStation, ...] = ()
     ground_stations_configured: bool = False
 
@@ -219,7 +219,7 @@ def load_config(path: str | Path | None = None) -> PlayOemConfig:
     if not isinstance(time_snapping_enabled, bool):
         raise ConfigError(f"{config_path}: time_snapping.enabled must be true or false")
     _reject_unknown_keys(
-        display, {"three_d_backend", "plots", "time_zone"}, "display", config_path
+        display, {"three_d_backend", "data_views", "time_zone"}, "display", config_path
     )
     display_time_zone = display.get("time_zone", UTC_DISPLAY)
     if display_time_zone not in DISPLAY_TIME_ZONES:
@@ -298,15 +298,15 @@ def load_config(path: str | Path | None = None) -> PlayOemConfig:
             f"{config_path}: display.three_d_backend must be one of {choices}"
         )
 
-    plots_value = display.get("plots", ["overview"])
-    if not isinstance(plots_value, list) or any(
-        not isinstance(item, str) for item in plots_value
+    data_views_value = display.get("data_views", ["overview"])
+    if not isinstance(data_views_value, list) or any(
+        not isinstance(item, str) for item in data_views_value
     ):
-        raise ConfigError(f"{config_path}: display.plots must be an array of strings")
+        raise ConfigError(f"{config_path}: display.data_views must be an array of strings")
     try:
-        plots = parse_plot_selection(",".join(plots_value))
+        data_views = parse_data_view_selection(",".join(data_views_value))
     except ValueError as error:
-        raise ConfigError(f"{config_path}: invalid display.plots: {error}") from error
+        raise ConfigError(f"{config_path}: invalid display.data_views: {error}") from error
 
     return PlayOemConfig(
         speed=speed_value,
@@ -318,8 +318,8 @@ def load_config(path: str | Path | None = None) -> PlayOemConfig:
         display_time_zone=display_time_zone,
         time_snapping=time_snapping_enabled,
         three_d_backend=backend,
-        plots=plots,
-        plots_configured="plots" in display,
+        data_views=data_views,
+        data_views_configured="data_views" in display,
         ground_stations=tuple(ground_stations),
         ground_stations_configured="ground_stations" in document,
     )

@@ -1,4 +1,4 @@
-"""Headless tests for plot artists backed by column-group views."""
+"""Headless tests for plot artists backed by column-group data_views."""
 
 from __future__ import annotations
 

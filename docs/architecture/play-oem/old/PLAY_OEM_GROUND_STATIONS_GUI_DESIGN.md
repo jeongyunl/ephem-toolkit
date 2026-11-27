@@ -1,7 +1,7 @@
 # `play-oem` — Ground Stations GUI Design
 
 This document defines the proposed user-facing design for ground-station management and the
-Ground Station Access graph panel. It extends the shared workspace in
+Ground Station Access data-view panel. It extends the shared workspace in
 [PLAY_OEM_GUI_DESIGN.md](./PLAY_OEM_GUI_DESIGN.md) and follows the technical constraints in
 [PLAY_OEM_GROUND_STATIONS_SOFTWARE_DESIGN.md](./PLAY_OEM_GROUND_STATIONS_SOFTWARE_DESIGN.md).
 Implementation is recorded in
@@ -11,7 +11,7 @@ Implementation is recorded in
 
 The SVGs below are illustrative design proposals, not screenshots of the implemented GUI. They
 show the manager embedded in the workspace, inline editing in an expanded station row, and the
-access-oriented graph panel:
+access-oriented data-view panel:
 
 ![Ground Stations manager with two saved stations](./mockup-ground-stations-manager.svg)
 
@@ -79,9 +79,9 @@ When there are no stations, show a short explanation that access calculations re
 definition and a prominent **Add Ground Station** action. Do not show a blank table without
 guidance.
 
-## Ground Station Access graph panel
+## Ground Station Access data-view panel
 
-The graph view is a shared-clock panel, opened from the existing graph-panel view selector. It is
+The data view is a shared-clock panel, opened from the existing view-panel view selector. It is
 access-oriented rather than a second Ground Track map: the existing Ground Track view remains
 responsible for the spacecraft's global subpoint path and footprint drawing.
 
@@ -157,7 +157,7 @@ azimuth, elevation, and range as unavailable. Do not substitute zero. Times shou
 - Provide keyboard access to Add, Edit, Remove, station selection, and graph seeking.
 - Use text/icons or line patterns as well as color for access state.
 - Include units in labels and tooltips; distinguish “elevation” from altitude.
-- Keep minimum text readable at the graph panel's minimum supported size.
+- Keep minimum text readable at the data-view panel's minimum supported size.
 - Do not claim access when the state or frame conversion is unavailable.
 - Ensure graph labels, legend entries, and status text remain meaningful to assistive technology.
 

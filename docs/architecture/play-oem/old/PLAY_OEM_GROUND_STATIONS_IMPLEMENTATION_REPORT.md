@@ -37,7 +37,7 @@ The [shared architecture](../PLAY_OEM_SOFTWARE_DESIGN.md) and active
 
 ### Ground Station Access view
 
-- Registered `ground-station-access` and included it in the `all` view group; `overview` remains
+- Registered `ground-station-access` and included it in the `all` view preset; `overview` remains
   unchanged.
 - Added a selected-station elevation graph. It plots only elevations at or above that station's
   minimum mask, uses a fixed 0°–95° y-axis, and marks access windows, coverage/gap limits, and

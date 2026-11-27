@@ -103,7 +103,7 @@ width; focused and full-suite tests passed (155 passed).
 ### 5. Confirmed toggle button states are visually unambiguous
 
 The screenshot made `Reverse` and `Comparison` appear pressed while forward playback was active
-and the Comparison pane was hidden. Native state checks showed no mismatch: `Reverse` is false in
+and the Additional pane was hidden. Native state checks showed no mismatch: `Reverse` is false in
 forward playback and true in reverse playback; Comparison's value follows the pane's shown state.
 The speed presets and Comparison control use the same native `wx.ToggleButton` state cue, so no
 custom visual styling was needed.
@@ -124,7 +124,7 @@ cue. Native wx state checks and focused tests passed.
 
 ### 6. Removed duplicate graph header labels
 
-The graph-panel header showed its view name in both the selector and a neighboring static label.
+The view-panel header showed its view name in both the selector and a neighboring static label.
 The selector now serves as the graph name; panels without a selector retain their static title.
 
 - **Status:** Done.
@@ -134,16 +134,16 @@ The selector now serves as the graph name; panels without a selector retain thei
 - [x] Update [graph_panel.py](/Users/jeongyun/Projects/ephem-toolkit/src/ephem_toolkit/play_oem/graph_panel.py).
       No existing tests looked up the removed labels.
 - [x] Verify the selector and fallback title in native wx at the default 1100 x 760 frame size;
-      run the focused graph-panel and app tests (34 passed).
+      run the focused view-panel and app tests (34 passed).
 
 **Outcome:** no graph header repeats its selector name, and the tests pass. At default size the
 selector remained visible at 908 px wide; a panel without choices retained its title.
 **Related work:** None.
 
-### 7. Made clipped graph stacks visibly scrollable
+### 7. Made clipped data-view stacks visibly scrollable
 
 The Speed/Altitude stack was clipped at the bottom with no visible cue that more content existed;
-macOS overlay scrollbars hid the affordance. The graph stacks now force their vertical scrollbars
+macOS overlay scrollbars hid the affordance. The data-view stacks now force their vertical scrollbars
 to remain visible only while content overflows. The user confirmed in the running app that the
 scrollbar is visible when needed, the mouse wheel scrolls, and keyboard navigation reaches lower
 plots.
@@ -185,9 +185,9 @@ label updates do not emit seek events. Workspace tests verified seek suppression
 geometry checks confirmed all three timestamps fit at both frame sizes.
 **Related work:** None.
 
-### 9. Preserved graph-stack scroll position when changing views
+### 9. Preserved view stack scroll position when changing views
 
-Changing a panel's selected graph view should replace that panel in place instead of removing it
+Changing a panel's selected data view should replace that panel in place instead of removing it
 and appending a new panel. Preserve the panel's stack position and the user's vertical scroll
 offset across the change.
 
@@ -197,9 +197,9 @@ offset across the change.
 - [x] Keep the prior view alive until the replacement has been created successfully; restore it if
       creation fails.
 - [x] Test root and nested-splitter replacement, panel ordering, and scroll-offset preservation.
-- [x] Run the focused workspace, graph-panel, and app tests (**52 passed**) and verify a native wx
+- [x] Run the focused workspace, view-panel, and app tests (**52 passed**) and verify a native wx
       replacement at a nonzero offset.
 
-**Outcome:** changing a panel's graph view leaves it in the same stack position and retains the
+**Outcome:** changing a panel's data view leaves it in the same stack position and retains the
 current scroll offset. Tests passed, and native wx preserved the offset at `(0, 5)`.
 **Related work:** Step 5 (independent per-panel view selection).

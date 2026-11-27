@@ -333,7 +333,7 @@ targets, and extended the incremental-store integration test with duplicate
 and stale-epoch notices to verify one coalesced update and stale rejection.
 
 The focused command ran the app controller, binding/context, range, history,
-Ground Track, station, and graph-panel test files. Result: 217 passed, 3
+Ground Track, station, and view-panel test files. Result: 217 passed, 3
 skipped, 18 existing Matplotlib/Pyparsing and pyproj deprecation warnings. The
 test-only change does not establish a performance improvement. The synthetic
 drain timing is a stress bound, not a production workload benchmark.

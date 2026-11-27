@@ -22,7 +22,7 @@ class Player3dViewFactoryMixin:
             self._open_matplotlib_trajectory_view(panel_id, stack, force_replace)
             return
         try:
-            self._open_view(
+            self._open_data_view(
                 "trajectory-3d",
                 lambda panel: trajectory3d_selection.create_vtk_view(
                     panel,
@@ -58,7 +58,7 @@ class Player3dViewFactoryMixin:
         stack: str = "middle",
         force_replace: bool = False,
     ) -> None:
-        self._open_view(
+        self._open_data_view(
             "trajectory-3d",
             lambda _panel: trajectory3d.Trajectory3DView(
                 self.cursor,

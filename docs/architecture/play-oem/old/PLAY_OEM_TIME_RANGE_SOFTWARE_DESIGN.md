@@ -14,7 +14,7 @@ The earlier architecture's full-history description is superseded by this implem
 
 ## 1. Purpose and user-facing contract
 
-Let the user select one interval for every graph in Main Analysis and Comparison, including
+Let the user select one interval for every graph in Main pane and Additional pane, including
 time-series histories, the 3D orbit, and the ground track. Each plot endpoint independently
 selects a fixed UTC timestamp or an offset from the shared playback time. Mixing endpoint
 types defines one interval, not two disjoint intervals.
@@ -294,7 +294,7 @@ are distinct states. Never leave stale paths or out-of-range current overlays vi
 Pure tests prove `R ⊆ D` and `B ⊆ D` for fixed, relative, and both mixed combinations across forward,
 backward, and arbitrary seeks, including wholly outside requests and dynamic crossings.
 Use narrowed playback bounds and plots extending beyond both ends of `B`, plus plots wholly
-disjoint from `B`, to prove plot selection is independent. Test that changing `B` preserves
+disjoint from `B`, to prove data-view selection is independent. Test that changing `B` preserves
 fixed plots and affects relative plots only when the clock time is clamped.
 Test valid future-only/past-only windows and optional empty results. Clock/application tests
 prove plot edits never call the bounds setter/seek and never change playback time; only

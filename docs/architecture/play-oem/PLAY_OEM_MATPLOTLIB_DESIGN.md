@@ -8,7 +8,7 @@ HiDPI desktop smoke test remains useful. Existing Ground Track behavior document
 
 ## Purpose and scope
 
-Play-OEM uses Matplotlib both for figures returned by graph views and for
+Play-OEM uses Matplotlib both for figures returned by data views and for
 figures embedded directly in wx view panels. Figure construction, canvas
 fitting, and axes styling now share a small helper/widget API without changing
 view-specific plot content or the separate CLI plotting tools.
@@ -108,12 +108,12 @@ parameters remain at Matplotlib defaults.
   preferred figure height, whichever is greater. When aspect preservation is
   enabled, the minimum dimensions are paired to the figure aspect. Renderer
   pixels are converted to wx logical dimensions at this boundary. An explicit
-  minimum-size override is reserved for exceptional cases. The graph panel's
+  minimum-size override is reserved for exceptional cases. The data-view panel's
   scroller remains responsible for content that exceeds its viewport.
 
-Graph views keep returning `Figure`; wx-owned views keep returning wx windows.
+Data views keep returning `Figure`; wx-owned views keep returning wx windows.
 The wrapper is introduced at the embedding boundary, so view build and update
-contracts do not change. `GraphPanelHost` retains its redraw throttling,
+contracts do not change. `DataViewPanelHost` retains its redraw throttling,
 cursor blitting, mouse-wheel routing, sizing, and visibility behavior while
 receiving a `MatplotlibPanel` and using its exposed canvas and toolbar. Native
 specialized canvases that are not in the wrapper path retain their compact
@@ -207,7 +207,7 @@ The default canvas minimum is:
   independently of their width; aspect-preserving panels pair the minimum
   dimensions to the figure ratio.
 
-The graph stack already scrolls when content exceeds the viewport, so a
+The data-view stack already scrolls when content exceeds the viewport, so a
 minimum plot size must not be reduced just to force the entire figure into a
 short panel. Keep renderer-pixel measurements and wx logical sizes distinct
 and apply `GetDPIScaleFactor()` at the conversion boundary.
@@ -240,11 +240,11 @@ to the same figure.
 
 ## Migration boundaries
 
-1. Standard graph views use `create_figure` and `style_axes`; their axes count,
+1. Standard data views use `create_figure` and `style_axes`; their axes count,
    grid topology, labels, projections, artists, and data behavior remain
    view-specific.
-2. The graph-panel attachment boundary passes one `MatplotlibPanel` to
-   `GraphPanelHost`; redraw, blit, event, natural-height, and scroller behavior
+2. The view-panel attachment boundary passes one `MatplotlibPanel` to
+   `DataViewPanelHost`; redraw, blit, event, natural-height, and scroller behavior
    remain in the host.
 3. Wx-owned station views use `MatplotlibPanel` for canvas construction and
    retain their own controls, callbacks, and parentage.
@@ -257,7 +257,7 @@ to the same figure.
 
 ## Verification and acceptance
 
-Focused tests cover the small helper/widget API, then the existing graph-panel
+Focused tests cover the small helper/widget API, then the existing view-panel
 and affected view tests exercise regressions. Use the repository `.venv`.
 
 - Draw representative figures at multiple sizes and DPI scales. Tests assert
@@ -275,7 +275,7 @@ and affected view tests exercise regressions. Use the repository `.venv`.
 - Ground Track's map/legend behavior remains covered by its dedicated view
   tests; verify its legend bounds after changes to entries or spacing.
 - Preserve Ground Track's 2:1 axes box, 3D equal-unit box, polar circular
-  axes, GraphPanelHost redraw/blit behavior, and existing plotting-data tests.
+  axes, DataViewPanelHost redraw/blit behavior, and existing plotting-data tests.
 
 Focused validation should cover
 `test_play_oem_plotting.py`, `test_graph_panel.py`, the new widget tests, and

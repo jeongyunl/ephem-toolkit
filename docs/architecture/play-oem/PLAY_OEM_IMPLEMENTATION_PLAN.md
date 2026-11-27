@@ -387,14 +387,14 @@ that focuses an Entry text buffer and mirrors typed text; Return and Seek submit
 ### 13. Add the view registry, groups and toolbar
 
 Implement one registry for individual views and groups. Add toolbar actions to open/raise a view
-without duplication, and connect `--plots` to the same registry. Preserve `overview` as the
+without duplication, and connect `--views` to the same registry. Preserve `overview` as the
 default launch selection.
 
 - **Status:** Done.
 - **Progress:** 4/4 checklist items.
 - [x] Register `overview`, `state`, `motion` and `all` groups.
 - [x] Add individual-view toolbar buttons and open/raise behavior.
-- [x] Implement comma-separated `--plots` names/groups and validate unknown names.
+- [x] Implement comma-separated `--views` names/groups and validate unknown names.
 - [x] Test group expansion and duplicate-open behavior.
 
 **Done when:** toolbar and CLI launch selections use the same tested registry.
@@ -486,7 +486,7 @@ Run the same search over `tests/ephem_toolkit/play_oem` to identify Tk-only test
 Rebuild `app.py` around one `wx.App` and a primary `wx.Frame`. Replace Tk `after()` scheduling
 with `wx.Timer`, driven from monotonic elapsed time and the existing `PlaybackClock`. Migrate
 window ownership, close handling, observer cleanup, and SIGINT behavior without moving playback
-logic into widgets or starting a second event loop. To preserve `--plots` through this boundary,
+logic into widgets or starting a second event loop. To preserve `--views` through this boundary,
 bring forward the minimal wx plot-frame and `FigureCanvasWxAgg` lifecycle for the three existing
 views; the dashboard controls remain in step 17 and toolbar/click refinements remain in step 18.
 
@@ -507,7 +507,7 @@ frames, updates the playback time and view cursors, and shuts down cleanly while
 tests continue to pass.
 **Depends on:** Step 15.
 
-**Step 16 evidence:** to keep the dependency order while preserving `--plots`, the initial
+**Step 16 evidence:** to keep the dependency order while preserving `--views`, the initial
 `FigureCanvasWxAgg` and per-view frame lifecycle moved forward from step 18; dashboard controls
 remain in step 17, and toolbar/click-to-seek plus removal of PPM raster methods remain in step 18.
 Lifecycle tests use mocked wx windows/canvases without requiring a display. The focused wx app,
@@ -578,16 +578,16 @@ passed; a real macOS wx smoke test opened all three canvases with toolbars, veri
 cursor updates and click-to-seek/pan behavior, and closed cleanly. A search of the active playback
 source and tests found no `tkinter`, `TkAgg`, `PhotoImage`, PPM, or raster references.
 
-### 19. Port view registry, plot selection, and cross-window synchronization
+### 19. Port view registry, data-view selection, and cross-window synchronization
 
-Connect the existing view registry and `--plots` behavior to wx frame creation and activation.
+Connect the existing view registry and `--views` behavior to wx frame creation and activation.
 Ensure all open plot windows consume the same cursor state and remain synchronized for playback
 and every seek interaction.
 
 - **Status:** Done.
 - **Progress:** 5/5 checklist items.
 - [x] Preserve canonical view names, aliases, groups, and unknown/unavailable selection errors.
-- [x] Wire dashboard actions and `--plots` to the same registry and view-opening code.
+- [x] Wire dashboard actions and `--views` to the same registry and view-opening code.
 - [x] Prevent duplicate windows and correctly raise/focus an existing view.
 - [x] Verify simultaneous cursor updates and click-to-seek across every currently implemented
       view.

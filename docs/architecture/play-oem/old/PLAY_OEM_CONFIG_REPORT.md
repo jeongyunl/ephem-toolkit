@@ -17,7 +17,7 @@ The work includes:
 
 - TOML configuration and state files under a shared XDG-style directory.
 - Validation, defaults, and explicit CLI precedence for supported settings.
-- Window geometry, recent OEM files, and open graph views in application-maintained state.
+- Window geometry, recent OEM files, and open data views in application-maintained state.
 - User documentation for file locations, structure, precedence, and recovery behavior.
 
 ## File locations and format
@@ -54,11 +54,11 @@ fps = 30
 
 [display]
 three_d_backend = "auto"
-plots = ["overview"]
+views = ["overview"]
 ```
 
 Playback speed, direction, and FPS initialize the GUI. The display values select the 3D backend
-and initial graph views. Unknown keys, malformed TOML, and invalid values produce errors with
+and initial data views. Unknown keys, malformed TOML, and invalid values produce errors with
 the config path and relevant setting when available. An absent default config uses built-in
 defaults; an explicitly selected missing or unreadable file is an error.
 
@@ -69,7 +69,7 @@ user config.
 ## Saved application state
 
 The application-maintained `play-oem-state.toml` stores window size and maximized state, up to
-15 recently opened OEM paths, and the open graph views. A representative file is:
+15 recently opened OEM paths, and the open data views. A representative file is:
 
 ```toml
 state_version = 1
@@ -83,13 +83,13 @@ maximized = false
 paths = ["/home/alex/orbits/iss.oem"]
 
 [workspace]
-open_plots = ["trajectory-3d", "speed-altitude"]
+open_views = ["trajectory-3d", "speed-altitude"]
 ```
 
 Recent files are absolute paths ordered most-recent-first. A path is recorded after a successful
 load; opening it again moves it to the front. The Open OEM dialog starts in the directory of the
-most recently opened file when one is available. Saved graph views are restored at launch unless
-`--plots` or `display.plots` explicitly selects views. Empty saved view lists fall back to the
+most recently opened file when one is available. Saved data views are restored at launch unless
+`--views` or `display.views` explicitly selects views. Empty saved view lists fall back to the
 configured or built-in selection.
 
 Window dimensions are clamped to the current display when restored. Window position is not

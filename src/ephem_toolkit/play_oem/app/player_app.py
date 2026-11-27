@@ -50,7 +50,7 @@ from ..saved_state import (
     remember_recent_file,
 )
 from ..station_analysis import StationAnalysisContext, StationAnalysisSelection
-from ..views import registry
+from ..views import data_view_registry as registry
 from ..views.angular_velocity import AngularVelocityView
 from ..views.direction_change import DirectionChangeView
 from ..views.distance import GeocentricDistanceView
@@ -61,7 +61,7 @@ from ..views.speed_altitude import SpeedAltitudeView
 from ..views.state_components import StateComponentsView
 from ..views.trajectory3d import selection as trajectory3d_selection
 from ..views.trajectory3d.mpl_backend import Trajectory3DView
-from .player_3d_view_factory import Player3dViewFactoryMixin
+from .player_3d_data_view_factory import Player3dViewFactoryMixin
 from .player_app_preferences import PlayerAppPreferencesMixin
 from .player_app_state import (
     LoadState,
@@ -72,8 +72,8 @@ from .player_app_state import (
 )
 from .player_app_support import (
     DEFAULT_TICK_INTERVAL_MS,
-    EMPTY_GRAPH_LABEL,
-    EMPTY_GRAPH_VIEW,
+    EMPTY_DATA_VIEW_LABEL,
+    EMPTY_DATA_VIEW,
 )
 from .player_incremental_loader import (
     PlayerIncrementalLoadingMixin,
@@ -83,13 +83,13 @@ from .player_incremental_snapshot import PlayerIncrementalSnapshotMixin
 from .player_panel_management import PanelManagementMixin
 from .player_playback_actions import PlaybackActionsMixin
 from .player_standard_plot_factory import PlayerStandardPlotFactoryMixin
-from .player_store_view_refresh import PlayerStoreViewRefreshMixin
+from .player_store_data_view_refresh import PlayerStoreViewRefreshMixin
 from .player_time_range_actions import (
     TimeRangeActionsMixin,
     playback_range_plot_rule,
 )
 from .player_timeline_restore import PlayerTimelineRestoreMixin
-from .player_view_factory import PlayerViewFactoryMixin
+from .player_data_view_factory import PlayerViewFactoryMixin
 from .player_wx_ui import PlayerWxUiMixin
 from .status_bar import PlaybackStatusBar
 
@@ -301,12 +301,12 @@ class PlayerApp(
         ground_stations: Sequence[GroundStation] | None,
         initial_file_path: str | None,
         oem_loaded: bool,
-        plots: Sequence[str],
+        data_views: Sequence[str],
         three_d_backend: str,
         theme: str,
         loaded_file_name: str | None,
     ) -> None:
-        """Initialize file state, timeline restoration, views, and wx UI."""
+        """Initialize file state, timeline restoration, data_views, and wx UI."""
         self._initialize_store_load_state(oem_loaded)
         self._initialize_file_state(
             saved_state=saved_state,
@@ -325,7 +325,7 @@ class PlayerApp(
             if self._oem_loaded and self._current_oem_path is not None
             else None
         )
-        self._initialize_view_registry(plots)
+        self._initialize_data_view_registry(data_views)
         try:
             self._initialize_wx_ui(
                 three_d_backend,
@@ -348,7 +348,7 @@ class PlayerApp(
         *,
         dashboard_context: dict[str, str] | None = None,
         metadata_details: Sequence[tuple[str, str]] = (),
-        plots: Sequence[str] = ("overview",),
+        data_views: Sequence[str] = ("overview",),
         three_d_backend: str = "auto",
         theme: str = "system",
         tick_interval_ms: int = DEFAULT_TICK_INTERVAL_MS,
@@ -375,7 +375,7 @@ class PlayerApp(
         clock : clock.PlaybackClock
             Playback state and observer source.
         series : series.OrbitSeries
-            Computed OEM data shared by plot views.
+            Computed OEM data shared by plot data_views.
         time_unit : time_unit.TimeUnit
             Display unit for plotted values.
         cursor : cursor.StoreCursor
@@ -383,8 +383,8 @@ class PlayerApp(
         object_name : str
             Object name used in plot titles and labels.
         frame_context : str
-            Reference-frame context used by plot views.
-        plots : Sequence[str], optional
+            Reference-frame context used by plot data_views.
+        data_views : Sequence[str], optional
             Plot names and groups to open when the application starts.
         three_d_backend : str, default="auto"
             Backend used for the 3D trajectory view.
@@ -444,23 +444,23 @@ class PlayerApp(
             ground_stations=ground_stations,
             initial_file_path=initial_file_path,
             oem_loaded=oem_loaded,
-            plots=plots,
+            data_views=data_views,
             three_d_backend=three_d_backend,
             theme=theme,
             loaded_file_name=loaded_file_name,
         )
 
-    def _initialize_view_registry(self, plots: Sequence[str]) -> None:
-        """Register all graph views and derive startup panel selections."""
-        view_groups = (
-            registry.ViewGroup("overview", "Overview"),
-            registry.ViewGroup("state", "State"),
-            registry.ViewGroup("motion", "Motion"),
-            registry.ViewGroup("access-overview", "Access Overview"),
-            registry.ViewGroup("pass-study", "Pass Study"),
+    def _initialize_data_view_registry(self, data_views: Sequence[str]) -> None:
+        """Register all data views and derive startup panel selections."""
+        data_view_presets = (
+            registry.DataViewPreset("overview", "Overview"),
+            registry.DataViewPreset("state", "State"),
+            registry.DataViewPreset("motion", "Motion"),
+            registry.DataViewPreset("access-overview", "Access Overview"),
+            registry.DataViewPreset("pass-study", "Pass Study"),
         )
-        self._view_registry = registry.ViewRegistry(view_groups)
-        view_classes = (
+        self._data_view_registry = registry.DataViewRegistry(data_view_presets)
+        data_view_classes = (
             (Trajectory3DView, self.open_trajectory_view),
             (SpeedAltitudeView, self.open_speed_altitude_view),
             (StateComponentsView, self.open_state_components_view),
@@ -470,43 +470,43 @@ class PlayerApp(
             (GeocentricDistanceView, self.open_distance_view),
             (GroundTrackView, self.open_ground_track_view),
         )
-        for view_class, opener in view_classes:
-            self._view_registry.register(view_class.view_spec(opener))
-        station_view_names = (
+        for data_view_class, opener in data_view_classes:
+            self._data_view_registry.register(data_view_class.view_spec(opener))
+        station_data_view_names = (
             ("elevation-profile", "Elevation Profile", "access-overview", self.open_elevation_profile_view),
             ("azimuth-profile", "Azimuth Profile", "access-overview", self.open_azimuth_profile_view),
             ("range-profile", "Range Profile", "access-overview", self.open_range_profile_view),
         )
-        for name, label, group, opener in station_view_names:
-            self._view_registry.register(
-                registry.ViewSpec(name=name, label=label, group=group, opener=opener)
+        for name, label, group, opener in station_data_view_names:
+            self._data_view_registry.register(
+                registry.DataViewSpec(name=name, label=label, group=group, opener=opener)
             )
-        pass_view_classes = (
+        pass_data_view_classes = (
             (GroundStationPassListView, self.open_pass_list_view),
             (GroundStationSkyView, self.open_sky_view),
         )
-        for view_class, opener in pass_view_classes:
-            self._view_registry.register(view_class.view_spec(opener))
-        known_plot_names = set(self._view_registry.registered_views) | {
+        for data_view_class, opener in pass_data_view_classes:
+            self._data_view_registry.register(data_view_class.view_spec(opener))
+        known_data_view_names = set(self._data_view_registry.registered_data_views) | {
             "all",
-        } | {group.name for group in view_groups}
-        unknown_plots: list[str] = []
-        recognized_plot_names: list[str] = []
-        for item in plots:
+        } | {group.name for group in data_view_presets}
+        unknown_data_views: list[str] = []
+        recognized_data_view_names: list[str] = []
+        for item in data_views:
             for name in item.split(","):
                 normalized = name.strip()
-                if normalized in known_plot_names:
-                    recognized_plot_names.append(normalized)
+                if normalized in known_data_view_names:
+                    recognized_data_view_names.append(normalized)
                 elif normalized:
-                    unknown_plots.append(normalized)
-        self._unknown_plots = tuple(unknown_plots)
-        recognized_plots = tuple(recognized_plot_names)
-        self._plots = (
-            self._view_registry.expand(recognized_plots) if recognized_plots else ()
+                    unknown_data_views.append(normalized)
+        self._unknown_data_views = tuple(unknown_data_views)
+        recognized_data_views = tuple(recognized_data_view_names)
+        self._data_views = (
+            self._data_view_registry.expand(recognized_data_views) if recognized_data_views else ()
         )
-        self._panel_view_choices = ((EMPTY_GRAPH_VIEW, EMPTY_GRAPH_LABEL),) + tuple(
-            (name, self._view_registry.label_for(name))
-            for name in self._view_registry.registered_views
+        self._panel_data_view_choices = ((EMPTY_DATA_VIEW, EMPTY_DATA_VIEW_LABEL),) + tuple(
+            (name, self._data_view_registry.label_for(name))
+            for name in self._data_view_registry.registered_data_views
         )
 
     def _rollback_partial_wx_initialization(self) -> None:
@@ -551,7 +551,7 @@ class PlayerApp(
                     gc.collect()
 
     def start(self) -> None:
-        """Show the application, open the selected plots and start playback ticks."""
+        """Show the application, open the selected data_views and start playback ticks."""
         if self._closed:
             raise RuntimeError("cannot start a closed PlayerApp")
         if self._started:
@@ -563,23 +563,23 @@ class PlayerApp(
         self.frame.Show()
         activate_application()
         if self._oem_loaded:
-            if self._plots:
-                self.open_plots(self._plots)
+            if self._data_views:
+                self.open_data_views(self._data_views)
         else:
-            if self._plots:
-                self.open_pending_plots(self._plots)
-        for name in self._unknown_plots:
-            print(f"Error: unknown plot name {name!r}")
-            self._add_graph_panel("middle")
-        if not self._plots and not self._unknown_plots:
-            self._add_graph_panel("middle")
+            if self._data_views:
+                self.open_pending_data_views(self._data_views)
+        for name in self._unknown_data_views:
+            print(f"Error: unknown data-view name {name!r}")
+            self._add_data_view_panel("middle")
+        if not self._data_views and not self._unknown_data_views:
+            self._add_data_view_panel("middle")
         if self._oem_loaded and self._saved_state is not None:
             self._save_application_state(save_geometry=False)
-        self.workspace.draw_initial_graphs()
+        self.workspace.draw_initial_data_views()
         # The shown frame's final client size is not available until layout settles;
         # refresh then so each stack gets the correct viewport-sized scroll tail.
         self.frame.Layout()
-        wx.CallAfter(self._refresh_graph_stack_layouts)
+        wx.CallAfter(self._refresh_data_view_stack_layouts)
         wx.CallAfter(self.workspace.focus_neutral_target)
         if self._startup_file_path is not None:
             self._start_incremental_load(self._startup_file_path)
@@ -641,7 +641,7 @@ class PlayerApp(
             and not dragging
             and self._refresh_state.incremental_view_refresh_pending
         ):
-            self._refresh_incremental_views(force=True)
+            self._refresh_incremental_data_views(force=True)
 
     @contextmanager
     def _installing_incremental_update(
@@ -676,7 +676,7 @@ class PlayerApp(
         self._time_snapping_config_dirty = True
         if self._store_state.view_context is not None:
             self._queue_store_view_refresh()
-            self._refresh_store_views()
+            self._refresh_store_data_views()
 
     def _set_display_time_zone(self, display_time_zone: str) -> None:
         if display_time_zone == self._display_time_zone:
@@ -690,8 +690,8 @@ class PlayerApp(
             self.clock.t_start < self.clock.t_end,
         )
         self._update_time_display()
-        for opened in (*self._open_views.values(), *self._open_panels.values()):
-            setter = getattr(opened.view, "set_display_time_zone", None)
+        for opened in (*self._open_data_views.values(), *self._open_panels.values()):
+            setter = getattr(opened.data_view, "set_display_time_zone", None)
             if callable(setter):
                 setter(display_time_zone)
 
@@ -721,7 +721,7 @@ class PlayerApp(
         if self._saved_state is not None:
             self._saved_state.minimum_elevation_deg = int(value)
         for opened in self._open_panels.values():
-            setter = getattr(opened.view, "set_minimum_elevation", None)
+            setter = getattr(opened.data_view, "set_minimum_elevation", None)
             if setter is not None:
                 setter(value)
 
@@ -736,32 +736,32 @@ class PlayerApp(
         station_ids = {station.station_id for station in stations}
         for context in self._station_analysis_contexts.values():
             context.retain_stations(station_ids)
-        self._refresh_open_station_views()
+        self._refresh_open_station_data_views()
 
     def _open_station_preset(self, name: str) -> None:
-        """Open an optional station-analysis preset in Main Analysis."""
-        self._view_registry.open_group(name)
+        """Open an optional station-analysis preset in the Main pane."""
+        self._data_view_registry.open_preset(name)
 
     def _set_follow_station_selection(self, enabled: bool) -> None:
-        """Link Comparison to Main Analysis only when the user enables it."""
+        """Link the Additional pane to the Main pane only when enabled."""
         self._follow_station_selection = enabled
         if enabled:
-            self._sync_comparison_station_selection()
+            self._sync_additional_station_selection()
 
     def _on_main_station_selection(self, _selection: StationAnalysisSelection) -> None:
         if self._follow_station_selection:
-            self._sync_comparison_station_selection()
+            self._sync_additional_station_selection()
 
-    def _sync_comparison_station_selection(self) -> None:
+    def _sync_additional_station_selection(self) -> None:
         selection = self._station_analysis_contexts["middle"].selection
-        comparison_context = self._station_analysis_contexts["right"]
-        comparison_context.select_station(selection.station_id)
-        comparison_context.select_interval(selection.interval_key)
+        additional_context = self._station_analysis_contexts["right"]
+        additional_context.select_station(selection.station_id)
+        additional_context.select_interval(selection.interval_key)
 
-    def _refresh_open_station_views(self) -> None:
+    def _refresh_open_station_data_views(self) -> None:
         """Refresh station-aware panels already open in the graph workspace."""
         for opened in tuple(self._open_panels.values()):
-            setter = getattr(opened.view, "set_stations", None)
+            setter = getattr(opened.data_view, "set_stations", None)
             if callable(setter):
                 setter(self._ground_stations)
 
@@ -830,7 +830,7 @@ class PlayerApp(
 
     def _release_wx_resources(self) -> None:
         """Drop wx wrappers and callbacks after the event loop has stopped."""
-        self._view_registry.clear()
+        self._data_view_registry.clear()
         self.control_window = cast(control_window.ControlWindow, None)
         self.status_bar = cast(PlaybackStatusBar, None)
         self.workspace = cast(workspace.Workspace, None)
@@ -857,9 +857,9 @@ class PlayerApp(
                 # while its frame is closing. Let the frame destroy its child
                 # windows after their non-window resources have been released.
                 for opened in tuple(self._open_panels.values()):
-                    self._release_open_view_resources(opened)
+                    self._release_open_data_view_resources(opened)
                 self._open_panels.clear()
-                self._open_views.clear()
+                self._open_data_views.clear()
             finally:
                 stores = {
                     store
@@ -961,7 +961,7 @@ class PlayerApp(
             self._store_state.view_context = self._store_state.view_context.refresh()
             self._queue_store_view_refresh()
             self._publish_range_hint()
-        self._refresh_open_station_views()
+        self._refresh_open_station_data_views()
         self.control_window.update_active_interpolation(
             self._active_interpolation_summary()
         )
@@ -988,11 +988,11 @@ class PlayerApp(
         spec = InterpolationSpec(interpolation_type, degree=degree or None)
         return f"{interpolation_type.value.title()}, degree {spec.degree} ({source})"
 
-    def _refresh_graph_stack_layouts(self) -> None:
+    def _refresh_data_view_stack_layouts(self) -> None:
         """Refresh stack scroll ranges after startup layout, unless closing."""
         if self._closed:
             return
-        refresh = getattr(self.workspace, "refresh_graph_stack_layouts", None)
+        refresh = getattr(self.workspace, "refresh_data_view_stack_layouts", None)
         if callable(refresh):
             refresh()
 

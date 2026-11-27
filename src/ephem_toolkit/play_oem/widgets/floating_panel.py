@@ -1,4 +1,4 @@
-"""Reusable floating panel for playback views."""
+"""Reusable floating panel for playback data_views."""
 
 from __future__ import annotations
 

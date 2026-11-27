@@ -256,7 +256,7 @@ def test_state_version_one_migrates_with_ground_track_default(tmp_path) -> None:
     path = tmp_path / "play-oem-state.toml"
     path.write_text(
         "state_version = 1\n[window]\nwidth = 1100\nheight = 760\n"
-        "maximized = false\n[recent_files]\npaths = []\n[workspace]\nopen_plots = []\n"
+        "maximized = false\n[recent_files]\npaths = []\n[workspace]\nopen_data_views = []\n"
     )
 
     assert load_saved_state(path).minimum_elevation_deg == 10

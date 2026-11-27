@@ -9,7 +9,7 @@ from .. import clock, cursor, playback_data, time_snapping
 from ..display_time import format_tt
 from ..oem_data_store import OemDataStore, StoreSnapshot
 from ..saved_state import normalize_recent_path
-from ..views.base import StoreViewContext
+from ..views.data_view_base import StoreViewContext
 from .player_app_state import PlayerAppState
 from .player_time_range_actions import playback_range_plot_rule
 

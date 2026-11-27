@@ -1,4 +1,4 @@
-"""Behavioral tests for graph-panel redraw scheduling."""
+"""Behavioral tests for data-view panel redraw scheduling."""
 
 from __future__ import annotations
 
@@ -11,11 +11,11 @@ import pytest
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
 
-from ephem_toolkit.play_oem import graph_panel
+from ephem_toolkit.play_oem import data_view_panel
 
 
 def test_minimum_panel_size_and_figure_padding() -> None:
-    assert graph_panel.GRAPH_PANEL_MIN_SIZE == (64, 64)
+    assert data_view_panel.DATA_VIEW_PANEL_MIN_SIZE == (64, 64)
 
     figure = Figure()
     figure.add_subplot(111)
@@ -24,8 +24,8 @@ def test_minimum_panel_size_and_figure_padding() -> None:
         figure=figure,
         SetMinSize=minimum_sizes.append,
     )
-    graph_panel._configure_matplotlib_canvas(
-        cast(graph_panel.FigureCanvasWxAgg, canvas)
+    data_view_panel._configure_matplotlib_canvas(
+        cast(data_view_panel.FigureCanvasWxAgg, canvas)
     )
     assert minimum_sizes == [(64, 64)]
     assert figure.subplotpars.left < 0.125
@@ -35,7 +35,7 @@ def test_minimum_panel_size_and_figure_padding() -> None:
 
     constrained_figure = Figure(constrained_layout=True)
     constrained_figure.add_subplot(111)
-    graph_panel._minimize_figure_padding(constrained_figure)
+    data_view_panel._minimize_figure_padding(constrained_figure)
     layout = constrained_figure.get_layout_engine().get()
     assert layout["w_pad"] == 0.01
     assert layout["h_pad"] == 0.01
@@ -62,10 +62,10 @@ def test_actions_menu_dismisses_tooltip_before_opening(
         operations.append("hide tooltip")
         yield
 
-    monkeypatch.setattr(graph_panel, "suppress_tooltips", suppress_tooltips)
+    monkeypatch.setattr(data_view_panel, "suppress_tooltips", suppress_tooltips)
     panel = SimpleNamespace(_actions_menu=menu, PopupMenu=open_menu)
-    graph_panel.GraphPanelHost._on_actions_button(
-        cast(graph_panel.GraphPanelHost, panel), graph_panel.wx.CommandEvent()
+    data_view_panel.DataViewPanelHost._on_actions_button(
+        cast(data_view_panel.DataViewPanelHost, panel), data_view_panel.wx.CommandEvent()
     )
 
     assert operations == ["hide tooltip", "open menu"]
@@ -94,9 +94,9 @@ def test_redraw_throttle_coalesces_requests_and_skips_hidden_panels(
     now = [0.0]
     visible = [True]
     draw_count = [0]
-    monkeypatch.setattr(graph_panel.time, "monotonic", lambda: now[0])
-    monkeypatch.setattr(graph_panel.wx, "CallLater", FakeCallLater)
-    throttle = graph_panel._RedrawThrottle(
+    monkeypatch.setattr(data_view_panel.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(data_view_panel.wx, "CallLater", FakeCallLater)
+    throttle = data_view_panel._RedrawThrottle(
         lambda: visible[0],
         lambda: draw_count.__setitem__(0, draw_count[0] + 1),
     )
@@ -127,9 +127,9 @@ def test_closing_redraw_throttle_cancels_deferred_work(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     now = [0.0]
-    monkeypatch.setattr(graph_panel.time, "monotonic", lambda: now[0])
-    monkeypatch.setattr(graph_panel.wx, "CallLater", FakeCallLater)
-    throttle = graph_panel._RedrawThrottle(lambda: True, lambda: None)
+    monkeypatch.setattr(data_view_panel.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(data_view_panel.wx, "CallLater", FakeCallLater)
+    throttle = data_view_panel._RedrawThrottle(lambda: True, lambda: None)
     throttle.request()
     now[0] = 0.01
     throttle.request()
@@ -154,7 +154,7 @@ def test_scheduled_redraw_refreshes_visible_native_content() -> None:
     )
 
     # Exercise the method with a lightweight host instead of native wx controls.
-    graph_panel.GraphPanelHost.draw_if_needed(cast(graph_panel.GraphPanelHost, panel))
+    data_view_panel.DataViewPanelHost.draw_if_needed(cast(data_view_panel.DataViewPanelHost, panel))
 
     assert native_content.refresh_count == 1
 
@@ -184,8 +184,8 @@ def test_native_plot_preferred_height_contributes_to_panel_natural_height() -> N
         _native_plot_panels=(plot_panel,),
     )
 
-    natural_height = graph_panel.GraphPanelHost.natural_content_height(
-        cast(graph_panel.GraphPanelHost, host)
+    natural_height = data_view_panel.DataViewPanelHost.natural_content_height(
+        cast(data_view_panel.DataViewPanelHost, host)
     )
 
     assert natural_height == 530
@@ -242,7 +242,7 @@ class FakeMouseWheelEvent:
 def test_panel_content_wheel_hands_off_to_stack_only_at_panel_scroll_edges(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(graph_panel.wx, "ScrolledWindow", FakeScrolledWindow)
+    monkeypatch.setattr(data_view_panel.wx, "ScrolledWindow", FakeScrolledWindow)
     outer_stack = FakeScrolledWindow(
         scroll_range=30,
         scroll_thumb=10,
@@ -255,23 +255,23 @@ def test_panel_content_wheel_hands_off_to_stack_only_at_panel_scroll_edges(
         view_y=0,
     )
     host = SimpleNamespace(
-        graph_scroller=panel_content,
+        data_view_scroller=panel_content,
         _parent_stack_scroller=lambda: outer_stack,
     )
 
     inner_event = FakeMouseWheelEvent(-120)
-    graph_panel.GraphPanelHost._on_content_mousewheel(
-        cast(graph_panel.GraphPanelHost, host),
-        cast(graph_panel.wx.MouseEvent, inner_event),
+    data_view_panel.DataViewPanelHost._on_content_mousewheel(
+        cast(data_view_panel.DataViewPanelHost, host),
+        cast(data_view_panel.wx.MouseEvent, inner_event),
     )
     assert inner_event.skipped
     assert outer_stack.scroll_calls == []
 
     panel_content.view_y = 10
     handoff_event = FakeMouseWheelEvent(-120)
-    graph_panel.GraphPanelHost._on_content_mousewheel(
-        cast(graph_panel.GraphPanelHost, host),
-        cast(graph_panel.wx.MouseEvent, handoff_event),
+    data_view_panel.DataViewPanelHost._on_content_mousewheel(
+        cast(data_view_panel.DataViewPanelHost, host),
+        cast(data_view_panel.wx.MouseEvent, handoff_event),
     )
     assert not handoff_event.skipped
     assert outer_stack.scroll_calls == [(0, 3)]
@@ -282,9 +282,9 @@ def test_selector_wheel_scrolls_stack_without_propagating_to_choice() -> None:
     host = SimpleNamespace(_parent_stack_scroller=lambda: outer_stack)
     event = FakeMouseWheelEvent(-120)
 
-    graph_panel.GraphPanelHost._on_selector_mousewheel(
-        cast(graph_panel.GraphPanelHost, host),
-        cast(graph_panel.wx.MouseEvent, event),
+    data_view_panel.DataViewPanelHost._on_selector_mousewheel(
+        cast(data_view_panel.DataViewPanelHost, host),
+        cast(data_view_panel.wx.MouseEvent, event),
     )
 
     assert outer_stack.scroll_calls == [(0, 3)]
@@ -304,7 +304,7 @@ def test_cursor_blit_matches_full_draw_and_detects_layout_changes():
     axes.plot([0.0, 1.0, 2.0], [0.0, 1.0, 0.0])
     cursor = axes.axvline(0.0, animated=True)
     canvas = _BlitCanvas(figure)
-    blitter = graph_panel._CursorBlitter(canvas)
+    blitter = data_view_panel._CursorBlitter(canvas)
     canvas.mpl_connect("draw_event", lambda _event: blitter.capture())
     canvas.draw()
 
@@ -338,7 +338,7 @@ def test_flush_redraw_blits_only_cursor_requests_without_pending_full_draw():
         _full_redraw_requested=False,
         _full_draw_scheduled=False,
     )
-    flush = graph_panel.GraphPanelHost._flush_redraw
+    flush = data_view_panel.DataViewPanelHost._flush_redraw
 
     flush(panel)
     assert calls == ["blit"]

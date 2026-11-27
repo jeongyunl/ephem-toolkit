@@ -52,7 +52,7 @@ The constructor currently performs several ordered groups of work:
    may update the supplied cursor's interpolation; and derives render-rate FPS.
 3. Initializes incremental-loader/store state, station-selection contexts,
    recent-file and saved-range state, and backend selection.
-4. Creates the view registry and expands the initial plot selection.
+4. Creates the view registry and expands the initial data-view selection.
 5. Reuses or creates the wx application, builds the frame, menu, status bar,
    workspace, and control window, then initializes timer, lifecycle, panel,
    and observer state.

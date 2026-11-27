@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 from matplotlib.figure import Figure
 
-from ephem_toolkit.play_oem.views import plotting
+from ephem_toolkit.play_oem.data_views import plotting
 from ephem_toolkit.play_oem.views.plotting import (
     MAX_DISPLAY_POINTS_PER_SEGMENT,
     SegmentedPlotHistory,

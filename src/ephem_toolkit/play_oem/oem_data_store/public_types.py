@@ -243,7 +243,7 @@ StoreNotice = Union[AppendNotice, ResetNotice, TierNotice]
 
 @dataclass(frozen=True)
 class StoreSnapshot:
-    """Immutable views of one committed raw prefix and its store revisions."""
+    """Immutable data_views of one committed raw prefix and its store revisions."""
 
     epoch: int
     """Owning store epoch."""
@@ -300,7 +300,7 @@ class RawAppendNotice(AppendNotice):
 
 
 class RawReservation:
-    """Exclusive unpublished suffix; writer views become read-only after close."""
+    """Exclusive unpublished suffix; writer data_views become read-only after close."""
 
     def __init__(
         self,
@@ -320,7 +320,7 @@ class RawReservation:
 
 
 class _LeasedArray(np.ndarray):
-    """NumPy view retaining the chunk lease until all views are released."""
+    """NumPy view retaining the chunk lease until all data_views are released."""
 
     def __array_finalize__(self, source: object) -> None:
         self._chunk_lease = (
@@ -409,7 +409,7 @@ class ColumnGroupView:
 
 @dataclass(frozen=True)
 class LookAngleProfileView:
-    """Station look-angle columns shared by profile and pass views."""
+    """Station look-angle columns shared by profile and pass data_views."""
 
     group: ColumnGroupView
     """Station look-angle column group."""
@@ -417,12 +417,12 @@ class LookAngleProfileView:
 
 @dataclass(frozen=True)
 class StationAccessView:
-    """Window-specific station intervals backed by shared profile views."""
+    """Window-specific station intervals backed by shared profile data_views."""
 
     station: GroundStation
     """Selected ground station."""
     profiles: tuple[LookAngleProfileView, ...]
-    """Look-angle profile views."""
+    """Look-angle profile data_views."""
     intervals: tuple[AccessInterval, ...]
     """Station access intervals."""
     limitation: str | None

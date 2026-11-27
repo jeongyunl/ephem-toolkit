@@ -1,4 +1,4 @@
-"""Shared wx shell wrapper for migrated orbit time-series views."""
+"""Shared wx shell wrapper for migrated orbit time-series data_views."""
 
 from __future__ import annotations
 
@@ -16,16 +16,16 @@ from matplotlib.lines import Line2D
 from .. import series, time_unit
 from ..time_range import ResolvedTimeRange
 from ..widgets import FloatingMatplotlibLegend, PanelCorner, PanelInteraction
-from .base import (
+from .data_view_base import (
     StoreTimeSeriesView,
     StoreViewContext,
     TimeSeriesWxPanelMixin,
 )
-from .registry import ViewSpecMixin
+from .data_view_registry import DataViewSpecMixin
 
 
 class OrbitTimeSeriesView(
-    ViewSpecMixin,
+    DataViewSpecMixin,
     TimeSeriesWxPanelMixin,
     StoreTimeSeriesView,
 ):

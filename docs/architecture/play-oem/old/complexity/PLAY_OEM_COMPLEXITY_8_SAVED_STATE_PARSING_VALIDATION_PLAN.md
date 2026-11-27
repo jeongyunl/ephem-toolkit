@@ -54,7 +54,7 @@ them or changing domain validation while extracting section structure.
 | Root | Validate TOML table, allowed keys, and `state_version` in 1..8 | Unknown keys or invalid/missing version reject the whole document. |
 | `window` | Width, height, maximized flag, optional position | Defaults are used for omitted fields; dimensions and coordinates are bounded; booleans are not accepted as integers. |
 | `recent_files` | Absolute paths, uniqueness/normalization, 15-item limit, per-path settings | Settings for paths outside the retained recent-path set are skipped; playback and plot ranges use dedicated validators. |
-| `workspace` | Parse `open_plots` through the plot-selection parser | Missing selection defaults to empty; malformed types or selection reject the whole document. |
+| `workspace` | Parse `open_views` through the plot-selection parser | Missing selection defaults to empty; malformed types or selection reject the whole document. |
 | `ground_track` | Elevation threshold, projection/background, longitude, and optional extents | Defaults represent current preferences; keep the existing boundary and conversion behavior unless a separate verified defect is in scope. |
 | `ground_stations` | Read station records retained in legacy state files | Uses the shared station-record parser; startup can migrate these records to user config; the state serializer does not write them. |
 | `playback` | Accept the legacy `fps` key | The value is intentionally ignored because render rate belongs to user config; unknown playback keys still reject the file. |
@@ -187,7 +187,7 @@ read from old state are migrated into user config when config has no station
 setting. `test_play_oem_cli.py` covers that handoff.
 
 The parser already follows contiguous, named section blocks, and its genuinely
-shared policies are delegated to typed/domain validators for plot selection,
+shared policies are delegated to typed/domain validators for data-view selection,
 plot ranges, playback ranges, and station records. Splitting the blocks into
 more functions would keep the same validation branches and first-error order,
 while adding helper navigation and an exception-to-warning translation

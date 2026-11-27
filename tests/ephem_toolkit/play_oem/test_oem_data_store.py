@@ -83,9 +83,9 @@ def _store_with_samples(
 
 
 def _one_group(query, name: str) -> ColumnGroupView:
-    views = query.value[name]
-    assert len(views) == 1
-    return views[0]
+    data_views = query.value[name]
+    assert len(data_views) == 1
+    return data_views[0]
 
 
 def test_earth_centered_queries_preserve_incomplete_metadata_results() -> None:
@@ -575,7 +575,7 @@ def test_cancel_preserves_prefix_and_prevents_further_reservations() -> None:
         store.reserve(1)
 
 
-def test_snapshot_position_and_velocity_columns_are_raw_backed_views() -> None:
+def test_snapshot_position_and_velocity_columns_are_raw_backed_data_views() -> None:
     times, states, segments = _series_samples()
     store = _store_with_samples(times, states, segments)
     snapshot = store.snapshot()
@@ -830,7 +830,7 @@ def test_state_at_rejects_snapshot_after_interpolation_policy_change() -> None:
     assert store.snapshot().policy_revision == old_snapshot.policy_revision + 1
 
 
-def test_series_groups_are_lazy_chunked_views_matching_reference_computations() -> None:
+def test_series_groups_are_lazy_chunked_data_views_matching_reference_computations() -> None:
     times, states, segments = _series_samples()
     store = _store_with_samples(times, states, segments)
     snapshot = store.snapshot()
@@ -1032,7 +1032,7 @@ def test_series_computes_only_rows_inside_requested_ranges(monkeypatch) -> None:
     )
 
 
-def test_series_queries_compute_only_requested_groups_and_stride_views() -> None:
+def test_series_queries_compute_only_requested_groups_and_stride_data_views() -> None:
     times, states, segments = _series_samples()
     store = _store_with_samples(times, states, segments)
     snapshot = store.snapshot()
@@ -1697,7 +1697,7 @@ def test_rtn_chunk_boundary_reads_one_previous_raw_sample() -> None:
     assert _one_group(query, "rtn").segment_bounds == (RowSpan(0, 2),)
 
 
-def test_earth_fixed_positions_are_lazy_memoized_read_only_views() -> None:
+def test_earth_fixed_positions_are_lazy_memoized_read_only_data_views() -> None:
     times, states, segments = _series_samples()
     store = _store_with_samples(
         times,
@@ -2008,7 +2008,7 @@ def test_nonblocking_station_query_reports_pending_coverage(monkeypatch) -> None
         store.close()
 
 
-def test_derived_buffer_eviction_waits_for_views_and_recomputes() -> None:
+def test_derived_buffer_eviction_waits_for_data_views_and_recomputes() -> None:
     times, states, segments = _series_samples()
     store = OemDataStore(derived_memory_budget_bytes=1)
     epoch = store.begin(len(times))
@@ -2056,7 +2056,7 @@ def test_derived_buffer_eviction_waits_for_views_and_recomputes() -> None:
     np.testing.assert_array_equal(_one_group(recomputed, "kinematics").values, expected)
 
 
-def test_pair_view_keeps_its_chunk_pinned_after_parent_views_are_released() -> None:
+def test_pair_view_keeps_its_chunk_pinned_after_parent_data_views_are_released() -> None:
     times, states, segments = _series_samples()
     store = _store_with_samples(times, states, segments)
     store._derived_memory_budget_bytes = 1

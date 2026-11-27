@@ -46,31 +46,31 @@ flowchart TB
         state_scroller --> state_labels["state_position_label, state_velocity_label,<br/>state_derived_label, state_cursor_status_label"]
     end
 
-    subgraph GRAPHS ["Graph area"]
-        graph_panes_splitter["self.graph_panes_splitter<br/>wx.SplitterWindow, vertical sash<br/>Comparison pane unsplit until toggled"]
-        graph_panes_splitter -- "left" --> main_analysis_pane
-        graph_panes_splitter -- "right, when shown" --> comparison_pane
+    subgraph DATA_VIEWS ["Data-view area"]
+        graph_panes_splitter["self.data_view_panes_splitter<br/>wx.SplitterWindow, vertical sash<br/>Additional pane unsplit until toggled"]
+        graph_panes_splitter -- "left" --> main_pane
+        graph_panes_splitter -- "right, when shown" --> additional_pane
 
-        main_analysis_pane["self.main_analysis_pane<br/>wx.Panel, Main Analysis"]
-        main_analysis_pane --> middle_header["header title, Add graph,<br/>Workspace preset, Comparison, Follow selection"]
-        main_analysis_pane --> main_analysis_stack["self.main_analysis_stack<br/>wx.ScrolledWindow, vertical scroll"]
+        main_pane["self.main_pane<br/>wx.Panel, Main pane"]
+        main_pane --> middle_header["header title, Add data view,<br/>View preset, Additional pane, Follow selection"]
+        main_pane --> main_stack["self.main_stack<br/>wx.ScrolledWindow, vertical scroll"]
 
-        comparison_pane["self.comparison_pane<br/>wx.Panel, Comparison, hidden by default"]
-        comparison_pane --> right_header["header title, Add graph,<br/>Close pane"]
-        comparison_pane --> comparison_stack["self.comparison_stack<br/>wx.ScrolledWindow, vertical scroll"]
+        additional_pane["self.additional_pane<br/>wx.Panel, Additional pane, hidden by default"]
+        additional_pane --> right_header["header title, Add data view,<br/>Close pane"]
+        additional_pane --> additional_stack["self.additional_stack<br/>wx.ScrolledWindow, vertical scroll"]
 
-        main_analysis_stack --> middle_empty["empty_state_panel, empty_state_label,<br/>add_graph_button<br/>(shown when there are no graphs)"]
-        main_analysis_stack --> middle_tree["Panel tree<br/>nested horizontal wx.SplitterWindow<br/>with one GraphPanelHost per graph"]
-        main_analysis_stack --> middle_handle["bottom_resize_handle<br/>wx.Panel, 6 px tall, vertical resize cursor"]
+        main_stack --> middle_empty["empty_state_panel, empty_state_label,<br/>add_data_view_button<br/>(shown when there are no data views)"]
+        main_stack --> middle_tree["Panel tree<br/>nested horizontal wx.SplitterWindow<br/>with one DataViewPanelHost per data view"]
+        main_stack --> middle_handle["bottom_resize_handle<br/>wx.Panel, 6 px tall, vertical resize cursor"]
 
-        comparison_stack --> right_empty["empty_state_panel, empty_state_label,<br/>add_graph_button"]
-        comparison_stack --> right_tree["Panel tree, same as Main Analysis"]
-        comparison_stack --> right_handle["bottom_resize_handle (Comparison)"]
+        additional_stack --> right_empty["empty_state_panel, empty_state_label,<br/>add_data_view_button"]
+        additional_stack --> right_tree["Panel tree, same as Main pane"]
+        additional_stack --> right_handle["bottom_resize_handle (Additional pane)"]
 
-        middle_tree --> graph_host["GraphPanelHost<br/>wx.Panel, one per graph"]
-        graph_host --> host_header["graph_view_selector (wx.Choice) or graph_title_label,<br/>Actions menu button, Close button"]
-        graph_host --> graph_scroller["graph_scroller<br/>wx.ScrolledWindow, horizontal and vertical scroll"]
-        graph_scroller --> view_content["MatplotlibPanel<br/>FigureCanvasWxAgg and optional toolbar<br/>or native wx content or empty_graph_prompt"]
+        middle_tree --> view_panel["DataViewPanelHost<br/>wx.Panel, one per data view"]
+        view_panel --> host_header["data_view_selector (wx.Choice) or data_view_title_label,<br/>Actions menu button, Close button"]
+        view_panel --> data_view_scroller["data_view_scroller<br/>wx.ScrolledWindow, horizontal and vertical scroll"]
+        data_view_scroller --> view_content["MatplotlibPanel<br/>FigureCanvasWxAgg and optional toolbar<br/>or native wx content or empty_data_view_prompt"]
     end
 
     subgraph TIMELINE ["Bottom strip"]
@@ -93,4 +93,4 @@ flowchart TB
     classDef scroller fill:#dcfce7,stroke:#166534,color:#14532d
     class frame window
     class main_splitter,graph_panes_splitter container
-    class settings_panel,state_scroller,info_scroll,main_analysis_stack,comparison_stack,graph_scroller scroller
+    class settings_panel,state_scroller,info_scroll,main_stack,additional_stack,data_view_scroller scroller

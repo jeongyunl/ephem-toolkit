@@ -24,7 +24,7 @@ def test_saving_render_rate_fps_preserves_other_config_and_comments(tmp_path) ->
         "fps = 24 # preferred rate\n\n"
         "[display]\n"
         'three_d_backend = "matplotlib"\n'
-        'plots = ["overview"]\n'
+        'data_views = ["overview"]\n'
     )
 
     save_render_rate_fps(18, path)
@@ -36,7 +36,7 @@ def test_saving_render_rate_fps_preserves_other_config_and_comments(tmp_path) ->
     assert config.reverse
     assert config.render_rate_fps == 18
     assert config.three_d_backend == "matplotlib"
-    assert config.plots == ("overview",)
+    assert config.data_views == ("overview",)
 
 
 def test_saving_render_rate_fps_creates_config_file_when_missing(tmp_path) -> None:
@@ -49,7 +49,7 @@ def test_saving_render_rate_fps_creates_config_file_when_missing(tmp_path) -> No
 
 def test_saving_render_rate_fps_adds_playback_section_when_missing(tmp_path) -> None:
     path = tmp_path / "play-oem.toml"
-    path.write_text('config_version = 1\n\n[display]\nplots = ["overview"]\n')
+    path.write_text('config_version = 1\n\n[display]\ndata_views = ["overview"]\n')
 
     save_render_rate_fps(12, path)
 

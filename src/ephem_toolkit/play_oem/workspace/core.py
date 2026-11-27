@@ -1,4 +1,4 @@
-"""Main wx workspace layout for playback and graph panels."""
+"""Main wx workspace layout for playback and data-view panels."""
 
 from __future__ import annotations
 
@@ -8,20 +8,20 @@ from collections.abc import Callable, Mapping, Sequence
 import wx
 
 
-from ..graph_panel import GraphPanelHost
+from ..data_view_panel import DataViewPanelHost
 from ..timestamp_markup import set_timestamp_label
 from ..widgets.tooltips import set_tooltip
 from .constants import (
-    COMPARISON_PANE_NAME,
+    ADDITIONAL_PANE_NAME,
     CONTROLS_PANE_NAME,
     DEFAULT_RIGHT_PANE_WIDTH,
-    MAIN_ANALYSIS_PANE_NAME,
-    MIN_GRAPH_PANE_WIDTH,
+    MAIN_PANE_NAME,
+    MIN_DATA_VIEW_PANE_WIDTH,
     TIMELINE_SLIDER_MAX,
 )
 from .features import FeatureNavigationMixin
 from .ground_stations import GroundStationsManager
-from .graph_stack import GraphStackMixin
+from .data_view_stack import DataViewStackMixin
 from .timeline import PlaybackToggleButton, TimelineMixin
 from ..widgets.playback_time_scrubber import PlaybackTimeScrubberWidget
 from .. import time_range as range_model
@@ -29,8 +29,8 @@ from ..ground_stations import GroundStation
 from ..display_time import UTC_DISPLAY, format_tt
 
 
-class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
-    """Own the feature rail, page host, graph splitters, and shared timeline."""
+class Workspace(FeatureNavigationMixin, DataViewStackMixin, TimelineMixin):
+    """Own the feature rail, page host, data-view splitters, and shared timeline."""
 
     def __init__(
         self,
@@ -47,8 +47,8 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         timeline_tooltip_at: Callable[[float], str] | None = None,
         context: Mapping[str, str] | None = None,
         details: Sequence[tuple[str, str]] = (),
-        view_choices: tuple[tuple[str, str], ...] = (),
-        on_add_graph: Callable[[str], None] | None = None,
+        data_view_choices: tuple[tuple[str, str], ...] = (),
+        on_add_data_view: Callable[[str], None] | None = None,
         on_open_preset: Callable[[str], None] | None = None,
         on_follow_selection: Callable[[bool], None] | None = None,
         status_bar: wx.Window | None = None,
@@ -76,18 +76,18 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         self._timeline_enabled = timeline_enabled
         self._syncing_timeline = False
         self._selected_feature = 0
-        self._graph_panels: dict[str, list[GraphPanelHost]] = {
+        self._data_view_panels: dict[str, list[DataViewPanelHost]] = {
             "middle": [],
             "right": [],
         }
-        self._visible_graph_panels: set[GraphPanelHost] = set()
-        self._graph_scroll_timers: dict[str, wx.CallLater | None] = {
+        self._visible_data_view_panels: set[DataViewPanelHost] = set()
+        self._data_view_scroll_timers: dict[str, wx.CallLater | None] = {
             "middle": None,
             "right": None,
         }
-        self._pending_graph_redraws: deque[GraphPanelHost] = deque()
-        self._queued_graph_redraws: set[GraphPanelHost] = set()
-        self._graph_redraw_timer: wx.CallLater | None = None
+        self._pending_data_view_redraws: deque[DataViewPanelHost] = deque()
+        self._queued_data_view_redraws: set[DataViewPanelHost] = set()
+        self._data_view_redraw_timer: wx.CallLater | None = None
         self._stack_windows: dict[str, wx.ScrolledWindow] = {}
         self._stack_sizers: dict[str, wx.BoxSizer] = {}
         # Tracks whether each stack's final sizer item is the viewport-height tail.
@@ -106,13 +106,13 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             "middle": None,
             "right": None,
         }
-        self._graph_panel_heights: dict[GraphPanelHost, int] = {}
+        self._data_view_panel_heights: dict[DataViewPanelHost, int] = {}
         self._right_pane_width = DEFAULT_RIGHT_PANE_WIDTH
-        self._comparison_toggle: wx.ToggleButton | None = None
+        self._additional_pane_toggle: wx.ToggleButton | None = None
         self._follow_selection_toggle: wx.CheckBox | None = None
-        self._workspace_preset_choice: wx.Choice | None = None
-        self._view_choices = view_choices
-        self._on_add_graph = on_add_graph
+        self._view_preset_choice: wx.Choice | None = None
+        self._data_view_choices = data_view_choices
+        self._on_add_data_view = on_add_data_view
         self._on_open_preset = on_open_preset
         self._on_follow_selection = on_follow_selection
         self._on_ground_stations_changed = on_ground_stations_changed
@@ -123,23 +123,23 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         )
         self.controls_pane = wx.Panel(self.main_splitter, wx.ID_ANY)
         self.controls_pane.SetName(CONTROLS_PANE_NAME)
-        self.graph_panes_splitter = wx.SplitterWindow(
+        self.data_view_panes_splitter = wx.SplitterWindow(
             self.main_splitter,
             wx.ID_ANY,
             style=wx.SP_LIVE_UPDATE | wx.SP_3DSASH,
         )
-        self.main_analysis_pane, self.main_analysis_stack = self._make_graph_pane(
-            self.graph_panes_splitter, "middle", MAIN_ANALYSIS_PANE_NAME
+        self.main_pane, self.main_stack = self._make_data_view_pane(
+            self.data_view_panes_splitter, "middle", MAIN_PANE_NAME
         )
-        self.comparison_pane, self.comparison_stack = self._make_graph_pane(
-            self.graph_panes_splitter, "right", COMPARISON_PANE_NAME
+        self.additional_pane, self.additional_stack = self._make_data_view_pane(
+            self.data_view_panes_splitter, "right", ADDITIONAL_PANE_NAME
         )
-        self.graph_panes_splitter.SetMinimumPaneSize(MIN_GRAPH_PANE_WIDTH)
-        self.graph_panes_splitter.SetSashGravity(1.0)
-        self.graph_panes_splitter.SplitVertically(
-            self.main_analysis_pane, self.comparison_pane, MIN_GRAPH_PANE_WIDTH
+        self.data_view_panes_splitter.SetMinimumPaneSize(MIN_DATA_VIEW_PANE_WIDTH)
+        self.data_view_panes_splitter.SetSashGravity(1.0)
+        self.data_view_panes_splitter.SplitVertically(
+            self.main_pane, self.additional_pane, MIN_DATA_VIEW_PANE_WIDTH
         )
-        self.graph_panes_splitter.Unsplit(self.comparison_pane)
+        self.data_view_panes_splitter.Unsplit(self.additional_pane)
         self.main_splitter.SetMinimumPaneSize(self.main_splitter.FromDIP(180))
         self.main_splitter.SetSashGravity(0.0)
         self._right_pane_visible = False
@@ -151,7 +151,7 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             on_ground_stations_changed,
         )
         self.main_splitter.SplitVertically(
-            self.controls_pane, self.graph_panes_splitter, 240
+            self.controls_pane, self.data_view_panes_splitter, 240
         )
 
         self.timeline_panel = wx.ScrolledWindow(
@@ -517,13 +517,13 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
 
     def close(self) -> None:
         """Stop pending graph redraw work during workspace shutdown."""
-        if self._graph_redraw_timer is not None:
-            if self._graph_redraw_timer.IsRunning():
-                self._graph_redraw_timer.Stop()
-            self._graph_redraw_timer = None
-        for timer in self._graph_scroll_timers.values():
+        if self._data_view_redraw_timer is not None:
+            if self._data_view_redraw_timer.IsRunning():
+                self._data_view_redraw_timer.Stop()
+            self._data_view_redraw_timer = None
+        for timer in self._data_view_scroll_timers.values():
             if timer is not None and timer.IsRunning():
                 timer.Stop()
-        self._graph_scroll_timers = {"middle": None, "right": None}
-        self._pending_graph_redraws.clear()
-        self._queued_graph_redraws.clear()
+        self._data_view_scroll_timers = {"middle": None, "right": None}
+        self._pending_data_view_redraws.clear()
+        self._queued_data_view_redraws.clear()

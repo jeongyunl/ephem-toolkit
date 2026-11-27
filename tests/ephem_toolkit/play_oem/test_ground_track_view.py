@@ -15,8 +15,8 @@ from ephem_toolkit.play_oem.ground_stations import GroundStation
 from ephem_toolkit.play_oem.oem_data_store import OemDataStore
 from ephem_toolkit.play_oem.time_range import ResolvedTimeRange
 from ephem_toolkit.play_oem.time_unit import TimeUnit
-from ephem_toolkit.play_oem.views import ground_track
-from ephem_toolkit.play_oem.views.base import StoreViewContext
+from ephem_toolkit.play_oem.data_views import ground_track
+from ephem_toolkit.play_oem.views.data_view_base import StoreViewContext
 from ephem_toolkit.play_oem.views.plotting import MAX_DISPLAY_POINTS_PER_SEGMENT
 
 
@@ -585,12 +585,12 @@ def test_wx_view_builds_controls_and_updates_minimum_elevation(wx_app: Any) -> N
 def test_resizing_host_preserves_spin_control_sizes(wx_app: Any) -> None:
     import wx
 
-    from ephem_toolkit.play_oem.graph_panel import GraphPanelHost
+    from ephem_toolkit.play_oem.data_view_panel import DataViewPanelHost
 
     frame = wx.Frame(None, size=(1500, 600))
-    host = GraphPanelHost(frame, "Ground Track", lambda: None)
+    host = DataViewPanelHost(frame, "Ground Track", lambda: None)
     view = ground_track.GroundTrackView(
-        host.graph_scroller,
+        host.data_view_scroller,
         "Test object",
     )
     try:
@@ -626,14 +626,14 @@ def test_resizing_host_preserves_spin_control_sizes(wx_app: Any) -> None:
                 assert control.GetSize().height >= control.GetBestSize().height
             if width == 400:
                 assert (
-                    host.graph_scroller.GetVirtualSize().width
-                    > host.graph_scroller.GetClientSize().width
+                    host.data_view_scroller.GetVirtualSize().width
+                    > host.data_view_scroller.GetClientSize().width
                 )
                 if view._settings_panel is not None:
                     view._settings_panel.Expand()
                     assert (
                         view._settings_panel.GetExpandedScreenRect().width
-                        > host.graph_scroller.GetClientSize().width
+                        > host.data_view_scroller.GetClientSize().width
                     )
                     view._settings_panel.Collapse()
             assert view._canvas is not None

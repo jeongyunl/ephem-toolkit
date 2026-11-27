@@ -22,7 +22,7 @@ class PlayerStandardPlotFactoryMixin:
         stack: str = "middle",
         force_replace: bool = False,
     ) -> None:
-        self._open_view(
+        self._open_data_view(
             "speed-altitude",
             lambda _panel: speed_altitude.SpeedAltitudeView(self.clock.t_start),
             panel_id=panel_id,
@@ -36,7 +36,7 @@ class PlayerStandardPlotFactoryMixin:
         stack: str = "middle",
         force_replace: bool = False,
     ) -> None:
-        self._open_view(
+        self._open_data_view(
             "rtn",
             lambda _panel: rtn.RtnDeltaView(self.clock.t_start, self.object_name),
             panel_id=panel_id,
@@ -50,7 +50,7 @@ class PlayerStandardPlotFactoryMixin:
         stack: str = "middle",
         force_replace: bool = False,
     ) -> None:
-        self._open_view(
+        self._open_data_view(
             "angular-velocity",
             lambda _panel: angular_velocity.AngularVelocityView(
                 self.clock.t_start, self.object_name
@@ -66,7 +66,7 @@ class PlayerStandardPlotFactoryMixin:
         stack: str = "middle",
         force_replace: bool = False,
     ) -> None:
-        self._open_view(
+        self._open_data_view(
             "direction-change",
             lambda _panel: direction_change.DirectionChangeView(
                 self.clock.t_start, self.object_name
@@ -82,7 +82,7 @@ class PlayerStandardPlotFactoryMixin:
         stack: str = "middle",
         force_replace: bool = False,
     ) -> None:
-        self._open_view(
+        self._open_data_view(
             "distance",
             lambda _panel: distance.GeocentricDistanceView(
                 self.clock.t_start, self.object_name
@@ -98,7 +98,7 @@ class PlayerStandardPlotFactoryMixin:
         stack: str = "middle",
         force_replace: bool = False,
     ) -> None:
-        self._open_view(
+        self._open_data_view(
             "state-components",
             lambda _panel: state_components.StateComponentsView(
                 self.clock.t_start, self.frame_context

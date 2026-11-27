@@ -15,9 +15,9 @@ improvement cycle: [PLAY_OEM_GUI_IMPROVEMENT_CYCLE_1.md](./PLAY_OEM_GUI_IMPROVEM
 The wxPython migration objective has been achieved for the selected workspace design:
 
 - The left feature rail uses a non-graph page model with the **Controls & Info** role.
-- The middle pane hosts the **Main Analysis** graph stack with independently selectable, resizable
+- The middle pane hosts the **Main pane** data-view stack with independently selectable, resizable
   panels.
-- The optional right pane provides **Comparison** content and preserves state across close/reopen.
+- The optional right pane provides **Additional pane** content and preserves state across close/reopen.
 - Playback, OEM metadata, and state readouts are organized in feature pages without changing the
   shared playback semantics.
 - Keyboard navigation, focus states, tooltip naming, and input suppression while editing remain in
@@ -26,7 +26,7 @@ The wxPython migration objective has been achieved for the selected workspace de
 
 ## Key implementation milestones
 
-- Graph stacks and embedded graph panel hosts were implemented.
+- Data-view stacks and embedded data-view panel hosts were implemented.
 - Feature pages and icon-button navigation were added and validated.
 - The optional right pane close/restore behavior was implemented and preserved across repeated
   cycles.
@@ -91,7 +91,7 @@ details.
   canvases resized and redrew, toolbar pan/zoom/off modes worked, and the existing click callback
   sought on a 2D click while ignoring pan-mode clicks. Both views initialized at the shared clock
   time and followed `PlaybackClock.seek`; after unsubscribe they stopped receiving updates.
-- Reusable host pattern: parent each view to its graph-panel `wx.Panel`, build it at the current
+- Reusable host pattern: parent each view to its view-panel `wx.Panel`, build it at the current
   clock time, and place its toolbar and `FigureCanvasWxAgg` in a vertical sizer. Preserve the
   current click callback and per-view clock subscription; teardown disconnects, unsubscribes,
   calls `view.close()`, and destroys the host. No Matplotlib WxAgg embedding blocker was found
@@ -105,7 +105,7 @@ documents a concrete blocker before the production host is designed.
 
 - **Status:** Done.
 - **Progress:** 4/4 checklist items.
-- [x] Test the currently supported VTK wx path inside a graph-panel host.
+- [x] Test the currently supported VTK wx path inside a view-panel host.
 - [x] Verify initialization, resize, hide/show, repeated display, and render-context behavior.
 - [x] Confirm backend failures remain explicit and do not silently select another renderer.
 - [x] Record a retain/defer decision and platform-specific constraints for the VTK host.
@@ -113,7 +113,7 @@ documents a concrete blocker before the production host is designed.
 **Findings:**
 
 - A native wx host on macOS with wxPython 4.2.4 (osx-cocoa) and VTK 9.6.2 parented
-  `wxVTKRenderWindowInteractor` to a graph-panel `wx.Panel`. The OpenGL render context
+  `wxVTKRenderWindowInteractor` to a view-panel `wx.Panel`. The OpenGL render context
   initialized and passed `validate_render_context()` after the frame was shown.
 - The widget resized from 800 x 568 to 620 x 428; the VTK render window tracked the high-DPI
   backing size. Hiding/showing the widget and rendering again succeeded. After finalizing and
@@ -196,13 +196,13 @@ subscription leaks, or the blocking constraint is identified.
 and remaining native accessibility validation is explicitly scheduled.
 **Depends on:** Main plan Steps 23–27.
 
-#### 1-5. Prototype nested splitters and scrollable graph stacks
+#### 1-5. Prototype nested splitters and scrollable data-view stacks
 
 - **Status:** Done.
 - **Progress:** 5/5 checklist items.
 - [x] Prototype the left/middle/right splitter arrangement with a resizable optional right pane.
 - [x] Test right-pane close/reopen while retaining its contents and width.
-- [x] Stack multiple graph panels in independently scrollable regions with minimum plot sizes.
+- [x] Stack multiple data-view panels in independently scrollable regions with minimum plot sizes.
 - [x] Test narrowing the window and moving splitters near their minimum positions.
 - [x] Record layout constraints and a concrete initial sizing/scrolling policy.
 
@@ -278,14 +278,14 @@ or have a documented blocker/decision.
 ### 2. Build the workspace shell and shared timeline
 
 Create the main workspace frame with placeholder regions for the left feature rail and
-`wx.Simplebook` page host, middle and optional right graph stacks, and a shared timeline row below
+`wx.Simplebook` page host, middle and optional right data-view stacks, and a shared timeline row below
 the panes. Keep the existing content available during the transition; do not change clock or view
 semantics in this step.
 
 - **Status:** Done.
 - **Progress:** 6/6 checklist items.
 - [x] Define a workspace owner and clear ownership for the feature rail/page host, stack regions,
-      splitters, timeline, and child graph panels.
+      splitters, timeline, and child data-view panels.
 - [x] Create the main workspace frame and placeholder regions for the left, middle, and optional
       right pane.
 - [x] Give the panes visible role-based headings and matching wx window names.
@@ -298,7 +298,7 @@ semantics in this step.
 
 - `PlayerApp` retains ownership of the top-level frame and timer. The new `Workspace` owns the
   feature rail and `wx.Simplebook`, nested splitters, graph placeholders, and global timeline.
-  The pane labels are **Controls & Info**, **Main Analysis**, and **Comparison**.
+  The pane labels are **Controls & Info**, **Main pane**, and **Additional pane**.
 - The Playback page retains the existing controls; OEM context and metadata are available on the
   separate OEM file information page. The middle stack is visible initially and the optional
   right stack can be hidden/reopened without replacing its panel.
@@ -313,17 +313,17 @@ semantics in this step.
 placeholders while the existing GUI behavior remains available.
 **Depends on:** Step 1.
 
-### 3. Embed Matplotlib views in reusable graph-panel hosts
+### 3. Embed Matplotlib views in reusable view-panel hosts
 
 Replace the assumption that a Matplotlib view owns a top-level `wx.Frame` with a reusable
-graph-panel host. Keep the view registry responsible for available view types and preserve the
+view-panel host. Keep the view registry responsible for available view types and preserve the
 existing view contract.
 
 - **Status:** Done with an accepted performance limitation.
 - **Progress:** 7/7 checklist items.
 - [x] Separate Matplotlib view construction and plot-content hosting from `_open_view` frame
       construction.
-- [x] Parent Matplotlib canvases and navigation toolbars to graph-panel hosts while preserving
+- [x] Parent Matplotlib canvases and navigation toolbars to view-panel hosts while preserving
       toolbar-mode handling and click-to-seek.
 - [x] Update each embedded view from the shared playback clock and initialize it at the current
       cursor time.
@@ -336,10 +336,10 @@ existing view contract.
 
 **Implementation and validation:**
 
-- Matplotlib views are hosted in reusable graph panels with embedded canvases and toolbars. View
+- Matplotlib views are hosted in reusable data-view panels with embedded canvases and toolbars. View
   updates remain subscribed to the shared clock, while redraws are coalesced and off-screen
   panels are skipped. Construction failures use the existing explicit cleanup-and-reraise path.
-- The focused graph-panel, workspace, app, plotting, and baseline tests passed: **41 passed**.
+- The focused view-panel, workspace, app, plotting, and baseline tests passed: **41 passed**.
   A native macOS wx smoke test verified canvas resizing, click-to-seek and pan-mode suppression
   through synthetic Matplotlib events, and clean shutdown.
 - In a 3.5-second native run with all seven registered views and the 5,402-sample
@@ -397,14 +397,14 @@ of the same view. Integrate VTK wx content in the graph host if VTK remains a su
 
 - **Status:** Done.
 - **Progress:** 6/6 checklist items.
-- [x] Assign each graph panel a stable instance ID independent of its selected view type.
+- [x] Assign each data-view panel a stable instance ID independent of its selected view type.
 - [x] Permit separate instances of the same view without sharing callbacks, state, or cleanup.
 - [x] Ensure each instance receives the current clock time and unsubscribes exactly once on close.
-- [x] Reparent VTK wx content into a graph-panel host if VTK remains supported as a backend.
+- [x] Reparent VTK wx content into a view-panel host if VTK remains supported as a backend.
 - [x] Preserve explicit backend-selection, initialization, and rendering errors.
 - [x] Test instance lifecycle and supported VTK host behavior; record if VTK is not retained.
 
-**Implementation and validation:** `GraphPanelHost` gives each host a stable panel ID and
+**Implementation and validation:** `DataViewPanelHost` gives each host a stable panel ID and
 contains either WxAgg controls or native wx plot content. `PlayerApp` indexes every instance by
 panel ID while preserving the default one-per-view registry path. Duplicate instances receive
 independent clock subscriptions and are cleaned up independently; native content refreshes when
@@ -418,14 +418,14 @@ after frame resizing. In the same dark-mode run, both main sash handles measured
 backends work in embedded hosts.
 **Depends on:** Step 3, the three-main-pane resizing prerequisite above, and Substeps 1-2 and 1-3.
 
-### 5. Add graph stacks, selectors, and empty states
+### 5. Add data-view stacks, selectors, and empty states
 
-Allow each graph stack to contain zero or more graph panels. Each panel selects its view
+Allow each data-view stack to contain zero or more data-view panels. Each panel selects its view
 independently; empty stacks remain discoverable and usable.
 
 - **Status:** Done.
 - **Progress:** 6/6 checklist items.
-- [x] Add an **Add graph** action to the middle and optional right stack.
+- [x] Add an **Add data view** action to the middle and optional right stack.
 - [x] Show a clear empty state with an add action when a stack contains no panels.
 - [x] Give each panel a view-selection combobox with an Empty choice and all implemented registry
       views; new panels default to Empty.
@@ -433,15 +433,15 @@ independently; empty stacks remain discoverable and usable.
 - [x] Surface view-creation errors without leaving a broken or success-shaped panel.
 - [x] Test empty, one-panel, and multi-panel stacks plus independent selector changes.
 
-**Implementation and validation:** Both graph panes expose an Add graph button, and empty stacks
+**Implementation and validation:** Both graph panes expose an Add data view button, and empty stacks
 also show an add action. Each panel selector includes an Empty choice before the implemented
-registry views; Add graph creates a panel in that empty state. Selecting a view replaces only that
+registry views; Add data view creates a panel in that empty state. Selecting a view replaces only that
 panel's contents, and selecting Empty clears the panel while preserving its selector. Creation
 failures are shown in an error dialog and the failed panel is removed rather than left in a
 success-shaped state. View changes now replace the host in its existing splitter slot, preserving
 panel order and scroll position; failed replacements restore the previous host. Focused workspace,
 panel, and app tests passed (**52 passed**, 14 existing Matplotlib/Pyparsing deprecation warnings).
-Native wx validation confirmed that Add graph starts with Empty, the selector switches successfully
+Native wx validation confirmed that Add data view starts with Empty, the selector switches successfully
 to a registered view and back, and a nonzero stack offset remains unchanged during replacement.
 
 **Done when:** both stacks support zero or more panels and each panel's view can be selected
@@ -450,7 +450,7 @@ independently.
 
 ### 6. Implement panel actions and independent lifecycle
 
-Add local actions for moving, duplicating, and closing graph panels. A duplicate must be an
+Add local actions for moving, duplicating, and closing data-view panels. A duplicate must be an
 independent panel instance, even when it displays the same registered view type.
 
 - **Status:** Done.
@@ -473,18 +473,18 @@ existing Matplotlib/Pyparsing deprecation warnings).
 **Done when:** all panel actions operate on the intended instance and lifecycle tests pass.
 **Depends on:** Step 5 and Substep 1-3.
 
-### 7. Add resizable graph-panel splits, stack scrolling, and minimum plot sizes
+### 7. Add resizable view-panel splits, stack scrolling, and minimum plot sizes
 
-After the three main pane widths are resizable, allow users to adjust the heights of graph panels in
+After the three main pane widths are resizable, allow users to adjust the heights of data-view panels in
 each stack while preventing plots from shrinking below usable dimensions.
 
 - **Status:** Done.
 - **Progress:** 7/7 checklist items.
-- [x] Provide draggable horizontal sashes between vertically stacked graph panels so each panel's
+- [x] Provide draggable horizontal sashes between vertically stacked data-view panels so each panel's
       height can be resized independently.
 - [x] Verify the three main panes remain independently width-resizable; preserve unrelated sash
       positions and the right-pane width across close/reopen.
-- [x] Set and document a 320 x 280 pixel minimum usable size for graph panels.
+- [x] Set and document a 320 x 280 pixel minimum usable size for data-view panels.
 - [x] Scroll each stack independently when its contents exceed the available pane height or
       minimum-size panels cannot all fit.
 - [x] Keep selectors and panel menus reachable while scrolling and resizing.
@@ -492,14 +492,14 @@ each stack while preventing plots from shrinking below usable dimensions.
       dimensions.
 - [x] Verify Matplotlib and VTK canvases resize and redraw correctly after resizing.
 
-**Implementation and validation:** Each graph stack uses independently scrollable nested
+**Implementation and validation:** Each data-view stack uses independently scrollable nested
 horizontal `wx.SplitterWindow`s with the live-update 3D sash style. Panel selectors and Actions
 menus remain children of their graph hosts inside the scrollable splitter tree. Native wx smoke
 tests confirmed these controls exist for seven panels across both stacks at 920 x 480, with
 independent virtual heights (1436 and 569 px) exceeding the 351 px viewports. A short-window
-smoke test at 920 x 420 exercised both vertical main-pane sashes and horizontal graph-panel
+smoke test at 920 x 420 exercised both vertical main-pane sashes and horizontal view-panel
 sashes at their minimum positions; four panels per stack produced a 1147 px virtual height over
-291 px viewports, with each graph panel retaining its 320 x 280 minimum. Automated tests cover
+291 px viewports, with each data-view panel retaining its 320 x 280 minimum. Automated tests cover
 five-panel stack minimum sizing and all splitter orientations. The complete play-oem suite passed
 (**150 passed**, 14 existing Matplotlib/Pyparsing deprecation warnings). Native mouse-drag feel
 remains scheduled for the manual end-to-end checks in Step 12.
@@ -574,7 +574,7 @@ contents, selected views, or size. Reopening should restore its state.
 
 - **Status:** Done.
 - **Progress:** 5/5 checklist items.
-- [x] Close the right pane without destroying its graph panels, selected views, or stack state.
+- [x] Close the right pane without destroying its data-view panels, selected views, or stack state.
 - [x] Expand the middle pane into available space while the right pane is closed.
 - [x] Reopen the pane with its previous panel stack, user-adjusted width, and panel-height
       allocations.
@@ -582,9 +582,9 @@ contents, selected views, or size. Reopening should restore its state.
       sash resizing.
 - [x] Manually verify both pane states at representative narrow and wide window sizes.
 
-**Implementation and validation:** The Main Analysis header has a Comparison toggle, and the
+**Implementation and validation:** The Main pane header has a Comparison toggle, and the
 Comparison header has a Close pane action. Hiding Comparison unsplits but does not destroy its
-graph pane or panel stack, saves the adjusted width, and expands Main Analysis; reopening restores
+graph pane or panel stack, saves the adjusted width, and expands Main pane; reopening restores
 the right pane at its prior width. Tests exercise the toggle, close action, repeated visibility
 cycles, panel retention, and sash positions. Native wx smoke checks at 920 x 760 and 1200 x 1500
 preserved three right-stack panels, their internal sash positions (280 and 450 pixels
@@ -617,7 +617,7 @@ without a mouse.
 panel menus, splitters, and timeline controls were exercised keyboard-only. Icon-button names,
 tooltips, focus and selected cues, including their distinction from hover, were verified. Playback
 accelerators do not intercept input while the time-entry control has focus. Focused workspace,
-graph-panel, playback-control, and app tests passed (**55 passed**); Black and `git diff --check`
+view-panel, playback-control, and app tests passed (**55 passed**); Black and `git diff --check`
 passed. The user manually confirmed all six accessibility checks, including native focus,
 arrow-key navigation, and screen-reader exposure. The tested platform and any platform-specific
 limitations were not specified.

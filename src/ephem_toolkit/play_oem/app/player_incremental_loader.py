@@ -15,7 +15,7 @@ from ..oem_data_store import (
 from ..playback_data import oem_declared_slider_bounds
 from ..saved_state import normalize_recent_path
 from .player_app_state import PlayerAppState
-from .player_store_view_refresh import _append_affects_plot
+from .player_store_data_view_refresh import _append_affects_plot
 
 MAX_INCREMENTAL_LOAD_EVENTS_PER_TICK: int = 64
 """Maximum queued load events handled by one wx timer tick."""
@@ -98,7 +98,7 @@ class PlayerIncrementalLoadingMixin:
                         self._store_state.view_context.refresh()
                     )
                     self._queue_store_view_refresh()
-                    self._refresh_store_views()
+                    self._refresh_store_data_views()
         self.status_bar.set_message(f"Loading {os.path.basename(path)}…")
 
     def _poll_incremental_load(self: PlayerAppState) -> None:
@@ -137,11 +137,11 @@ class PlayerIncrementalLoadingMixin:
             )
             self._update_time_display()
         if self._refresh_state.incremental_view_refresh_pending:
-            self._refresh_incremental_views()
+            self._refresh_incremental_data_views()
         self._advance_initial_plot()
 
     def _advance_initial_plot(self: PlayerAppState) -> None:
-        """Pause at requested-range coverage, draw the first plots, then resume."""
+        """Pause at requested-range coverage, draw the first data_views, then resume."""
         session = self._incremental_loader.session
         store = self._store_state.active
         if (
@@ -193,7 +193,7 @@ class PlayerIncrementalLoadingMixin:
             self._restore_completed_scrubber_state()
             self._update_time_display()
             self._refresh_state.incremental_view_refresh_pending = True
-            self._refresh_incremental_views(force=True)
+            self._refresh_incremental_data_views(force=True)
             return
         if (
             not self._load_state.coverage_complete
@@ -210,14 +210,14 @@ class PlayerIncrementalLoadingMixin:
         if busy:
             return
         self._queue_store_view_refresh()
-        self._refresh_store_views()
+        self._refresh_store_data_views()
         for opened in self._open_panels.values():
-            canvas = opened.canvas or getattr(opened.view, "_canvas", None)
+            canvas = opened.canvas or getattr(opened.data_view, "_canvas", None)
             if canvas is not None:
                 canvas.draw()
             else:
                 opened.panel.request_redraw()
-        self.workspace.draw_initial_graphs()
+        self.workspace.draw_initial_data_views()
         self._load_state.initial_range_ready = True
         session.resume()
 

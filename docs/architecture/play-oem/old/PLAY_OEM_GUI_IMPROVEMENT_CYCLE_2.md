@@ -23,7 +23,7 @@ In scope:
 
 Out of scope:
 
-- Main Analysis and Comparison graph-panel behavior, splitter layout, and graph rendering.
+- Main pane and Additional pane view-panel behavior, splitter layout, and graph rendering.
 - The shared timeline along the bottom of the workspace.
 - Changes to playback, seek, interpolation, or view-registry semantics.
 
@@ -39,7 +39,7 @@ These screenshot observations were treated as hypotheses and assessed during com
 - The feature rail uses icons without a persistent visible page title. Tooltips and accessible
   names exist in the implementation, but users may need to infer the selected page from its icon.
 - Playback content is a long vertical sequence. The screenshots show transport and rate presets
-  near the top, with the logarithmic speed slider, view groups, and individual view buttons farther
+  near the top, with the logarithmic speed slider, view presets, and individual view buttons farther
   down the same scrollable page.
 - Speed is represented by a signed status label, four preset toggle buttons, and a separate
   logarithmic slider. Their relationship and the active value should be easy to understand without
@@ -60,7 +60,7 @@ These screenshot observations were treated as hypotheses and assessed during com
 4. Prefer measured, native-wx layouts over fixed pixel assumptions. Validate both default and
    minimum window sizes, including keyboard-only use.
 5. Do not repeat or undo completed Cycle 1 work: control reachability, wrapped labels, playback
-   toggle behavior, graph-stack scrolling, timeline labels, or graph-panel scroll preservation.
+   toggle behavior, view stack scrolling, timeline labels, or view-panel scroll preservation.
 
 ## Cycle completion
 
@@ -148,7 +148,7 @@ workspace tests cover selected-state synchronization and Up/Down keyboard naviga
 ### 3. Reorganize the Playback page by task priority
 
 The Step 1 baseline placed time and transport controls, seek and stepping controls, speed selection,
-view groups, and individual view launchers in one long vertical list. Define a hierarchy that
+view presets, and individual view launchers in one long vertical list. Define a hierarchy that
 reduces visual scanning while retaining the existing playback actions.
 
 - **Status:** Done.
@@ -176,14 +176,14 @@ below the fold; graph launching is handled by the graph panes.
 ### 4. Use graph-pane controls to add and select graph types
 
 The Step 1 baseline showed separate view-group and individual-view launchers in Playback. Remove
-that duplicate catalog and use the existing Add graph action and graph-type selector in the
-Main Analysis and Comparison panes. Candidate launcher layouts considered earlier are recorded in
+that duplicate catalog and use the existing Add data view action and graph-type selector in the
+Main pane and Additional panes. Candidate launcher layouts considered earlier are recorded in
 [controls-info-launcher-alternatives.svg](./controls-info-launcher-alternatives.svg).
 
 - **Status:** Done.
 - **Progress:** 5/5 checklist items.
-- [x] Remove the View groups and individual-view launcher controls from Playback.
-- [x] Verify that Add graph creates a panel with a graph-type selector in both graph stacks.
+- [x] Remove the View presets and individual-view launcher controls from Playback.
+- [x] Verify that Add data view creates a panel with a graph-type selector in both data-view stacks.
 - [x] Keep Empty as the default graph type and retain every registered individual graph type in
       the selector.
 - [x] Preserve graph replacement, duplicate-panel, and keyboard interaction behavior.
@@ -196,11 +196,11 @@ select any registered graph type from the graph panes without regressing panel w
 
 **Decision and outcome:** the initial Option 1 implementation was superseded by the user's
 subsequent direction. Playback no longer contains group buttons or an individual-view picker.
-Add graph creates a panel whose type selector includes Empty and all seven registered graph
+Add data view creates a panel whose type selector includes Empty and all seven registered graph
 types; users can also change an existing panel's type there. Existing graph replacement and
 duplicate-panel workflows remain covered by app tests. Native wx measured Playback content at
 677 px in the default 619 px viewport and 693 px in the minimum 339 px viewport. It also confirmed
-that Add graph is present, the new panel defaults to Empty, and all graph types are selectable.
+that Add data view is present, the new panel defaults to Empty, and all graph types are selectable.
 
 ### 5. Clarify playback-rate and time-navigation controls
 

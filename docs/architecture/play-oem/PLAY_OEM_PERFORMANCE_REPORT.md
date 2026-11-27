@@ -122,7 +122,7 @@ Reload cost (load and replace, excluding the first file): ISS 1.0 s and JPSS 4.5
 - Enabled `offset` endpoints move the range every tick, so those frames still need a full draw.
 - `TimeRangeSupport.animated_cursor_updates` is `False` by default. `StateComponentsView` opts in and builds its cursors with `animated=True`.
 - `consume_cursor_only_update()` reports whether the range stayed the same since the last dispatch. A True result means only cursors moved.
-- `GraphPanelHost` keeps a `_CursorBlitter`. On each full draw, a `draw_event` handler caches the figure background before the animated cursors are drawn, then draws the cursors. A cursor-only refresh restores that background, redraws the cursors, and blits.
+- `DataViewPanelHost` keeps a `_CursorBlitter`. On each full draw, a `draw_event` handler caches the figure background before the animated cursors are drawn, then draws the cursors. A cursor-only refresh restores that background, redraws the cursors, and blits.
 - The blitter falls back to a full draw if the figure bbox or any axis limits changed since the capture, which covers resize, toolbar zoom, and pan.
 - Pending requests are tracked as cursor-only or full. A full request, or a full draw already scheduled, takes priority.
 

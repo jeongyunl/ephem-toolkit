@@ -1,4 +1,4 @@
-"""Time-grid alignment helpers for play-oem plots and playback controls."""
+"""Time-grid alignment helpers for play-oem data_views and playback controls."""
 
 from __future__ import annotations
 
@@ -134,7 +134,7 @@ def sample_time_series(
     max_samples: int,
     align_to_utc_half_seconds: bool = True,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Interpolate values onto a bounded grid shared by Play-OEM time plots.
+    """Interpolate values onto a bounded grid shared by Play-OEM time data_views.
 
     ``source_values`` may be one-dimensional or have one or more columns.
     Non-finite rows are preserved as gaps in the output, so curves do not

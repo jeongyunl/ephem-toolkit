@@ -17,7 +17,7 @@ from ephem_toolkit.play_oem.station_analysis import (
 )
 from ephem_toolkit.play_oem.time_range import ResolvedTimeRange
 from ephem_toolkit.play_oem.time_unit import TimeUnit
-from ephem_toolkit.play_oem.views.base import (
+from ephem_toolkit.play_oem.views.data_view_base import (
     GroundStationAnalysisMixin,
     StoreViewContext,
 )
@@ -29,7 +29,7 @@ from ephem_toolkit.play_oem.views.ground_station import (
     RangeProfileRenderer,
 )
 from ephem_toolkit.play_oem.app.player_app_state import PlayerAppState
-from ephem_toolkit.play_oem.app.player_view_factory import PlayerViewFactoryMixin
+from ephem_toolkit.play_oem.app.player_data_view_factory import PlayerViewFactoryMixin
 
 
 class _GroundStationSupport(GroundStationAnalysisMixin):
@@ -446,7 +446,7 @@ def test_elevation_factory_uses_ground_station_view() -> None:
         _station_analysis_contexts = {"middle": context}
         workspace = SimpleNamespace(select_ground_stations=lambda: None)
 
-        def _open_view(self, name, creator, **kwargs):
+        def _open_data_view(self, name, creator, **kwargs):
             captured["name"] = name
             captured["creator"] = creator
             captured["kwargs"] = kwargs
@@ -542,7 +542,7 @@ def test_azimuth_factory_uses_ground_station_view() -> None:
         _station_analysis_contexts = {"middle": context}
         workspace = SimpleNamespace(select_ground_stations=lambda: None)
 
-        def _open_view(self, name, creator, **kwargs):
+        def _open_data_view(self, name, creator, **kwargs):
             captured["name"] = name
             captured["creator"] = creator
             captured["kwargs"] = kwargs
@@ -638,7 +638,7 @@ def test_range_factory_uses_ground_station_view() -> None:
         _station_analysis_contexts = {"middle": context}
         workspace = SimpleNamespace(select_ground_stations=lambda: None)
 
-        def _open_view(self, name, creator, **kwargs):
+        def _open_data_view(self, name, creator, **kwargs):
             captured["name"] = name
             captured["creator"] = creator
             captured["kwargs"] = kwargs

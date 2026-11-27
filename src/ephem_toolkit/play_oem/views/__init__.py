@@ -1,1 +1,1 @@
-"""Plot views used by the play-oem application."""
+"""Plot data_views used by the play-oem application."""

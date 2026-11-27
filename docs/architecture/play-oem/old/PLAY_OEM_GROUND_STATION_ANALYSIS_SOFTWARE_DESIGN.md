@@ -15,7 +15,7 @@ Improve inspection of ground-station access over the loaded OEM:
 - Show configured station locations on the existing Ground Track map.
 - Provide a selectable table of access intervals with useful pass metrics.
 - Plot the selected interval as an azimuth/elevation path in a local sky view.
-- Keep the pass table and sky plot together in one graph view so selecting a pass updates its
+- Keep the pass table and sky plot together in one data view so selecting a pass updates its
   sky path without app-wide selection state.
 
 The feature remains geometric and bounded by the loaded OEM. It does not add a second global map,

@@ -12,7 +12,7 @@ the earlier composite design and implementation report are also archived in this
 ## Design goals
 
 - Give each panel one primary job and avoid repeating the same long status or pass summary.
-- Preserve the existing Controls & Info, Main Analysis, Comparison, and shared playback layout.
+- Preserve the existing Controls & Info, Main pane, Comparison, and shared playback layout.
 - Let a user combine a few views with adjustable sashes instead of forcing a fixed dashboard.
 - Keep Pass List, Pass Strip, time profiles, Sky View, and Pass Ground Track linked by explicit
   interval selection.
@@ -68,18 +68,18 @@ of the initial presets; add only if pass ranking is a demonstrated workflow need
 
 ## Main-window configurations
 
-Each configuration uses the existing shell: Controls & Info on the left, the Main Analysis stack
-in the center, optional Comparison on the right, and shared playback/UTC controls below.
+Each configuration uses the existing shell: Controls & Info on the left, the Main pane stack
+in the center, optional Additional pane on the right, and shared playback/UTC controls below.
 
 ### A. Pass Study — compact responsive layout
 
-Keep Comparison closed. When the Main Analysis area can fit the compact Pass List and a useful
+Keep Comparison closed. When the Main pane area can fit the compact Pass List and a useful
 polar plot side by side, place them in one row. The compact list groups start/end into one UTC
 interval column and keeps duration, peak, minimum range, and coverage/status visible. This avoids
 stacking two tall panels and keeps the selected pass in view alongside its sky path.
 
 ```text
-┌ Controls & Info ─────┬ Main Analysis ──────────────────────────────┐
+┌ Controls & Info ─────┬ Main pane ──────────────────────────────┐
 │ Station selection    │ Pass List · compact       │ Sky View         │
 │ Station tools        │ UTC · duration · peak     │ selected pass   │
 │                      │ min range · coverage      │ polar path      │
@@ -92,8 +92,8 @@ wide enough for its compact columns and the sky plot large enough for readable a
 markers. When either panel would fall below its usable minimum, stack Pass List above Sky View;
 allow the user to resize the sash in that narrow layout.
 
-The Access Overview and Pass Study presets open independently selectable graph panels. Currently
-the Pass Study preset stacks Pass List and Sky View in Main Analysis; the compact responsive
+The Access Overview and Pass Study presets open independently selectable data-view panels. Currently
+the Pass Study preset stacks Pass List and Sky View in Main pane; the compact responsive
 paired layout remains available through **Open Passes** from Ground Track. Automatically arranging
 the two independent panels side by side is a remaining workspace-layout acceptance item.
 
@@ -103,7 +103,7 @@ Keep the main stack focused on current state and time history. Comparison can ho
 range when diagnosing a pass, or remain closed to maximize the elevation plot.
 
 ```text
-┌ Controls & Info ─────┬ Main Analysis ────────────────┬ Comparison ─────┐
+┌ Controls & Info ─────┬ Main pane ────────────────┬ Comparison ─────┐
 │ Station selection    │ Station Status (compact)      │ Azimuth Profile │
 │ Station tools        ├──────── sash ─────────────────┤ optional        │
 │                      │ Pass Strip                    │                 │
@@ -113,33 +113,33 @@ range when diagnosing a pass, or remain closed to maximize the elevation plot.
 └───────────────────────────────────────────────────────────────────────┘
 ```
 
-For a simpler setup, leave only Elevation Profile in Main Analysis and use Station Status in the
-Controls & Info page rather than opening it as a graph panel.
+For a simpler setup, leave only Elevation Profile in Main pane and use Station Status in the
+Controls & Info page rather than opening it as a data-view panel.
 
 ### C. Wide-screen pass investigation
 
-On wide monitors, place Pass List in Main Analysis and Sky View in Comparison. Reserve enough
+On wide monitors, place Pass List in Main pane and Sky View in Comparison. Reserve enough
 width for the full table and a useful polar plot; if either panel becomes too narrow, return to
 the stacked Pass Study configuration.
 
 ```text
-┌ Controls & Info ─────┬ Main Analysis ───────────────┬ Comparison ─────┐
+┌ Controls & Info ─────┬ Main pane ───────────────┬ Comparison ─────┐
 │ Station selection    │ Pass List                    │ Sky View        │
 │ Station tools        │ ~60%                         │ ~40%            │
 ├──────────────────────┴── shared UTC / playback ─────┴─────────────────┤
 └───────────────────────────────────────────────────────────────────────┘
 ```
 
-The Comparison stack follows the Main Analysis pass only when **Follow selection** is enabled.
+The Additional pane view stack follows the Main pane pass only when **Follow selection** is enabled.
 Otherwise it keeps its own station and pass, supporting side-by-side inspection.
 
 ### D. Compare stations
 
-Use matching time-oriented views in Main Analysis and Comparison. Each stack keeps its own
+Use matching time-oriented views in Main pane and Additional pane. Each stack keeps its own
 station selection while both use the shared Plot Range and playback clock.
 
 ```text
-┌ Controls & Info ─────┬ Main Analysis ───────────────┬ Comparison ─────┐
+┌ Controls & Info ─────┬ Main pane ───────────────┬ Comparison ─────┐
 │ Station tools        │ Pass Strip — North Site     │ Pass Strip —    │
 │                      │ Elevation — North Site      │ South Site      │
 │                      │                             │ Elevation —     │
@@ -154,7 +154,7 @@ station selection while both use the shared Plot Range and playback clock.
 
 - Selecting an interval in Pass Strip or Pass List updates other views in the same stack.
 - A row action **Show in Sky View** opens or selects a Sky View seeded with that station and pass.
-- A separate **Follow selection** toggle controls whether Comparison follows Main Analysis.
+- A separate **Follow selection** toggle controls whether Comparison follows Main pane.
 - Clicking a profile time seeks playback; selecting an interval does not.
 - **Focus pass** updates shared Plot Range; **Seek to peak** explicitly moves playback.
 - Station selection remains local to each stack so users can compare stations.
@@ -163,11 +163,11 @@ station selection while both use the shared Plot Range and playback clock.
 
 - Prefer side-by-side Pass List and Sky View in Pass Study when the compact table columns and
   polar plot both fit at usable widths.
-- Stack Pass List above Sky View when the available Main Analysis width cannot fit both panels;
+- Stack Pass List above Sky View when the available Main pane width cannot fit both panels;
   keep the sky plot taller than the table in that layout.
 - Use the wide-screen separate-stack arrangement only when Comparison is useful for independent
   station/pass inspection, not merely to avoid the narrow-width fallback.
-- Respect the existing graph-panel minimum size and scroll the stack rather than compressing a plot
+- Respect the existing view-panel minimum size and scroll the stack rather than compressing a plot
   until its labels or axes are unusable.
 - Preserve panel size and selection when toggling Comparison or changing views.
 
@@ -184,7 +184,7 @@ station selection while both use the shared Plot Range and playback clock.
 ## Presets and view selection
 
 Provide **Access Overview** and **Pass Study** as optional workspace presets. A preset is a
-starting arrangement, not a new composite widget: each region remains an ordinary graph panel
+starting arrangement, not a new composite widget: each region remains an ordinary data-view panel
 that can be changed, moved, duplicated, resized, or closed. Keep the existing `overview` group
 unchanged. Do not add every station panel to the default Overview.
 

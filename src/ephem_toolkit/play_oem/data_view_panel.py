@@ -1,4 +1,4 @@
-"""Reusable graph-panel host for embedded playback plots."""
+"""Reusable data-view panel host for embedded playback data views."""
 
 from __future__ import annotations
 
@@ -23,11 +23,11 @@ from .widgets.matplotlib_panel import MatplotlibPanel
 from .widgets.tooltips import set_tooltip, suppress_tooltips
 
 MATPLOTLIB_REDRAW_INTERVAL_S: float = 0.033
-"""Minimum interval between requested Matplotlib redraws per graph panel."""
+"""Minimum interval between requested Matplotlib redraws per data-view panel."""
 WHEEL_SCROLL_UNITS_PER_NOTCH: int = 3
 """Graph-stack scroll units moved per standard mouse-wheel notch."""
-GRAPH_PANEL_MIN_SIZE: tuple[int, int] = (64, 64)
-"""Minimum graph-panel width and height in pixels."""
+DATA_VIEW_PANEL_MIN_SIZE: tuple[int, int] = (64, 64)
+"""Minimum data-data-view panel width and height in pixels."""
 
 
 def _canvas_figure(canvas: object) -> Figure:
@@ -71,7 +71,7 @@ def _minimize_figure_padding(figure: Figure) -> None:
 def _configure_matplotlib_canvas(canvas: FigureCanvasWxAgg) -> None:
     """Apply shared spacing and minimum-size settings to an embedded plot."""
     _minimize_figure_padding(_canvas_figure(canvas))
-    canvas.SetMinSize(GRAPH_PANEL_MIN_SIZE)
+    canvas.SetMinSize(DATA_VIEW_PANEL_MIN_SIZE)
 
 
 class _RedrawThrottle:
@@ -167,8 +167,8 @@ class _CursorBlitter:
             axes.draw_artist(line)
 
 
-class GraphPanelHost(wx.Panel):
-    """Host one graph panel with independently scrollable content."""
+class DataViewPanelHost(wx.Panel):
+    """Host one data-data-view panel with independently scrollable content."""
 
     def __init__(
         self,
@@ -176,9 +176,9 @@ class GraphPanelHost(wx.Panel):
         title: str,
         on_close: Callable[[], None],
         is_visible: Callable[[], bool] | None = None,
-        on_redraw_request: Callable[[GraphPanelHost], None] | None = None,
+        on_redraw_request: Callable[[DataViewPanelHost], None] | None = None,
         panel_id: str | None = None,
-        view_choices: tuple[tuple[str, str], ...] = (),
+        data_view_choices: tuple[tuple[str, str], ...] = (),
         selected_view: str | None = None,
         on_view_selected: Callable[[str], None] | None = None,
         on_move_up: Callable[[], None] | None = None,
@@ -205,14 +205,14 @@ class GraphPanelHost(wx.Panel):
         self._native_content: wx.Window | None = None
         self._native_plot_panels: tuple[MatplotlibPanel, ...] = ()
         self._uses_constrained_layout = False
-        self.graph_scroller = wx.ScrolledWindow(
+        self.data_view_scroller = wx.ScrolledWindow(
             self,
             wx.ID_ANY,
             style=wx.HSCROLL | wx.VSCROLL | wx.TAB_TRAVERSAL,
         )
-        self.graph_scroller.SetName(f"{title} graph content")
-        self.graph_scroller.SetScrollRate(10, 10)
-        self.graph_scroller.Bind(wx.EVT_MOUSEWHEEL, self._on_content_mousewheel)
+        self.data_view_scroller.SetName(f"{title} graph content")
+        self.data_view_scroller.SetScrollRate(10, 10)
+        self.data_view_scroller.Bind(wx.EVT_MOUSEWHEEL, self._on_content_mousewheel)
 
         panel_sizer = wx.BoxSizer(wx.VERTICAL)
         header_sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -220,17 +220,17 @@ class GraphPanelHost(wx.Panel):
         self._header_sizer = header_sizer
         self.graph_title_label: wx.StaticText | None = None
         self.graph_view_selector: wx.Choice | None = None
-        if view_choices:
+        if data_view_choices:
             self.graph_view_selector = wx.Choice(
                 self,
                 wx.ID_ANY,
-                choices=[label for _name, label in view_choices],
+                choices=[label for _name, label in data_view_choices],
             )
             # Keep the selector compact so it matches the smaller header actions.
             self.graph_view_selector.SetMinSize(self.FromDIP(wx.Size(-1, 24)))
             self.graph_view_selector.SetName(f"{title} view selector")
             # Keep wheel input from changing the selection while forwarding its
-            # scrolling effect to the containing graph stack.
+            # scrolling effect to the containing data-view stack.
             self.graph_view_selector.Bind(
                 wx.EVT_MOUSEWHEEL, self._on_selector_mousewheel
             )
@@ -239,7 +239,7 @@ class GraphPanelHost(wx.Panel):
                 self.graph_view_selector.SetSelection(
                     next(
                         index
-                        for index, (name, _label) in enumerate(view_choices)
+                        for index, (name, _label) in enumerate(data_view_choices)
                         if name == selected_view
                     )
                 )
@@ -250,7 +250,7 @@ class GraphPanelHost(wx.Panel):
                     # has finished dispatching its selection event.
                     lambda event: wx.CallAfter(
                         on_view_selected,
-                        view_choices[event.GetSelection()][0],
+                        data_view_choices[event.GetSelection()][0],
                     ),
                 )
             header_sizer.Add(self.graph_view_selector, 1, wx.EXPAND | wx.ALL, 2)
@@ -300,28 +300,28 @@ class GraphPanelHost(wx.Panel):
         header_sizer.Add(self.graph_close_button, 0, wx.ALL, 2)
         panel_sizer.Add(header_sizer, 0, wx.EXPAND)
         self.content_sizer = wx.BoxSizer(wx.VERTICAL)
-        self.graph_scroller.SetSizer(self.content_sizer)
-        panel_sizer.Add(self.graph_scroller, 1, wx.EXPAND)
+        self.data_view_scroller.SetSizer(self.content_sizer)
+        panel_sizer.Add(self.data_view_scroller, 1, wx.EXPAND)
         self.SetSizer(panel_sizer)
-        self.SetMinSize(GRAPH_PANEL_MIN_SIZE)
+        self.SetMinSize(DATA_VIEW_PANEL_MIN_SIZE)
         self.Bind(wx.EVT_SHOW, self._on_show)
 
     def _on_actions_button(self, _event: wx.CommandEvent) -> None:
         # GTK requires the tooltip popup to be unmapped before opening a menu
-        # with the graph panel as parent, including keyboard activation.
+        # with the data-view panel as parent, including keyboard activation.
         with suppress_tooltips():
             self.PopupMenu(self._actions_menu)
 
     def set_matplotlib_content(self, plot_panel: MatplotlibPanel) -> None:
-        """Install a standard Matplotlib panel in this graph host."""
+        """Install a standard Matplotlib panel in this data-view panel host."""
         if self._native_content is not None:
-            raise RuntimeError("graph panel already has native content")
+            raise RuntimeError("data-view panel already has native content")
         canvas = plot_panel.canvas
         toolbar_window = plot_panel.toolbar
         if toolbar_window is not None and not isinstance(
             toolbar_window, NavigationToolbar2WxAgg
         ):
-            raise TypeError("graph panels require a Matplotlib navigation toolbar")
+            raise TypeError("data-view panels require a Matplotlib navigation toolbar")
         toolbar = toolbar_window
         self.content_sizer.Add(plot_panel, 1, wx.EXPAND)
         plot_panel.Bind(wx.EVT_MOUSEWHEEL, self._on_content_mousewheel)
@@ -338,7 +338,7 @@ class GraphPanelHost(wx.Panel):
             self._uses_constrained_layout = True
             canvas.mpl_connect("draw_event", self._disable_constrained_layout)
             canvas.Bind(wx.EVT_SIZE, self._on_canvas_size)
-        self.graph_scroller.FitInside()
+        self.data_view_scroller.FitInside()
         self.Layout()
 
     def _on_content_mousewheel(self, event: wx.MouseEvent) -> None:
@@ -348,11 +348,11 @@ class GraphPanelHost(wx.Panel):
             event.Skip()
             return
 
-        content_position = self.graph_scroller.GetViewStart()
+        content_position = self.data_view_scroller.GetViewStart()
         content_limit = max(
             0,
-            self.graph_scroller.GetScrollRange(wx.VERTICAL)
-            - self.graph_scroller.GetScrollThumb(wx.VERTICAL),
+            self.data_view_scroller.GetScrollRange(wx.VERTICAL)
+            - self.data_view_scroller.GetScrollThumb(wx.VERTICAL),
         )
         if (rotation > 0 and content_position[1] > 0) or (
             rotation < 0 and content_position[1] < content_limit
@@ -360,15 +360,15 @@ class GraphPanelHost(wx.Panel):
             event.Skip()
             return
 
-        if not GraphPanelHost._scroll_stack_from_mousewheel(self, event):
+        if not DataViewPanelHost._scroll_stack_from_mousewheel(self, event):
             event.Skip()
 
     def _on_selector_mousewheel(self, event: wx.MouseEvent) -> None:
-        """Scroll the graph stack without changing the selected graph type."""
-        GraphPanelHost._scroll_stack_from_mousewheel(self, event)
+        """Scroll the data-view stack without changing the selected data-view type."""
+        DataViewPanelHost._scroll_stack_from_mousewheel(self, event)
 
     def _scroll_stack_from_mousewheel(self, event: wx.MouseEvent) -> bool:
-        """Apply a wheel rotation to the containing graph stack."""
+        """Apply a wheel rotation to the containing data-view stack."""
         rotation = event.GetWheelRotation()
         if rotation == 0:
             return True
@@ -408,7 +408,7 @@ class GraphPanelHost(wx.Panel):
     def set_native_content(self, content: wx.Window) -> None:
         """Install native wx plot content in this panel."""
         if self._canvas is not None or self._native_content is not None:
-            raise RuntimeError("graph panel already has content")
+            raise RuntimeError("data-view panel already has content")
         pending = [content]
         plot_panels: list[MatplotlibPanel] = []
         while pending:
@@ -423,7 +423,7 @@ class GraphPanelHost(wx.Panel):
         self.content_sizer.Add(content, 1, wx.EXPAND)
         self._native_content = content
         self._native_plot_panels = tuple(plot_panels)
-        self.graph_scroller.FitInside()
+        self.data_view_scroller.FitInside()
         self.Layout()
 
     def natural_content_height(self) -> int:
@@ -434,7 +434,7 @@ class GraphPanelHost(wx.Panel):
                 content_height, self._plot_panel.preferred_size.height
             )
         elif self._native_content is not None:
-            # Native views expose their preferred height through wx directly.
+            # Native data views expose their preferred height through wx directly.
             content_height = max(
                 content_height, self._native_content.GetBestSize().height
             )

@@ -10,9 +10,9 @@ import pytest
 
 from ephem_toolkit.play_oem import workspace
 from ephem_toolkit.play_oem.ground_stations import GroundStation
-from ephem_toolkit.play_oem.workspace import core, features, graph_stack, timeline
+from ephem_toolkit.play_oem.workspace import core, features, data_view_stack, timeline
 from ephem_toolkit.play_oem.widgets import playback_time_slider as playback_time_slider_module
-from ephem_toolkit.play_oem.workspace.constants import DEFAULT_GRAPH_PANEL_HEIGHT
+from ephem_toolkit.play_oem.workspace.constants import DEFAULT_DATA_VIEW_PANEL_HEIGHT
 from ephem_toolkit.play_oem.workspace import ground_stations as station_manager
 
 
@@ -768,7 +768,7 @@ def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(core, "set_tooltip", set_fake_tooltip)
     monkeypatch.setattr(features, "set_tooltip", set_fake_tooltip)
-    monkeypatch.setattr(graph_stack, "set_tooltip", set_fake_tooltip)
+    monkeypatch.setattr(data_view_stack, "set_tooltip", set_fake_tooltip)
     monkeypatch.setattr(timeline, "set_tooltip", set_fake_tooltip)
     monkeypatch.setattr(core, "PlaybackTimeScrubberWidget", FakeTimeScrubberWidget)
     monkeypatch.setattr(core, "PlaybackToggleButton", FakePlaybackToggleButton)
@@ -854,8 +854,8 @@ def make_workspace(
     *,
     timeline_enabled: bool = True,
     slider_bounds: tuple[float, float] | None = None,
-    on_add_graph=None,
-    view_choices=(),
+    on_add_data_view=None,
+    data_view_choices=(),
     on_toggle_play=None,
     on_play_reverse=None,
     on_play_forward=None,
@@ -903,8 +903,8 @@ def make_workspace(
             ("Interpolation", "Lagrange"),
             ("Interpolation degree", "5"),
         ),
-        view_choices=view_choices,
-        on_add_graph=on_add_graph,
+        data_view_choices=data_view_choices,
+        on_add_data_view=on_add_data_view,
         on_open_preset=on_open_preset,
         on_follow_selection=on_follow_selection,
     )
@@ -950,25 +950,25 @@ def test_workspace_builds_feature_pages_split_panes_and_global_timeline(
         "State",
     ]
     assert result.controls_pane.name == workspace.CONTROLS_PANE_NAME
-    assert result.main_analysis_pane.name == workspace.MAIN_ANALYSIS_PANE_NAME
-    assert result.comparison_pane.name == workspace.COMPARISON_PANE_NAME
+    assert result.main_pane.name == workspace.MAIN_PANE_NAME
+    assert result.additional_pane.name == workspace.ADDITIONAL_PANE_NAME
     assert (
-        result.main_analysis_pane.sizer.items[0][0].items[0][0].label == "Main Analysis"
+        result.main_pane.sizer.items[0][0].items[0][0].label == "Main pane"
     )
-    assert result.comparison_pane.sizer.items[0][0].items[0][0].label == "Comparison"
-    assert result.main_analysis_stack.always_shown_scrollbars == (False, False)
-    assert result.comparison_stack.always_shown_scrollbars == (False, False)
-    assert result.graph_panes_splitter.is_split is False
-    assert result.graph_panes_splitter.unsplit_calls == [result.comparison_pane]
-    assert result._comparison_toggle.name == "Toggle Comparison pane"
-    assert not result._comparison_toggle.value
+    assert result.additional_pane.sizer.items[0][0].items[0][0].label == "Additional pane"
+    assert result.main_stack.always_shown_scrollbars == (False, False)
+    assert result.additional_stack.always_shown_scrollbars == (False, False)
+    assert result.data_view_panes_splitter.is_split is False
+    assert result.data_view_panes_splitter.unsplit_calls == [result.additional_pane]
+    assert result._additional_pane_toggle.name == "Toggle Additional pane"
+    assert not result._additional_pane_toggle.value
     assert result.main_splitter.is_split
     assert result.main_splitter.minimum_pane_size == 180
     assert result.main_splitter.sash_gravity == 0.0
     assert result.main_splitter.style & workspace.wx.SP_3DSASH
-    assert result.graph_panes_splitter.minimum_pane_size == 320
-    assert result.graph_panes_splitter.sash_gravity == 1.0
-    assert result.graph_panes_splitter.style & workspace.wx.SP_3DSASH
+    assert result.data_view_panes_splitter.minimum_pane_size == 320
+    assert result.data_view_panes_splitter.sash_gravity == 1.0
+    assert result.data_view_panes_splitter.style & workspace.wx.SP_3DSASH
     assert result.timeline_slider.minimum == 0
     assert result.timeline_slider.maximum == 10_000
     assert list(result.playback_speed_buttons) == [
@@ -1059,9 +1059,9 @@ def test_workspace_preset_and_comparison_follow_controls_dispatch_callbacks(
     )
 
     assert not result._follow_selection_toggle.IsEnabled()
-    result._on_workspace_preset_selected(2)
+    result._on_view_preset_selected(2)
     assert opened_presets == ["pass-study"]
-    assert result._workspace_preset_choice.GetSelection() == 0
+    assert result._view_preset_choice.GetSelection() == 0
 
     result._follow_selection_toggle.bindings["check-box"](FakeEvent(value=1))
     assert follow_changes == [True]
@@ -1231,11 +1231,11 @@ def test_ground_station_manager_keeps_dirty_row_when_switch_is_cancelled(
     assert manager._fields["name"].GetValue() == "Edited"
 
 
-def test_graph_stack_scrollbars_are_forced_visible_only_when_content_overflows(
+def test_data_view_stack_scrollbars_are_forced_visible_only_when_content_overflows(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     result, _seeks, _frame = make_workspace(monkeypatch)
-    stack = result.main_analysis_stack
+    stack = result.main_stack
 
     stack.scroll_range = 32
     stack.scroll_thumb = 20
@@ -1277,17 +1277,17 @@ def test_graph_stack_scrollbars_are_forced_visible_only_when_content_overflows(
         result.file_info_scroll.sizer.items[6][0] is result._file_info_section_labels[1]
     )
 
-    result._comparison_toggle.SetValue(True)
-    result._comparison_toggle.trigger(workspace.wx.EVT_TOGGLEBUTTON)
-    assert result.graph_panes_splitter.is_split
-    assert result._comparison_toggle.value
+    result._additional_pane_toggle.SetValue(True)
+    result._additional_pane_toggle.trigger(workspace.wx.EVT_TOGGLEBUTTON)
+    assert result.data_view_panes_splitter.is_split
+    assert result._additional_pane_toggle.value
     result._pane_close_buttons["right"].trigger(workspace.wx.EVT_BUTTON)
-    assert not result.graph_panes_splitter.is_split
-    assert not result._comparison_toggle.value
+    assert not result.data_view_panes_splitter.is_split
+    assert not result._additional_pane_toggle.value
     result.show_right_pane(False)
-    assert not result.graph_panes_splitter.is_split
-    assert result.graph_panes_splitter.split_calls[-1][1] is result.comparison_pane
-    assert not result._comparison_toggle.value
+    assert not result.data_view_panes_splitter.is_split
+    assert result.data_view_panes_splitter.split_calls[-1][1] is result.additional_pane
+    assert not result._additional_pane_toggle.value
 
 
 def test_file_info_labels_wrap_to_the_available_pane_width(
@@ -1335,10 +1335,10 @@ def test_main_pane_sashes_resize_independently_and_restore_right_width(
 ) -> None:
     result, _seeks, _frame = make_workspace(monkeypatch)
     right_panels = [
-        FakeGraphPanel(result.comparison_stack, f"right-{index}") for index in range(2)
+        FakeGraphPanel(result.additional_stack, f"right-{index}") for index in range(2)
     ]
     for panel in right_panels:
-        result.add_graph_panel(panel, "right")
+        result.add_data_view_panel(panel, "right")
     right_stack_splitter = stack_splitters(result._stack_roots["right"])[0]
     right_stack_splitter.SetSashPosition(330)
 
@@ -1347,91 +1347,91 @@ def test_main_pane_sashes_resize_independently_and_restore_right_width(
 
     result.show_right_pane(True)
     assert (
-        result.graph_panes_splitter.GetClientSize().width
-        - result.graph_panes_splitter.GetSashPosition()
-        - result.graph_panes_splitter.GetSashSize()
+        result.data_view_panes_splitter.GetClientSize().width
+        - result.data_view_panes_splitter.GetSashPosition()
+        - result.data_view_panes_splitter.GetSashSize()
         == workspace.DEFAULT_RIGHT_PANE_WIDTH
     )
 
-    result.graph_panes_splitter.SetSashPosition(600)
+    result.data_view_panes_splitter.SetSashPosition(600)
     result.show_right_pane(False)
-    assert result._graph_panels["right"] == right_panels
+    assert result._data_view_panels["right"] == right_panels
     assert stack_splitters(result._stack_roots["right"])[0] is right_stack_splitter
     assert right_stack_splitter.GetSashPosition() == 330
-    result.graph_panes_splitter.client_width = 1100
+    result.data_view_panes_splitter.client_width = 1100
     result.show_right_pane(True)
 
     restored_width = (
-        result.graph_panes_splitter.GetClientSize().width
-        - result.graph_panes_splitter.GetSashPosition()
-        - result.graph_panes_splitter.GetSashSize()
+        result.data_view_panes_splitter.GetClientSize().width
+        - result.data_view_panes_splitter.GetSashPosition()
+        - result.data_view_panes_splitter.GetSashSize()
     )
     assert restored_width == 396
-    assert result._comparison_toggle.value
+    assert result._additional_pane_toggle.value
     result.show_right_pane(False)
     result.show_right_pane(True)
-    assert result._graph_panels["right"] == right_panels
+    assert result._data_view_panels["right"] == right_panels
     assert right_stack_splitter.GetSashPosition() == 330
 
 
-def test_graph_hosts_replace_empty_state_and_restore_it_when_removed(
+def test_data_view_hosts_replace_empty_state_and_restore_it_when_removed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     result, _seeks, _frame = make_workspace(monkeypatch)
-    host = FakeGraphPanel(result.main_analysis_stack, "first")
+    host = FakeGraphPanel(result.main_stack, "first")
     empty_panel = result._empty_panels["middle"]
 
-    result.add_graph_panel(host)
+    result.add_data_view_panel(host)
 
-    assert result._graph_panels["middle"] == [host]
+    assert result._data_view_panels["middle"] == [host]
     assert empty_panel.shown is False
     # A hidden empty state must leave both the native scroller and its sizer.
-    assert empty_panel.GetParent() is result.main_analysis_stack.GetParent()
+    assert empty_panel.GetParent() is result.main_stack.GetParent()
     assert all(
         item[0] is not empty_panel for item in result._stack_sizers["middle"].items
     )
 
-    result.remove_graph_panel(host)
+    result.remove_data_view_panel(host)
 
-    assert result._graph_panels["middle"] == []
+    assert result._data_view_panels["middle"] == []
     assert empty_panel.shown is True
     # Restore exactly one empty-state item when the last graph is removed.
-    assert empty_panel.GetParent() is result.main_analysis_stack
+    assert empty_panel.GetParent() is result.main_stack
     assert [item[0] for item in result._stack_sizers["middle"].items] == [empty_panel]
     # Removed panels must also be parked while awaiting destruction or reuse.
-    assert host.GetParent() is result.main_analysis_stack.GetParent()
+    assert host.GetParent() is result.main_stack.GetParent()
     # Reusing a parked panel must restore its scrolling parent and hide the
     # empty state again without leaving a hidden native scroll child.
-    result.add_graph_panel(host)
-    assert host.GetParent() is result.main_analysis_stack
-    assert empty_panel.GetParent() is result.main_analysis_stack.GetParent()
-    with pytest.raises(ValueError, match="unknown graph stack"):
-        result.add_graph_panel(host, "invalid")
+    result.add_data_view_panel(host)
+    assert host.GetParent() is result.main_stack
+    assert empty_panel.GetParent() is result.main_stack.GetParent()
+    with pytest.raises(ValueError, match="unknown data-view stack"):
+        result.add_data_view_panel(host, "invalid")
 
 
-def test_removing_middle_graph_preserves_remaining_panel_heights(
+def test_removing_middle_data_view_preserves_remaining_panel_heights(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     result, _seeks, _frame = make_workspace(monkeypatch)
     panels = [
-        FakeGraphPanel(result.main_analysis_stack, f"panel-{index}")
+        FakeGraphPanel(result.main_stack, f"panel-{index}")
         for index in range(3)
     ]
     for panel in panels:
-        result.add_graph_panel(panel, "middle")
+        result.add_data_view_panel(panel, "middle")
 
-    result._graph_panel_heights.update(zip(panels, (360, 420, 480)))
-    result._apply_graph_sash_heights(result._stack_roots["middle"])
+    result._data_view_panel_heights.update(zip(panels, (360, 420, 480)))
+    result._apply_data_view_sash_heights(result._stack_roots["middle"])
 
-    result.remove_graph_panel(panels[1], "middle")
+    result.remove_data_view_panel(panels[1], "middle")
 
     remaining_splitters = stack_splitters(result._stack_roots["middle"])
     assert len(remaining_splitters) == 1
     assert remaining_splitters[0].GetWindow1() is panels[0]
     assert remaining_splitters[0].GetWindow2() is panels[2]
     assert remaining_splitters[0].GetSashPosition() == 360
-    assert result._graph_panel_heights[panels[0]] == 360
-    assert result._graph_panel_heights[panels[2]] == 480
+    assert result._data_view_panel_heights[panels[0]] == 360
+    assert result._data_view_panel_heights[panels[2]] == 480
 
 
 def test_adding_empty_graphs_preserves_existing_panel_heights(
@@ -1439,41 +1439,41 @@ def test_adding_empty_graphs_preserves_existing_panel_heights(
 ) -> None:
     result, _seeks, _frame = make_workspace(monkeypatch)
     panels = [
-        FakeGraphPanel(result.main_analysis_stack, f"empty-{index}")
+        FakeGraphPanel(result.main_stack, f"empty-{index}")
         for index in range(3)
     ]
 
-    result.add_graph_panel(panels[0], "middle")
-    result._graph_panel_heights[panels[0]] = 360
-    result.add_graph_panel(panels[1], "middle")
+    result.add_data_view_panel(panels[0], "middle")
+    result._data_view_panel_heights[panels[0]] = 360
+    result.add_data_view_panel(panels[1], "middle")
 
     splitters = stack_splitters(result._stack_roots["middle"])
     assert splitters[-1].GetSashPosition() == 360
-    assert result._graph_panel_heights[panels[0]] == 360
-    assert result._graph_panel_heights[panels[1]] == DEFAULT_GRAPH_PANEL_HEIGHT
+    assert result._data_view_panel_heights[panels[0]] == 360
+    assert result._data_view_panel_heights[panels[1]] == DEFAULT_DATA_VIEW_PANEL_HEIGHT
 
-    result.add_graph_panel(panels[2], "middle")
+    result.add_data_view_panel(panels[2], "middle")
 
     splitters = stack_splitters(result._stack_roots["middle"])
     assert splitters[-1].GetSashPosition() == (
-        360 + splitters[-1].GetSashSize() + DEFAULT_GRAPH_PANEL_HEIGHT
+        360 + splitters[-1].GetSashSize() + DEFAULT_DATA_VIEW_PANEL_HEIGHT
     )
     assert splitters[0].GetSashPosition() == 360
-    assert result._graph_panel_heights[panels[0]] == 360
-    assert result._graph_panel_heights[panels[1]] == DEFAULT_GRAPH_PANEL_HEIGHT
-    assert result._graph_panel_heights[panels[2]] == DEFAULT_GRAPH_PANEL_HEIGHT
+    assert result._data_view_panel_heights[panels[0]] == 360
+    assert result._data_view_panel_heights[panels[1]] == DEFAULT_DATA_VIEW_PANEL_HEIGHT
+    assert result._data_view_panel_heights[panels[2]] == DEFAULT_DATA_VIEW_PANEL_HEIGHT
 
 
-def test_dragging_graph_sash_resizes_panel_above_and_keeps_panels_below(
+def test_dragging_data_view_sash_resizes_panel_above_and_keeps_panels_below(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     result, _seeks, _frame = make_workspace(monkeypatch)
     panels = [
-        FakeGraphPanel(result.main_analysis_stack, f"panel-{index}")
+        FakeGraphPanel(result.main_stack, f"panel-{index}")
         for index in range(3)
     ]
     for panel in panels:
-        result.add_graph_panel(panel, "middle")
+        result.add_data_view_panel(panel, "middle")
     inner = stack_splitters(result._stack_roots["middle"])[0]
     root = result._stack_roots["middle"]
     assert inner.GetWindow1() is panels[0]
@@ -1497,25 +1497,25 @@ def test_dragging_graph_sash_resizes_panel_above_and_keeps_panels_below(
     # while the changing event is dispatched.
     inner.SetSashPosition(340)
     event = SashEvent(340)
-    result._on_graph_sash_changing("middle", inner, event)
+    result._on_data_view_sash_changing("middle", inner, event)
 
     assert event.vetoed
-    assert result._graph_panel_heights[panels[0]] == 340
-    assert result._graph_panel_heights[panels[1]] == 280
-    assert result._graph_panel_heights[panels[2]] == 280
+    assert result._data_view_panel_heights[panels[0]] == 340
+    assert result._data_view_panel_heights[panels[1]] == 280
+    assert result._data_view_panel_heights[panels[2]] == 280
     assert inner.GetSashPosition() == 340
     assert root.GetMinSize().height == 340 + 4 + 280 + 4 + 280
 
     panels[0].current_size = FakeSize(320, 340)
-    result._on_graph_sash_changing("middle", inner, SashEvent(310))
+    result._on_data_view_sash_changing("middle", inner, SashEvent(310))
 
-    assert result._graph_panel_heights[panels[0]] == 310
-    assert result._graph_panel_heights[panels[1]] == 280
+    assert result._data_view_panel_heights[panels[0]] == 310
+    assert result._data_view_panel_heights[panels[1]] == 280
     assert root.GetMinSize().height == 310 + 4 + 280 + 4 + 280
 
-    result._on_graph_sash_changing("middle", inner, SashEvent(34))
+    result._on_data_view_sash_changing("middle", inner, SashEvent(34))
 
-    assert result._graph_panel_heights[panels[0]] == workspace.MIN_GRAPH_PANEL_HEIGHT
+    assert result._data_view_panel_heights[panels[0]] == workspace.MIN_DATA_VIEW_PANEL_HEIGHT
 
 
 def test_bottom_handle_grows_bottom_panel_and_scroll_extends_past_it(
@@ -1523,12 +1523,12 @@ def test_bottom_handle_grows_bottom_panel_and_scroll_extends_past_it(
 ) -> None:
     result, _seeks, _frame = make_workspace(monkeypatch)
     panels = [
-        FakeGraphPanel(result.main_analysis_stack, f"panel-{index}")
+        FakeGraphPanel(result.main_stack, f"panel-{index}")
         for index in range(2)
     ]
     for panel in panels:
-        result.add_graph_panel(panel, "middle")
-    stack = result.main_analysis_stack
+        result.add_data_view_panel(panel, "middle")
+    stack = result.main_stack
     handle = result._stack_handles["middle"]
     root = result._stack_roots["middle"]
 
@@ -1537,7 +1537,7 @@ def test_bottom_handle_grows_bottom_panel_and_scroll_extends_past_it(
     assert stack.sizer.minimum_sizes[stack.sizer.items[-1][0]].height == (
         stack.GetClientSize().height
     )
-    assert result._bottom_graph_panel("middle") is panels[1]
+    assert result._bottom_data_view_panel("middle") is panels[1]
     root_entry = next(entry for entry in stack.sizer.items if entry[0] is root)
     assert root_entry[1] == 0
     # Slack equals one client viewport beyond the fitted content.
@@ -1556,21 +1556,21 @@ def test_bottom_handle_grows_bottom_panel_and_scroll_extends_past_it(
     FakeMouse.position = (0, 540)
     handle.bindings[workspace.wx.EVT_MOTION](DragEvent())
 
-    assert result._graph_panel_heights[panels[1]] == 280 + 40
-    assert result._graph_panel_heights[panels[0]] == 280
+    assert result._data_view_panel_heights[panels[1]] == 280 + 40
+    assert result._data_view_panel_heights[panels[0]] == 280
 
     handle.bindings[workspace.wx.EVT_LEFT_UP](DragEvent())
     assert not handle.HasCapture()
 
     FakeMouse.position = (0, 900)
     handle.bindings[workspace.wx.EVT_MOTION](DragEvent())
-    assert result._graph_panel_heights[panels[1]] == 280 + 40
+    assert result._data_view_panel_heights[panels[1]] == 280 + 40
 
 
 def test_stack_size_event_refits_virtual_size(monkeypatch: pytest.MonkeyPatch) -> None:
     result, _seeks, _frame = make_workspace(monkeypatch)
-    stack = result.main_analysis_stack
-    result.add_graph_panel(FakeGraphPanel(stack, "resized"))
+    stack = result.main_stack
+    result.add_data_view_panel(FakeGraphPanel(stack, "resized"))
     stack.client_size = FakeSize(180, 520)
     event = FakeEvent()
 
@@ -1585,12 +1585,12 @@ def test_growing_bottom_panel_keeps_stack_scroll_position(
 ) -> None:
     result, _seeks, _frame = make_workspace(monkeypatch)
     panels = [
-        FakeGraphPanel(result.main_analysis_stack, f"panel-{index}")
+        FakeGraphPanel(result.main_stack, f"panel-{index}")
         for index in range(2)
     ]
     for panel in panels:
-        result.add_graph_panel(panel, "middle")
-    stack = result.main_analysis_stack
+        result.add_data_view_panel(panel, "middle")
+    stack = result.main_stack
     handle = result._stack_handles["middle"]
     stack.view_start = (0, 500)
 
@@ -1606,11 +1606,11 @@ def test_growing_bottom_panel_keeps_stack_scroll_position(
     assert stack.view_start == (0, 500)
 
 
-def test_add_graph_actions_route_to_the_correct_stack(
+def test_add_data_view_actions_route_to_the_correct_stack(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     added_to: list[str] = []
-    result, _seeks, _frame = make_workspace(monkeypatch, on_add_graph=added_to.append)
+    result, _seeks, _frame = make_workspace(monkeypatch, on_add_data_view=added_to.append)
 
     result._add_buttons["middle"].trigger(workspace.wx.EVT_BUTTON)
     result._add_buttons["right"].trigger(workspace.wx.EVT_BUTTON)
@@ -1619,22 +1619,22 @@ def test_add_graph_actions_route_to_the_correct_stack(
     assert added_to == ["middle", "right", "middle"]
 
 
-def test_graph_stacks_use_styled_horizontal_splitters_and_collapse_on_close(
+def test_data_view_stacks_use_styled_horizontal_splitters_and_collapse_on_close(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     result, _seeks, _frame = make_workspace(monkeypatch)
     middle_panels = [
-        FakeGraphPanel(result.main_analysis_stack, f"middle-{index}")
+        FakeGraphPanel(result.main_stack, f"middle-{index}")
         for index in range(3)
     ]
     right_panels = [
-        FakeGraphPanel(result.comparison_stack, f"right-{index}") for index in range(2)
+        FakeGraphPanel(result.additional_stack, f"right-{index}") for index in range(2)
     ]
 
     for panel in middle_panels:
-        result.add_graph_panel(panel, "middle")
+        result.add_data_view_panel(panel, "middle")
     for panel in right_panels:
-        result.add_graph_panel(panel, "right")
+        result.add_data_view_panel(panel, "right")
 
     middle_root = result._stack_roots["middle"]
     right_root = result._stack_roots["right"]
@@ -1647,42 +1647,42 @@ def test_graph_stacks_use_styled_horizontal_splitters_and_collapse_on_close(
     assert middle_root.sash_gravity == 0.5
     assert right_root.sash_gravity == 0.5
     assert middle_root.GetMinSize().height == (
-        3 * DEFAULT_GRAPH_PANEL_HEIGHT + 2 * 4
+        3 * DEFAULT_DATA_VIEW_PANEL_HEIGHT + 2 * 4
     )
-    assert right_root.GetMinSize().height == 2 * DEFAULT_GRAPH_PANEL_HEIGHT + 4
+    assert right_root.GetMinSize().height == 2 * DEFAULT_DATA_VIEW_PANEL_HEIGHT + 4
 
-    result.remove_graph_panel(middle_panels[1], "middle")
-    assert result._graph_panels["middle"] == [middle_panels[0], middle_panels[2]]
+    result.remove_data_view_panel(middle_panels[1], "middle")
+    assert result._data_view_panels["middle"] == [middle_panels[0], middle_panels[2]]
     assert result._stack_roots["middle"].GetMinSize().height == (
-        2 * DEFAULT_GRAPH_PANEL_HEIGHT + 4
+        2 * DEFAULT_DATA_VIEW_PANEL_HEIGHT + 4
     )
-    assert result._graph_panels["right"] == right_panels
+    assert result._data_view_panels["right"] == right_panels
     # A collapsed nested splitter must be parked before GTK lays out its parent.
-    assert nested_middle_splitter.GetParent() is result.main_analysis_stack.GetParent()
+    assert nested_middle_splitter.GetParent() is result.main_stack.GetParent()
 
-    result.remove_graph_panel(middle_panels[0], "middle")
+    result.remove_data_view_panel(middle_panels[0], "middle")
     assert result._stack_roots["middle"] is middle_panels[2]
     # Both the hidden pane and its retiring splitter must leave the scroller
     # before the collapsed stack triggers another native allocation.
-    assert middle_panels[0].GetParent() is result.main_analysis_stack.GetParent()
-    assert middle_root.GetParent() is result.main_analysis_stack.GetParent()
-    result.remove_graph_panel(middle_panels[2], "middle")
+    assert middle_panels[0].GetParent() is result.main_stack.GetParent()
+    assert middle_root.GetParent() is result.main_stack.GetParent()
+    result.remove_data_view_panel(middle_panels[2], "middle")
     assert result._stack_roots["middle"] is None
 
 
-def test_many_graph_panels_keep_horizontal_sashes_and_minimum_sizes(
+def test_many_data_view_panels_keep_horizontal_sashes_and_minimum_sizes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     result, _seeks, _frame = make_workspace(monkeypatch)
     panels = [
-        FakeGraphPanel(result.main_analysis_stack, f"many-{index}")
+        FakeGraphPanel(result.main_stack, f"many-{index}")
         for index in range(5)
     ]
     for panel in panels:
-        result.add_graph_panel(panel, "middle")
+        result.add_data_view_panel(panel, "middle")
 
     assert result._stack_roots["middle"].GetMinSize().height == (
-        5 * DEFAULT_GRAPH_PANEL_HEIGHT + 4 * 4
+        5 * DEFAULT_DATA_VIEW_PANEL_HEIGHT + 4 * 4
     )
     splitters = stack_splitters(result._stack_roots["middle"])
     assert len(splitters) == 4
@@ -1691,66 +1691,66 @@ def test_many_graph_panels_keep_horizontal_sashes_and_minimum_sizes(
         for splitter in splitters
     )
     assert all(splitter.split_orientations == ["horizontal"] for splitter in splitters)
-    assert result._graph_panels["right"] == []
+    assert result._data_view_panels["right"] == []
 
 
-def test_moving_graph_panel_reorders_live_hosts_without_replacing_them(
+def test_moving_data_view_panel_reorders_live_hosts_without_replacing_them(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     result, _seeks, _frame = make_workspace(monkeypatch)
     panels = [
-        FakeGraphPanel(result.main_analysis_stack, f"panel-{index}")
+        FakeGraphPanel(result.main_stack, f"panel-{index}")
         for index in range(3)
     ]
     for panel in panels:
-        result.add_graph_panel(panel)
+        result.add_data_view_panel(panel)
 
-    result.move_graph_panel(panels[0], "middle", 1)
+    result.move_data_view_panel(panels[0], "middle", 1)
 
-    assert result._graph_panels["middle"] == [panels[1], panels[0], panels[2]]
-    assert [panel.panel_id for panel in result._graph_panels["middle"]] == [
+    assert result._data_view_panels["middle"] == [panels[1], panels[0], panels[2]]
+    assert [panel.panel_id for panel in result._data_view_panels["middle"]] == [
         "panel-1",
         "panel-0",
         "panel-2",
     ]
     assert result._stack_roots["middle"] is not None
-    result.move_graph_panel(panels[0], "middle", -1)
-    assert result._graph_panels["middle"] == panels
+    result.move_data_view_panel(panels[0], "middle", -1)
+    assert result._data_view_panels["middle"] == panels
 
 
 @pytest.mark.parametrize("panel_index", [0, 1, 2])
-def test_replacing_graph_panel_preserves_height_order_splitter_and_scroll_position(
+def test_replacing_data_view_panel_preserves_height_order_splitter_and_scroll_position(
     monkeypatch: pytest.MonkeyPatch,
     panel_index: int,
 ) -> None:
     result, _seeks, _frame = make_workspace(monkeypatch)
     panels = [
-        FakeGraphPanel(result.main_analysis_stack, f"panel-{index}")
+        FakeGraphPanel(result.main_stack, f"panel-{index}")
         for index in range(3)
     ]
     for panel in panels:
-        result.add_graph_panel(panel)
+        result.add_data_view_panel(panel)
     original = panels[panel_index]
-    result._graph_panel_heights.update(zip(panels, (360, 420, 480)))
-    result._layout_graph_stack("middle")
-    result._apply_graph_sash_heights(result._stack_roots["middle"])
+    result._data_view_panel_heights.update(zip(panels, (360, 420, 480)))
+    result._layout_data_view_stack("middle")
+    result._apply_data_view_sash_heights(result._stack_roots["middle"])
     stack_height = result._stack_roots["middle"].GetMinSize().height
-    result.main_analysis_stack.view_start = (0, 7)
+    result.main_stack.view_start = (0, 7)
     parent_splitter = original.GetParent()
     sash_position = parent_splitter.GetSashPosition()
-    replacement = FakeGraphPanel(result.main_analysis_stack, "replacement")
+    replacement = FakeGraphPanel(result.main_stack, "replacement")
 
-    result.replace_graph_panel(original, replacement)
+    result.replace_data_view_panel(original, replacement)
 
     expected_panels = list(panels)
     expected_panels[panel_index] = replacement
-    assert result._graph_panels["middle"] == expected_panels
-    assert [result._graph_panel_heights[panel] for panel in expected_panels] == [
+    assert result._data_view_panels["middle"] == expected_panels
+    assert [result._data_view_panel_heights[panel] for panel in expected_panels] == [
         360,
         420,
         480,
     ]
-    assert original not in result._graph_panel_heights
+    assert original not in result._data_view_panel_heights
     assert result._stack_roots["middle"].GetMinSize().height == stack_height
     assert replacement.GetParent() is parent_splitter
     assert replacement in (
@@ -1758,56 +1758,56 @@ def test_replacing_graph_panel_preserves_height_order_splitter_and_scroll_positi
         parent_splitter.GetWindow2(),
     )
     assert parent_splitter.GetSashPosition() == sash_position
-    assert result.main_analysis_stack.view_start == (0, 7)
+    assert result.main_stack.view_start == (0, 7)
 
 
-def test_replacing_only_graph_panel_updates_stack_root(
+def test_replacing_only_data_view_panel_updates_stack_root(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     result, _seeks, _frame = make_workspace(monkeypatch)
-    original = FakeGraphPanel(result.main_analysis_stack, "original")
-    replacement = FakeGraphPanel(result.main_analysis_stack, "replacement")
-    result.add_graph_panel(original)
+    original = FakeGraphPanel(result.main_stack, "original")
+    replacement = FakeGraphPanel(result.main_stack, "replacement")
+    result.add_data_view_panel(original)
     original.current_size = FakeSize(640, 450)
-    result.main_analysis_stack.view_start = (0, 3)
+    result.main_stack.view_start = (0, 3)
 
-    result.replace_graph_panel(original, replacement)
+    result.replace_data_view_panel(original, replacement)
 
     assert result._stack_roots["middle"] is replacement
-    assert result._graph_panels["middle"] == [replacement]
-    assert replacement.GetParent() is result.main_analysis_stack
+    assert result._data_view_panels["middle"] == [replacement]
+    assert replacement.GetParent() is result.main_stack
     assert replacement.GetMinSize().height == 450
-    assert result._graph_panel_heights[replacement] == 450
-    assert original not in result._graph_panel_heights
-    assert result.main_analysis_stack.view_start == (0, 3)
+    assert result._data_view_panel_heights[replacement] == 450
+    assert original not in result._data_view_panel_heights
+    assert result.main_stack.view_start == (0, 3)
 
 
-def test_workspace_serializes_and_coalesces_visible_graph_redraws(
+def test_workspace_serializes_and_coalesces_visible_data_view_redraws(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     result, _seeks, _frame = make_workspace(monkeypatch)
 
-    first = FakeGraphPanel(result.main_analysis_stack, "first")
-    second = FakeGraphPanel(result.main_analysis_stack, "second")
-    result.add_graph_panel(first)
-    result.add_graph_panel(second)
-    monkeypatch.setattr(result, "is_graph_panel_visible", lambda _panel: True)
+    first = FakeGraphPanel(result.main_stack, "first")
+    second = FakeGraphPanel(result.main_stack, "second")
+    result.add_data_view_panel(first)
+    result.add_data_view_panel(second)
+    monkeypatch.setattr(result, "is_data_view_panel_visible", lambda _panel: True)
 
-    result.queue_graph_redraw(first)
-    first_timer = result._graph_redraw_timer
-    result.queue_graph_redraw(first)
-    result.queue_graph_redraw(second)
+    result.queue_data_view_redraw(first)
+    first_timer = result._data_view_redraw_timer
+    result.queue_data_view_redraw(first)
+    result.queue_data_view_redraw(second)
 
     assert first_timer is not None and first_timer.delay_ms == 1
     first_timer.fire()
-    second_timer = result._graph_redraw_timer
+    second_timer = result._data_view_redraw_timer
     assert first.draw_count == 1
     assert second.draw_count == 0
     assert second_timer is not None and second_timer.delay_ms == 33
 
     second_timer.fire()
     assert second.draw_count == 1
-    assert result._graph_redraw_timer is None
+    assert result._data_view_redraw_timer is None
 
 
 def test_feature_rail_supports_click_and_vertical_keyboard_navigation(

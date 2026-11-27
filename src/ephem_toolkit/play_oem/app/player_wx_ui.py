@@ -91,8 +91,8 @@ class PlayerWxUiMixin:
             timeline_tooltip_at=self._timeline_tooltip_at,
             context=self._formatted_dashboard_context(),
             details=self._formatted_metadata_details(),
-            view_choices=self._panel_view_choices,
-            on_add_graph=self._add_graph_panel,
+            data_view_choices=self._panel_data_view_choices,
+            on_add_data_view=self._add_data_view_panel,
             on_open_preset=self._open_station_preset,
             on_follow_selection=self._set_follow_station_selection,
             status_bar=self.status_bar,
@@ -166,7 +166,7 @@ class PlayerWxUiMixin:
         self._in_timer_tick = False
         self._started = False
         self._closed = False
-        self._open_views = {}
+        self._open_data_views = {}
         self._open_panels = {}
         self.workspace.set_oem_loaded(oem_loaded)
         if not oem_loaded:

@@ -11,7 +11,7 @@ from ephem_toolkit.play_oem.oem_data_store import OemDataStore
 from ephem_toolkit.play_oem.series import compute_orbit_series
 from ephem_toolkit.play_oem.time_range import ResolvedTimeRange
 from ephem_toolkit.play_oem.time_unit import TimeUnit
-from ephem_toolkit.play_oem.views.base import StoreViewContext
+from ephem_toolkit.play_oem.views.data_view_base import StoreViewContext
 from ephem_toolkit.play_oem.views.speed_altitude import SpeedAltitudeView
 
 
