@@ -12,7 +12,7 @@ from matplotlib.path import Path
 from matplotlib.text import Text
 from matplotlib.transforms import Affine2D
 
-from .. import series, time_unit
+from .. import time_unit
 from ..matplotlib_helpers import create_figure, style_axes
 from ..oem_data_store import ColumnGroupView, StoreQuery
 from ..time_range import ResolvedTimeRange
@@ -22,7 +22,6 @@ from .data_view_base import (
 from .orbit_time_series import OrbitTimeSeriesView
 from .plotting import (
     MAX_DISPLAY_POINTS_PER_SEGMENT,
-    SegmentedPlotHistory,
     set_shared_x_limits,
     time_bounds_to_axis,
 )
@@ -65,61 +64,9 @@ class SpeedAltitudeView(OrbitTimeSeriesView):
         ] = ((), ())
         self._store_empty_artists: tuple[Text, Text] | None = None
 
-    def build(
-        self, orbit_series: series.OrbitSeries, time_unit: time_unit.TimeUnit
-    ) -> Figure | wx.Window:
-        """Build the speed and altitude histories with cursor lines.
-
-        Parameters
-        ----------
-        orbit_series : series.OrbitSeries
-            Derived speed, altitude, and elapsed-time histories.
-        time_unit : time_unit.TimeUnit
-            Display unit used for the elapsed-time axis.
-
-        Returns
-        -------
-        Figure
-            Matplotlib figure containing the two time-series data_views.
-
-        Raises
-        ------
-        RuntimeError
-            If this view has already been built.
-        """
-        if self._figure is not None:
-            raise RuntimeError("speed/altitude view has already been built")
-
-        figure, speed_axes, altitude_axes = self._create_figure(time_unit)
-        speed_history = SegmentedPlotHistory(
-            speed_axes,
-            orbit_series.elapsed_time,
-            orbit_series.velocity_magnitude_km_s,
-            orbit_series.segment_ids,
-        )
-        altitude_history = SegmentedPlotHistory(
-            altitude_axes,
-            orbit_series.elapsed_time,
-            orbit_series.altitude_km,
-            orbit_series.segment_ids,
-        )
-        self._histories = (speed_history, altitude_history)
-        self._cursor_artists = self._make_cursor_artists(speed_axes, altitude_axes)
-        self._configure_time_range(
-            (speed_axes, altitude_axes),
-            self._histories,
-            self._cursor_artists,
-            self._start_time_s,
-            self._time_unit_divisor_s,
-        )
-        return self._present_figure(
-            figure,
-            start_time_s=float(self._store_start_time_s),
-            display_time_unit=time_unit,
-        )
 
     def build_from_store(self, context: StoreViewContext) -> Figure | wx.Window:
-        """Build from a range-limited store query without an OrbitSeries projection."""
+        """Build from a range-limited store query."""
         if self._figure is not None:
             raise RuntimeError("speed/altitude view has already been built")
         figure, speed_axes, altitude_axes = self._create_figure(context.time_unit)
@@ -304,32 +251,12 @@ class SpeedAltitudeView(OrbitTimeSeriesView):
         self, bounds: ResolvedTimeRange | None, coverage: tuple[float, float], /
     ) -> None:
         if self._store_context is None:
-            super().set_time_range(bounds, coverage)
-            return
+            raise RuntimeError("speed/altitude view was not built from a store")
         self._apply_store_context(
             self._store_context_for_range(bounds, coverage),
             rescale_y=False,
         )
 
-    def update_data(
-        self, orbit_series: series.OrbitSeries, time_unit: time_unit.TimeUnit
-    ) -> bool:
-        return self._update_history_data(
-            (
-                (
-                    orbit_series.elapsed_time,
-                    orbit_series.velocity_magnitude_km_s,
-                    orbit_series.segment_ids,
-                ),
-                (
-                    orbit_series.elapsed_time,
-                    orbit_series.altitude_km,
-                    orbit_series.segment_ids,
-                ),
-            ),
-            self._start_time_s,
-            time_unit.get_divisor_s(),
-        )
 
     def update(self, time_s: float) -> None:
         """Move both cursor lines to an absolute OEM time.

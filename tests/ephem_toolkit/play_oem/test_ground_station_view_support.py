@@ -28,6 +28,7 @@ from ephem_toolkit.play_oem.views.ground_station import (
     GroundStationView,
     RangeProfileRenderer,
 )
+from tests.ephem_toolkit.play_oem.cursor_helpers import make_store_context
 from ephem_toolkit.play_oem.app.player_app_state import PlayerAppState
 from ephem_toolkit.play_oem.app.player_data_view_factory import PlayerViewFactoryMixin
 
@@ -187,7 +188,16 @@ def test_elevation_profile_builds_floating_controls_and_minimum_canvas() -> None
     )
 
     try:
-        panel = view.build(cast(Any, None), TimeUnit.MINUTES)
+        context = make_store_context(
+            [0.0, 60.0, 120.0],
+            [
+                np.asarray([7_000_000.0, 0.0, 0.0, 0.0, 7_500.0, 0.0]),
+                np.asarray([0.0, 7_000_000.0, 0.0, -7_500.0, 0.0, 0.0]),
+                np.asarray([-7_000_000.0, 0.0, 0.0, 0.0, -7_500.0, 0.0]),
+            ],
+            TimeUnit.MINUTES,
+        )
+        panel = view.build_from_store(context)
         renderer = view._renderer
         frame.Show()
         app.Yield()
@@ -491,7 +501,16 @@ def test_azimuth_profile_builds_floating_controls_and_minimum_canvas() -> None:
     )
 
     try:
-        panel = view.build(cast(Any, None), TimeUnit.MINUTES)
+        context = make_store_context(
+            [0.0, 60.0, 120.0],
+            [
+                np.asarray([7_000_000.0, 0.0, 0.0, 0.0, 7_500.0, 0.0]),
+                np.asarray([0.0, 7_000_000.0, 0.0, -7_500.0, 0.0, 0.0]),
+                np.asarray([-7_000_000.0, 0.0, 0.0, 0.0, -7_500.0, 0.0]),
+            ],
+            TimeUnit.MINUTES,
+        )
+        panel = view.build_from_store(context)
         renderer = view._renderer
         frame.Show()
         app.Yield()
@@ -587,7 +606,16 @@ def test_range_profile_builds_floating_controls_and_minimum_canvas() -> None:
     )
 
     try:
-        panel = view.build(cast(Any, None), TimeUnit.MINUTES)
+        context = make_store_context(
+            [0.0, 60.0, 120.0],
+            [
+                np.asarray([7_000_000.0, 0.0, 0.0, 0.0, 7_500.0, 0.0]),
+                np.asarray([0.0, 7_000_000.0, 0.0, -7_500.0, 0.0, 0.0]),
+                np.asarray([-7_000_000.0, 0.0, 0.0, 0.0, -7_500.0, 0.0]),
+            ],
+            TimeUnit.MINUTES,
+        )
+        panel = view.build_from_store(context)
         renderer = view._renderer
         frame.Show()
         app.Yield()

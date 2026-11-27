@@ -16,7 +16,6 @@ from ..display_time import UTC_DISPLAY, format_tt
 from ..ground_stations import GroundStation
 from ..matplotlib_helpers import create_figure, style_axes
 from ..oem_data_store import StationAccessView, StoreQuery
-from ..series import OrbitSeries
 from ..station_access import (
     AccessInterval,
     LookAngleProfile,
@@ -133,6 +132,7 @@ class GroundStationPassesView(StoreStationViewSupport):
         self._store_queries: dict[str, StoreQuery[StationAccessView]] = {}
         self._time_range_bounds: ResolvedTimeRange | None = None
         self._time_range_applied = False
+        self._time_range_coverage: tuple[float, float] | None = None
         self._range_label_text = ""
         self._coverage_readout_text = ""
         self._status_text = ""
@@ -172,15 +172,13 @@ class GroundStationPassesView(StoreStationViewSupport):
         """Stable station identity selected in this panel."""
         return self._selected_station_id
 
-    def build(self, _series: OrbitSeries, _time_unit: TimeUnit, /) -> wx.Window:
-        return self._build_panel()
-
     def build_from_store(self, context: StoreViewContext, /) -> wx.Window:
         """Build from range-bound pass queries in a stable store snapshot."""
         self._prepare_station_store_context(context)
         self._prepare_range = context.plot_range
         self._time_range_bounds = context.plot_range
         self._time_range_applied = True
+        self._time_range_coverage = context.coverage
         self._prepare_access()
         return self._build_panel()
 
@@ -190,6 +188,7 @@ class GroundStationPassesView(StoreStationViewSupport):
         self._prepare_range = context.plot_range
         self._time_range_bounds = context.plot_range
         self._time_range_applied = True
+        self._time_range_coverage = context.coverage
         self._prepare_access()
         self._refresh_rows()
         self.update(self._current_time_s)
@@ -996,10 +995,15 @@ class GroundStationPassesView(StoreStationViewSupport):
     def set_time_range(
         self, bounds: ResolvedTimeRange | None, coverage: tuple[float, float], /
     ) -> None:
-        if self._time_range_applied and bounds == self._time_range_bounds:
+        if (
+            self._time_range_applied
+            and bounds == self._time_range_bounds
+            and coverage == self._time_range_coverage
+        ):
             return
         self._time_range_bounds = bounds
         self._time_range_applied = True
+        self._time_range_coverage = coverage
         if self._station_store_context is not None:
             self._station_store_context = self._station_store_context_for_range(
                 bounds, coverage
@@ -1044,6 +1048,7 @@ class GroundStationPassesView(StoreStationViewSupport):
         self._current_time_s = cursor.t_start
         self._time_range_bounds = None
         self._time_range_applied = False
+        self._time_range_coverage = None
         self._selected_interval_key = None
         self._prepare_access()
         self._update_coverage_readout()

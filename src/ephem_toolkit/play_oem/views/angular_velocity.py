@@ -9,7 +9,7 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.text import Text
 
-from .. import series, time_unit
+from .. import time_unit
 from ..matplotlib_helpers import create_figure, style_axes
 from ..oem_data_store import ColumnGroupView, StoreQuery
 from ..time_range import ResolvedTimeRange
@@ -21,7 +21,6 @@ from .data_view_base import (
 )
 from .orbit_time_series import OrbitTimeSeriesView
 from .plotting import (
-    SegmentedPlotHistory,
     set_shared_x_limits,
     time_bounds_to_axis,
 )
@@ -170,116 +169,13 @@ class AngularVelocityView(OrbitTimeSeriesView):
         self.update(self._last_cursor_time_s)
         style_axes(*self._figure.axes)
 
-    def build(
-        self, orbit_series: series.OrbitSeries, time_unit: time_unit.TimeUnit
-    ) -> Figure | wx.Window:
-        """Build the angular-rate histories and synchronized cursor lines."""
-        if self._figure is not None:
-            raise RuntimeError("angular-velocity view has already been built")
-        if (
-            orbit_series.elapsed_time.ndim != 1
-            or orbit_series.angular_velocity_deg_s.ndim != 1
-            or orbit_series.angular_velocity_rad_s.ndim != 1
-            or any(
-                values.size not in (0, orbit_series.elapsed_time.size)
-                for values in (
-                    orbit_series.angular_velocity_deg_s,
-                    orbit_series.angular_velocity_rad_s,
-                )
-            )
-        ):
-            raise ValueError("angular-velocity arrays must match elapsed_time")
 
-        figure = create_figure(FIGURE_SIZE_INCHES)
-        axes_array = figure.subplots(2, 1, sharex=True)
-        rates = (
-            (
-                orbit_series.angular_velocity_deg_s,
-                "Angular Velocity (deg/s)",
-                "Angular Velocity / Attitude Rate vs Time",
-            ),
-            (
-                orbit_series.angular_velocity_rad_s,
-                "Angular Velocity (rad/s)",
-                "Angular Velocity / Attitude Rate (rad/s)",
-            ),
-        )
-        cursor_artists: list[Line2D] = []
-        histories: list[SegmentedPlotHistory] = []
-
-        for axes, (values, y_label, title) in zip(axes_array, rates):
-            axes.grid(True)
-            axes.ticklabel_format(style="plain", axis="y")
-            axes.set_xlabel(time_unit.get_axis_label())
-            axes.set_ylabel(y_label)
-            axes.set_title(title)
-            if values.size > 1:
-                valid_segments = np.where(values != 0.0, orbit_series.segment_ids, -1)
-                rate_history = SegmentedPlotHistory(
-                    axes,
-                    orbit_series.elapsed_time,
-                    values,
-                    valid_segments,
-                    linewidth=2,
-                    label=f"{self._object_name} angular rate",
-                )
-                histories.append(rate_history)
-                if not rate_history.artists:
-                    axes.plot(
-                        [], [], linewidth=2, label=f"{self._object_name} angular rate"
-                    )
-                axes.legend(loc="upper right")
-            else:
-                axes.text(0.5, 0.5, "Not enough samples", ha="center", va="center")
-            cursor_artists.append(
-                axes.axvline(0.0, color=CURSOR_LINE_COLOR, linestyle="--")
-            )
-
-        self._figure = figure
-        self._cursor_artists = (cursor_artists[0], cursor_artists[1])
-        self._time_unit_divisor_s = time_unit.get_divisor_s()
-        self._histories = tuple(histories)
-        self._configure_time_range(
-            (axes_array[0], axes_array[1]),
-            self._histories,
-            self._cursor_artists,
-            self._start_time_s,
-            self._time_unit_divisor_s,
-        )
-        self.update(self._start_time_s)
-        style_axes(*figure.axes)
-        return self._present_figure(
-            figure,
-            start_time_s=float(self._store_start_time_s),
-            display_time_unit=time_unit,
-        )
-
-    def update_data(
-        self, orbit_series: series.OrbitSeries, time_unit: time_unit.TimeUnit
-    ) -> bool:
-        datasets = []
-        for values in (
-            orbit_series.angular_velocity_deg_s,
-            orbit_series.angular_velocity_rad_s,
-        ):
-            if values.size > 1:
-                datasets.append(
-                    (
-                        orbit_series.elapsed_time,
-                        values,
-                        np.where(values != 0.0, orbit_series.segment_ids, -1),
-                    )
-                )
-        return self._update_history_data(
-            datasets, self._start_time_s, time_unit.get_divisor_s()
-        )
 
     def set_time_range(
         self, bounds: ResolvedTimeRange | None, coverage: tuple[float, float], /
     ) -> None:
         if self._store_context is None:
-            super().set_time_range(bounds, coverage)
-            return
+            raise RuntimeError("angular-velocity view was not built from a store")
         self._apply_store_context(
             self._store_context_for_range(bounds, coverage),
             rescale_y=False,

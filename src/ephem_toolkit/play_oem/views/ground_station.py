@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from typing import Protocol, cast
+from typing import Protocol
 
 import numpy as np
 import wx
@@ -18,7 +18,6 @@ from ..display_time import UTC_DISPLAY, format_tt
 from ..ground_stations import GroundStation
 from ..matplotlib_helpers import create_figure, style_axes
 from ..oem_data_store import StationAccessView, StoreQuery, TierName
-from ..series import OrbitSeries
 from ..station_access import AccessInterval, StationAccess
 from ..station_analysis import StationAnalysisContext, StationAnalysisSelection
 from ..time_range import ResolvedTimeRange
@@ -32,6 +31,7 @@ from ..widgets import (
 from .data_view_base import (
     GroundStationAnalysisMixin,
     StoreTimeSeriesView,
+    StoreViewBinding,
     StoreViewContext,
     station_access_from_store,
     store_load_status_message,
@@ -50,14 +50,6 @@ class GroundStationPanelRenderer(Protocol):
     """Lifecycle contract for one unified Ground Station panel mode."""
 
     panel_mode: str
-
-    def build(
-        self,
-        series: OrbitSeries,
-        time_unit: TimeUnit,
-        /,
-    ) -> wx.Window:
-        ...
 
     def build_from_store(self, context: StoreViewContext) -> wx.Window:
         ...
@@ -150,11 +142,7 @@ class GroundStationProfileRendererBase(
         )
         self._initialize_time_series_wx()
 
-    def build(
-        self,
-        _series: OrbitSeries,
-        time_unit: TimeUnit,
-    ) -> wx.Window:
+    def _build_panel(self, time_unit: TimeUnit) -> wx.Window:
         panel = wx.Panel(self._parent, wx.ID_ANY)
         panel.SetWindowVariant(wx.WINDOW_VARIANT_SMALL)
         panel.SetName(self.panel_label)
@@ -195,7 +183,7 @@ class GroundStationProfileRendererBase(
         self._time_range = context.plot_range
         self._coverage = context.coverage
         self._prepare_access()
-        return self.build(cast(OrbitSeries, None), context.time_unit)
+        return self._build_panel(context.time_unit)
 
     def update_from_store(self, context: StoreViewContext) -> None:
         self._begin_station_store_update(context, self.panel_label)
@@ -666,23 +654,23 @@ class GroundStationView(
         self._display_time_zone = display_time_zone
         self._time_range = initial_range
         self._current_time_s = cursor.t_start
+        self._stations = tuple(stations)
         self.seek_on_click = True
-
-        tiers: Sequence[TierName] = ("station-access",)
-        self._initialize_store_time_series(
-            cursor.t_start,
-            tiers=tiers,
-        )
-        self._initialize_ground_station_analysis(
-            stations,
-            selection_context,
-            oem_loaded=oem_loaded,
-            tiers=tiers,
-        )
-        self._initialize_time_series_wx()
+        self._selection_context = selection_context
+        self._store_context: StoreViewContext | None = None
+        self._station_store_context: StoreViewContext | None = None
+        self._store_binding = StoreViewBinding(("station-access",))
 
         self._renderer: GroundStationPanelRenderer | None = None
         self._panel: wx.Window | None = None
+
+    @property
+    def selected_station_id(self) -> str | None:
+        if self._renderer is not None:
+            return getattr(self._renderer, "selected_station_id", None)
+        if self._selection_context is not None:
+            return self._selection_context.selection.station_id
+        return self._stations[0].station_id if self._stations else None
 
     def _create_renderer(self) -> GroundStationPanelRenderer:
         if self._renderer is not None:
@@ -721,23 +709,19 @@ class GroundStationView(
     def _ensure_renderer(self) -> GroundStationPanelRenderer:
         return self._create_renderer()
 
-    def build(
-        self,
-        series: OrbitSeries,
-        time_unit: TimeUnit,
-    ) -> wx.Window:
-        self._panel = self._ensure_renderer().build(series, time_unit)
-        return self._panel
-
     def build_from_store(self, context: StoreViewContext) -> wx.Window:
-        self._prepare_station_store_context(context)
         self._time_range = context.plot_range
+        self._store_binding.bind(context)
+        self._store_context = context
+        self._station_store_context = context
         self._panel = self._ensure_renderer().build_from_store(context)
         return self._panel
 
     def update_from_store(self, context: StoreViewContext) -> None:
-        self._begin_station_store_update(context, "Ground Station")
         self._time_range = context.plot_range
+        self._store_binding.bind(context)
+        self._store_context = context
+        self._station_store_context = context
         if self._renderer is not None:
             self._renderer.update_from_store(context)
 
@@ -752,15 +736,15 @@ class GroundStationView(
         coverage: tuple[float, float],
     ) -> None:
         self._time_range = bounds
-        if self._station_store_context is not None:
-            self._station_store_context = self._station_store_context_for_range(
-                bounds, coverage
-            )
+        if self._store_context is not None:
+            context = self._store_binding.with_range(bounds, coverage)
+            self._store_context = context
+            self._station_store_context = context
         if self._renderer is not None:
             self._renderer.set_time_range(bounds, coverage)
 
     def set_stations(self, stations: Sequence[GroundStation]) -> None:
-        self._set_ground_station_stations(stations)
+        self._stations = tuple(stations)
         if self._renderer is not None:
             self._renderer.set_stations(stations)
 
@@ -777,6 +761,7 @@ class GroundStationView(
         if self._renderer is not None:
             self._renderer.close()
             self._renderer = None
-        self._close_ground_station_analysis()
-        self._close_time_series_wx()
+        self._store_binding.close()
+        self._store_context = None
+        self._station_store_context = None
         self._panel = None

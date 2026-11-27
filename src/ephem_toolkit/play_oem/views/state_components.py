@@ -11,7 +11,7 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.text import Text
 
-from .. import series, time_unit
+from .. import time_unit
 from ..matplotlib_helpers import create_figure, style_axes
 from ..time_range import ResolvedTimeRange
 from .data_view_base import (
@@ -21,7 +21,7 @@ from .data_view_base import (
     store_empty_label,
 )
 from .orbit_time_series import OrbitTimeSeriesView
-from .plotting import SegmentedPlotHistory, set_shared_x_limits, time_bounds_to_axis
+from .plotting import set_shared_x_limits, time_bounds_to_axis
 
 CARTESIAN_COMPONENT_COUNT: int = 3
 """Number of Cartesian position or velocity components."""
@@ -70,7 +70,7 @@ class StateComponentsView(OrbitTimeSeriesView):
         self._store_empty_artists: tuple[Text, ...] | None = None
 
     def build_from_store(self, context: StoreViewContext) -> Figure | wx.Window:
-        """Build from raw state columns without an OrbitSeries projection."""
+        """Build from raw state columns."""
         if self._figure is not None:
             raise RuntimeError("state-components view has already been built")
         figure = create_figure(FIGURE_SIZE_INCHES)
@@ -183,154 +183,13 @@ class StateComponentsView(OrbitTimeSeriesView):
         self.update(self._last_cursor_time_s)
         style_axes(*self._figure.axes)
 
-    def build(
-        self,
-        orbit_series: series.OrbitSeries,
-        time_unit: time_unit.TimeUnit,
-    ) -> Figure | wx.Window:
-        """Build six Cartesian component histories and synchronized cursors.
 
-        Parameters
-        ----------
-        orbit_series : series.OrbitSeries
-            Derived position, velocity, and elapsed-time histories.
-        time_unit : time_unit.TimeUnit
-            Display unit used for the elapsed-time axes.
-
-        Returns
-        -------
-        Figure
-            Matplotlib figure containing position and velocity component data_views.
-
-        Raises
-        ------
-        RuntimeError
-            If this view has already been built.
-        ValueError
-            If the series is empty or the Cartesian arrays have invalid shapes.
-        """
-        if self._figure is not None:
-            raise RuntimeError("state-components view has already been built")
-        if len(orbit_series.elapsed_time) == 0:
-            raise ValueError("cannot plot an empty state-components series")
-        if orbit_series.position_km.shape != (
-            len(orbit_series.elapsed_time),
-            CARTESIAN_COMPONENT_COUNT,
-        ) or orbit_series.velocity_km_s.shape != (
-            len(orbit_series.elapsed_time),
-            CARTESIAN_COMPONENT_COUNT,
-        ):
-            raise ValueError("state component arrays must have shape (N, 3)")
-
-        figure = create_figure(FIGURE_SIZE_INCHES)
-        axes_array = cast(
-            np.ndarray,
-            figure.subplots(
-                CARTESIAN_COMPONENT_COUNT,
-                STATE_COMPONENT_COLUMN_COUNT,
-                sharex=True,
-            ),
-        )
-        cursor_artists: list[Line2D] = []
-        histories: list[SegmentedPlotHistory] = []
-        component_labels = ("X", "Y", "Z")
-
-        for row, component in enumerate(component_labels):
-            position_axes = axes_array[row, 0]
-            velocity_axes = axes_array[row, 1]
-            histories.append(
-                SegmentedPlotHistory(
-                    position_axes,
-                    orbit_series.elapsed_time,
-                    orbit_series.position_km[:, row],
-                    orbit_series.segment_ids,
-                    max_display_points=MAX_STATE_COMPONENT_DISPLAY_POINTS_PER_SEGMENT,
-                )
-            )
-            histories.append(
-                SegmentedPlotHistory(
-                    velocity_axes,
-                    orbit_series.elapsed_time,
-                    orbit_series.velocity_km_s[:, row],
-                    orbit_series.segment_ids,
-                    max_display_points=MAX_STATE_COMPONENT_DISPLAY_POINTS_PER_SEGMENT,
-                )
-            )
-            position_axes.set_ylabel(f"{component} (km)")
-            velocity_axes.set_ylabel(f"V{component} (km/s)")
-            position_axes.grid(True)
-            velocity_axes.grid(True)
-            cursor_artists.append(
-                position_axes.axvline(
-                    0.0,
-                    color=CURSOR_LINE_COLOR,
-                    linestyle="--",
-                    animated=True,
-                )
-            )
-            cursor_artists.append(
-                velocity_axes.axvline(
-                    0.0,
-                    color=CURSOR_LINE_COLOR,
-                    linestyle="--",
-                    animated=True,
-                )
-            )
-
-        axes_array[0, 0].set_title("Position")
-        axes_array[0, 1].set_title("Velocity")
-        axes_array[2, 0].set_xlabel(time_unit.get_axis_label())
-        axes_array[2, 1].set_xlabel(time_unit.get_axis_label())
-        figure.suptitle(f"State Components | {self._frame_context}", fontsize=12)
-
-        self._figure = figure
-        self._cursor_artists = tuple(cursor_artists)
-        self._time_unit_divisor_s = time_unit.get_divisor_s()
-        self._histories = tuple(histories)
-        self._configure_time_range(
-            tuple(axes_array.flat),
-            self._histories,
-            self._cursor_artists,
-            self._start_time_s,
-            self._time_unit_divisor_s,
-        )
-        self.update(self._start_time_s)
-        style_axes(*figure.axes)
-        return self._present_figure(
-            figure,
-            start_time_s=float(self._store_start_time_s),
-            display_time_unit=time_unit,
-        )
-
-    def update_data(
-        self, orbit_series: series.OrbitSeries, time_unit: time_unit.TimeUnit
-    ) -> bool:
-        datasets = []
-        for component in range(CARTESIAN_COMPONENT_COUNT):
-            datasets.append(
-                (
-                    orbit_series.elapsed_time,
-                    orbit_series.position_km[:, component],
-                    orbit_series.segment_ids,
-                )
-            )
-            datasets.append(
-                (
-                    orbit_series.elapsed_time,
-                    orbit_series.velocity_km_s[:, component],
-                    orbit_series.segment_ids,
-                )
-            )
-        return self._update_history_data(
-            datasets, self._start_time_s, time_unit.get_divisor_s()
-        )
 
     def set_time_range(
         self, bounds: ResolvedTimeRange | None, coverage: tuple[float, float], /
     ) -> None:
         if self._store_context is None:
-            super().set_time_range(bounds, coverage)
-            return
+            raise RuntimeError("state-components view was not built from a store")
         self._apply_store_context(
             self._store_context_for_range(bounds, coverage),
             rescale_y=False,

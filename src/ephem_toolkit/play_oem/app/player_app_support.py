@@ -10,7 +10,6 @@ import wx
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg, NavigationToolbar2WxAgg
 from matplotlib.figure import Figure
 
-from .. import series, time_unit
 from ..data_view_panel import DataViewPanelHost
 from ..matplotlib_helpers import create_figure
 from ..platform_support import is_linux
@@ -65,24 +64,26 @@ class _EmptyDataView:
     def __init__(self, parent: wx.Window) -> None:
         self._parent = parent
 
-    def build(
-        self, _series: series.OrbitSeries, _time_unit: time_unit.TimeUnit
-    ) -> wx.Window:
+    def build_placeholder(self) -> wx.Window:
         empty_data_view_prompt = wx.StaticText(
             self._parent, wx.ID_ANY, "Select a data view above"
         )
         empty_data_view_prompt.SetName("Empty data view prompt")
         return empty_data_view_prompt
 
-    def update(self, _t_s: float) -> None:
-        pass
-
-    def set_time_range(
-        self, _bounds: ResolvedTimeRange | None, _coverage: tuple[float, float], /
-    ) -> None:
-        pass
-
     def close(self) -> None:
+        pass
+
+    def build_from_store(self, _context) -> wx.Window:
+        return self.build_placeholder()
+
+    def update_from_store(self, _context) -> None:
+        pass
+
+    def set_time_range(self, _bounds, _coverage) -> None:
+        pass
+
+    def update(self, _time_s: float) -> None:
         pass
 
 
@@ -96,9 +97,7 @@ class _PendingDataView:
         self._parent = parent
         self._label = label
 
-    def build(
-        self, _series: series.OrbitSeries, _time_unit: time_unit.TimeUnit
-    ) -> Figure:
+    def build_placeholder(self) -> Figure:
         figure = create_figure((8.0, 4.5))
         axes = figure.add_subplot(111)
         axes.set_axis_off()
@@ -122,15 +121,20 @@ class _PendingDataView:
         )
         return figure
 
-    def update(self, _t_s: float) -> None:
-        pass
-
-    def set_time_range(
-        self, _bounds: ResolvedTimeRange | None, _coverage: tuple[float, float], /
-    ) -> None:
-        pass
 
     def close(self) -> None:
+        pass
+
+    def build_from_store(self, _context) -> Figure:
+        return self.build_placeholder()
+
+    def update_from_store(self, _context) -> None:
+        pass
+
+    def set_time_range(self, _bounds, _coverage) -> None:
+        pass
+
+    def update(self, _time_s: float) -> None:
         pass
 
 

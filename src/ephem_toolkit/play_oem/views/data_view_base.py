@@ -36,7 +36,6 @@ from ..oem_data_store import (
     TierName,
     TimeCoverage,
 )
-from ..series import OrbitSeries
 from ..station_access import LookAngleProfile, StationAccess
 from ..station_analysis import StationAnalysisContext, StationAnalysisSelection
 from ..time_range import ResolvedTimeRange, validate_coverage
@@ -44,7 +43,6 @@ from ..time_snapping import TimeSamplingPolicy
 from ..time_unit import TimeUnit
 from .plotting import (
     MAX_DISPLAY_POINTS_PER_SEGMENT,
-    SegmentedPlotHistory,
     set_shared_x_limits,
     time_bounds_to_axis,
 )
@@ -116,29 +114,6 @@ def _snap_series_groups(
                 sampled.append(group)
         sampled_groups[name] = tuple(sampled)
     return MappingProxyType(sampled_groups)
-
-
-class DataView(Protocol):
-    """Lifecycle shared by all playback data views."""
-
-    name: str
-    def build(self, series: OrbitSeries, time_unit: TimeUnit, /) -> Figure | wx.Window:
-        """Build the view content and its initial cursor state."""
-        ...
-
-    def update(self, t_s: float, /) -> None:
-        """Move the view's cursor to an absolute OEM time."""
-        ...
-
-    def set_time_range(
-        self, bounds: ResolvedTimeRange | None, coverage: tuple[float, float], /
-    ) -> None:
-        """Select displayed samples; None clears data for an empty effective range."""
-        ...
-
-    def close(self) -> None:
-        """Release the view's plot resources."""
-        ...
 
 
 @dataclass(frozen=True)
@@ -580,8 +555,8 @@ def store_load_status_message(context: StoreViewContext | None) -> str | None:
     return None
 
 
-class StoreView(Protocol):
-    """Store-query view lifecycle used by the unified player."""
+class DataView(Protocol):
+    """Canonical store-bound view lifecycle used by the unified player."""
 
     name: str
 
@@ -590,7 +565,21 @@ class StoreView(Protocol):
         ...
 
     def update_from_store(self, context: StoreViewContext, /) -> None:
-        """Refresh from a newer snapshot or changed plot range."""
+        """Apply one complete newer-snapshot/range context."""
+        ...
+
+    def update(self, t_s: float, /) -> None:
+        """Move presentation state to an absolute OEM time."""
+        ...
+
+    def set_time_range(
+        self, bounds: ResolvedTimeRange | None, coverage: tuple[float, float], /
+    ) -> None:
+        """Apply a range-only context update."""
+        ...
+
+    def close(self) -> None:
+        """Release store subscriptions and presentation resources."""
         ...
 
 
@@ -788,7 +777,7 @@ class TimeRangeSupport:
     def _configure_time_range(
         self,
         axes: tuple[Axes, ...],
-        histories: tuple[SegmentedPlotHistory, ...],
+        histories: tuple[Any, ...],
         cursor_artists: tuple[Line2D, ...],
         start_time_s: float,
         divisor_s: float,
@@ -888,56 +877,6 @@ class TimeRangeSupport:
         for axis, limits in zip(self._range_axes, self._full_y_limits):
             axis.set_ylim(*limits)
 
-    def _update_history_data(
-        self,
-        datasets: Sequence[tuple[np.ndarray, np.ndarray, np.ndarray]],
-        start_time_s: float,
-        divisor_s: float,
-    ) -> bool:
-        """Replace time-series samples without rebuilding the figure."""
-        if (
-            not hasattr(self, "_range_histories")
-            or start_time_s != self._range_start_time_s
-            or divisor_s != self._range_divisor_s
-            or len(datasets) != len(self._range_histories)
-        ):
-            return False
-        if not all(
-            history.can_replace_data(x, y, segment_ids)
-            for history, (x, y, segment_ids) in zip(self._range_histories, datasets)
-        ):
-            return False
-
-        y_limits = tuple(axis.get_ylim() for axis in self._range_axes)
-        y_autoscale = tuple(axis.get_autoscaley_on() for axis in self._range_axes)
-        for history, (x, y, segment_ids) in zip(self._range_histories, datasets):
-            history.replace_data(x, y, segment_ids)
-            if len(history.x):
-                history.update((float(history.x[0]), float(history.x[-1])))
-            else:
-                history.update(None, empty_range=True)
-        for axis, limits, autoscale in zip(self._range_axes, y_limits, y_autoscale):
-            axis.relim()
-            if autoscale:
-                axis.autoscale_view(scalex=False, scaley=True)
-            else:
-                axis.set_ylim(*limits)
-        if any(y_autoscale):
-            self._full_y_limits = tuple(axis.get_ylim() for axis in self._range_axes)
-        current_limits = time_bounds_to_axis(
-            self._range_bounds,
-            self._range_coverage,
-            self._range_start_time_s,
-            self._range_divisor_s,
-        )
-        for history in self._range_histories:
-            history.update(
-                None if self._range_bounds is None else current_limits,
-                empty_range=self._range_bounds is None,
-            )
-        self._range_changed = True
-        return True
-
     def _close_time_range(self) -> None:
         for axis, callback_id in getattr(self, "_range_xlim_callbacks", ()):
             cast(Any, axis).callbacks.disconnect(callback_id)
@@ -970,7 +909,6 @@ class StoreSeriesPlotView(TimeRangeSupport):
         self._figure: Figure | None = None
         self._cursor_artists: tuple[Line2D, ...] | None = None
         self._time_unit_divisor_s = 1.0
-        self._histories: tuple[SegmentedPlotHistory, ...] = ()
         self._store_context: StoreViewContext | None = None
         self._store_binding = StoreViewBinding(tiers)
         self._store_start_time_s = start_time_s

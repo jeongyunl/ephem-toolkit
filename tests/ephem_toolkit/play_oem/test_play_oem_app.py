@@ -43,6 +43,8 @@ from ephem_toolkit.play_oem.app.player_time_range_actions import _range_needs_up
 from ephem_toolkit.play_oem.clock import PlaybackClock
 from ephem_toolkit.play_oem.cursor import StoreCursor
 from ephem_toolkit.play_oem.ground_stations import GroundStation
+from ephem_toolkit.play_oem.oem_data_store import OemDataStore
+from ephem_toolkit.play_oem.views.data_view_base import StoreViewContext
 from ephem_toolkit.play_oem.incremental_loader import (
     IncrementalLoader,
     LoadEvent,
@@ -510,10 +512,16 @@ class FakeView:
     def cursor_artists(self):
         return self._cursor_artists
 
-    def build(self, _series, _time_unit) -> object:
+    def build_from_store(self, _context) -> object:
         figure = Figure()
         self._cursor_artists = (figure.subplots().axvline(0.0),)
         return figure
+
+    def update_from_store(self, _context) -> None:
+        pass
+
+    def set_time_range(self, _bounds, _coverage) -> None:
+        pass
 
     def update(self, t_s: float) -> None:
         self.updated_times.append(t_s)
@@ -539,7 +547,7 @@ class FakeEmptyContent(FakeNativeWindow):
 
 
 class FakeNativeView(FakeView):
-    def build(self, _series, _time_unit) -> FakeNativeWindow:
+    def build_from_store(self, _context) -> FakeNativeWindow:
         return FakeNativeWindow()
 
 
@@ -851,6 +859,26 @@ def make_app(
         initial_file_path=initial_file_path,
         oem_loaded=oem_loaded,
     )
+    if oem_loaded:
+        store = OemDataStore()
+        epoch = store.begin(len(timestamps))
+        reservation = store.reserve(len(timestamps), epoch=epoch)
+        reservation.raw[:, 0] = timestamps
+        reservation.raw[:, 1:7] = np.asarray(make_states())
+        reservation.segment_ids[:] = [0, 0]
+        store.commit(reservation, len(timestamps))
+        store.mark_complete(
+            epoch,
+            (),
+            (("CENTER_NAME", "EARTH"), ("REF_FRAME", "GCRF")),
+        )
+        player._store_state.active = store
+        player._store_state.view_context = StoreViewContext.capture(
+            store,
+            time_unit=TimeUnit.MINUTES,
+            plot_range=time_range.ResolvedTimeRange(100.0, 200.0),
+            coverage=(100.0, 200.0),
+        )
     return player, created_data_views, canvases, frames
 
 
@@ -2665,50 +2693,6 @@ def test_incremental_store_appends_extend_clock_and_complete_full_history(
     player.close()
 
 
-def test_incremental_panel_data_update_reuses_view_and_canvas(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    player, _data_views, _canvases, _frames = make_app(monkeypatch)
-    calls = []
-
-    class UpdatableView:
-        def update_data(self, orbit_series, time_unit):
-            calls.append(("data", orbit_series, time_unit))
-            return True
-
-        def set_time_range(self, bounds, coverage):
-            calls.append(("range", bounds, coverage))
-
-        def update(self, time_s):
-            calls.append(("cursor", time_s))
-
-    view = UpdatableView()
-    canvas = FakeCanvas(None, 0, None)
-    opened = SimpleNamespace(
-        data_view=view,
-        canvas=canvas,
-        panel=SimpleNamespace(),
-        applied_range=None,
-        applied_coverage=None,
-        range_initialized=False,
-    )
-    player._open_panels["incremental"] = opened
-
-    assert player._update_incremental_panel_data("incremental")
-
-    assert opened.data_view is view
-    assert opened.canvas is canvas
-    assert opened.range_initialized
-    assert calls[0][0] == "data"
-    assert calls[0][1] is player.series
-    assert calls[0][2] is player.time_unit
-    assert calls[1][0] == "range"
-    assert calls[2] == ("cursor", player.clock.t_now)
-    assert canvas.draw_idle_count == 1
-    player._open_panels.pop("incremental")
-    player.close()
-
-
 def test_partial_initial_range_refresh_excludes_all_data_views(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2770,7 +2754,7 @@ def test_store_refresh_rebuilds_panels_opened_before_the_store(
     )
     player._open_panels[opened.panel_id] = opened
     player._refresh_state.pending_store_view_ids.add(opened.panel_id)
-    player._store_state.view_context = object()
+    player._store_state.view_context = player._store_state.view_context
     replacements = []
     player.open_panel_data_view = lambda *args, **kwargs: replacements.append((args, kwargs))
 
@@ -3551,7 +3535,7 @@ def test_failed_view_change_restores_the_original_panel(
     monkeypatch.setattr(app.wx, "StaticText", FakeEmptyContent)
 
     class FailingView(FakeView):
-        def build(self, _series, _time_unit):
+        def build_from_store(self, _context):
             raise RuntimeError("view initialization failed")
 
     failed_view = FailingView()
@@ -3589,7 +3573,7 @@ def test_failed_forced_replacement_preserves_default_view_lookup(
     original = player._open_data_views["speed-altitude"]
 
     class FailingView(FakeView):
-        def build(self, _series, _time_unit):
+        def build_from_store(self, _context):
             raise RuntimeError("view refresh failed")
 
     failed_view = FailingView()

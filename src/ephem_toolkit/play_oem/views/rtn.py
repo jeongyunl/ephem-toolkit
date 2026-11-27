@@ -8,7 +8,7 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.text import Text
 
-from .. import series, time_unit
+from .. import time_unit
 from ..matplotlib_helpers import create_figure, style_axes
 from ..oem_data_store import ColumnGroupView, StoreQuery
 from ..time_range import ResolvedTimeRange
@@ -20,7 +20,6 @@ from .data_view_base import (
 )
 from .orbit_time_series import OrbitTimeSeriesView
 from .plotting import (
-    SegmentedPlotHistory,
     set_shared_x_limits,
     time_bounds_to_axis,
 )
@@ -167,95 +166,13 @@ class RtnDeltaView(OrbitTimeSeriesView):
         self.update(self._last_cursor_time_s)
         style_axes(*self._figure.axes)
 
-    def build(
-        self, orbit_series: series.OrbitSeries, time_unit: time_unit.TimeUnit
-    ) -> Figure | wx.Window:
-        """Build the RTN delta histories and synchronized cursor lines."""
-        if self._figure is not None:
-            raise RuntimeError("RTN-delta view has already been built")
-        if (
-            orbit_series.rtn_delta_km.ndim != 2
-            or orbit_series.rtn_delta_km.shape[1] != 6
-            or orbit_series.rtn_elapsed_time.ndim != 1
-            or len(orbit_series.rtn_elapsed_time) != len(orbit_series.rtn_delta_km)
-        ):
-            raise ValueError("RTN delta arrays must have shapes (N-1,) and (N-1, 6)")
 
-        figure = create_figure(FIGURE_SIZE_INCHES)
-        axes_array = figure.subplots(3, 1, sharex=True)
-        titles = (
-            "Radial Position Delta vs Time",
-            "Transverse Position Delta vs Time",
-            "Normal Position Delta vs Time",
-        )
-        labels = ("Radial Delta (km)", "Transverse Delta (km)", "Normal Delta (km)")
-        cursor_artists: list[Line2D] = []
-        histories: list[SegmentedPlotHistory] = []
-
-        for component, axes in enumerate(axes_array):
-            axes.grid(True)
-            axes.ticklabel_format(style="plain", axis="y")
-            axes.set_ylabel(labels[component])
-            axes.set_title(titles[component])
-            if orbit_series.rtn_delta_km.size:
-                histories.append(
-                    SegmentedPlotHistory(
-                        axes,
-                        orbit_series.rtn_elapsed_time,
-                        orbit_series.rtn_delta_km[:, component],
-                        orbit_series.rtn_segment_ids,
-                        linewidth=2,
-                        label=self._object_name,
-                    )
-                )
-                axes.legend(loc="upper right")
-            elif component == 0:
-                axes.text(0.5, 0.5, "Not enough samples", ha="center", va="center")
-            cursor_artists.append(
-                axes.axvline(0.0, color=CURSOR_LINE_COLOR, linestyle="--")
-            )
-
-        axes_array[-1].set_xlabel(time_unit.get_axis_label())
-        self._figure = figure
-        self._cursor_artists = tuple(cursor_artists)
-        self._time_unit_divisor_s = time_unit.get_divisor_s()
-        self._histories = tuple(histories)
-        self._configure_time_range(
-            tuple(axes_array),
-            self._histories,
-            self._cursor_artists,
-            self._start_time_s,
-            self._time_unit_divisor_s,
-        )
-        self.update(self._start_time_s)
-        style_axes(*figure.axes)
-        return self._present_figure(
-            figure,
-            start_time_s=float(self._store_start_time_s),
-            display_time_unit=time_unit,
-        )
-
-    def update_data(
-        self, orbit_series: series.OrbitSeries, time_unit: time_unit.TimeUnit
-    ) -> bool:
-        datasets = tuple(
-            (
-                orbit_series.rtn_elapsed_time,
-                orbit_series.rtn_delta_km[:, component],
-                orbit_series.rtn_segment_ids,
-            )
-            for component in range(3)
-        )
-        return self._update_history_data(
-            datasets, self._start_time_s, time_unit.get_divisor_s()
-        )
 
     def set_time_range(
         self, bounds: ResolvedTimeRange | None, coverage: tuple[float, float], /
     ) -> None:
         if self._store_context is None:
-            super().set_time_range(bounds, coverage)
-            return
+            raise RuntimeError("RTN-delta view was not built from a store")
         self._apply_store_context(
             self._store_context_for_range(bounds, coverage),
             rescale_y=False,

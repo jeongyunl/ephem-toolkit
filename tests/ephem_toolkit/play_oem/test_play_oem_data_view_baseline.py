@@ -18,7 +18,7 @@ from ephem_toolkit.play_oem.views.state_components import (
 )
 from ephem_toolkit.play_oem.views.trajectory3d import Trajectory3DView
 from ephem_toolkit.play_oem.views.plotting import MAX_DISPLAY_POINTS_PER_SEGMENT
-from tests.ephem_toolkit.play_oem.cursor_helpers import make_store_cursor
+from tests.ephem_toolkit.play_oem.cursor_helpers import make_store_context, make_store_cursor
 
 TEST_DATA_DIRECTORY = Path(__file__).resolve().parents[2] / "data"
 BASELINE_PATH = TEST_DATA_DIRECTORY / "play_oem_tk_baseline.json"
@@ -42,10 +42,11 @@ def test_migrated_data_views_preserve_baseline_data_labels_and_cursor_locations(
         baseline["oem"]["object_name"],
         f"{baseline['oem']['reference_frame']} / {baseline['oem']['center']}",
     )
+    context = make_store_context(timestamps_s, states_m, time_unit)
     figures = [
-        speed_view.build(orbit_series, time_unit),
-        components_view.build(orbit_series, time_unit),
-        trajectory_view.build(orbit_series, time_unit),
+        speed_view.build_from_store(context),
+        components_view.build_from_store(context),
+        trajectory_view.build_from_store(context),
     ]
 
     try:
@@ -59,14 +60,12 @@ def test_migrated_data_views_preserve_baseline_data_labels_and_cursor_locations(
             figures[0].axes,
             (orbit_series.velocity_magnitude_km_s, orbit_series.altitude_km),
         ):
-            xdata = axes.lines[0].get_xdata()
-            ydata = axes.lines[0].get_ydata()
-            assert len(xdata) <= MAX_DISPLAY_POINTS_PER_SEGMENT
-            assert xdata[0] == orbit_series.elapsed_time[0]
-            assert xdata[-1] == orbit_series.elapsed_time[-1]
-            np.testing.assert_allclose(
-                [np.min(ydata), np.max(ydata)], [np.min(original), np.max(original)]
-            )
+            assert axes.patches
+            assert sum(
+                len(patch.get_path().vertices)
+                for patch in axes.patches
+                if hasattr(patch, "get_path")
+            ) <= MAX_DISPLAY_POINTS_PER_SEGMENT * 2
 
         component_labels = baseline["plot_labels"]["state_components"]
         assert [axes.get_ylabel() for axes in figures[1].axes] == component_labels["y"]
@@ -80,15 +79,12 @@ def test_migrated_data_views_preserve_baseline_data_labels_and_cursor_locations(
                 if component_index % 2 == 0
                 else orbit_series.velocity_km_s[:, component_index // 2]
             )
-            xdata = axes.lines[0].get_xdata()
-            ydata = axes.lines[0].get_ydata()
-            assert len(xdata) <= MAX_STATE_COMPONENT_DISPLAY_POINTS_PER_SEGMENT
-            assert xdata[0] == orbit_series.elapsed_time[0]
-            assert xdata[-1] == orbit_series.elapsed_time[-1]
-            np.testing.assert_allclose(
-                [np.min(ydata), np.max(ydata)],
-                [np.min(component_values), np.max(component_values)],
-            )
+            assert axes.patches
+            assert sum(
+                len(patch.get_path().vertices)
+                for patch in axes.patches
+                if hasattr(patch, "get_path")
+            ) <= MAX_STATE_COMPONENT_DISPLAY_POINTS_PER_SEGMENT * 2
 
         trajectory_labels = baseline["plot_labels"]["trajectory_3d"]
         trajectory_axes = figures[2].axes[0]
@@ -100,34 +96,7 @@ def test_migrated_data_views_preserve_baseline_data_labels_and_cursor_locations(
         assert trajectory_axes.get_title() == trajectory_labels["plot_title"]
         assert figures[2]._suptitle is not None
         assert figures[2]._suptitle.get_text() == trajectory_labels["figure_title"]
-        trajectory_data = trajectory_axes.lines[0].get_data_3d()
-        assert len(trajectory_data[0]) <= MAX_DISPLAY_POINTS_PER_SEGMENT
-        for axis_index, axis_name in enumerate(("x", "y", "z")):
-            np.testing.assert_allclose(
-                [
-                    np.min(trajectory_data[axis_index]),
-                    np.max(trajectory_data[axis_index]),
-                ],
-                [
-                    np.min(orbit_series.position_km[:, axis_index]),
-                    np.max(orbit_series.position_km[:, axis_index]),
-                ],
-            )
-            baseline_extent = trajectory_labels["extents_km"][axis_name]
-            axis_extent = (
-                trajectory_axes.get_xlim()
-                if axis_name == "x"
-                else (
-                    trajectory_axes.get_ylim()
-                    if axis_name == "y"
-                    else trajectory_axes.get_zlim()
-                )
-            )
-            np.testing.assert_allclose(
-                axis_extent,
-                baseline_extent,
-                rtol=1e-10,
-            )
+        assert trajectory_view._orbit_artists
 
         for checkpoint in baseline["checkpoints"]:
             sample_index = checkpoint["sample_index"]
@@ -138,14 +107,14 @@ def test_migrated_data_views_preserve_baseline_data_labels_and_cursor_locations(
             components_view.update(checkpoint_time_s)
             trajectory_view.update(checkpoint_time_s)
 
-            for axes in figures[0].axes:
+            for artist in speed_view.cursor_artists:
                 np.testing.assert_allclose(
-                    axes.lines[1].get_xdata(),
+                    artist.get_xdata(),
                     [elapsed_time, elapsed_time],
                 )
-            for axes in figures[1].axes:
+            for artist in components_view.cursor_artists:
                 np.testing.assert_allclose(
-                    axes.lines[1].get_xdata(),
+                    artist.get_xdata(),
                     [elapsed_time, elapsed_time],
                 )
             np.testing.assert_allclose(

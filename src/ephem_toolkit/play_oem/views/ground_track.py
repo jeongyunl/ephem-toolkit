@@ -33,7 +33,6 @@ from ..ground_track import (
 )
 from ..matplotlib_helpers import create_figure
 from ..oem_data_store import GroundTrackGroups, StoreQuery
-from ..series import OrbitSeries
 from ..time_range import ResolvedTimeRange
 from ..time_unit import TimeUnit
 from ..widgets import (
@@ -267,9 +266,6 @@ class GroundTrackView(DataViewSpecMixin):
             ("ground-track", "earth-fixed", "footprints")
         )
         self._store_track_query: StoreQuery[GroundTrackGroups] | None = None
-
-    def build(self, _series: OrbitSeries, _time_unit: TimeUnit, /) -> wx.Window:
-        return self._build_panel()
 
     def build_from_store(self, context: StoreViewContext, /) -> wx.Window:
         """Build from range-bound, store-owned Ground Track results."""

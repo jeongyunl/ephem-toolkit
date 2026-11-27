@@ -9,7 +9,7 @@ from matplotlib.figure import Figure
 from matplotlib.ticker import FuncFormatter
 from mpl_toolkits.mplot3d.art3d import Path3DCollection
 
-from ... import cursor, series, time_unit
+from ... import cursor
 from ...matplotlib_helpers import create_figure, style_axes
 from ...time_range import ResolvedTimeRange
 from ..data_view_base import StoreViewContext
@@ -92,7 +92,7 @@ class Trajectory3DView(DataViewSpecMixin):
         self._store_sample_times_s: np.ndarray | None = None
 
     def build_from_store(self, context: StoreViewContext) -> Figure:
-        """Build from raw position columns without an OrbitSeries projection."""
+        """Build from raw position columns."""
         if self._figure is not None:
             raise RuntimeError("3D trajectory view has already been built")
         figure = create_figure(FIGURE_SIZE_INCHES)
@@ -148,221 +148,19 @@ class Trajectory3DView(DataViewSpecMixin):
         )
         self.update(self._current_time_s)
 
-    def build(
-        self,
-        orbit_series: series.OrbitSeries,
-        _time_unit: time_unit.TimeUnit,
-    ) -> Figure:
-        """Build a 3D orbit plot with start, end, and playback markers.
 
-        Parameters
-        ----------
-        orbit_series : series.OrbitSeries
-            Derived orbit position history in kilometers.
-        _time_unit : time_unit.TimeUnit
-            Display unit required by the shared view protocol; unused in 3D.
-
-        Returns
-        -------
-        Figure
-            Matplotlib figure containing the 3D orbit.
-
-        Raises
-        ------
-        RuntimeError
-            If this view has already been built.
-        ValueError
-            If the position history is empty or is not an N-by-3 array.
-        """
-        if self._figure is not None:
-            raise RuntimeError("3D trajectory view has already been built")
-        if self._cursor is None:
-            raise RuntimeError("legacy 3D build requires an OEM cursor")
-        if (
-            orbit_series.position_km.ndim != 2
-            or orbit_series.position_km.shape[1] != CARTESIAN_COMPONENT_COUNT
-        ):
-            raise ValueError("position_km must have shape (N, 3)")
-        if len(orbit_series.position_km) == 0:
-            raise ValueError("cannot plot an empty trajectory")
-
-        figure = create_figure(FIGURE_SIZE_INCHES)
-        trajectory_axes = figure.add_subplot(1, 1, 1, projection="3d")
-        positions_km = orbit_series.position_km
-        self._positions_km = np.asarray(positions_km, dtype=float).copy()
-        self._segment_ids = np.asarray(orbit_series.segment_ids, dtype=int).copy()
-        self._sample_times_s = (
-            self._cursor.t_start
-            + orbit_series.elapsed_time * _time_unit.get_divisor_s()
-        )
-        for segment_id in np.unique(orbit_series.segment_ids):
-            if segment_id < 0:
-                continue
-            mask = orbit_series.segment_ids == segment_id
-            segment_positions = positions_km[mask]
-            segment_positions = segment_positions[
-                decimate_indices(segment_positions, MAX_MATPLOTLIB_3D_DISPLAY_POINTS)
-            ]
-            (artist,) = trajectory_axes.plot(
-                segment_positions[:, 0],
-                segment_positions[:, 1],
-                segment_positions[:, 2],
-                linewidth=ORBIT_LINE_WIDTH,
-                label="Orbit",
-            )
-            self._orbit_artists.append((int(segment_id), artist))
-        self._start_artist = trajectory_axes.scatter(
-            [positions_km[0, 0]],
-            [positions_km[0, 1]],
-            [positions_km[0, 2]],
-            c=START_MARKER_COLOR,
-            s=START_MARKER_SIZE,
-            marker="o",
-            label="Start",
-        )
-        self._end_artist = trajectory_axes.scatter(
-            [positions_km[-1, 0]],
-            [positions_km[-1, 1]],
-            [positions_km[-1, 2]],
-            c=END_MARKER_COLOR,
-            s=END_MARKER_SIZE,
-            marker="x",
-            label="End",
-        )
-        initial_state = self._cursor.lookup(self._cursor.t_start)
-        self._cursor_artist = trajectory_axes.scatter(
-            [],
-            [],
-            [],
-            c=CURSOR_MARKER_COLOR,
-            edgecolors=CURSOR_EDGE_COLOR,
-            s=CURSOR_MARKER_SIZE,
-            marker="o",
-            depthshade=False,
-            label="Playback cursor",
-        )
-        trajectory_axes.set_xlabel("X (km)")
-        trajectory_axes.set_ylabel("Y (km)")
-        trajectory_axes.set_zlabel("Z (km)")
-        trajectory_axes.set_title("3D Orbit Trajectory")
-        trajectory_axes.legend(loc="upper left")
-        self._set_equal_limits(trajectory_axes, positions_km)
-        figure.suptitle(
-            " | ".join(
-                part for part in (self._object_name, self._frame_context) if part
-            ),
-            fontsize=12,
-        )
-        self._figure = figure
-        self._axes = trajectory_axes
-        self.update_cursor(initial_state)
-        style_axes(trajectory_axes)
-        return figure
-
-    def update_data(
-        self, orbit_series: series.OrbitSeries, time_unit: time_unit.TimeUnit
-    ) -> bool:
-        if self._store_context is not None:
-            return False
-        if self._cursor is None:
-            return False
-        positions_km = np.asarray(orbit_series.position_km, dtype=float)
-        segment_ids = np.asarray(orbit_series.segment_ids, dtype=int)
-        if (
-            self._axes is None
-            or positions_km.ndim != 2
-            or positions_km.shape[1] != CARTESIAN_COMPONENT_COUNT
-            or positions_km.shape[0] == 0
-            or not np.all(np.isfinite(positions_km))
-            or segment_ids.shape != positions_km.shape[:1]
-            or orbit_series.elapsed_time.shape != positions_km.shape[:1]
-        ):
-            return False
-        segment_ids_present = [
-            int(segment_id)
-            for segment_id in np.unique(segment_ids)
-            if segment_id >= 0
-        ]
-        if segment_ids_present != [segment_id for segment_id, _ in self._orbit_artists]:
-            return False
-
-        self._positions_km = positions_km.copy()
-        self._segment_ids = segment_ids.copy()
-        self._sample_times_s = (
-            self._cursor.t_start
-            + orbit_series.elapsed_time * time_unit.get_divisor_s()
-        )
-        for segment_id, artist in self._orbit_artists:
-            segment_positions = positions_km[segment_ids == segment_id]
-            segment_positions = segment_positions[
-                decimate_indices(
-                    segment_positions, MAX_MATPLOTLIB_3D_DISPLAY_POINTS
-                )
-            ]
-            artist.set_data_3d(
-                segment_positions[:, 0],
-                segment_positions[:, 1],
-                segment_positions[:, 2],
-            )
-        for marker, position in (
-            (self._start_artist, positions_km[0]),
-            (self._end_artist, positions_km[-1]),
-        ):
-            if marker is not None:
-                marker.set_offsets([[position[0], position[1]]])
-                marker.set_3d_properties([position[2]], zdir="z")
-        self._set_endpoint_visibility()
-        return True
 
     def set_time_range(
         self, bounds: ResolvedTimeRange | None, _coverage: tuple[float, float], /
     ) -> None:
         """Filter the orbit path and visible endpoint/current-state markers."""
-        if self._store_context is not None:
-            self.update_from_store(
-                self._store_context.with_range(bounds, _coverage)
-            )
-            return
+        if self._store_context is None:
+            raise RuntimeError("3D trajectory view was not built from a store")
+        self._store_context = self._store_context.with_range(bounds, _coverage)
         self._range_bounds = bounds
-        self._range_applied = True
-        if (
-            self._axes is None
-            or self._positions_km is None
-            or self._sample_times_s is None
-            or self._segment_ids is None
-        ):
-            return
-        if bounds is None:
-            first = last = 0
-        else:
-            first = int(
-                np.searchsorted(self._sample_times_s, bounds.start_s, side="left")
-            )
-            last = int(
-                np.searchsorted(self._sample_times_s, bounds.end_s, side="right")
-            )
-        for segment_id, artist in self._orbit_artists:
-            segment_indices = np.flatnonzero(self._segment_ids == segment_id)
-            if not len(segment_indices):
-                artist.set_data_3d([], [], [])
-                continue
-            segment_start, segment_stop = (
-                int(segment_indices[0]),
-                int(segment_indices[-1]) + 1,
-            )
-            start = max(segment_start, first)
-            stop = min(segment_stop, last)
-            if start >= stop:
-                selected = np.empty((0, 3), dtype=float)
-            else:
-                selected = self._positions_km[start:stop]
-                if len(selected) > MAX_MATPLOTLIB_3D_DISPLAY_POINTS:
-                    selected = selected[
-                        decimate_indices(selected, MAX_MATPLOTLIB_3D_DISPLAY_POINTS)
-                    ]
-            artist.set_data_3d(selected[:, 0], selected[:, 1], selected[:, 2])
-            artist.set_marker("." if len(selected) == 1 else "None")
-        self._set_endpoint_visibility()
+        self._store_positions_m = self._store_context.snapshot.positions_m
+        self._store_sample_times_s = self._store_context.snapshot.raw[:, 0]
+        self._refresh_store_trajectory(reset_limits=False)
         self.update(self._current_time_s)
 
     def update(self, time_s: float) -> None:

@@ -12,6 +12,51 @@ from ephem_toolkit.play_oem.oem_data_store import (
     InterpolationPolicy,
     OemDataStore,
 )
+from ephem_toolkit.play_oem.time_range import ResolvedTimeRange
+from ephem_toolkit.play_oem.time_unit import TimeUnit
+from ephem_toolkit.play_oem.views.data_view_base import StoreViewContext
+
+
+def make_store_context(
+    timestamps_s: Sequence[float],
+    states_m: Sequence[np.ndarray],
+    time_unit: TimeUnit,
+    *,
+    segment_ids: Sequence[int] | None = None,
+) -> StoreViewContext:
+    """Create a completed OEM store context for store-only view tests."""
+    timestamps = np.asarray(timestamps_s, dtype=float)
+    states = np.asarray(states_m, dtype=float)
+    segments = np.asarray(
+        segment_ids if segment_ids is not None else np.zeros(len(timestamps)),
+        dtype=int,
+    )
+    store = OemDataStore()
+    epoch = store.begin(len(timestamps))
+    reservation = store.reserve(len(timestamps), epoch=epoch)
+    reservation.raw[:, 0] = timestamps
+    reservation.raw[:, 1:7] = states
+    reservation.segment_ids[:] = segments
+    store.commit(reservation, len(timestamps))
+    store.mark_complete(
+        epoch,
+        (),
+        (("CENTER_NAME", "EARTH"), ("REF_FRAME", "ITRF")),
+    )
+    snapshot = store.snapshot()
+    store.series(
+        snapshot,
+        (float(timestamps[0]), float(timestamps[-1])),
+        groups=("kinematics", "rtn", "direction-rates", "distance-delta"),
+        wait=True,
+    )
+    coverage = (float(timestamps[0]), float(timestamps[-1]))
+    return StoreViewContext.capture(
+        store,
+        time_unit=time_unit,
+        plot_range=ResolvedTimeRange(coverage[0], coverage[1]),
+        coverage=coverage,
+    )
 
 
 def make_store_cursor(

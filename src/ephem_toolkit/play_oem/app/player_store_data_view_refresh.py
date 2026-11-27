@@ -190,28 +190,16 @@ class PlayerStoreViewRefreshMixin:
                 self._resolved_plot_range(),
                 (self.clock.t_start, self.clock.t_end),
             )
-            update = getattr(opened.data_view, "update_from_store", None)
             try:
-                if callable(update):
-                    update(view_context)
-                    set_time_range = getattr(opened.data_view, "set_time_range", None)
-                    if callable(set_time_range):
-                        set_time_range(view_context.plot_range, view_context.coverage)
-                    opened.applied_range = view_context.plot_range
-                    opened.applied_coverage = view_context.coverage
-                    opened.range_initialized = True
-                    opened.data_view.update(self.clock.t_now)
-                    if opened.canvas is not None:
-                        opened.canvas.draw_idle()
-                    else:
-                        opened.panel.request_redraw()
+                opened.data_view.update_from_store(view_context)
+                opened.applied_range = view_context.plot_range
+                opened.applied_coverage = view_context.coverage
+                opened.range_initialized = True
+                opened.data_view.update(self.clock.t_now)
+                if opened.canvas is not None:
+                    opened.canvas.draw_idle()
                 else:
-                    self.open_panel_data_view(
-                        opened.data_view_name,
-                        panel_id=panel_id,
-                        stack=opened.stack,
-                        force_replace=True,
-                    )
+                    opened.panel.request_redraw()
             except Exception as error:
                 self.status_bar.set_message(f"Could not refresh OEM data_views: {error}")
 
@@ -284,8 +272,6 @@ class PlayerStoreViewRefreshMixin:
         try:
             if panel_layout:
                 for panel_id, data_view_name, stack in panel_layout:
-                    if self._update_incremental_panel_data(panel_id):
-                        continue
                     self.open_panel_data_view(
                         data_view_name,
                         panel_id=panel_id,
@@ -310,30 +296,3 @@ class PlayerStoreViewRefreshMixin:
         ):
             retired_store.close()
 
-    def _update_incremental_panel_data(self: PlayerAppState, panel_id: str) -> bool:
-        opened = self._open_panels.get(panel_id)
-        if opened is None:
-            return False
-        update_data = getattr(opened.data_view, "update_data", None)
-        if not callable(update_data) or not update_data(self.series, self.time_unit):
-            return False
-
-        resolved_range = time_range.resolve_plot_range(
-            self.plot_time_range,
-            (self.clock.t_start, self.clock.t_end),
-            (self.clock.playback_start, self.clock.playback_end),
-            self.clock.t_now,
-        )
-        coverage = (self.clock.t_start, self.clock.t_end)
-        set_time_range = getattr(opened.data_view, "set_time_range", None)
-        if callable(set_time_range):
-            set_time_range(resolved_range, coverage)
-        opened.applied_range = resolved_range
-        opened.applied_coverage = coverage
-        opened.range_initialized = True
-        opened.data_view.update(self.clock.t_now)
-        if opened.canvas is not None:
-            opened.canvas.draw_idle()
-        else:
-            opened.panel.request_redraw()
-        return True

@@ -13,6 +13,7 @@ from ephem_toolkit.play_oem.time_range import ResolvedTimeRange
 from ephem_toolkit.play_oem.time_unit import TimeUnit
 from ephem_toolkit.play_oem.views.data_view_base import StoreViewContext
 from ephem_toolkit.play_oem.views.speed_altitude import SpeedAltitudeView
+from tests.ephem_toolkit.play_oem.cursor_helpers import make_store_context
 
 
 def test_speed_altitude_view_builds_labeled_static_series_and_cursor() -> None:
@@ -27,7 +28,16 @@ def test_speed_altitude_view_builds_labeled_static_series_and_cursor() -> None:
     )
     view = SpeedAltitudeView(start_time_s=100.0)
 
-    figure = view.build(series, TimeUnit.MINUTES)
+    context = make_store_context(
+        [100.0, 160.0, 220.0],
+        [
+            np.array([7_000_000.0, 0.0, 0.0, 0.0, 7_500.0, 0.0]),
+            np.array([0.0, 7_000_000.0, 0.0, -7_500.0, 0.0, 0.0]),
+            np.array([-7_000_000.0, 0.0, 0.0, 0.0, -7_500.0, 0.0]),
+        ],
+        TimeUnit.MINUTES,
+    )
+    figure = view.build_from_store(context)
     canvas = FigureCanvasAgg(figure)
     canvas.draw()
 
@@ -35,18 +45,25 @@ def test_speed_altitude_view_builds_labeled_static_series_and_cursor() -> None:
     assert figure.axes[0].get_ylabel() == "Speed (km/s)"
     assert figure.axes[1].get_ylabel() == "Altitude (km)"
     assert figure.axes[1].get_xlabel() == "Time from Start (minutes)"
-    np.testing.assert_array_equal(figure.axes[0].lines[1].get_xdata(), [0.0, 0.0])
+    assert view.cursor_artists
 
-    original_speed_x = figure.axes[0].lines[0].get_xdata().copy()
-    original_speed_y = figure.axes[0].lines[0].get_ydata().copy()
+    assert view._store_patches[0]
+    original_speed_x = view._store_patches[0][0].get_path().vertices[:, 0].copy()
+    original_speed_y = view._store_patches[0][0].get_path().vertices[:, 1].copy()
     view.update(100.0)
-    np.testing.assert_array_equal(figure.axes[0].lines[1].get_xdata(), [0.0, 0.0])
+    assert view.cursor_artists[0].get_visible()
     view.update(160.0)
-    np.testing.assert_array_equal(figure.axes[0].lines[1].get_xdata(), [1.0, 1.0])
+    np.testing.assert_array_equal(view.cursor_artists[0].get_xdata(), [1.0, 1.0])
     view.update(220.0)
-    np.testing.assert_array_equal(figure.axes[0].lines[1].get_xdata(), [2.0, 2.0])
-    np.testing.assert_array_equal(figure.axes[0].lines[0].get_xdata(), original_speed_x)
-    np.testing.assert_array_equal(figure.axes[0].lines[0].get_ydata(), original_speed_y)
+    np.testing.assert_array_equal(view.cursor_artists[0].get_xdata(), [2.0, 2.0])
+    np.testing.assert_array_equal(
+        view._store_patches[0][0].get_path().vertices[:, 0],
+        original_speed_x,
+    )
+    np.testing.assert_array_equal(
+        view._store_patches[0][0].get_path().vertices[:, 1],
+        original_speed_y,
+    )
 
     view.close()
     assert not figure.axes

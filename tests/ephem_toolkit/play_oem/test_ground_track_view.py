@@ -17,6 +17,7 @@ from ephem_toolkit.play_oem.time_range import ResolvedTimeRange
 from ephem_toolkit.play_oem.time_unit import TimeUnit
 from ephem_toolkit.play_oem.views import ground_track
 from ephem_toolkit.play_oem.views.data_view_base import StoreViewContext
+from tests.ephem_toolkit.play_oem.cursor_helpers import make_store_context
 from ephem_toolkit.play_oem.views.plotting import MAX_DISPLAY_POINTS_PER_SEGMENT
 
 
@@ -544,7 +545,17 @@ def test_wx_view_builds_controls_and_updates_minimum_elevation(wx_app: Any) -> N
         "Test object",
         on_minimum_elevation=updates.append,
     )
-    content = view.build(cast(Any, None), cast(Any, None))
+    context = make_store_context(
+        [0.0, 10.0, 20.0, 30.0],
+        [
+            np.asarray([7_000_000.0, 0.0, 0.0, 0.0, 7_500.0, 0.0]),
+            np.asarray([0.0, 7_000_000.0, 0.0, -7_500.0, 0.0, 0.0]),
+            np.asarray([-7_000_000.0, 0.0, 0.0, 0.0, -7_500.0, 0.0]),
+            np.asarray([0.0, -7_000_000.0, 0.0, 7_500.0, 0.0, 0.0]),
+        ],
+        TimeUnit.MINUTES,
+    )
+    content = view.build_from_store(context)
     assert isinstance(content, wx.Window)
     frame.Show()
     wx_app.Yield()
@@ -594,7 +605,17 @@ def test_resizing_host_preserves_spin_control_sizes(wx_app: Any) -> None:
         "Test object",
     )
     try:
-        content = view.build(cast(Any, None), cast(Any, None))
+        context = make_store_context(
+            [0.0, 10.0, 20.0, 30.0],
+            [
+                np.asarray([7_000_000.0, 0.0, 0.0, 0.0, 7_500.0, 0.0]),
+                np.asarray([0.0, 7_000_000.0, 0.0, -7_500.0, 0.0, 0.0]),
+                np.asarray([-7_000_000.0, 0.0, 0.0, 0.0, -7_500.0, 0.0]),
+                np.asarray([0.0, -7_000_000.0, 0.0, 7_500.0, 0.0, 0.0]),
+            ],
+            TimeUnit.MINUTES,
+        )
+        content = view.build_from_store(context)
         host.set_native_content(content)
         assert content.GetMinSize().height == 64
         assert view._canvas is not None

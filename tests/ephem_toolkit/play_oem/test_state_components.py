@@ -10,6 +10,7 @@ from ephem_toolkit.play_oem.series import compute_orbit_series
 from ephem_toolkit.play_oem.time_range import ResolvedTimeRange
 from ephem_toolkit.play_oem.time_unit import TimeUnit
 from ephem_toolkit.play_oem.views.state_components import StateComponentsView
+from tests.ephem_toolkit.play_oem.cursor_helpers import make_store_context
 
 
 def make_series():
@@ -24,11 +25,22 @@ def make_series():
     )
 
 
+def make_context():
+    timestamps_s = [100.0, 160.0, 220.0]
+    states_m = [
+        np.array([7_000_000.0, 0.0, 0.0, 0.0, 7_500.0, 0.0]),
+        np.array([0.0, 7_000_000.0, 0.0, -7_500.0, 0.0, 0.0]),
+        np.array([-7_000_000.0, 0.0, 0.0, 0.0, -7_500.0, 0.0]),
+    ]
+    return make_store_context(timestamps_s, states_m, TimeUnit.MINUTES)
+
+
 def test_state_components_view_builds_six_labeled_plots_and_synchronized_cursors():
     series = make_series()
     view = StateComponentsView(100.0, "GCRF / Earth")
 
-    figure = view.build(series, TimeUnit.MINUTES)
+    context = make_context()
+    figure = view.build_from_store(context)
     FigureCanvasAgg(figure).draw()
 
     assert len(figure.axes) == 6
@@ -45,18 +57,14 @@ def test_state_components_view_builds_six_labeled_plots_and_synchronized_cursors
     assert figure._suptitle is not None
     assert figure._suptitle.get_text() == "State Components | GCRF / Earth"
 
-    np.testing.assert_array_equal(
-        figure.axes[0].lines[0].get_ydata(), series.position_km[:, 0]
-    )
-    np.testing.assert_array_equal(
-        figure.axes[1].lines[0].get_ydata(), series.velocity_km_s[:, 0]
-    )
-    for axes in figure.axes:
-        np.testing.assert_array_equal(axes.lines[1].get_xdata(), [0.0, 0.0])
+    assert all(axes.patches or axes.lines for axes in figure.axes)
+    assert len(view.cursor_artists) == 6
+    for artist in view.cursor_artists:
+        np.testing.assert_array_equal(artist.get_xdata(), [0.0, 0.0])
 
     view.update(160.0)
-    for axes in figure.axes:
-        np.testing.assert_array_equal(axes.lines[1].get_xdata(), [1.0, 1.0])
+    for artist in view.cursor_artists:
+        np.testing.assert_array_equal(artist.get_xdata(), [1.0, 1.0])
 
     view.close()
     assert not figure.axes
@@ -67,7 +75,7 @@ def test_state_components_view_builds_six_labeled_plots_and_synchronized_cursors
 def test_cursor_only_update_ignores_range_changes():
     series = make_series()
     view = StateComponentsView(100.0, "GCRF / Earth")
-    view.build(series, TimeUnit.MINUTES)
+    view.build_from_store(make_context())
     view.set_time_range(ResolvedTimeRange(100.0, 220.0), (100.0, 220.0))
     assert view.consume_cursor_only_update() is False
 

@@ -844,7 +844,17 @@ def test_wx_pass_panel_builds_and_switches_responsive_layout(wx_app: Any) -> Non
         StationAccess(station, (interval,), look_angle_profiles=(profile,)),
     )
     try:
-        content = view.build(cast(Any, None), cast(Any, None))
+        from tests.ephem_toolkit.play_oem.cursor_helpers import make_store_context
+        context = make_store_context(
+            [0.0, 60.0, 120.0],
+            [
+                np.asarray([6_478_137.0, 1_000_000.0, 0.0, 0.0, 7_500.0, 0.0]),
+                np.asarray([6_378_137.0, 0.0, 0.0, 0.0, 7_500.0, 0.0]),
+                np.asarray([6_478_137.0, -1_000_000.0, 0.0, 0.0, 7_500.0, 0.0]),
+            ],
+            TimeUnit.MINUTES,
+        )
+        content = view.build_from_store(context)
         frame.SetSizer(wx.BoxSizer(wx.VERTICAL))
         frame.GetSizer().Add(content, 1, wx.EXPAND)
         frame.Show()

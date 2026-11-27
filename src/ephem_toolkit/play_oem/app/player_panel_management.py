@@ -12,6 +12,7 @@ from matplotlib.figure import Figure
 
 from .. import time_range
 from ..data_view_panel import DataViewPanelHost
+from ..matplotlib_helpers import create_figure
 from ..views import data_view_base as base
 from ..views.trajectory3d import selection as trajectory3d_selection
 from ..widgets.matplotlib_panel import MatplotlibPanel
@@ -118,19 +119,24 @@ class PanelManagementMixin:
         )
         coverage = (self.clock.t_start, self.clock.t_end)
         store_context = self._store_state.view_context
-        store_builder = getattr(data_view, "build_from_store", None)
-        requires_store_rebuild = store_context is None and callable(store_builder)
-        if store_context is not None and callable(store_builder):
-            store_context = store_context.with_range(resolved_range, coverage)
-            self._store_state.view_context = store_context
-            content = store_builder(store_context)
-        else:
-            content = data_view.build(self.series, self.time_unit)
-        set_time_range = getattr(data_view, "set_time_range", None)
-        if callable(set_time_range):
-            set_time_range(resolved_range, coverage)
+        placeholder_builder = getattr(data_view, "build_placeholder", None)
+        if store_context is None:
+            if not callable(placeholder_builder):
+                figure = create_figure((8.0, 4.5))
+                axes = figure.add_subplot(111)
+                axes.set_axis_off()
+                label = getattr(data_view, "label", getattr(data_view, "name", "Data View"))
+                axes.text(0.5, 0.55, label, ha="center", va="center", fontsize=12)
+                axes.text(0.5, 0.45, "Waiting for OEM data…", ha="center", va="center", color="0.45")
+                content = figure
+            else:
+                content = placeholder_builder()
+            return content, True
+        store_context = store_context.with_range(resolved_range, coverage)
+        self._store_state.view_context = store_context
+        content = data_view.build_from_store(store_context)
         data_view.update(self.clock.t_now)
-        return content, requires_store_rebuild
+        return content, False
 
     def _attach_view_content(
         self: PlayerAppState,

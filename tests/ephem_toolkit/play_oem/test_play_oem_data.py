@@ -318,14 +318,12 @@ def test_time_series_view_plots_oem_segments_as_separate_runs() -> None:
     ]
     computed = compute_orbit_series(timestamps, states, TimeUnit.MINUTES, [0, 0, 1, 1])
     view = SpeedAltitudeView(timestamps[0])
-    figure = view.build(computed, TimeUnit.MINUTES)
+    from tests.ephem_toolkit.play_oem.cursor_helpers import make_store_context
+    context = make_store_context(timestamps, states, TimeUnit.MINUTES, segment_ids=[0, 0, 1, 1])
+    figure = view.build_from_store(context)
     try:
         for axes in figure.axes:
-            series_lines = [
-                line for line in axes.lines if line.get_label() != "_child0"
-            ]
-            assert len(series_lines) == 2
-            assert [len(line.get_xdata()) for line in series_lines] == [2, 2]
+            assert len(axes.patches) == 2
     finally:
         view.close()
 

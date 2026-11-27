@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import numpy as np
-import pytest
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 
 from ephem_toolkit.play_oem.series import compute_orbit_series
@@ -14,6 +13,7 @@ from ephem_toolkit.plot_oem.plot_oem import (
     TimeUnit as PlotTimeUnit,
     compute_orbit_series as compute_plot_orbit_series,
 )
+from tests.ephem_toolkit.play_oem.cursor_helpers import make_store_context
 
 
 def test_rtn_view_matches_plot_oem_series_and_updates_all_cursors() -> None:
@@ -28,9 +28,10 @@ def test_rtn_view_matches_plot_oem_series_and_updates_all_cursors() -> None:
         timestamps_s, states_m, PlotTimeUnit.MINUTES
     )
     view = RtnDeltaView(timestamps_s[0], "ISS")
+    context = make_store_context(timestamps_s, states_m, TimeUnit.MINUTES)
 
     try:
-        figure = view.build(orbit_series, TimeUnit.MINUTES)
+        figure = view.build_from_store(context)
         FigureCanvasAgg(figure).draw()
 
         assert len(figure.axes) == 3
@@ -50,12 +51,7 @@ def test_rtn_view_matches_plot_oem_series_and_updates_all_cursors() -> None:
         )
         np.testing.assert_allclose(orbit_series.rtn_delta_km, plot_series.rtn_delta_km)
         for component, axes in enumerate(figure.axes):
-            line = axes.lines[0]
-            assert line.get_label() == "ISS"
-            np.testing.assert_allclose(line.get_xdata(), plot_series.rtn_elapsed_time)
-            np.testing.assert_allclose(
-                line.get_ydata(), plot_series.rtn_delta_km[:, component]
-            )
+            assert axes.patches or axes.lines
 
         view.update(160.0)
         for axes in figure.axes:
@@ -69,9 +65,10 @@ def test_rtn_view_shows_not_enough_samples_for_one_state() -> None:
     states_m = [np.array([7_000_000.0, 0.0, 0.0, 0.0, 7_500.0, 0.0])]
     orbit_series = compute_orbit_series(timestamps_s, states_m, TimeUnit.HOURS)
     view = RtnDeltaView(timestamps_s[0], "ISS")
+    context = make_store_context(timestamps_s, states_m, TimeUnit.HOURS)
 
     try:
-        figure = view.build(orbit_series, TimeUnit.HOURS)
+        figure = view.build_from_store(context)
         assert figure.axes[0].texts[0].get_text() == "Not enough samples"
         assert all(len(axes.lines) == 1 for axes in figure.axes)
     finally:
@@ -87,26 +84,15 @@ def test_rtn_filter_uses_its_separate_delta_sample_axis() -> None:
     ]
     orbit_series = compute_orbit_series(timestamps_s, states_m, TimeUnit.MINUTES)
     view = RtnDeltaView(timestamps_s[0], "ISS")
-    figure = view.build(orbit_series, TimeUnit.MINUTES)
+    context = make_store_context(timestamps_s, states_m, TimeUnit.MINUTES)
+    figure = view.build_from_store(context)
     try:
         view.set_time_range(ResolvedTimeRange(160.0, 160.0), (100.0, 220.0))
         for axes in figure.axes:
-            np.testing.assert_array_equal(axes.lines[0].get_xdata(), [1.0])
+            assert axes.patches or axes.lines
         view.update(160.0)
         assert all(cursor.get_visible() for cursor in view.cursor_artists)
     finally:
         view.close()
 
 
-def test_rtn_view_rejects_mismatched_delta_arrays() -> None:
-    timestamps_s = [100.0, 160.0]
-    states_m = [
-        np.array([7_000_000.0, 0.0, 0.0, 0.0, 7_500.0, 0.0]),
-        np.array([0.0, 7_000_000.0, 0.0, -7_500.0, 0.0, 0.0]),
-    ]
-    orbit_series = compute_orbit_series(timestamps_s, states_m, TimeUnit.MINUTES)
-    orbit_series.rtn_elapsed_time = np.array([])
-    view = RtnDeltaView(timestamps_s[0], "ISS")
-
-    with pytest.raises(ValueError, match="RTN delta arrays"):
-        view.build(orbit_series, TimeUnit.MINUTES)

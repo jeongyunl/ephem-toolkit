@@ -28,7 +28,7 @@ from vtkmodules.wx.wxVTKRenderWindowInteractor import wxVTKRenderWindowInteracto
 import ephem_toolkit.core.consts as consts
 import ephem_toolkit.core.wgs as wgs
 
-from ... import cursor, series, time_unit
+from ... import cursor
 from ...time_range import ResolvedTimeRange
 from ..data_view_base import StoreViewContext
 from ..plotting import MAX_MATPLOTLIB_3D_DISPLAY_POINTS
@@ -116,81 +116,6 @@ class VTKTrajectory3DView(DataViewSpecMixin):
         self._store_sample_times_s: np.ndarray | None = None
         self._store_display_spans: tuple[tuple[int, int], ...] = ()
 
-    def build(
-        self, orbit_series: series.OrbitSeries, _time_unit: time_unit.TimeUnit
-    ) -> wx.Window:
-        """Build the VTK scene and return its wx render-window widget.
-
-        Parameters
-        ----------
-        orbit_series : series.OrbitSeries
-            Orbit positions and elapsed times used by the scene.
-        _time_unit : time_unit.TimeUnit
-            Display unit paired with the shared view contract; unused in 3D.
-
-        Returns
-        -------
-        wx.Window
-            VTK render-window widget embedded in the data-view panel host.
-
-        Raises
-        ------
-        RuntimeError
-            If this view has already been built.
-        ValueError
-            If the orbit has no finite three-dimensional positions.
-        VTKBackendUnavailableError
-            If the wx VTK widget cannot be created.
-        """
-        if self._widget is not None:
-            raise RuntimeError("VTK trajectory view has already been built")
-        if self._cursor is None:
-            raise RuntimeError("legacy VTK build requires an OEM cursor")
-        positions_km = np.asarray(orbit_series.position_km, dtype=float)
-        if (
-            positions_km.ndim != 2
-            or positions_km.shape[1] != 3
-            or positions_km.shape[0] == 0
-            or not np.all(np.isfinite(positions_km))
-        ):
-            raise ValueError("position_km must be a non-empty finite (N, 3) array")
-
-        try:
-            widget = wxVTKRenderWindowInteractor(self._parent, wx.ID_ANY)
-        except (ImportError, OSError, RuntimeError) as error:
-            raise VTKBackendUnavailableError(
-                f"could not create the embedded VTK render window: {error}"
-            ) from error
-
-        self._widget = widget
-        self._positions_km = positions_km.copy()
-        self._sample_times_s = (
-            self._cursor.t_start
-            + orbit_series.elapsed_time * _time_unit.get_divisor_s()
-        )
-        self._segment_ids = orbit_series.segment_ids.copy()
-        (
-            self._orbit_display_positions_km,
-            self._orbit_display_segment_ids,
-        ) = select_segmented_positions(
-            self._positions_km,
-            self._sample_times_s,
-            self._segment_ids,
-            (self._cursor.t_start, self._cursor.t_end),
-        )
-        self._renderer = vtkRenderer()
-        self._renderer.SetBackground(0.06, 0.09, 0.15)
-        widget.GetRenderWindow().AddRenderer(self._renderer)
-        widget.SetInteractorStyle(vtkInteractorStyleTrackballCamera())
-        widget.Enable(1)
-
-        self._add_earth()
-        self._add_orbit()
-        self._add_tail()
-        self._add_cursor_marker()
-        self._renderer.ResetCamera()
-        self._renderer.GetActiveCamera().Zoom(1.15)
-        return widget
 
     def build_from_store(self, context: StoreViewContext) -> wx.Window:
         """Build from raw positions, packing only the bounded VTK display path."""
@@ -233,57 +158,6 @@ class VTKTrajectory3DView(DataViewSpecMixin):
             self.update(context.coverage[0])
         return widget
 
-    def update_data(
-        self, orbit_series: series.OrbitSeries, time_unit: time_unit.TimeUnit
-    ) -> bool:
-        if self._store_context is not None:
-            return False
-        if self._cursor is None:
-            return False
-        positions_km = np.asarray(orbit_series.position_km, dtype=float)
-        segment_ids = np.asarray(orbit_series.segment_ids, dtype=int)
-        if (
-            self._widget is None
-            or self._orbit_mapper is None
-            or self._orbit_actor is None
-            or positions_km.ndim != 2
-            or positions_km.shape[1] != 3
-            or positions_km.shape[0] == 0
-            or not np.all(np.isfinite(positions_km))
-            or segment_ids.shape != positions_km.shape[:1]
-            or orbit_series.elapsed_time.shape != positions_km.shape[:1]
-        ):
-            return False
-
-        self._positions_km = positions_km.copy()
-        self._sample_times_s = (
-            self._cursor.t_start
-            + orbit_series.elapsed_time * time_unit.get_divisor_s()
-        )
-        self._segment_ids = segment_ids.copy()
-        if self._range_applied:
-            selected_bounds = (
-                None
-                if self._range_bounds is None
-                else (self._range_bounds.start_s, self._range_bounds.end_s)
-            )
-        else:
-            selected_bounds = (self._cursor.t_start, self._cursor.t_end)
-        (
-            self._orbit_display_positions_km,
-            self._orbit_display_segment_ids,
-        ) = select_segmented_positions(
-            self._positions_km,
-            self._sample_times_s,
-            self._segment_ids,
-            selected_bounds,
-        )
-        poly_data, self._orbit_point_data = self._create_polyline(
-            self._orbit_display_positions_km, self._orbit_display_segment_ids
-        )
-        self._orbit_mapper.SetInputData(poly_data)
-        self._orbit_actor.SetVisibility(len(self._orbit_display_positions_km) > 0)
-        return True
 
     def update_from_store(self, context: StoreViewContext) -> None:
         """Refresh the bounded VTK path from a newer raw snapshot or range."""
@@ -301,45 +175,15 @@ class VTKTrajectory3DView(DataViewSpecMixin):
         self, bounds: ResolvedTimeRange | None, _coverage: tuple[float, float], /
     ) -> None:
         """Filter source positions before decimation without moving the camera."""
-        if self._store_context is not None:
-            self.update_from_store(
-                self._store_context.with_range(bounds, _coverage)
-            )
-            return
+        if self._store_context is None:
+            raise RuntimeError("VTK trajectory view was not built from a store")
+        self._store_context = self._store_context.with_range(bounds, _coverage)
         self._range_bounds = bounds
-        self._range_applied = True
-        if (
-            self._positions_km is None
-            or self._sample_times_s is None
-            or self._segment_ids is None
-            or self._orbit_mapper is None
-            or self._orbit_actor is None
-        ):
-            return
-        selected_bounds = None if bounds is None else (bounds.start_s, bounds.end_s)
-        (
-            self._orbit_display_positions_km,
-            self._orbit_display_segment_ids,
-        ) = select_segmented_positions(
-            self._positions_km,
-            self._sample_times_s,
-            self._segment_ids,
-            selected_bounds,
-        )
-        poly_data, self._orbit_point_data = self._create_polyline(
-            self._orbit_display_positions_km, self._orbit_display_segment_ids
-        )
-        self._orbit_mapper.SetInputData(poly_data)
-        self._orbit_actor.SetVisibility(len(self._orbit_display_positions_km) > 0)
-        in_range = (
-            bounds is not None
-            and bounds.start_s <= self._current_time_s <= bounds.end_s
-        )
-        if not in_range:
-            if self._cursor_actor is not None:
-                self._cursor_actor.SetVisibility(False)
-            if self._tail_actor is not None:
-                self._tail_actor.SetVisibility(False)
+        self._store_positions_m = self._store_context.snapshot.positions_m
+        self._store_sample_times_s = self._store_context.snapshot.raw[:, 0]
+        self._refresh_store_display_path()
+        self._set_store_orbit_input()
+        self.update(self._current_time_s)
 
     def update(self, time_s: float) -> None:
         """Update the marker and direction-aware tail from the shared cursor.
