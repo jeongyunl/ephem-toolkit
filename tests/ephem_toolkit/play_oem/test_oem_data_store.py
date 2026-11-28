@@ -1928,6 +1928,48 @@ def test_station_profiles_are_lazy_shared_and_threshold_independent() -> None:
     )
 
 
+def test_station_access_reuses_covering_interval_cache(monkeypatch) -> None:
+    import ephem_toolkit.play_oem.oem_data_store.station_access_tier as station_access_tier
+
+    times = np.arange(0.0, 12_001.0, 60.0)
+    states = np.tile(
+        np.array([7_378_137.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+        (times.size, 1),
+    )
+    store = _store_with_samples(
+        times,
+        states,
+        np.zeros(times.size, dtype=np.int64),
+        metadata=(("CENTER_NAME", "EARTH"), ("REF_FRAME", "ITRF")),
+    )
+    station = GroundStation("equator", "Equator", 0.0, 0.0, 0.0)
+    snapshot = store.snapshot()
+
+    interval_calls = [0]
+    original_intervals = station_access_tier._intervals_for_segment
+
+    def counted_intervals(*args, **kwargs):
+        interval_calls[0] += 1
+        return original_intervals(*args, **kwargs)
+
+    monkeypatch.setattr(
+        station_access_tier,
+        "_intervals_for_segment",
+        counted_intervals,
+    )
+
+    broad = store.station_access(snapshot, station, (0.0, 12_000.0), wait=True)
+    assert broad.value.intervals
+    calls_after_broad = interval_calls[0]
+
+    narrow = store.station_access(snapshot, station, (6_000.0, 6_060.0), wait=True)
+    assert interval_calls[0] == calls_after_broad
+    assert narrow.value.intervals
+    for interval in narrow.value.intervals:
+        assert interval.start_s >= 6_000.0
+        assert interval.end_s <= 6_060.0
+
+
 def test_station_access_recomputes_policy_dependent_support_margin() -> None:
     times = np.arange(0.0, 12_001.0, 60.0)
     states = np.tile(

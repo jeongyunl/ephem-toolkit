@@ -541,6 +541,8 @@ class PanelManagementMixin:
         opened = self._open_panels.pop(panel_id, None)
         if opened is None:
             return
+        self._refresh_state.pending_store_view_ids.discard(panel_id)
+        self._refresh_state.forced_store_view_refresh_ids.discard(panel_id)
         try:
             self._release_open_data_view_resources(opened)
         finally:

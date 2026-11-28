@@ -9,18 +9,17 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.text import Text
 
-from .. import time_unit
 from ..matplotlib_helpers import create_figure, style_axes
 from ..oem_data_store import ColumnGroupView, StoreQuery
 from ..time_range import ResolvedTimeRange
 from .data_view_base import (
     StoreViewContext,
-    add_store_series_paths,
     set_store_series_y_limits,
     store_empty_label,
 )
 from .orbit_time_series import OrbitTimeSeriesView
 from .plotting import (
+    StoreArtistBinding,
     set_shared_x_limits,
     time_bounds_to_axis,
 )
@@ -55,6 +54,10 @@ class AngularVelocityView(OrbitTimeSeriesView):
         self._object_name = object_name
         self._store_query: StoreQuery[tuple[ColumnGroupView, ...]] | None = None
         self._store_artists: tuple[tuple[Artist, ...], ...] = ((), ())
+        self._store_artist_bindings = (
+            StoreArtistBinding(),
+            StoreArtistBinding(),
+        )
         self._store_empty_artists: tuple[Text, ...] | None = None
 
     def build_from_store(self, context: StoreViewContext) -> Figure | wx.Window:
@@ -128,14 +131,15 @@ class AngularVelocityView(OrbitTimeSeriesView):
         scales = (180.0 / np.pi, 1.0)
         artists_by_axis: list[tuple[Artist, ...]] = []
         for axes, column, scale in zip(self._figure.axes, columns, scales):
-            artists = add_store_series_paths(
+            binding = self._store_artist_bindings[len(artists_by_axis)]
+            artists = binding.sync_store_series(
                 axes,
                 groups,
                 column,
-                self._store_start_time_s,
-                self._time_unit_divisor_s,
+                time_origin_s=self._store_start_time_s,
+                time_divisor_s=self._time_unit_divisor_s,
                 scale_y=scale,
-                color="C0",
+                edgecolor="C0",
                 label=f"{self._object_name} angular rate",
                 linewidth=2,
                 mask_zero=True,

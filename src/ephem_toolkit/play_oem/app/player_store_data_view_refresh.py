@@ -143,6 +143,7 @@ class PlayerStoreViewRefreshMixin:
         self._refresh_state.pending_store_view_ids.update(
             candidates
         )
+        self._refresh_state.forced_store_view_refresh_ids.update(candidates)
 
     def _should_suppress_partial_store_view_refresh(
         self: PlayerAppState,
@@ -163,13 +164,15 @@ class PlayerStoreViewRefreshMixin:
         context = self._store_state.view_context
         if context is None:
             return
+        snapshot_changed = False
         if self._store_state.active is not None:
             snapshot = self._store_state.active.snapshot()
-            if (
+            snapshot_changed = (
                 context.snapshot.epoch != snapshot.epoch
                 or context.snapshot.revision != snapshot.revision
                 or context.snapshot.policy_revision != snapshot.policy_revision
-            ):
+            )
+            if snapshot_changed:
                 context = context.refresh()
                 self._store_state.view_context = context
         panel_ids = tuple(self._refresh_state.pending_store_view_ids)
@@ -191,7 +194,14 @@ class PlayerStoreViewRefreshMixin:
                 (self.clock.t_start, self.clock.t_end),
             )
             try:
-                opened.data_view.update_from_store(view_context)
+                range_changed = (
+                    not opened.range_initialized
+                    or opened.applied_range != view_context.plot_range
+                    or opened.applied_coverage != view_context.coverage
+                )
+                forced = panel_id in self._refresh_state.forced_store_view_refresh_ids
+                if snapshot_changed or range_changed or forced:
+                    opened.data_view.update_from_store(view_context)
                 opened.applied_range = view_context.plot_range
                 opened.applied_coverage = view_context.coverage
                 opened.range_initialized = True
@@ -199,6 +209,9 @@ class PlayerStoreViewRefreshMixin:
                 self._queue_time_range_redraw(opened.panel)
             except Exception as error:
                 self.status_bar.set_message(f"Could not refresh OEM data_views: {error}")
+        self._refresh_state.forced_store_view_refresh_ids.difference_update(
+            panel_ids
+        )
 
         if self._refresh_state.pending_store_view_ids:
             return

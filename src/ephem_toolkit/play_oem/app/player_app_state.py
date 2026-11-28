@@ -147,6 +147,8 @@ class RefreshState:
 
     pending_store_view_ids: set[str] = field(default_factory=set)
     """Panel IDs waiting for a store or incremental refresh."""
+    forced_store_view_refresh_ids: set[str] = field(default_factory=set)
+    """Panel IDs forced to refresh despite unchanged range and snapshot state."""
     incremental_view_refresh_pending: bool = False
     """Whether a pending refresh should be retained for a later tick."""
     last_incremental_view_refresh_monotonic_s: float | None = None

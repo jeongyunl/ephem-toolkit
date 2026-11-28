@@ -2,25 +2,23 @@
 
 from __future__ import annotations
 
-import numpy as np
 import wx
 from matplotlib.artist import Artist
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.text import Text
 
-from .. import time_unit
 from ..matplotlib_helpers import create_figure, style_axes
 from ..oem_data_store import SeriesGroups, StoreQuery
 from ..time_range import ResolvedTimeRange
 from .data_view_base import (
     StoreViewContext,
-    add_store_series_paths,
     set_store_series_y_limits,
     store_empty_label,
 )
 from .orbit_time_series import OrbitTimeSeriesView
 from .plotting import (
+    StoreArtistBinding,
     set_shared_x_limits,
     time_bounds_to_axis,
 )
@@ -57,6 +55,12 @@ class GeocentricDistanceView(OrbitTimeSeriesView):
         self._store_artists: tuple[tuple[Artist, ...], tuple[Artist, ...]] = (
             (),
             (),
+        )
+        self._distance_artist_binding = StoreArtistBinding()
+        self._delta_artist_binding = StoreArtistBinding()
+        self._store_artist_bindings = (
+            self._distance_artist_binding,
+            self._delta_artist_binding,
         )
         self._store_empty_artists: tuple[Text, Text] | None = None
 
@@ -130,25 +134,25 @@ class GeocentricDistanceView(OrbitTimeSeriesView):
         self._store_query = query
         kinematics = query.value["kinematics"]
         distance_deltas = query.value["distance-delta"]
-        distance_artists = add_store_series_paths(
+        distance_artists = self._distance_artist_binding.sync_store_series(
             self._figure.axes[0],
             kinematics,
             "distance_m",
-            self._store_start_time_s,
-            self._time_unit_divisor_s,
+            time_origin_s=self._store_start_time_s,
+            time_divisor_s=self._time_unit_divisor_s,
             scale_y=0.001,
-            color="C0",
+            edgecolor="C0",
             label=self._object_name,
             linewidth=2,
         )
-        delta_artists = add_store_series_paths(
+        delta_artists = self._delta_artist_binding.sync_store_series(
             self._figure.axes[1],
             distance_deltas,
             "delta_distance_m",
-            self._store_start_time_s,
-            self._time_unit_divisor_s,
+            time_origin_s=self._store_start_time_s,
+            time_divisor_s=self._time_unit_divisor_s,
             scale_y=0.001,
-            color="C0",
+            edgecolor="C0",
             label=f"{self._object_name} delta",
             linewidth=2,
         )

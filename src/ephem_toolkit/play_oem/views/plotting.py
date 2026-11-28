@@ -3,15 +3,272 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from math import ceil
 
 import numpy as np
+from matplotlib.artist import Artist
 from matplotlib.axes import Axes
 from matplotlib.lines import Line2D
+from matplotlib.patches import PathPatch
+from matplotlib.path import Path
+from matplotlib.transforms import Affine2D
 
+from ..oem_data_store import ColumnGroupView, StoreSnapshot
 from ..time_range import ResolvedTimeRange
+from ..time_snapping import TimeSamplingPolicy
 
 MAX_DISPLAY_POINTS_PER_SEGMENT = 2000
 MAX_MATPLOTLIB_3D_DISPLAY_POINTS = 500
+
+
+class StoreArtistBinding:
+    """Reuse Matplotlib artists while synchronizing store-backed plot segments."""
+
+    def __init__(self) -> None:
+        self.artists: tuple[Artist, ...] = ()
+
+    def clear(self) -> None:
+        for artist in self.artists:
+            artist.remove()
+        self.artists = ()
+
+    def _sync_segments(
+        self,
+        axes: Axes,
+        segments: Sequence[tuple[np.ndarray, np.ndarray | None]],
+        *,
+        transform: Affine2D,
+        facecolor: str = "none",
+        edgecolor: str = "C0",
+        linewidth: float = 1.5,
+        labels: Sequence[str | None] | None = None,
+        one_point_as_line: bool = False,
+    ) -> tuple[Artist, ...]:
+        existing = iter(self.artists)
+        artists: list[Artist] = []
+        for index, (points, codes) in enumerate(segments):
+            label = (
+                "_nolegend_"
+                if labels is None or labels[index] is None
+                else labels[index]
+            )
+            candidate = next(existing, None)
+            if len(points) == 1 and one_point_as_line:
+                if isinstance(candidate, Line2D):
+                    artist = candidate
+                    artist.set_data(points[:, 0], points[:, 1])
+                    artist.set_marker(".")
+                    artist.set_linestyle("None")
+                    artist.set_color(edgecolor)
+                    artist.set_label(label)
+                else:
+                    if isinstance(candidate, Artist):
+                        candidate.remove()
+                    artist = Line2D(
+                        points[:, 0],
+                        points[:, 1],
+                        marker=".",
+                        linestyle="None",
+                        color=edgecolor,
+                        label=label,
+                    )
+                    axes.add_line(artist)
+            else:
+                if codes is None:
+                    segment_codes = np.full(
+                        len(points),
+                        Path.LINETO,
+                        dtype=Path.code_type,
+                    )
+                    segment_codes[0] = Path.MOVETO
+                else:
+                    segment_codes = codes
+                if isinstance(candidate, PathPatch):
+                    artist = candidate
+                    artist.set_path(Path(points, segment_codes, readonly=True))
+                else:
+                    if isinstance(candidate, Artist):
+                        candidate.remove()
+                    artist = PathPatch(
+                        Path(points, segment_codes, readonly=True),
+                        facecolor=facecolor,
+                        edgecolor=edgecolor,
+                        linewidth=linewidth,
+                        label=label,
+                    )
+                    axes.add_patch(artist)
+                artist.set_facecolor(facecolor)
+                artist.set_edgecolor(edgecolor)
+                artist.set_linewidth(linewidth)
+                artist.set_label(label)
+            artist.set_transform(transform)
+            artist.set_visible(True)
+            artists.append(artist)
+        for artist in existing:
+            artist.remove()
+        self.artists = tuple(artists)
+        return self.artists
+
+    def sync_pairs(
+        self,
+        axes: Axes,
+        pairs: Sequence[np.ndarray],
+        *,
+        time_origin_s: float,
+        time_divisor_s: float,
+        scale_y: float = 1.0,
+        edgecolor: str = "C0",
+        linewidth: float = 1.5,
+        label: str | None = None,
+    ) -> tuple[Artist, ...]:
+        """Synchronize 2-column point arrays as reusable line or path artists."""
+        transform = (
+            Affine2D.from_values(
+                1.0 / time_divisor_s,
+                0.0,
+                0.0,
+                scale_y,
+                -time_origin_s / time_divisor_s,
+                0.0,
+            )
+            + axes.transData
+        )
+        segments = [(points, None) for points in pairs if len(points) > 0]
+        labels = [label] if label is not None else None
+        if labels is not None:
+            labels = [label] + [None] * max(0, len(segments) - 1)
+        return self._sync_segments(
+            axes,
+            segments,
+            transform=transform,
+            edgecolor=edgecolor,
+            linewidth=linewidth,
+            labels=labels,
+            one_point_as_line=True,
+        )
+
+    def sync_store_series(
+        self,
+        axes: Axes,
+        groups: Sequence[ColumnGroupView],
+        value_column: str,
+        *,
+        time_origin_s: float,
+        time_divisor_s: float,
+        scale_y: float = 1.0,
+        edgecolor: str = "C0",
+        linewidth: float = 1.5,
+        label: str | None = None,
+        mask_zero: bool = False,
+        minimum_samples: int = 1,
+    ) -> tuple[Artist, ...]:
+        """Synchronize store-derived series segments without rebuilding them."""
+        segments: list[tuple[np.ndarray, np.ndarray]] = []
+        labels: list[str | None] = []
+        current_label = label
+        for group in groups:
+            for span in group.segment_bounds:
+                sample_count = span.stop - span.first
+                if sample_count < minimum_samples:
+                    continue
+                stride = max(1, ceil(sample_count / MAX_DISPLAY_POINTS_PER_SEGMENT))
+                points = group.pair(
+                    "t",
+                    value_column,
+                    slice(span.first, span.stop, stride),
+                )
+                if mask_zero and len(points) == 1 and points[0, 1] == 0.0:
+                    continue
+                codes = np.full(len(points), Path.LINETO, dtype=Path.code_type)
+                codes[0] = Path.MOVETO
+                if mask_zero:
+                    invalid = points[:, 1] == 0.0
+                    codes[invalid] = Path.MOVETO
+                    if len(codes) > 1:
+                        codes[1:][invalid[:-1]] = Path.MOVETO
+                segments.append((points, codes))
+                labels.append(current_label)
+                current_label = None
+        transform = (
+            Affine2D.from_values(
+                1.0 / time_divisor_s,
+                0.0,
+                0.0,
+                scale_y,
+                -time_origin_s / time_divisor_s,
+                0.0,
+            )
+            + axes.transData
+        )
+        return self._sync_segments(
+            axes,
+            segments,
+            transform=transform,
+            edgecolor=edgecolor,
+            linewidth=linewidth,
+            labels=labels,
+        )
+
+    def sync_raw_state(
+        self,
+        axes: Axes,
+        snapshot: StoreSnapshot,
+        value_column: int,
+        *,
+        bounds: ResolvedTimeRange | None,
+        maximum_samples_per_segment: int,
+        time_sampling: TimeSamplingPolicy | None,
+        time_origin_s: float,
+        time_divisor_s: float,
+        scale_y: float = 1.0,
+        edgecolor: str = "C0",
+        linewidth: float = 1.5,
+    ) -> tuple[Artist, ...]:
+        """Synchronize sampled raw-state segments for one component axis."""
+        if not 1 <= value_column < snapshot.raw.shape[1]:
+            raise ValueError("state column must be between 1 and 6")
+        if maximum_samples_per_segment < 1:
+            raise ValueError("maximum_samples_per_segment must be positive")
+        segments: list[tuple[np.ndarray, np.ndarray]] = []
+        if bounds is not None and snapshot.sample_count:
+            times = snapshot.raw[:, 0]
+            range_start = int(np.searchsorted(times, bounds.start_s, side="left"))
+            range_stop = int(np.searchsorted(times, bounds.end_s, side="right"))
+            sampler = time_sampling or TimeSamplingPolicy()
+            for segment_start, segment_stop in snapshot.segment_bounds:
+                first = max(int(segment_start), range_start)
+                stop = min(int(segment_stop), range_stop)
+                if stop <= first:
+                    continue
+                source = snapshot.raw[first:stop]
+                sample_times, sample_values = sampler.sample(
+                    source[:, 0],
+                    source[:, value_column],
+                    bounds_s=(float(source[0, 0]), float(source[-1, 0])),
+                    max_samples=maximum_samples_per_segment,
+                )
+                points = np.column_stack((sample_times, sample_values))
+                codes = np.full(len(points), Path.LINETO, dtype=Path.code_type)
+                codes[0] = Path.MOVETO
+                segments.append((points, codes))
+        transform = (
+            Affine2D.from_values(
+                1.0 / time_divisor_s,
+                0.0,
+                0.0,
+                scale_y,
+                -time_origin_s / time_divisor_s,
+                0.0,
+            )
+            + axes.transData
+        )
+        return self._sync_segments(
+            axes,
+            segments,
+            transform=transform,
+            edgecolor=edgecolor,
+            linewidth=linewidth,
+        )
 
 
 

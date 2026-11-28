@@ -185,6 +185,26 @@ def test_speed_altitude_update_from_store_rebuilds_for_new_range() -> None:
     view.close()
 
 
+def test_speed_altitude_reuses_store_path_artists_for_range_updates() -> None:
+    context = _store_context(complete=True)
+    view = SpeedAltitudeView(start_time_s=100.0)
+    figure = view.build_from_store(context)
+    FigureCanvasAgg(figure).draw()
+
+    original_speed = view._store_patches[0][0]
+    original_altitude = view._store_patches[1][0]
+
+    ranged = context.with_range(
+        ResolvedTimeRange(100.0, 280.0),
+        context.coverage,
+    )
+    view.update_from_store(ranged)
+
+    assert view._store_patches[0][0] is original_speed
+    assert view._store_patches[1][0] is original_altitude
+    view.close()
+
+
 def test_speed_altitude_store_view_rebuilds_for_empty_and_new_ranges() -> None:
     context = _store_context(complete=True)
     view = SpeedAltitudeView(start_time_s=100.0)

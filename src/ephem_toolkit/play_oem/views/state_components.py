@@ -11,17 +11,19 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.text import Text
 
-from .. import time_unit
 from ..matplotlib_helpers import create_figure, style_axes
 from ..time_range import ResolvedTimeRange
 from .data_view_base import (
     StoreViewContext,
-    add_raw_state_paths,
     set_raw_state_y_limits,
     store_empty_label,
 )
 from .orbit_time_series import OrbitTimeSeriesView
-from .plotting import set_shared_x_limits, time_bounds_to_axis
+from .plotting import (
+    StoreArtistBinding,
+    set_shared_x_limits,
+    time_bounds_to_axis,
+)
 
 CARTESIAN_COMPONENT_COUNT: int = 3
 """Number of Cartesian position or velocity components."""
@@ -67,6 +69,9 @@ class StateComponentsView(OrbitTimeSeriesView):
         super().__init__(start_time_s, panel=panel, on_seek=on_seek)
         self._frame_context: str = frame_context
         self._store_artists: tuple[tuple[Artist, ...], ...] = ((), (), (), (), (), ())
+        self._store_artist_bindings = tuple(
+            StoreArtistBinding() for _ in range(CARTESIAN_COMPONENT_COUNT * 2)
+        )
         self._store_empty_artists: tuple[Text, ...] | None = None
 
     def build_from_store(self, context: StoreViewContext) -> Figure | wx.Window:
@@ -150,15 +155,18 @@ class StateComponentsView(OrbitTimeSeriesView):
         columns = (1, 4, 2, 5, 3, 6)
         artists_by_axis: list[tuple[Artist, ...]] = []
         for axes, column in zip(self._figure.axes, columns):
-            artists = add_raw_state_paths(
+            binding = self._store_artist_bindings[
+                len(artists_by_axis)
+            ]
+            artists = binding.sync_raw_state(
                 axes,
                 context.snapshot,
                 column,
-                self._store_start_time_s,
-                self._time_unit_divisor_s,
                 bounds=context.plot_range,
                 maximum_samples_per_segment=MAX_STATE_COMPONENT_DISPLAY_POINTS_PER_SEGMENT,
                 time_sampling=context.time_sampling,
+                time_origin_s=self._store_start_time_s,
+                time_divisor_s=self._time_unit_divisor_s,
                 scale_y=0.001,
                 linewidth=1.5,
             )

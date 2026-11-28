@@ -861,6 +861,7 @@ class PlayerApp(
                 self._publish_range_hint()
             self._refresh_state.incremental_view_refresh_pending = False
             self._refresh_state.pending_store_view_ids.clear()
+            self._refresh_state.forced_store_view_refresh_ids.clear()
             self._follow_selection_unsubscribe()
             self._incremental_loader.cancel()
             self._clock_unsubscribe()

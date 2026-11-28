@@ -23,6 +23,7 @@ from .data_view_base import (
 from .orbit_time_series import OrbitTimeSeriesView
 from .plotting import (
     MAX_DISPLAY_POINTS_PER_SEGMENT,
+    StoreArtistBinding,
     set_shared_x_limits,
     time_bounds_to_axis,
 )
@@ -63,6 +64,12 @@ class SpeedAltitudeView(OrbitTimeSeriesView):
         self._store_patches: tuple[
             tuple[PathPatch | Line2D, ...], tuple[PathPatch | Line2D, ...]
         ] = ((), ())
+        self._speed_artist_binding = StoreArtistBinding()
+        self._altitude_artist_binding = StoreArtistBinding()
+        self._store_artist_bindings = (
+            self._speed_artist_binding,
+            self._altitude_artist_binding,
+        )
         self._store_empty_artists: tuple[Text, Text] | None = None
 
 
@@ -140,13 +147,38 @@ class SpeedAltitudeView(OrbitTimeSeriesView):
         self, context: StoreViewContext, *, rescale_y: bool
     ) -> None:
         self._begin_store_context_update(context, axis_indexes=(1,))
-        self._remove_store_patches()
 
         query = context.series("kinematics", max_samples=MAX_DISPLAY_POINTS_PER_SEGMENT)
         self._store_query = query
         groups = query.value
-        speed_patches, altitude_patches = self._add_store_patches(
-            groups, self._figure.axes[0], self._figure.axes[1], context
+        speed_segments: list[np.ndarray] = []
+        altitude_segments: list[np.ndarray] = []
+        for group in groups:
+            for span in group.segment_bounds:
+                rows = slice(span.first, span.stop)
+                speed = group.pair("t", "speed_m_s", rows)
+                altitude = group.pair("t", "altitude_m", rows)
+                if speed.shape[0]:
+                    speed_segments.append(speed)
+                if altitude.shape[0]:
+                    altitude_segments.append(altitude)
+        speed_patches = self._speed_artist_binding.sync_pairs(
+            self._figure.axes[0],
+            speed_segments,
+            time_origin_s=self._store_start_time_s,
+            time_divisor_s=self._time_unit_divisor_s,
+            scale_y=0.001,
+            edgecolor="C0",
+            linewidth=1.5,
+        )
+        altitude_patches = self._altitude_artist_binding.sync_pairs(
+            self._figure.axes[1],
+            altitude_segments,
+            time_origin_s=self._store_start_time_s,
+            time_divisor_s=self._time_unit_divisor_s,
+            scale_y=0.001,
+            edgecolor="C0",
+            linewidth=1.5,
         )
         self._store_patches = (speed_patches, altitude_patches)
         has_samples = bool(speed_patches or altitude_patches)
@@ -175,6 +207,8 @@ class SpeedAltitudeView(OrbitTimeSeriesView):
     ) -> tuple[tuple[PathPatch | Line2D, ...], tuple[PathPatch | Line2D, ...]]:
         speed_artists: list[PathPatch | Line2D] = []
         altitude_artists: list[PathPatch | Line2D] = []
+        speed_existing = iter(self._store_patches[0])
+        altitude_existing = iter(self._store_patches[1])
         for group in groups:
             for span in group.segment_bounds:
                 rows = slice(span.first, span.stop)
@@ -183,13 +217,27 @@ class SpeedAltitudeView(OrbitTimeSeriesView):
                 if speed.shape[0] == 0:
                     continue
                 speed_artists.append(
-                    self._add_store_path(speed_axes, speed, context, scale_y=0.001)
+                    self._add_store_path(
+                        speed_axes,
+                        speed,
+                        context,
+                        scale_y=0.001,
+                        existing=next(speed_existing, None),
+                    )
                 )
                 altitude_artists.append(
                     self._add_store_path(
-                        altitude_axes, altitude, context, scale_y=0.001
+                        altitude_axes,
+                        altitude,
+                        context,
+                        scale_y=0.001,
+                        existing=next(altitude_existing, None),
                     )
                 )
+        for artist in speed_existing:
+            artist.remove()
+        for artist in altitude_existing:
+            artist.remove()
         return tuple(speed_artists), tuple(altitude_artists)
 
     def _add_store_path(
@@ -199,6 +247,7 @@ class SpeedAltitudeView(OrbitTimeSeriesView):
         context: StoreViewContext,
         *,
         scale_y: float,
+        existing: PathPatch | Line2D | None = None,
     ) -> PathPatch | Line2D:
         transform = (
             Affine2D.from_values(
@@ -212,6 +261,13 @@ class SpeedAltitudeView(OrbitTimeSeriesView):
             + axes.transData
         )
         if values.shape[0] == 1:
+            if isinstance(existing, Line2D):
+                existing.set_data(values[:, 0], values[:, 1])
+                existing.set_transform(transform)
+                existing.set_visible(True)
+                return existing
+            if isinstance(existing, PathPatch):
+                existing.remove()
             artist = Line2D(
                 values[:, 0],
                 values[:, 1],
@@ -222,6 +278,13 @@ class SpeedAltitudeView(OrbitTimeSeriesView):
             artist.set_transform(transform)
             axes.add_line(artist)
             return artist
+        if isinstance(existing, PathPatch):
+            existing.set_path(Path(values, readonly=True))
+            existing.set_transform(transform)
+            existing.set_visible(True)
+            return existing
+        if isinstance(existing, Line2D):
+            existing.remove()
         patch = PathPatch(Path(values, readonly=True), fill=False, color="C0")
         patch.set_transform(transform)
         axes.add_patch(patch)

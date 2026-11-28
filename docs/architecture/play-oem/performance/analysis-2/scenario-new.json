@@ -1,0 +1,13 @@
+{
+  "kind": "playback-range-recording",
+  "oem": "tests/data/ISS_2026-05-20.OEM",
+  "capture_duration_s": 4.0,
+  "description": "Deterministic 10%-coverage forward/back pan trace with 2% pan steps and 1-second settling pauses.",
+  "events": [
+    {"t_s": 0.0, "start_fraction": 0.30, "end_fraction": 0.40, "pause_s": 0.0},
+    {"t_s": 1.0, "start_fraction": 0.32, "end_fraction": 0.42, "pause_s": 1.0},
+    {"t_s": 2.0, "start_fraction": 0.34, "end_fraction": 0.44, "pause_s": 1.0},
+    {"t_s": 3.0, "start_fraction": 0.32, "end_fraction": 0.42, "pause_s": 1.0},
+    {"t_s": 4.0, "start_fraction": 0.30, "end_fraction": 0.40, "pause_s": 1.0}
+  ]
+}

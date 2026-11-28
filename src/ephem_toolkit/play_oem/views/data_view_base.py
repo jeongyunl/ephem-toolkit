@@ -4,18 +4,13 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field, replace
-from math import ceil
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Protocol, TypeVar, cast, runtime_checkable
 
 import numpy as np
-from matplotlib.artist import Artist
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
-from matplotlib.patches import PathPatch
-from matplotlib.path import Path
-from matplotlib.transforms import Affine2D
 
 from ..cursor import CursorState
 from ..ground_footprints import GroundFootprints
@@ -366,6 +361,7 @@ class StoreStationViewSupport:
         self._station_store_context: StoreViewContext | None = None
         self._store_context: StoreViewContext | None = None
         self._store_binding = StoreViewBinding(tiers)
+        self._station_access_preparation_key: tuple[object, ...] | None = None
 
     def _prepare_station_store_context(self, context: StoreViewContext) -> None:
         self._store_binding.bind(context)
@@ -409,6 +405,7 @@ class StoreStationViewSupport:
         self._store_binding.close()
         self._station_store_context = None
         self._store_context = None
+        self._station_access_preparation_key = None
 
     def _station_time_sampling(self) -> TimeSamplingPolicy:
         """Return store sampling policy or the normal policy for result-only data_views."""
@@ -610,141 +607,6 @@ def validate_data_view_protocol(view: object) -> DataView:
             f" missing {', '.join(missing)}"
         )
     return cast(DataView, view)
-
-
-def add_store_series_paths(
-    axes: Axes,
-    groups: Sequence[ColumnGroupView],
-    value_column: str,
-    time_origin_s: float,
-    time_divisor_s: float,
-    *,
-    scale_y: float = 1.0,
-    color: str = "C0",
-    label: str | None = None,
-    linewidth: float = 1.5,
-    mask_zero: bool = False,
-    minimum_samples: int = 1,
-) -> tuple[Artist, ...]:
-    """Plot strided store data_views without copying their coordinate values."""
-    artists: list[Artist] = []
-    current_label = label
-    for group in groups:
-        for span in group.segment_bounds:
-            sample_count = span.stop - span.first
-            if sample_count < minimum_samples:
-                continue
-            stride = max(1, ceil(sample_count / MAX_DISPLAY_POINTS_PER_SEGMENT))
-            points = group.pair(
-                "t",
-                value_column,
-                slice(span.first, span.stop, stride),
-            )
-            transform = (
-                Affine2D.from_values(
-                    1.0 / time_divisor_s,
-                    0.0,
-                    0.0,
-                    scale_y,
-                    -time_origin_s / time_divisor_s,
-                    0.0,
-                )
-                + axes.transData
-            )
-            if mask_zero and len(points) == 1 and points[0, 1] == 0.0:
-                continue
-            codes = np.full(len(points), Path.LINETO, dtype=Path.code_type)
-            codes[0] = Path.MOVETO
-            if mask_zero:
-                invalid = points[:, 1] == 0.0
-                codes[invalid] = Path.MOVETO
-                codes[1:][invalid[:-1]] = Path.MOVETO
-            artist = PathPatch(
-                Path(points, codes, readonly=True),
-                facecolor="none",
-                edgecolor=color,
-                linewidth=linewidth,
-                label=current_label or "_nolegend_",
-                transform=transform,
-            )
-            axes.add_patch(artist)
-            artists.append(artist)
-            current_label = None
-    return tuple(artists)
-
-
-def add_raw_state_paths(
-    axes: Axes,
-    snapshot: StoreSnapshot,
-    value_column: int,
-    time_origin_s: float,
-    time_divisor_s: float,
-    *,
-    bounds: ResolvedTimeRange | None,
-    maximum_samples_per_segment: int,
-    time_sampling: TimeSamplingPolicy | None = None,
-    scale_y: float,
-    color: str = "C0",
-    linewidth: float = 1.5,
-) -> tuple[Artist, ...]:
-    """Plot raw-state columns sampled on the shared aligned time grid."""
-    if not 1 <= value_column < snapshot.raw.shape[1]:
-        raise ValueError("state column must be between 1 and 6")
-    if maximum_samples_per_segment < 1:
-        raise ValueError("maximum_samples_per_segment must be positive")
-    if bounds is None or snapshot.sample_count == 0:
-        return ()
-
-    times = snapshot.raw[:, 0]
-    range_start = int(np.searchsorted(times, bounds.start_s, side="left"))
-    range_stop = int(np.searchsorted(times, bounds.end_s, side="right"))
-    artists: list[Artist] = []
-    sampler = time_sampling or TimeSamplingPolicy()
-    for segment_start, segment_stop in snapshot.segment_bounds:
-        first = max(int(segment_start), range_start)
-        stop = min(int(segment_stop), range_stop)
-        sample_count = stop - first
-        if sample_count <= 0:
-            continue
-        source = snapshot.raw[first:stop]
-        sample_times, sample_values = sampler.sample(
-            source[:, 0],
-            source[:, value_column],
-            bounds_s=(float(source[0, 0]), float(source[-1, 0])),
-            max_samples=maximum_samples_per_segment,
-        )
-        points = np.column_stack((sample_times, sample_values))
-        codes = np.full(len(points), Path.LINETO, dtype=Path.code_type)
-        codes[0] = Path.MOVETO
-        transform = (
-            Affine2D.from_values(
-                1.0 / time_divisor_s,
-                0.0,
-                0.0,
-                scale_y,
-                -time_origin_s / time_divisor_s,
-                0.0,
-            )
-            + axes.transData
-        )
-        artist = PathPatch(
-            Path(points, codes, readonly=True),
-            facecolor="none",
-            edgecolor=color,
-            linewidth=linewidth,
-            transform=transform,
-        )
-        axes.add_patch(artist)
-        artists.append(artist)
-    return tuple(artists)
-
-
-def clear_store_series_artists(axes: Axes, artists: Sequence[Artist]) -> None:
-    for artist in artists:
-        artist.remove()
-    legend = axes.get_legend()
-    if legend is not None:
-        legend.remove()
 
 
 def store_empty_label(
@@ -1005,9 +867,6 @@ class StoreSeriesPlotView(TimeRangeSupport):
         for index in indexes:
             self._figure.axes[index].set_xlabel(context.time_unit.get_axis_label())
         super().set_time_range(context.plot_range, context.coverage)
-        artist_groups = getattr(self, "_store_artists", ())
-        for axes, artists in zip(self._figure.axes, artist_groups):
-            clear_store_series_artists(axes, artists)
 
     def _request_store_view_redraw(self) -> None:
         """Request a canvas redraw after one store-backed rebuild completes."""
@@ -1044,6 +903,9 @@ class StoreSeriesPlotView(TimeRangeSupport):
 
     def _close_store_series_plot(self) -> None:
         """Release shared figure, range callbacks, and store subscriptions."""
+        bindings = getattr(self, "_store_artist_bindings", ())
+        for binding in bindings:
+            binding.clear()
         if self._figure is not None:
             self._close_time_range()
             self._figure.clear()

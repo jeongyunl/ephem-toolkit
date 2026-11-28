@@ -346,11 +346,36 @@ class GroundStationProfileRendererBase(
         self._station_choice.SetSelection(selected_index)
 
     def _prepare_access(self) -> None:
-        self._results.clear()
-        self._store_queries.clear()
         store_context = self._active_station_store_context
         if not self._oem_loaded or store_context is None:
+            self._station_access_preparation_key = ("unavailable",)
+            self._results.clear()
+            self._store_queries.clear()
             return
+        station_key = tuple(
+            (
+                station.station_id,
+                station.name,
+                station.latitude_deg,
+                station.longitude_deg,
+                station.altitude_m,
+                station.minimum_elevation_deg,
+            )
+            for station in self._stations
+        )
+        preparation_key = (
+            store_context.snapshot.epoch,
+            store_context.snapshot.revision,
+            store_context.snapshot.policy_revision,
+            store_context.plot_range,
+            store_context.coverage,
+            station_key,
+        )
+        if preparation_key == self._station_access_preparation_key:
+            return
+        self._station_access_preparation_key = preparation_key
+        self._results.clear()
+        self._store_queries.clear()
         for station in self._stations:
             query = store_context.station_access(station)
             self._store_queries[station.station_id] = query

@@ -43,6 +43,50 @@ if TYPE_CHECKING:
     from .data_store import OemDataStore
 
 
+def _find_covering_station_intervals(
+    store: OemDataStore,
+    cache_key: tuple[object, ...],
+) -> tuple[AccessInterval, ...] | None:
+    bounds = cast(tuple[float, float], cache_key[4])
+    threshold = cache_key[5]
+    covering: tuple[tuple[float, float], tuple[AccessInterval, ...]] | None = None
+    with store._lock:
+        for cached_key, intervals in store._station_interval_cache.items():
+            if (
+                cached_key[:4] != cache_key[:4]
+                or cached_key[5] != threshold
+            ):
+                continue
+            cached_bounds = cast(tuple[float, float], cached_key[4])
+            if cached_bounds[0] <= bounds[0] and cached_bounds[1] >= bounds[1]:
+                if covering is None or (
+                    cached_bounds[1] - cached_bounds[0]
+                    < covering[0][1] - covering[0][0]
+                ):
+                    covering = (cached_bounds, intervals)
+    if covering is None:
+        return None
+    clipped: list[AccessInterval] = []
+    for interval in covering[1]:
+        start_s = max(interval.start_s, bounds[0])
+        end_s = min(interval.end_s, bounds[1])
+        if start_s <= end_s:
+            clipped.append(
+                replace(
+                    interval,
+                    start_s=start_s,
+                    end_s=end_s,
+                    clipped_at_start=(
+                        interval.clipped_at_start or interval.start_s < bounds[0]
+                    ),
+                    clipped_at_end=(
+                        interval.clipped_at_end or interval.end_s > bounds[1]
+                    ),
+                )
+            )
+    return tuple(clipped)
+
+
 def query_station_access(
     store: OemDataStore,
     snapshot: StoreSnapshot,
@@ -157,6 +201,8 @@ def query_station_access(
     )
     with store._lock:
         cached_intervals = store._station_interval_cache.get(cache_key)
+    if cached_intervals is None:
+        cached_intervals = _find_covering_station_intervals(store, cache_key)
 
     if wait:
         store._compute_station_profile_ranges(

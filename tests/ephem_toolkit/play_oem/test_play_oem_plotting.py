@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import numpy as np
-import pytest
 from matplotlib.figure import Figure
 
-from ephem_toolkit.play_oem.views import plotting
 from ephem_toolkit.play_oem.views.plotting import (
     MAX_DISPLAY_POINTS_PER_SEGMENT,
+    StoreArtistBinding,
     bounded_sample_indices,
     decimate_indices,
     plot_segments,
@@ -40,6 +39,32 @@ def test_bounded_sample_indices_cap_store_backed_plot_inputs() -> None:
     assert indices[0] == 0
     assert indices[-1] == sample_count - 1
     assert np.all(np.diff(indices) > 0)
+
+
+def test_store_artist_binding_reuses_compatible_artists() -> None:
+    figure = Figure()
+    axes = figure.subplots()
+    binding = StoreArtistBinding()
+
+    first = binding.sync_pairs(
+        axes,
+        [np.array([[0.0, 1.0], [1.0, 2.0]])],
+        time_origin_s=0.0,
+        time_divisor_s=1.0,
+        scale_y=1.0,
+    )
+    original = first[0]
+
+    second = binding.sync_pairs(
+        axes,
+        [np.array([[0.0, 3.0], [1.0, 4.0]])],
+        time_origin_s=0.0,
+        time_divisor_s=1.0,
+        scale_y=1.0,
+    )
+
+    assert second[0] is original
+    np.testing.assert_allclose(second[0].get_path().vertices[:, 1], [3.0, 4.0])
 
 
 def _reference_decimate_indices(values: np.ndarray, maximum: int) -> np.ndarray:

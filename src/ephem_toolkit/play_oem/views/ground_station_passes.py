@@ -350,11 +350,37 @@ class GroundStationPassesView(RangeLifecycleSupport, StoreStationViewSupport):
         self._wrap_sky_summary()
 
     def _prepare_access(self) -> None:
-        self._store_queries.clear()
         if not self._oem_loaded:
+            self._station_access_preparation_key = ("unavailable",)
+            self._store_queries.clear()
             self._access_results = ()
             return
         if self._station_store_context is not None:
+            station_key = tuple(
+                (
+                    station.station_id,
+                    station.name,
+                    station.latitude_deg,
+                    station.longitude_deg,
+                    station.altitude_m,
+                    station.minimum_elevation_deg,
+                )
+                for station in self._stations
+            )
+            preparation_key = (
+                self._station_store_context.snapshot.epoch,
+                self._station_store_context.snapshot.revision,
+                self._station_store_context.snapshot.policy_revision,
+                self._station_store_context.plot_range,
+                self._station_store_context.coverage,
+                self._limit_to_range,
+                self._prepare_range,
+                station_key,
+            )
+            if preparation_key == self._station_access_preparation_key:
+                return
+            self._station_access_preparation_key = preparation_key
+            self._store_queries.clear()
             if self._limit_to_range and self._prepare_range is None:
                 self._access_results = tuple(
                     StationAccess(station, ()) for station in self._stations
@@ -367,6 +393,8 @@ class GroundStationPassesView(RangeLifecycleSupport, StoreStationViewSupport):
                 results.append(station_access_from_store(query.value))
             self._access_results = tuple(results)
             return
+        self._station_access_preparation_key = ("unavailable",)
+        self._store_queries.clear()
         self._access_results = tuple(
             StationAccess(station, ()) for station in self._stations
         )
