@@ -1,0 +1,45 @@
+Fri Nov 27 23:39:31 2026    docs/architecture/play-oem/performance/analysis-1/play-oem-attempt-2-covering-cache.prof
+
+         19132325 function calls (18887723 primitive calls) in 63.175 seconds
+
+   Ordered by: cumulative time
+   List reduced from 6484 to 35 due to restriction <35>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+    865/1    0.032    0.000   63.684   63.684 {built-in method builtins.exec}
+        1    0.000    0.000   63.684   63.684 profile_play_oem_ui.py:1(<module>)
+        1    0.000    0.000   62.551   62.551 profile_play_oem_ui.py:92(main)
+        1    0.000    0.000   62.201   62.201 player_app.py:536(run)
+        1    0.000    0.000   61.910   61.910 core.py:2250(MainLoop)
+        1   26.085   26.085   61.910   61.910 {MainLoop}
+      110    0.000    0.000   14.464    0.131 data_view_base.py:246(query_bounds)
+       32    0.000    0.000   14.462    0.452 ground_station.py:348(_prepare_access)
+       62    0.000    0.000   14.460    0.233 data_view_base.py:285(station_access)
+       62    0.000    0.000   14.459    0.233 data_view_base.py:294(<lambda>)
+       62    0.000    0.000   14.459    0.233 data_store.py:597(station_access)
+       62    5.940    0.096   14.459    0.233 station_access_tier.py:70(query_station_access)
+     2685    0.028    0.000   14.307    0.005 profile_play_oem_ui.py:229(on_tick)
+       28    0.000    0.000   13.336    0.476 player_app.py:638(_set_range_dragging)
+       18    0.001    0.000   13.332    0.741 player_time_range_actions.py:150(_dispatch_time_range)
+      846    0.015    0.000   13.147    0.016 player_app.py:894(_on_timer)
+       35    0.001    0.000   12.811    0.366 player_store_data_view_refresh.py:156(_refresh_store_data_views)
+       13    0.000    0.000   10.668    0.821 ground_station.py:735(set_time_range)
+       13    0.000    0.000   10.667    0.821 ground_station.py:207(set_time_range)
+      133    0.050    0.000   10.433    0.078 backend_wxagg.py:10(draw)
+      134    0.001    0.000   10.174    0.076 backend_agg.py:380(draw)
+      133    0.000    0.000   10.097    0.076 artist.py:93(draw_wrapper)
+11334/133    0.023    0.000   10.097    0.076 artist.py:54(draw_wrapper)
+      133    0.002    0.000   10.097    0.076 figure.py:3142(draw)
+     6268    0.151    0.000    8.921    0.001 state_lookup.py:21(state_at)
+     5702    0.006    0.000    8.577    0.002 data_store.py:488(earth_fixed_state_at)
+       32    0.029    0.001    8.459    0.264 station_access.py:172(_intervals_for_segment)
+  251/133    0.002    0.000    8.338    0.063 image.py:114(_draw_list_compositing_images)
+      117    0.007    0.000    7.542    0.064 backend_wx.py:632(_on_paint)
+     5515    0.004    0.000    7.116    0.001 internal_types.py:129(lookup)
+      846    0.010    0.000    6.979    0.008 player_incremental_loader.py:104(_poll_incremental_load)
+        6    0.000    0.000    6.236    1.039 player_panel_management.py:400(_open_data_view)
+    85266    0.017    0.000    6.172    0.000 station_access_tier.py:280(<genexpr>)
+    85266    0.105    0.000    6.155    0.000 station_profile_support.py:74(station_profile_events)
+      846    0.009    0.000    6.152    0.007 player_store_data_view_refresh.py:64(_drain_store_notices)
+
+

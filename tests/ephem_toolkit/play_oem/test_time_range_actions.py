@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
+import ephem_toolkit.play_oem.app.player_time_range_actions as actions_module
 from ephem_toolkit.play_oem.app.player_app_state import (
     LoadState,
     RefreshState,
@@ -30,6 +31,8 @@ class _ActionHost(TimeRangeActionsMixin, PlaybackActionsMixin):
     def __init__(self) -> None:
         self.clock = PlaybackClock(0.0, 100.0, t_now=50.0, playing=True)
         self.plot_time_range = playback_range_plot_rule()
+        self._range_dragging = False
+        self._range_drag_last_dispatch_monotonic_s = None
         self._load_state = LoadState(
             first_batch=False,
             coverage_complete=True,
@@ -66,6 +69,8 @@ class _ActionHost(TimeRangeActionsMixin, PlaybackActionsMixin):
         pass
 
     def _on_clock_time_changed(self, time_s: float) -> None:
+        if self._range_dragging:
+            return
         self._dispatch_time_range(
             resolve_plot_range(
                 self.plot_time_range,
@@ -104,6 +109,28 @@ def test_default_plot_range_follows_playback_bounds() -> None:
 
     assert host.plot_time_range == playback_range_plot_rule()
     assert host.dispatches == [ResolvedTimeRange(60.0, 80.0)]
+
+
+def test_playback_drag_dispatches_at_bounded_cadence(monkeypatch: pytest.MonkeyPatch) -> None:
+    host = _ActionHost()
+    host._range_dragging = True
+    host._range_drag_last_dispatch_monotonic_s = None
+    now = [0.0]
+    monkeypatch.setattr(actions_module.time, "monotonic", lambda: now[0])
+
+    host._apply_playback_bounds(60.0, 80.0)
+    assert host.dispatches == [ResolvedTimeRange(60.0, 80.0)]
+
+    now[0] = 0.020
+    host._apply_playback_bounds(55.0, 75.0)
+    assert host.dispatches == [ResolvedTimeRange(60.0, 80.0)]
+
+    assert host.clock.playback_start == 55.0
+    assert host.clock.playback_end == 75.0
+
+    now[0] = 0.220
+    host._apply_playback_bounds(50.0, 70.0)
+    assert host.dispatches[-1] == ResolvedTimeRange(50.0, 70.0)
 
 
 def test_playback_edit_updates_only_endpoint_in_follow_mode() -> None:

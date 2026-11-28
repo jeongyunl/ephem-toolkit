@@ -1,0 +1,45 @@
+Sat Nov 28 00:03:48 2026    docs/architecture/play-oem/performance/analysis-1/play-oem-attempt-9-drag-feedback-5hz.prof
+
+         163448948 function calls (161051930 primitive calls) in 172.922 seconds
+
+   Ordered by: cumulative time
+   List reduced from 6173 to 35 due to restriction <35>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+    791/1    0.031    0.000  176.058  176.058 {built-in method builtins.exec}
+        1    0.000    0.000  176.058  176.058 profile_play_oem_ui.py:1(<module>)
+        1    0.000    0.000  175.097  175.097 profile_play_oem_ui.py:92(main)
+        1    0.000    0.000  174.774  174.774 player_app.py:537(run)
+        1    0.000    0.000  174.464  174.464 core.py:2250(MainLoop)
+        1   34.864   34.864  174.464  174.464 {MainLoop}
+     3548    0.031    0.000   57.015    0.016 profile_play_oem_ui.py:229(on_tick)
+      274    0.007    0.000   56.940    0.208 player_time_range_actions.py:45(_apply_playback_bounds)
+      278    0.011    0.000   56.014    0.201 player_time_range_actions.py:167(_dispatch_time_range)
+     1248    0.025    0.000   52.565    0.042 backend_wxagg.py:10(draw)
+     1249    0.011    0.000   51.475    0.041 backend_agg.py:380(draw)
+     1248    0.001    0.000   51.355    0.041 artist.py:93(draw_wrapper)
+92833/1248    0.199    0.000   51.353    0.041 artist.py:54(draw_wrapper)
+     1248    0.020    0.000   51.349    0.041 figure.py:3142(draw)
+      739    0.013    0.000   46.158    0.062 backend_wx.py:632(_on_paint)
+      522    0.023    0.000   43.639    0.084 speed_altitude.py:139(_apply_store_context)
+     2580    0.023    0.000   43.064    0.017 _base.py:2406(add_patch)
+     2580    3.804    0.001   42.787    0.017 _base.py:2419(_update_patch_limits)
+      522    0.003    0.000   41.478    0.079 speed_altitude.py:169(_add_store_patches)
+     1042    0.010    0.000   41.470    0.040 speed_altitude.py:195(_add_store_path)
+     1268    0.020    0.000   35.971    0.028 player_app.py:898(_on_timer)
+2203/1248    0.015    0.000   35.628    0.029 image.py:114(_draw_list_compositing_images)
+      262    0.011    0.000   35.560    0.136 player_store_data_view_refresh.py:156(_refresh_store_data_views)
+      260    0.001    0.000   32.199    0.124 ground_station.py:735(set_time_range)
+      260    0.002    0.000   32.192    0.124 ground_station.py:207(set_time_range)
+     1268    0.016    0.000   31.555    0.025 player_store_data_view_refresh.py:64(_drain_store_notices)
+      955    0.012    0.000   29.974    0.031 _base.py:3072(draw)
+      523    0.017    0.000   22.246    0.043 ground_station.py:359(_draw)
+      260    0.001    0.000   21.844    0.084 speed_altitude.py:253(set_time_range)
+      261    0.001    0.000   21.797    0.084 speed_altitude.py:100(update_from_store)
+      524    0.004    0.000   21.433    0.041 ground_station.py:348(_prepare_access)
+     1568    0.002    0.000   21.424    0.014 data_view_base.py:246(query_bounds)
+     1046    0.002    0.000   21.392    0.020 data_view_base.py:285(station_access)
+     1046    0.002    0.000   21.386    0.020 data_view_base.py:294(<lambda>)
+     1046    0.005    0.000   21.385    0.020 data_store.py:601(station_access)
+
+

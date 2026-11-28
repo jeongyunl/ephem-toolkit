@@ -156,6 +156,10 @@ class OemDataStore:
         self._earth_fixed_state_cache: OrderedDict[tuple[int, str, int], np.ndarray] = (
             OrderedDict()
         )
+        self._earth_fixed_cursor_cache: OrderedDict[
+            tuple[int, int, str, int, float],
+            CursorState,
+        ] = OrderedDict()
         self._ground_track_cache: OrderedDict[
             tuple[object, ...], StoreQuery[GroundTrackGroups]
         ] = OrderedDict()

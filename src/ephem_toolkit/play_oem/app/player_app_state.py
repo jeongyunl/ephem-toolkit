@@ -290,6 +290,7 @@ class PlayerAppState(
     frame: wx.Frame
     frame_context: str
     _range_dragging: bool
+    _range_drag_last_dispatch_monotonic_s: float | None
     _ground_stations: list[GroundStation]
     _station_analysis_contexts: dict[str, StationAnalysisContext]
     object_name: str

@@ -196,10 +196,7 @@ class PlayerStoreViewRefreshMixin:
                 opened.applied_coverage = view_context.coverage
                 opened.range_initialized = True
                 opened.data_view.update(self.clock.t_now)
-                if opened.canvas is not None:
-                    opened.canvas.draw_idle()
-                else:
-                    opened.panel.request_redraw()
+                self._queue_time_range_redraw(opened.panel)
             except Exception as error:
                 self.status_bar.set_message(f"Could not refresh OEM data_views: {error}")
 

@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import time
+
 from .. import time_range
 from .player_app_state import PlayerAppState
+
+DRAG_RANGE_DISPATCH_INTERVAL_S = 0.200
 
 
 def playback_range_plot_rule() -> time_range.PlotTimeRange:
@@ -64,8 +68,22 @@ class TimeRangeActionsMixin:
             (self.clock.playback_start, self.clock.playback_end),
             self.clock.t_now,
         )
-        if self.clock.t_now == previous_time and resolved != previous_range:
-            self._dispatch_time_range(resolved, self.clock.t_now)
+        if resolved != previous_range:
+            if getattr(self, "_range_dragging", False):
+                now = time.monotonic()
+                last_dispatch = getattr(
+                    self,
+                    "_range_drag_last_dispatch_monotonic_s",
+                    None,
+                )
+                if (
+                    last_dispatch is None
+                    or now - last_dispatch >= DRAG_RANGE_DISPATCH_INTERVAL_S
+                ):
+                    self._dispatch_time_range(resolved, self.clock.t_now)
+                    self._range_drag_last_dispatch_monotonic_s = now
+            elif self.clock.t_now == previous_time:
+                self._dispatch_time_range(resolved, self.clock.t_now)
         self._publish_range_hint()
         self._update_time_display()
 

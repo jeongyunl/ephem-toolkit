@@ -610,6 +610,23 @@ def test_store_sample_times_share_raw_timestamp_column_and_follow_commits() -> N
     np.testing.assert_array_equal(sample_times.values, [10.0, 20.0, 30.0])
 
 
+def test_repeated_earth_fixed_lookup_reuses_cursor_state_cache() -> None:
+    times, states, segments = _series_samples()
+    store = _store_with_samples(
+        times,
+        states,
+        segments,
+        metadata=(("CENTER_NAME", "EARTH"), ("REF_FRAME", "ITRF")),
+    )
+    snapshot = store.snapshot()
+
+    first = store.earth_fixed_state_at(snapshot, 120.0)
+    second = store.earth_fixed_state_at(snapshot, 120.0)
+
+    assert second is first
+    assert len(store._earth_fixed_cursor_cache) == 1
+
+
 @pytest.mark.parametrize(
     ("method", "degree"),
     [(None, None), ("hermite", 3), ("lagrange", 3), ("chebyshev", 3)],

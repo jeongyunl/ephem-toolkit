@@ -71,6 +71,28 @@ def station_metrics_from_profile_row(
     )
 
 
+def station_metrics_from_profile_rows(
+    values: np.ndarray,
+    minimum_elevation_deg: int,
+) -> tuple[StationMetrics | None, ...]:
+    """Convert a profile row array to station metrics in batch."""
+    if len(values) == 0:
+        return ()
+    finite = np.isfinite(values).all(axis=1)
+    elevations = values[:, 2]
+    return tuple(
+        None
+        if not bool(valid)
+        else StationMetrics(
+            float(values[index, 1]),
+            float(elevations[index]),
+            float(values[index, 3]),
+            float(elevations[index]) >= minimum_elevation_deg,
+        )
+        for index, valid in enumerate(finite)
+    )
+
+
 def station_profile_events(
     values: np.ndarray,
     station: GroundStation,
@@ -79,14 +101,16 @@ def station_profile_events(
 ) -> Iterator[tuple[float, StationMetrics | None]]:
     """Yield profile samples and refined access peak events."""
 
+    metric_rows = station_metrics_from_profile_rows(
+        values,
+        minimum_elevation_deg,
+    )
+
     def sample(
         index: int,
     ) -> tuple[float, StationMetrics | None]:
         row = values[index]
-        return float(row[0]), station_metrics_from_profile_row(
-            row,
-            minimum_elevation_deg,
-        )
+        return float(row[0]), metric_rows[index]
 
     if len(values) == 0:
         return

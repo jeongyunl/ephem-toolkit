@@ -22,6 +22,7 @@ from .oem_file_capacity import (
 )
 from .station_profile_support import (
     station_metrics_from_profile_row,
+    station_metrics_from_profile_rows,
     station_profile_events,
     station_profile_row_range,
     station_profile_row_time,
@@ -102,6 +103,7 @@ _earth_centered_frame_name = earth_centered_frame_name
 _station_profile_row_time = station_profile_row_time
 _station_profile_row_range = station_profile_row_range
 _station_metrics_from_profile_row = station_metrics_from_profile_row
+_station_metrics_from_profile_rows = station_metrics_from_profile_rows
 _station_profile_events = station_profile_events
 _write_series_chunk = write_series_chunk
 _write_earth_fixed_chunk = write_earth_fixed_chunk

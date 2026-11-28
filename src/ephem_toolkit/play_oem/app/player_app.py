@@ -244,6 +244,7 @@ class PlayerApp(
         self._store_notice_unsubscribe = lambda: None
         self._store_notice_queue = SimpleQueue[tuple[OemDataStore, StoreNotice]]()
         self._range_dragging = False
+        self._range_drag_last_dispatch_monotonic_s = None
         self._installing_incremental_batch = False
 
     def _initialize_file_state(
@@ -598,6 +599,8 @@ class PlayerApp(
         """Resolve one shared interval before updating any live view cursors."""
         if self._closed:
             return
+        if self._range_dragging:
+            return
         if self._installing_incremental_batch and self._load_state.initial_range_ready:
             resolved = self._resolved_plot_range()
             context = self._store_state.view_context
@@ -636,7 +639,18 @@ class PlayerApp(
     def _set_range_dragging(self, dragging: bool) -> None:
         was_dragging = self._range_dragging
         self._range_dragging = dragging
+        if dragging:
+            self._range_drag_last_dispatch_monotonic_s = None
         self._publish_range_hint()
+        if was_dragging and not dragging:
+            resolved = time_range.resolve_plot_range(
+                self.plot_time_range,
+                (self.clock.t_start, self.clock.t_end),
+                (self.clock.playback_start, self.clock.playback_end),
+                self.clock.t_now,
+            )
+            self._dispatch_time_range(resolved, self.clock.t_now)
+            self._range_drag_last_dispatch_monotonic_s = None
         if (
             was_dragging
             and not dragging

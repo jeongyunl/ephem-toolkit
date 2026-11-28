@@ -1,0 +1,18 @@
+config_version = 1
+
+[playback]
+render_rate_fps = 10
+
+[interpolation]
+use_oem_metadata = false
+method = "hermite"
+degree = 5
+
+[ground_stations]
+stations = [{ id = "c44115ca1fd1409092a4ba31c23671bc", name = "Chistine", latitude_deg = 45.31259120339739, longitude_deg = -75.59289788560083, altitude_m = 0.0, minimum_elevation_deg = 20 }, { id = "a50f33c83e6c422e9ce49301fcd0bfc6", name = "Null_Island", latitude_deg = 0.0, longitude_deg = 0.0, altitude_m = 0.0, minimum_elevation_deg = 10 }]
+
+[display]
+time_zone = "UTC"
+
+[time_snapping]
+enabled = true

@@ -32,6 +32,23 @@ def state_at(
         if snapshot.policy_revision != store._policy_revision:
             raise RuntimeError("interpolation policy has changed")
         interpolator = store._state_interpolator
+        interpolation_policy = store._interpolation_policy
+    earth_fixed_cursor_key = None
+    if earth_fixed:
+        earth_fixed_cursor_key = (
+            snapshot.epoch,
+            snapshot.policy_revision,
+            str(interpolation_policy.method),
+            0 if interpolation_policy.degree is None else int(interpolation_policy.degree),
+            query_time,
+        )
+        with store._lock:
+            cached = store._earth_fixed_cursor_cache.get(earth_fixed_cursor_key)
+            if cached is not None:
+                store._earth_fixed_cursor_cache.move_to_end(
+                    earth_fixed_cursor_key
+                )
+                return cached
     frame_name = None
     if earth_fixed:
         from .frame_support import earth_centered_frame_name
@@ -139,7 +156,7 @@ def state_at(
 
     position_km = state_m[:3] * 0.001
     velocity_km_s = state_m[3:] * 0.001
-    return CursorState(
+    result = CursorState(
         t=query_time,
         state_m=state_m,
         r_km=position_km,
@@ -150,3 +167,15 @@ def state_at(
         status=status,
         segment_id=segment_id,
     )
+    if earth_fixed_cursor_key is not None:
+        with store._lock:
+            if (
+                snapshot.epoch == store._epoch
+                and snapshot.policy_revision == store._policy_revision
+            ):
+                store._earth_fixed_cursor_cache[
+                    earth_fixed_cursor_key
+                ] = result
+                if len(store._earth_fixed_cursor_cache) > 8192:
+                    store._earth_fixed_cursor_cache.popitem(last=False)
+    return result

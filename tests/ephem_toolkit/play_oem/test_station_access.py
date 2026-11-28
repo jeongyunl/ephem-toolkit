@@ -1,6 +1,11 @@
 """Tests for station-access interval boundary handling."""
 
+import numpy as np
+
 from ephem_toolkit.play_oem.ground_stations import GroundStation, StationMetrics
+from ephem_toolkit.play_oem.oem_data_store.station_profile_support import (
+    station_metrics_from_profile_rows,
+)
 from ephem_toolkit.play_oem.station_access import _intervals_for_segment
 
 
@@ -69,3 +74,20 @@ def test_interval_records_coverage_and_gap_limited_endpoints() -> None:
     assert interval.clipped_at_end
     assert interval.limited_by_gap_at_start
     assert interval.limited_by_gap_at_end
+
+
+def test_profile_row_metrics_batch_preserves_finite_and_access_rules() -> None:
+    values = np.asarray(
+        [
+            [0.0, 10.0, 9.0, 500.0],
+            [10.0, 20.0, 10.0, 400.0],
+            [20.0, 30.0, np.nan, 300.0],
+        ],
+        dtype=float,
+    )
+
+    metrics = station_metrics_from_profile_rows(values, 10)
+
+    assert metrics[0] == StationMetrics(10.0, 9.0, 500.0, False)
+    assert metrics[1] == StationMetrics(20.0, 10.0, 400.0, True)
+    assert metrics[2] is None
