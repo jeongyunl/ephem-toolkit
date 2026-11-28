@@ -610,7 +610,6 @@ The repeated full profile confirms the static-axis reuse is stable and
 preserves station behavior while reducing text/draw work and primitive calls.
 
 ## Attempt 19: Pass/Sky short-scenario profile
-
 Status: **inconclusive; no implementation**
 
 Opened Pass List and Sky View in a temporary state copy for the short
@@ -627,6 +626,28 @@ scenario. Evidence:
 
 The direct Pass/Sky refresh/draw functions are small relative to the station
 query and Matplotlib draw totals. No Pass/Sky code change was retained.
+
+## Attempt 20: timer incremental/store idle fast paths
+Status: **ineffective; reverted**
+
+Hypothesis:
+
+- Skip `_poll_incremental_load()` after incremental coverage is complete.
+- Do not acquire `OemDataStore.snapshot()` in `_drain_store_notices()` when
+  the store notice queue is empty.
+
+Short-scenario evidence:
+
+| Run | Instrumented total | Function calls | `_on_timer` cumulative |
+| --- | ---: | ---: | ---: |
+| Attempt 18 repeat | 20.981 s | 8.667M | 4.068 s |
+| Attempt 20 first | 22.647 s | 11.618M | 6.021 s |
+| Attempt 20 repeat | 21.366 s | 9.749M | 5.389 s |
+
+The repeated run remained slower than Attempt 18 and increased primitive
+work, so neither fast path was retained. The measurement did not establish a
+stable timer or notice cost reduction independent of run-to-run station and
+draw variation.
 
 ## Reproduce
 
