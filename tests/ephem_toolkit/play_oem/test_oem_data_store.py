@@ -631,6 +631,44 @@ def test_repeated_earth_fixed_lookup_reuses_cursor_state_cache() -> None:
     ("method", "degree"),
     [(None, None), ("hermite", 3), ("lagrange", 3), ("chebyshev", 3)],
 )
+def test_batched_earth_fixed_states_match_scalar_lookup(
+    method: str | None,
+    degree: int | None,
+) -> None:
+    times, states, segments = _series_samples()
+    store = _store_with_samples(
+        times,
+        states,
+        segments,
+        metadata=(
+            ("CENTER_NAME", "EARTH"),
+            ("REF_FRAME", "ITRF1993"),
+        ),
+    )
+    if method is not None:
+        store.set_interpolation(InterpolationPolicy(method, degree))
+    snapshot = store.snapshot()
+    query_times = np.array([0.0, 30.0, 120.0, 210.0, 300.0, 420.0])
+
+    batched = store.earth_fixed_states_at(snapshot, query_times)
+
+    for index, query_time in enumerate(query_times):
+        scalar = store.earth_fixed_state_at(snapshot, float(query_time))
+        if scalar.state_m is None:
+            assert np.isnan(batched[index]).all()
+        else:
+            np.testing.assert_allclose(
+                batched[index],
+                scalar.state_m,
+                rtol=1e-10,
+                atol=1e-10,
+            )
+
+
+@pytest.mark.parametrize(
+    ("method", "degree"),
+    [(None, None), ("hermite", 3), ("lagrange", 3), ("chebyshev", 3)],
+)
 def test_store_cursor_queries_do_not_materialize_sample_history(
     method: str | None, degree: int | None
 ) -> None:
@@ -2082,14 +2120,18 @@ def test_nonblocking_station_query_reports_pending_coverage(monkeypatch) -> None
     snapshot = store.snapshot()
     entered = Event()
     release = Event()
-    original_metrics = oem_data_store.station_metrics_from_ecef
+    original_metrics = oem_data_store.station_metrics_from_ecef_batch
 
     def blocked_metrics(*args, **kwargs):
         entered.set()
         assert release.wait(3)
         return original_metrics(*args, **kwargs)
 
-    monkeypatch.setattr(oem_data_store, "station_metrics_from_ecef", blocked_metrics)
+    monkeypatch.setattr(
+        oem_data_store,
+        "station_metrics_from_ecef_batch",
+        blocked_metrics,
+    )
     future = None
     try:
         partial = store.station_access(snapshot, station, (0.0, 120.0))

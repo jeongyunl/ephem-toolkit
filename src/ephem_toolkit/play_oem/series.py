@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
-import math
 from types import MappingProxyType
 from typing import Literal
 
+import numpy as np
+
 import ephem_toolkit.core.misc as misc
 import ephem_toolkit.core.wgs as wgs
-import numpy as np
 
 from .time_unit import TimeUnit
 
@@ -110,36 +110,6 @@ class OrbitSeries:
     rtn_segment_ids: np.ndarray
     """Segment identifier for each adjacent-sample RTN delta; -1 marks a boundary."""
 
-    @staticmethod
-    def _compute_rtn_velocity_direction_vector(state_m: np.ndarray) -> np.ndarray:
-        """Return the velocity direction expressed in the local RTN frame."""
-        position_m = state_m[0:3]
-        velocity_m_s = state_m[3:6]
-        position_norm = float(np.linalg.norm(position_m))
-        if position_norm <= 1e-30:
-            return np.zeros(3, dtype=float)
-        radial_unit_vector = position_m / position_norm
-        angular_momentum_vector = np.cross(position_m, velocity_m_s)
-        angular_momentum_norm = float(np.linalg.norm(angular_momentum_vector))
-        if angular_momentum_norm <= 1e-30:
-            normal_unit_vector = np.array([0.0, 0.0, 1.0], dtype=float)
-        else:
-            normal_unit_vector = angular_momentum_vector / angular_momentum_norm
-        transverse_unit_vector = np.cross(
-            normal_unit_vector, radial_unit_vector
-        )
-        velocity_rtn = np.array(
-            [
-                np.dot(velocity_m_s, radial_unit_vector),
-                np.dot(velocity_m_s, transverse_unit_vector),
-                np.dot(velocity_m_s, normal_unit_vector),
-            ],
-            dtype=float,
-        )
-        velocity_norm = float(np.linalg.norm(velocity_rtn))
-        if velocity_norm <= 1e-30:
-            return np.zeros(3, dtype=float)
-        return velocity_rtn / velocity_norm
 
     @staticmethod
     def _compute_rtn_velocity_direction_vectors(states_m: np.ndarray) -> np.ndarray:
@@ -191,69 +161,118 @@ def compute_series_chunk(
     if group not in _SERIES_COLUMNS:
         raise ValueError(f"unsupported series group: {group}")
     output = np.empty((stop - start, len(_SERIES_COLUMNS[group])), dtype=float)
-    for row in range(start, stop):
-        output_row = row - start
-        if group == "kinematics":
-            state = raw[row, 1:7]
-            output[output_row, 0] = raw[row, 0]
-            output[output_row, 1] = np.linalg.norm(state[3:6])
-            output[output_row, 2] = np.linalg.norm(state[0:3])
-            output[output_row, 3] = wgs.ecef_to_lla(state[0:3])[2]
-            continue
+    if stop == start:
+        return output
 
-        if group == "rtn":
-            output[output_row, 0] = raw[row, 0]
-            output[output_row, 1:] = np.nan
-            if row > 0 and segment_ids[row] == segment_ids[row - 1]:
-                output[output_row, 1:] = misc.transform_to_rtn(
-                    raw[row, 1:7],
-                    raw[row - 1, 1:7],
-                )
-            continue
+    output[:, 0] = raw[start:stop, 0]
 
-        if group == "distance-delta":
-            output[output_row, 0] = raw[row, 0]
-            output[output_row, 1] = 0.0
-            if row > 0 and segment_ids[row] == segment_ids[row - 1]:
-                output[output_row, 1] = (
-                    np.linalg.norm(raw[row, 1:4])
-                    - np.linalg.norm(raw[row - 1, 1:4])
-                )
-            continue
+    if group == "kinematics":
+        states = raw[start:stop, 1:7]
+        positions = states[:, 0:3]
+        velocities = states[:, 3:6]
+        output[:, 1] = np.linalg.norm(velocities, axis=1)
+        output[:, 2] = np.linalg.norm(positions, axis=1)
+        output[:, 3] = wgs.ecef_to_lla(positions)[:, 2]
+        return output
 
-        state = raw[row, 1:7]
-        direction = OrbitSeries._compute_rtn_velocity_direction_vector(state)
-        radial, transverse, normal = direction
-        pitch = math.atan2(float(radial), float(transverse))
-        yaw = math.atan2(float(normal), math.hypot(float(radial), float(transverse)))
-        output[output_row, 0] = raw[row, 0]
-        output[output_row, 1:3] = 0.0
-        output[output_row, 3:6] = (0.0, pitch, yaw)
-        output[output_row, 6:9] = 0.0
-        if row == 0 or segment_ids[row] != segment_ids[row - 1]:
-            continue
-
-        previous_direction = OrbitSeries._compute_rtn_velocity_direction_vector(
-            raw[row - 1, 1:7]
+    if group == "rtn":
+        output[:, 1:] = np.nan
+        same_segment = np.zeros(stop - start, dtype=bool)
+        global_rows = np.arange(start, stop)
+        valid = global_rows > 0
+        same_segment[valid] = (
+            segment_ids[global_rows[valid]] == segment_ids[global_rows[valid] - 1]
         )
-        dot_product = float(np.dot(previous_direction, direction))
-        angle_rad = math.acos(float(np.clip(dot_product, -1.0, 1.0)))
-        delta_time_s = float(raw[row, 0] - raw[row - 1, 0])
-        output[output_row, 1] = angle_rad
-        if delta_time_s > 0.0:
-            output[output_row, 2] = angle_rad / delta_time_s
-            previous_pitch = math.atan2(
-                float(previous_direction[0]), float(previous_direction[1])
+        valid_rows = global_rows[same_segment]
+        if valid_rows.size:
+            output[same_segment, 1:] = misc.transform_to_rtn(
+                raw[valid_rows, 1:7],
+                raw[valid_rows - 1, 1:7],
             )
-            previous_yaw = math.atan2(
-                float(previous_direction[2]),
-                math.hypot(float(previous_direction[0]), float(previous_direction[1])),
+        return output
+
+    if group == "distance-delta":
+        output[:, 1] = 0.0
+        distances = np.linalg.norm(raw[start:stop, 1:4], axis=1)
+        if start > 0:
+            previous_distances = np.linalg.norm(
+                raw[start - 1 : stop - 1, 1:4],
+                axis=1,
             )
-            output[output_row, 6:9] = (
-                0.0,
-                (pitch - previous_pitch) / delta_time_s,
-                (yaw - previous_yaw) / delta_time_s,
+        else:
+            previous_distances = np.empty(0, dtype=float)
+
+        global_rows = np.arange(start, stop)
+        valid = global_rows > 0
+        same_segment = np.zeros(stop - start, dtype=bool)
+        same_segment[valid] = (
+            segment_ids[global_rows[valid]] == segment_ids[global_rows[valid] - 1]
+        )
+        if np.any(same_segment):
+            valid_indices = np.flatnonzero(same_segment)
+            if start == 0:
+                previous_distances = np.concatenate(
+                    ([np.linalg.norm(raw[0, 1:4])],
+                     np.linalg.norm(raw[start : stop - 1, 1:4], axis=1))
+                )
+            output[valid_indices, 1] = (
+                distances[valid_indices] - previous_distances[valid_indices]
             )
+        return output
+
+    window_start = max(0, start - 1)
+    window_states = raw[window_start:stop, 1:7]
+    directions = OrbitSeries._compute_rtn_velocity_direction_vectors(window_states)
+    output[:, 1:3] = 0.0
+    output[:, 3:6] = 0.0
+    output[:, 6:9] = 0.0
+
+    radial = directions[:, 0]
+    transverse = directions[:, 1]
+    normal = directions[:, 2]
+    pitch = np.arctan2(radial, transverse)
+    yaw = np.arctan2(normal, np.hypot(radial, transverse))
+
+    current_indices = np.arange(start, stop) - window_start
+    output[:, 3] = 0.0
+    output[:, 4] = pitch[current_indices]
+    output[:, 5] = yaw[current_indices]
+
+    global_rows = np.arange(start, stop)
+    valid = global_rows > 0
+    same_segment = np.zeros(stop - start, dtype=bool)
+    same_segment[valid] = (
+        segment_ids[global_rows[valid]] == segment_ids[global_rows[valid] - 1]
+    )
+    valid_indices = np.flatnonzero(same_segment)
+    if valid_indices.size:
+        global_valid_rows = global_rows[valid_indices]
+        previous_indices = global_valid_rows - 1 - window_start
+        current_window_indices = current_indices[valid_indices]
+        dot_products = np.einsum(
+            "ij,ij->i",
+            directions[previous_indices],
+            directions[current_window_indices],
+        )
+        angle_rad = np.arccos(np.clip(dot_products, -1.0, 1.0))
+        delta_time_s = (
+            raw[global_valid_rows, 0] - raw[global_valid_rows - 1, 0]
+        )
+        positive_delta = delta_time_s > 0.0
+        output[valid_indices, 1] = angle_rad
+        positive_indices = valid_indices[positive_delta]
+        output[positive_indices, 2] = (
+            angle_rad[positive_delta] / delta_time_s[positive_delta]
+        )
+        pitch_delta = pitch[current_window_indices] - pitch[previous_indices]
+        yaw_delta = yaw[current_window_indices] - yaw[previous_indices]
+        output[valid_indices, 6] = 0.0
+        output[positive_indices, 7] = (
+            pitch_delta[positive_delta] / delta_time_s[positive_delta]
+        )
+        output[positive_indices, 8] = (
+            yaw_delta[positive_delta] / delta_time_s[positive_delta]
+        )
     return output
 
 
@@ -330,50 +349,61 @@ def compute_orbit_series(
         angular_velocity_deg_s: np.ndarray = np.zeros(len(states_m), dtype=float)
         angular_velocity_rad_s: np.ndarray = np.zeros(len(states_m), dtype=float)
 
-        for sample_index in range(1, len(states_m)):
-            if segments[sample_index] != segments[sample_index - 1]:
-                continue
-            previous_direction = velocity_direction_vectors[sample_index - 1]
-            current_direction = velocity_direction_vectors[sample_index]
-            dot_product = np.dot(previous_direction, current_direction)
-            dot_product = np.clip(dot_product, -1.0, 1.0)
-            angle_rad = np.arccos(dot_product)
+        indices = np.arange(1, len(states_m), dtype=np.intp)
+        same_segment = segments[indices] == segments[indices - 1]
+        valid_indices = indices[same_segment]
+        if valid_indices.size:
+            dot_products = np.einsum(
+                "ij,ij->i",
+                velocity_direction_vectors[valid_indices - 1],
+                velocity_direction_vectors[valid_indices],
+            )
+            angle_rad = np.arccos(np.clip(dot_products, -1.0, 1.0))
             angle_deg = np.degrees(angle_rad)
-            direction_change_angle_deg[sample_index] = angle_deg
+            direction_change_angle_deg[valid_indices] = angle_deg
             delta_time_s = (
-                elapsed_time_s[sample_index] - elapsed_time_s[sample_index - 1]
+                elapsed_time_s[valid_indices] - elapsed_time_s[valid_indices - 1]
             )
-            if delta_time_s > 0.0:
-                direction_change_rate_deg_s[sample_index] = angle_deg / delta_time_s
-                angular_velocity_deg_s[sample_index] = angle_deg / delta_time_s
-                angular_velocity_rad_s[sample_index] = angle_rad / delta_time_s
+            positive_delta = delta_time_s > 0.0
+            positive_indices = valid_indices[positive_delta]
+            direction_change_rate_deg_s[positive_indices] = (
+                angle_deg[positive_delta] / delta_time_s[positive_delta]
+            )
+            angular_velocity_deg_s[positive_indices] = (
+                angle_deg[positive_delta] / delta_time_s[positive_delta]
+            )
+            angular_velocity_rad_s[positive_indices] = (
+                angle_rad[positive_delta] / delta_time_s[positive_delta]
+            )
 
-        euler_angles_deg = np.zeros((len(states_m), 3), dtype=float)
+        radial = velocity_direction_vectors[:, 0]
+        transverse = velocity_direction_vectors[:, 1]
+        normal = velocity_direction_vectors[:, 2]
+        pitch_deg = np.degrees(np.arctan2(radial, transverse))
+        yaw_deg = np.degrees(
+            np.arctan2(normal, np.hypot(radial, transverse))
+        )
+        euler_angles_deg = np.column_stack(
+            (
+                np.zeros(len(states_m), dtype=float),
+                pitch_deg,
+                yaw_deg,
+            )
+        )
         euler_angle_rates_deg_s = np.zeros_like(euler_angles_deg)
-
-        for sample_index, direction_vector in enumerate(velocity_direction_vectors):
-            radial_component = direction_vector[0]
-            transverse_component = direction_vector[1]
-            normal_component = direction_vector[2]
-            roll_deg = 0.0
-            pitch_deg = np.degrees(np.arctan2(radial_component, transverse_component))
-            yaw_deg = np.degrees(
-                np.arctan2(
-                    normal_component, np.hypot(radial_component, transverse_component)
-                )
-            )
-            euler_angles_deg[sample_index] = [roll_deg, pitch_deg, yaw_deg]
-
-        for sample_index in range(1, len(states_m)):
-            if segments[sample_index] != segments[sample_index - 1]:
-                continue
+        if valid_indices.size:
+            positive_delta = (
+                elapsed_time_s[valid_indices] - elapsed_time_s[valid_indices - 1]
+            ) > 0.0
+            positive_indices = valid_indices[positive_delta]
             delta_time_s = (
-                elapsed_time_s[sample_index] - elapsed_time_s[sample_index - 1]
+                elapsed_time_s[positive_indices]
+                - elapsed_time_s[positive_indices - 1]
             )
-            if delta_time_s > 0.0:
-                euler_angle_rates_deg_s[sample_index] = (
-                    euler_angles_deg[sample_index] - euler_angles_deg[sample_index - 1]
-                ) / delta_time_s
+            euler_angle_rates_deg_s[positive_indices] = (
+                euler_angles_deg[positive_indices]
+                - euler_angles_deg[positive_indices - 1]
+            ) / delta_time_s[:, np.newaxis]
     else:
         direction_change_angle_deg = np.empty(0, dtype=float)
         direction_change_rate_deg_s = np.empty(0, dtype=float)

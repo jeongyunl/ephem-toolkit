@@ -3,30 +3,30 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from concurrent.futures import CancelledError
 from threading import Event
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 import numpy as np
 
 from ..chunk_memo import ChunkMemo
-from ..ground_stations import GroundStation, StationMetrics
+from ..ground_stations import GroundStation
 from ..station_access import (
+    MAX_ACCESS_SAMPLE_STEP_S,
     MAX_ACCESS_SAMPLES,
     MAX_SOURCE_SAMPLE_GAP_S,
-    MAX_ACCESS_SAMPLE_STEP_S,
-)
-from .public_types import (
-    LoadStatus,
-    RowSpan,
-    STATION_PROFILE_COLUMNS,
-    StoreSnapshot,
-    TierNotice,
 )
 from .internal_types import (
     _StationProfileTier,
     _StationSegmentLayout,
+)
+from .public_types import (
+    STATION_PROFILE_COLUMNS,
+    LoadStatus,
+    RowSpan,
+    StoreSnapshot,
+    TierNotice,
 )
 
 if TYPE_CHECKING:
@@ -154,11 +154,12 @@ def compute_profile_ranges(
     *,
     cancel_event: Event | None,
 ) -> None:
+    import ephem_toolkit.play_oem.oem_data_store as public_store
+
     from .store_support import (
         _row_spans,
         _station_profile_row_time,
     )
-    import ephem_toolkit.play_oem.oem_data_store as public_store
 
     ready = tier.ready
     if ready is None:
@@ -213,29 +214,36 @@ def compute_profile_ranges(
 
             def compute() -> RowSpan:
                 for layout, span in missing:
-                    for row_index in range(span.first, span.stop):
+                    import ephem_toolkit.play_oem.oem_data_store as public_store
+
+                    row_indices = np.arange(span.first, span.stop, dtype=np.intp)
+                    epoch_times = np.asarray(
+                        [
+                            _station_profile_row_time(
+                                layout,
+                                int(row_index) - layout.base_index,
+                            )
+                            for row_index in row_indices
+                        ],
+                        dtype=float,
+                    )
+                    batch_states = store.earth_fixed_states_at(
+                        snapshot,
+                        epoch_times,
+                    )
+                    batch_positions = batch_states[:, 0:3]
+                    batch_metrics = public_store.station_metrics_from_ecef_batch(
+                        station,
+                        batch_positions,
+                    )
+                    tier.buffer[span.first : span.stop, 0] = epoch_times
+                    for offset, metrics in enumerate(batch_metrics):
                         if cancel_event is not None and cancel_event.is_set():
                             raise CancelledError()
-                        epoch_s = _station_profile_row_time(
-                            layout,
-                            row_index - layout.base_index,
-                        )
-                        state = store.earth_fixed_state_at(snapshot, epoch_s)
-                        row = tier.buffer[row_index]
-                        row[0] = epoch_s
-                        if state.state_m is None:
+                        row = tier.buffer[int(row_indices[offset])]
+                        if metrics is None:
                             row[1:] = np.nan
                         else:
-                            metrics = cast(
-                                Callable[
-                                    [GroundStation, np.ndarray],
-                                    StationMetrics,
-                                ],
-                                public_store.station_metrics_from_ecef,
-                            )(
-                                station,
-                                state.state_m[:3],
-                            )
                             row[1:] = (
                                 metrics.azimuth_deg,
                                 metrics.elevation_deg,

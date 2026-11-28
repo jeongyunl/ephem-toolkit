@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 import math
 import platform
 import statistics
 import sys
-from threading import Event
 import time
+from pathlib import Path
+from threading import Event
 from typing import Callable, Optional, Sequence
+
+import numpy as np
 
 try:
     import resource
@@ -32,7 +34,6 @@ from ephem_toolkit.play_oem.oem_data_store import (
     StoreSnapshot,
 )
 from ephem_toolkit.play_oem.streaming_oem import read_oem_into_store
-
 
 _STATION_LOCATIONS = (
     (0.0, 0.0),
@@ -365,6 +366,82 @@ def run_parser_benchmarks(source: Path, repeats: int) -> None:
     parse()
     print(f"Direct-store parser input: {source}; bytes={source.stat().st_size}")
     _print_measurement("Direct raw-store parsing", _measure(parse, repeats))
+
+
+def run_vectorization_benchmarks(
+    source: Path,
+    repeats: int,
+    range_days: float,
+) -> None:
+    """Measure the orbit-sized derived-series and station-profile hot paths."""
+    row_count = 200_000
+    raw = np.empty((row_count, 7), dtype=float)
+    raw[:, 0] = np.arange(row_count, dtype=float) * 240.0
+    phase = np.linspace(0.0, row_count * 2.0 * np.pi / 240.0, row_count)
+    raw[:, 1] = 7_000_000.0 * np.cos(phase)
+    raw[:, 2] = 7_000_000.0 * np.sin(phase)
+    raw[:, 3] = 0.0
+    raw[:, 4] = -7_500.0 * np.sin(phase)
+    raw[:, 5] = 7_500.0 * np.cos(phase)
+    raw[:, 6] = 0.0
+    segment_ids = np.zeros(row_count, dtype=np.int64)
+
+    print(
+        "Vectorization benchmark: "
+        f"synthetic rows={row_count}, repeats={repeats}"
+    )
+    from ephem_toolkit.play_oem.series import SERIES_GROUPS, compute_series_chunk
+
+    for group in SERIES_GROUPS:
+        compute_series_chunk(raw, segment_ids, group, 0, row_count)
+        samples = _measure(
+            lambda group=group: compute_series_chunk(
+                raw,
+                segment_ids,
+                group,
+                0,
+                row_count,
+            ),
+            repeats,
+        )
+        _print_measurement(f"Vectorized series {group}", samples)
+
+    def station_access_query() -> None:
+        store = OemDataStore()
+        store.begin(OemDataStore.capacity_for_file(source))
+        read_oem_into_store(
+            source,
+            store,
+            batch_size=512,
+            on_append=lambda _notice: None,
+            cancel_event=Event(),
+        )
+        snapshot = store.snapshot()
+        start_s = float(snapshot.raw[0, 0])
+        end_s = min(
+            start_s + range_days * 86_400.0,
+            float(snapshot.raw[-1, 0]),
+        )
+        station = GroundStation(
+            station_id="benchmark-vectorized",
+            name="Benchmark vectorized",
+            latitude_deg=35.68,
+            longitude_deg=139.69,
+            altitude_m=0.0,
+        )
+        store.station_access(
+            snapshot,
+            station,
+            (start_s, end_s),
+            wait=True,
+        )
+        store.close()
+
+    station_access_query()
+    _print_measurement(
+        f"Cold station access ({range_days:.3f} days)",
+        _measure(station_access_query, repeats),
+    )
 
 
 def run_data_benchmarks(source: Path, repeats: int, range_days: float) -> None:
@@ -1029,6 +1106,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="compare direct-store parsing at batch sizes 1, 64, 512, 4096, 65536",
     )
     parser.add_argument(
+        "--vectorization-bench",
+        action="store_true",
+        help="benchmark vectorized series chunks and cold station profiles",
+    )
+    parser.add_argument(
         "--skip-data-benchmarks",
         action="store_true",
         help="skip one-shot data benchmarks (requires another probe)",
@@ -1076,6 +1158,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             OemDataStore.capacity_for_file(args.oem),
             args.repeats,
         )
+    if args.vectorization_bench:
+        run_vectorization_benchmarks(
+            args.oem,
+            args.repeats,
+            args.range_days,
+        )
     if args.gui_overlap_probe:
         run_gui_stall_probe(args.oem, range_probe=True)
     elif args.gui_range_baseline_probe:
@@ -1087,6 +1175,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         or store_session_requested
         or args.parser_bench
         or args.batch_size_bench
+        or args.vectorization_bench
         or args.gui_stall_probe
         or args.gui_overlap_probe
         or args.gui_range_baseline_probe

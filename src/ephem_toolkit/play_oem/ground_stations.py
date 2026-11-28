@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from functools import lru_cache
-import math
 from uuid import uuid4
 
 import numpy as np
@@ -195,4 +195,51 @@ def station_metrics_from_ecef(
         elevation,
         slant_range,
         elevation >= station.minimum_elevation_deg - 1.0e-12,
+    )
+
+
+def station_metrics_from_ecef_batch(
+    station: GroundStation,
+    spacecraft_ecef_m: np.ndarray,
+) -> tuple[StationMetrics | None, ...]:
+    """Calculate station-relative metrics for many ECEF positions in batch."""
+    positions = np.asarray(spacecraft_ecef_m, dtype=float)
+    if positions.ndim != 2 or positions.shape[1:] != (3,):
+        raise GroundTrackPreparationError(
+            "Earth-fixed spacecraft positions must have shape (N, 3)"
+        )
+    if len(positions) == 0:
+        return ()
+
+    finite = np.isfinite(positions).all(axis=1)
+    azimuths = np.full(len(positions), np.nan, dtype=float)
+    elevations = np.full(len(positions), np.nan, dtype=float)
+    slant_ranges = np.full(len(positions), np.nan, dtype=float)
+    if np.any(finite):
+        east_north_up = positions[finite] - station_ecef_m(station)
+        latitude = math.radians(station.latitude_deg)
+        longitude = math.radians(station.longitude_deg)
+        sin_lat, cos_lat = math.sin(latitude), math.cos(latitude)
+        sin_lon, cos_lon = math.sin(longitude), math.cos(longitude)
+        x = east_north_up[:, 0]
+        y = east_north_up[:, 1]
+        z = east_north_up[:, 2]
+        east = -sin_lon * x + cos_lon * y
+        north = -sin_lat * cos_lon * x - sin_lat * sin_lon * y + cos_lat * z
+        up = cos_lat * cos_lon * x + cos_lat * sin_lon * y + sin_lat * z
+        horizontal = np.hypot(east, north)
+        elevations[finite] = np.degrees(np.arctan2(up, horizontal))
+        azimuths[finite] = np.degrees(np.arctan2(east, north)) % 360.0
+        slant_ranges[finite] = np.linalg.norm(east_north_up, axis=1) / 1000.0
+
+    return tuple(
+        None
+        if not bool(valid)
+        else StationMetrics(
+            float(azimuths[index]),
+            float(elevations[index]),
+            float(slant_ranges[index]),
+            float(elevations[index]) >= station.minimum_elevation_deg - 1.0e-12,
+        )
+        for index, valid in enumerate(finite)
     )

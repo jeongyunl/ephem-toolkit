@@ -5,6 +5,9 @@ from threading import Event
 
 import pytest
 
+from ephem_toolkit.play_oem import time_range
+from ephem_toolkit.play_oem.oem_data_store import OemDataStore
+from ephem_toolkit.play_oem.streaming_oem import read_oem_into_store
 from scripts.bench_play_oem import (
     _percentile,
     _plot_range_for_coverage,
@@ -13,10 +16,8 @@ from scripts.bench_play_oem import (
     measure_store_session,
     run_batch_size_benchmarks,
     run_parser_benchmarks,
+    run_vectorization_benchmarks,
 )
-from ephem_toolkit.play_oem import time_range
-from ephem_toolkit.play_oem.oem_data_store import OemDataStore
-from ephem_toolkit.play_oem.streaming_oem import read_oem_into_store
 
 
 def test_direct_store_benchmarks_measure_real_session(tmp_path: Path) -> None:
@@ -168,3 +169,30 @@ def test_store_memory_diagnostics_match_derived_cache_accounting(
         assert diagnostics["derived_memory_budget_bytes"] == 1024 * 1024
     finally:
         store.close()
+
+
+def test_vectorization_benchmark_reports_series_and_station_profiles(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    source = tmp_path / "small.oem"
+    source.write_text(
+        "CCSDS_OEM_VERS = 2.0\n"
+        "META_START\n"
+        "OBJECT_NAME = TEST\n"
+        "CENTER_NAME = EARTH\n"
+        "REF_FRAME = ITRF1993\n"
+        "TIME_SYSTEM = UTC\n"
+        "META_STOP\n"
+        "2026-01-01T00:00:00 7000 0 0 0 7.5 0\n"
+        "2026-01-01T00:00:10 7000 1 0 0 7.5 0\n"
+        "2026-01-01T00:00:20 7000 2 0 0 7.5 0\n",
+        encoding="utf-8",
+    )
+
+    run_vectorization_benchmarks(source, repeats=2, range_days=0.001)
+
+    output = capsys.readouterr().out
+    assert "synthetic rows=200000" in output
+    assert "Vectorized series kinematics:" in output
+    assert "Cold station access (0.001 days):" in output

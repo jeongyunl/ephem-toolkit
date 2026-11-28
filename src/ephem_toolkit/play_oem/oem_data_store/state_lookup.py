@@ -6,8 +6,9 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from ..cursor import CursorState, CursorStatus
 from ephem_toolkit.core import wgs
+
+from ..cursor import CursorState, CursorStatus
 from .public_types import StoreSnapshot
 from .store_support import (
     _unavailable_state,
@@ -33,7 +34,6 @@ def state_at(
             raise RuntimeError("interpolation policy has changed")
         interpolator = store._state_interpolator
         interpolation_policy = store._interpolation_policy
-    earth_fixed_cursor_key = None
     if earth_fixed:
         earth_fixed_cursor_key = (
             snapshot.epoch,
@@ -49,110 +49,63 @@ def state_at(
                     earth_fixed_cursor_key
                 )
                 return cached
-    frame_name = None
-    if earth_fixed:
-        from .frame_support import earth_centered_frame_name
-
-        frame_name = earth_centered_frame_name(snapshot, "Earth-fixed state")
-        if frame_name is None:
+        raw = snapshot.raw
+        if snapshot.sample_count == 0:
             return _unavailable_state(query_time, CursorStatus.UNAVAILABLE)
-
-    def sample(index: int) -> np.ndarray:
-        if frame_name is None:
-            return raw[index, 1:7]
-        from ..ground_track import (
-            _state_to_itrf_m_normalized,
-            normalize_conversion_frame_name,
-        )
-
-        key = (snapshot.epoch, frame_name, index)
-        with store._lock:
-            if snapshot.epoch != store._epoch:
-                raise RuntimeError("store epoch has changed")
-            if snapshot.policy_revision != store._policy_revision:
-                raise RuntimeError("interpolation policy has changed")
-            cached = store._earth_fixed_state_cache.get(key)
-            if cached is not None:
-                store._earth_fixed_state_cache.move_to_end(key)
-                return cached
-            converted = _state_to_itrf_m_normalized(
-                raw[index, 1:7],
-                normalize_conversion_frame_name(frame_name),
-                float(raw[index, 0]),
-                source_frame_name=frame_name,
-            )
-            store._earth_fixed_state_cache[key] = converted
-            if len(store._earth_fixed_state_cache) > 8192:
-                store._earth_fixed_state_cache.popitem(last=False)
-            return converted
-
-    if snapshot.sample_count == 0:
-        return _unavailable_state(
-            query_time,
-            CursorStatus.UNAVAILABLE,
-        )
-
-    raw = snapshot.raw
-    times = raw[:, 0]
-    if query_time < times[0] or query_time > times[-1]:
-        return _unavailable_state(
-            query_time,
-            CursorStatus.OUT_OF_RANGE,
-        )
-
-    upper_index = int(np.searchsorted(times, query_time))
-    if upper_index < times.size and times[upper_index] == query_time:
-        state_m = sample(upper_index).copy()
-        status = CursorStatus.EXACT_SAMPLE
-        segment_id = int(snapshot.segment_ids[upper_index])
-    else:
-        lower_index = upper_index - 1
-        segment_id = int(snapshot.segment_ids[lower_index])
-        if segment_id != snapshot.segment_ids[upper_index]:
-            return _unavailable_state(
-                query_time,
-                CursorStatus.GAP,
-            )
-        if earth_fixed:
-            segment_start = int(
-                np.searchsorted(snapshot.segment_ids, segment_id, side="left")
-            )
-            segment_stop = int(
-                np.searchsorted(snapshot.segment_ids, segment_id, side="right")
-            )
-            count = min(
-                segment_stop - segment_start, max(2, interpolator.required_points)
-            )
-            start = segment_start + max(
-                0,
-                min(
-                    upper_index - segment_start - count // 2,
-                    segment_stop - segment_start - count,
-                ),
-            )
-            stop = start + count
-            state_m = interpolator.interpolate_view(
-                times[start:stop],
-                np.stack([sample(i) for i in range(start, stop)]),
-                query_time,
-                snapshot.segment_ids[start:stop],
-            )
+        times = raw[:, 0]
+        if query_time < times[0] or query_time > times[-1]:
+            return _unavailable_state(query_time, CursorStatus.OUT_OF_RANGE)
+        upper_index = int(np.searchsorted(times, query_time))
+        if upper_index < times.size and times[upper_index] == query_time:
+            status = CursorStatus.EXACT_SAMPLE
+            segment_id = int(snapshot.segment_ids[upper_index])
         else:
+            lower_index = upper_index - 1
+            if lower_index < 0 or upper_index >= times.size:
+                return _unavailable_state(query_time, CursorStatus.OUT_OF_RANGE)
+            segment_id = int(snapshot.segment_ids[lower_index])
+            if segment_id != snapshot.segment_ids[upper_index]:
+                return _unavailable_state(query_time, CursorStatus.GAP)
+            status = CursorStatus.INTERPOLATED
+        state_m = earth_fixed_states_at(
+            store,
+            snapshot,
+            np.asarray([query_time], dtype=float),
+        )[0].copy()
+        if not np.isfinite(state_m).all():
+            return _unavailable_state(query_time, CursorStatus.UNAVAILABLE)
+    else:
+        earth_fixed_cursor_key = None
+        if snapshot.sample_count == 0:
+            return _unavailable_state(query_time, CursorStatus.UNAVAILABLE)
+        raw = snapshot.raw
+        times = raw[:, 0]
+        if query_time < times[0] or query_time > times[-1]:
+            return _unavailable_state(query_time, CursorStatus.OUT_OF_RANGE)
+        upper_index = int(np.searchsorted(times, query_time))
+        if upper_index < times.size and times[upper_index] == query_time:
+            state_m = raw[upper_index, 1:7].copy()
+            status = CursorStatus.EXACT_SAMPLE
+            segment_id = int(snapshot.segment_ids[upper_index])
+        else:
+            lower_index = upper_index - 1
+            if lower_index < 0 or upper_index >= times.size:
+                return _unavailable_state(query_time, CursorStatus.OUT_OF_RANGE)
+            segment_id = int(snapshot.segment_ids[lower_index])
+            if segment_id != snapshot.segment_ids[upper_index]:
+                return _unavailable_state(query_time, CursorStatus.GAP)
             state_m = interpolator.interpolate_view(
                 times,
                 raw[:, 1:7],
                 query_time,
                 snapshot.segment_ids,
             )
-        if state_m is None:
-            return _unavailable_state(
-                query_time,
-                CursorStatus.UNAVAILABLE,
-            )
-        if state_m.shape != (6,) or not np.all(np.isfinite(state_m)):
-            raise ValueError("interpolator returned an invalid Cartesian state")
-        state_m = state_m.copy()
-        status = CursorStatus.INTERPOLATED
+            if state_m is None:
+                return _unavailable_state(query_time, CursorStatus.UNAVAILABLE)
+            if state_m.shape != (6,) or not np.all(np.isfinite(state_m)):
+                raise ValueError("interpolator returned an invalid Cartesian state")
+            state_m = state_m.copy()
+            status = CursorStatus.INTERPOLATED
 
     position_km = state_m[:3] * 0.001
     velocity_km_s = state_m[3:] * 0.001
@@ -179,3 +132,180 @@ def state_at(
                 if len(store._earth_fixed_cursor_cache) > 8192:
                     store._earth_fixed_cursor_cache.popitem(last=False)
     return result
+
+
+def earth_fixed_states_at(
+    store: OemDataStore,
+    snapshot: StoreSnapshot,
+    query_times_s: np.ndarray,
+) -> np.ndarray:
+    """Resolve many Earth-fixed states while sharing sample conversions."""
+    queries = np.asarray(query_times_s, dtype=float)
+    if queries.ndim != 1:
+        raise ValueError("Earth-fixed query times must be one-dimensional")
+    if not np.isfinite(queries).all():
+        raise ValueError("Earth-fixed query times must be finite")
+    with store._lock:
+        if snapshot.epoch != store._epoch:
+            raise RuntimeError("store epoch has changed")
+        if snapshot.policy_revision != store._policy_revision:
+            raise RuntimeError("interpolation policy has changed")
+        interpolator = store._state_interpolator
+        interpolation_policy = store._interpolation_policy
+
+    states = np.full((len(queries), 6), np.nan, dtype=float)
+    if snapshot.sample_count == 0:
+        return states
+
+    from ..ground_track import (
+        _state_to_itrf_m_normalized,
+        normalize_conversion_frame_name,
+    )
+    from .frame_support import earth_centered_frame_name
+
+    frame_name = earth_centered_frame_name(snapshot, "Earth-fixed states")
+    if frame_name is None:
+        return states
+
+    raw = snapshot.raw
+    times = raw[:, 0]
+    if len(queries) == 0:
+        return states
+
+    upper_indices = np.searchsorted(times, queries, side="left")
+    exact = (
+        (upper_indices < times.size)
+        & (upper_indices >= 0)
+        & (times[np.clip(upper_indices, 0, times.size - 1)] == queries)
+    )
+    exact_indices = upper_indices[exact]
+    if exact_indices.size:
+        unique_exact_indices = np.unique(exact_indices)
+        exact_states = {}
+        for index in unique_exact_indices:
+            key = (snapshot.epoch, frame_name, int(index))
+            with store._lock:
+                converted = store._earth_fixed_state_cache.get(key)
+            if converted is None:
+                converted = _state_to_itrf_m_normalized(
+                    raw[int(index), 1:7],
+                    normalize_conversion_frame_name(frame_name),
+                    float(raw[int(index), 0]),
+                    source_frame_name=frame_name,
+                )
+                with store._lock:
+                    store._earth_fixed_state_cache[key] = converted
+                    if len(store._earth_fixed_state_cache) > 8192:
+                        store._earth_fixed_state_cache.popitem(last=False)
+            exact_states[int(index)] = converted
+        for query_index, raw_index in zip(
+            np.flatnonzero(exact),
+            exact_indices,
+        ):
+            states[query_index] = exact_states[int(raw_index)]
+
+    lower_indices = upper_indices - 1
+    interpolated = (
+        (upper_indices > 0)
+        & (upper_indices < times.size)
+        & (queries >= times[0])
+        & (queries <= times[-1])
+        & (
+            snapshot.segment_ids[np.clip(lower_indices, 0, times.size - 1)]
+            == snapshot.segment_ids[np.clip(upper_indices, 0, times.size - 1)]
+        )
+    )
+    interpolated_query_indices = np.flatnonzero(interpolated)
+    if interpolated_query_indices.size:
+        lower = lower_indices[interpolated]
+        upper = upper_indices[interpolated]
+        if interpolation_policy.method == "linear":
+            fractions = (
+                (queries[interpolated] - times[lower])
+                / (times[upper] - times[lower])
+            )
+
+            unique_indices = np.unique(
+                np.concatenate((lower, upper))
+            )
+            converted_by_index = {}
+            for index in unique_indices:
+                key = (snapshot.epoch, frame_name, int(index))
+                with store._lock:
+                    converted = store._earth_fixed_state_cache.get(key)
+                if converted is None:
+                    converted = _state_to_itrf_m_normalized(
+                        raw[int(index), 1:7],
+                        normalize_conversion_frame_name(frame_name),
+                        float(raw[int(index), 0]),
+                        source_frame_name=frame_name,
+                    )
+                    with store._lock:
+                        store._earth_fixed_state_cache[key] = converted
+                        if len(store._earth_fixed_state_cache) > 8192:
+                            store._earth_fixed_state_cache.popitem(last=False)
+                converted_by_index[int(index)] = converted
+
+            lower_states = np.stack(
+                [converted_by_index[int(index)] for index in lower]
+            )
+            upper_states = np.stack(
+                [converted_by_index[int(index)] for index in upper]
+            )
+            states[interpolated_query_indices] = (
+                lower_states
+                + fractions[:, np.newaxis] * (upper_states - lower_states)
+            )
+        else:
+            for query_index, query_time in zip(
+                interpolated_query_indices,
+                queries[interpolated],
+            ):
+                upper_index = int(np.searchsorted(times, query_time))
+                lower_index = upper_index - 1
+                segment_id = int(snapshot.segment_ids[lower_index])
+                segment_start = int(
+                    np.searchsorted(snapshot.segment_ids, segment_id, side="left")
+                )
+                segment_stop = int(
+                    np.searchsorted(snapshot.segment_ids, segment_id, side="right")
+                )
+                count = min(
+                    segment_stop - segment_start,
+                    max(2, interpolator.required_points),
+                )
+                start = segment_start + max(
+                    0,
+                    min(
+                        upper_index - segment_start - count // 2,
+                        segment_stop - segment_start - count,
+                    ),
+                )
+                stop = start + count
+                support_states = []
+                for index in range(start, stop):
+                    key = (snapshot.epoch, frame_name, index)
+                    with store._lock:
+                        converted = store._earth_fixed_state_cache.get(key)
+                    if converted is None:
+                        converted = _state_to_itrf_m_normalized(
+                            raw[index, 1:7],
+                            normalize_conversion_frame_name(frame_name),
+                            float(raw[index, 0]),
+                            source_frame_name=frame_name,
+                        )
+                        with store._lock:
+                            store._earth_fixed_state_cache[key] = converted
+                            if len(store._earth_fixed_state_cache) > 8192:
+                                store._earth_fixed_state_cache.popitem(last=False)
+                    support_states.append(converted)
+                interpolated_state = interpolator.interpolate_view(
+                    times[start:stop],
+                    np.stack(support_states),
+                    float(query_time),
+                    snapshot.segment_ids[start:stop],
+                )
+                if interpolated_state is not None:
+                    states[query_index] = interpolated_state
+
+    return states

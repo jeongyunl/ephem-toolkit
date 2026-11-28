@@ -12,6 +12,7 @@ from ephem_toolkit.play_oem.ground_stations import (
     create_ground_station,
     station_ecef_m,
     station_metrics,
+    station_metrics_from_ecef_batch,
 )
 
 
@@ -91,6 +92,30 @@ def test_station_metrics_known_enu_directions(
     assert metrics.elevation_deg == pytest.approx(expected_elevation)
     assert metrics.slant_range_km == pytest.approx(1000.0)
     assert metrics.access
+
+
+def test_station_metrics_batch_matches_scalar_for_finite_positions() -> None:
+    station = GroundStation("id", "Site", 35.0, -117.0, 100.0)
+    station_position = station_ecef_m(station)
+    positions = np.array(
+        [
+            station_position,
+            station_position + np.array([1_000.0, 2_000.0, 3_000.0]),
+            np.array([np.nan, 0.0, 0.0]),
+        ],
+        dtype=float,
+    )
+
+    batched = station_metrics_from_ecef_batch(station, positions)
+
+    assert batched[0] is not None
+    assert batched[0].slant_range_km == pytest.approx(0.0)
+    assert batched[1] is not None
+    scalar = station_metrics(station, np.concatenate((positions[1], (0.0, 0.0, 0.0))))
+    assert batched[1].azimuth_deg == pytest.approx(scalar.azimuth_deg)
+    assert batched[1].elevation_deg == pytest.approx(scalar.elevation_deg)
+    assert batched[1].slant_range_km == pytest.approx(scalar.slant_range_km)
+    assert batched[2] is None
 
 
 def test_station_access_uses_inclusive_mask_boundary() -> None:

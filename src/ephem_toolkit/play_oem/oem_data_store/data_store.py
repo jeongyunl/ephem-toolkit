@@ -7,10 +7,10 @@ from collections import OrderedDict
 from concurrent.futures import Future, ThreadPoolExecutor
 import heapq
 import logging
-import weakref
 from pathlib import Path
 from threading import Event, RLock
 from typing import cast
+import weakref
 
 import numpy as np
 
@@ -88,7 +88,10 @@ from .series_tier import query_series, series_storage
 from .earth_fixed_tier import query_earth_fixed
 from .ground_track_tier import query_ground_track
 from .station_access_tier import query_station_access
-from .state_lookup import state_at as lookup_state
+from .state_lookup import (
+    earth_fixed_states_at as lookup_earth_fixed_states,
+    state_at as lookup_state,
+)
 from .footprint_tier import query_footprints
 from .raw_epoch_lifecycle import (
     allocate_if_epoch as allocate_raw_epoch,
@@ -495,6 +498,14 @@ class OemDataStore:
     def earth_fixed_state_at(self, snapshot: StoreSnapshot, t_s: float) -> CursorState:
         """Resolve a state by interpolating Earth-fixed OEM samples."""
         return lookup_state(self, snapshot, t_s, earth_fixed=True)
+
+    def earth_fixed_states_at(
+        self,
+        snapshot: StoreSnapshot,
+        query_times_s: np.ndarray,
+    ) -> np.ndarray:
+        """Resolve many Earth-fixed states with shared sample conversions."""
+        return lookup_earth_fixed_states(self, snapshot, query_times_s)
 
     def station_metrics_at(
         self,

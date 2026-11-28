@@ -79,6 +79,7 @@ def __getattr__(name: str) -> Any:
         "ODM_MAX_LINE_LENGTH",
         "station_metrics",
         "station_metrics_from_ecef",
+        "station_metrics_from_ecef_batch",
         "GroundTrackPreparationError",
         "ACCESS_WINDOW_MIN_MARGIN_S",
         "ACCESS_WINDOW_MARGIN_FRACTION",
@@ -88,6 +89,7 @@ def __getattr__(name: str) -> Any:
             "ODM_MAX_LINE_LENGTH",
             "station_metrics",
             "station_metrics_from_ecef",
+            "station_metrics_from_ecef_batch",
             "GroundTrackPreparationError",
             "ACCESS_WINDOW_MIN_MARGIN_S",
             "ACCESS_WINDOW_MARGIN_FRACTION",
@@ -107,6 +109,12 @@ def __getattr__(name: str) -> Any:
                 )
 
                 return station_metrics_from_ecef
+            if name == "station_metrics_from_ecef_batch":
+                from ephem_toolkit.play_oem.ground_stations import (
+                    station_metrics_from_ecef_batch,
+                )
+
+                return station_metrics_from_ecef_batch
             if name == "GroundTrackPreparationError":
                 from ephem_toolkit.play_oem.ground_track import (
                     GroundTrackPreparationError,

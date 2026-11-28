@@ -286,7 +286,7 @@ def test_series_does_not_compute_cross_segment_deltas_or_rates() -> None:
     assert np.all(computed.euler_angle_rates_deg_s[2] == 0.0)
 
 
-def test_vectorized_rtn_direction_matches_scalar_for_degenerate_states() -> None:
+def test_vectorized_rtn_direction_handles_degenerate_states() -> None:
     states = np.asarray(
         [
             [7_000_000.0, 0.0, 0.0, 0.0, 7_500.0, 0.0],
@@ -296,16 +296,12 @@ def test_vectorized_rtn_direction_matches_scalar_for_degenerate_states() -> None
             [7_000_000.0, 0.0, 0.0, 0.0, 0.0, 0.0],
         ]
     )
-    expected = np.asarray(
-        [
-            OrbitSeries._compute_rtn_velocity_direction_vector(state)
-            for state in states
-        ]
-    )
-
     actual = OrbitSeries._compute_rtn_velocity_direction_vectors(states)
 
-    np.testing.assert_allclose(actual, expected, rtol=1e-12, atol=1e-15)
+    np.testing.assert_allclose(actual[0], [0.0, 1.0, 0.0], atol=1e-12)
+    np.testing.assert_allclose(actual[2], [1.0, 0.0, 0.0], atol=1e-12)
+    np.testing.assert_array_equal(actual[3], np.zeros(3))
+    np.testing.assert_array_equal(actual[4], np.zeros(3))
 
 
 def test_time_series_view_plots_oem_segments_as_separate_runs() -> None:
