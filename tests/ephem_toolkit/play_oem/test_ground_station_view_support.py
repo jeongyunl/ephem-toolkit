@@ -31,6 +31,7 @@ from ephem_toolkit.play_oem.views.ground_station import (
     GroundStationView,
     RangeProfileRenderer,
 )
+from ephem_toolkit.play_oem.views.plotting import StationProfileArtistBinding
 from tests.ephem_toolkit.play_oem.cursor_helpers import make_store_context
 
 
@@ -90,6 +91,63 @@ def test_station_access_binding_deduplicates_same_context_and_range() -> None:
     assert not second
     assert station.station_id in binding.results
     assert station.station_id in binding.queries
+
+
+def test_station_profile_artist_binding_reuses_profile_artists() -> None:
+    figure = Figure()
+    axes = figure.add_subplot(111)
+    binding = StationProfileArtistBinding()
+
+    binding.sync(
+        axes,
+        [(np.asarray([0.0, 10.0]), np.asarray([20.0, 30.0]))],
+        profile_labels=("North · segment",),
+        interval_polygons=(
+            np.asarray(
+                (
+                    (0.0, 0.0),
+                    (10.0, 0.0),
+                    (10.0, 95.0),
+                    (0.0, 95.0),
+                    (0.0, 0.0),
+                )
+            ),
+        ),
+        mask_segment=(
+            np.asarray([0.0, 10.0]),
+            np.asarray([10.0, 10.0]),
+        ),
+    )
+    profile_line = binding.profile_binding.artists[0]
+    interval_patch = binding._interval_artists[0]
+    mask_line = binding.mask_binding.artists[0]
+
+    binding.sync(
+        axes,
+        [(np.asarray([5.0, 15.0]), np.asarray([25.0, 35.0]))],
+        profile_labels=("North · segment",),
+        interval_polygons=(
+            np.asarray(
+                (
+                    (5.0, 0.0),
+                    (15.0, 0.0),
+                    (15.0, 95.0),
+                    (5.0, 95.0),
+                    (5.0, 0.0),
+                )
+            ),
+        ),
+        mask_segment=(
+            np.asarray([5.0, 15.0]),
+            np.asarray([12.0, 12.0]),
+        ),
+    )
+
+    assert binding.profile_binding.artists[0] is profile_line
+    assert binding._interval_artists[0] is interval_patch
+    assert binding.mask_binding.artists[0] is mask_line
+    np.testing.assert_allclose(profile_line.get_xdata(), [5.0, 15.0])
+    np.testing.assert_allclose(mask_line.get_ydata(), [12.0, 12.0])
 
 
 @pytest.mark.parametrize(

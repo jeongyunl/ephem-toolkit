@@ -37,6 +37,7 @@ from .data_view_base import (
 )
 from .plotting import (
     MAX_DISPLAY_POINTS_PER_SEGMENT,
+    StationProfileArtistBinding,
 )
 from .time_series_support import TimeSeriesWxPanelMixin
 
@@ -126,6 +127,7 @@ class GroundStationProfileRendererBase(
         self._canvas: FigureCanvasWxAgg | None = None
         self._figure: Figure | None = None
         self._playback_marker: Line2D | None = None
+        self._profile_artist_binding = StationProfileArtistBinding()
 
         self._initialize_store_time_series(
             cursor.t_start,
@@ -235,6 +237,7 @@ class GroundStationProfileRendererBase(
     def close(self) -> None:
         self._close_ground_station_analysis()
         self._close_time_series_wx()
+        self._profile_artist_binding.clear()
         self._results.clear()
         self._store_queries.clear()
         self._panel = None
@@ -359,13 +362,20 @@ class GroundStationProfileRendererBase(
         if self._axes is None:
             self._update_status_text()
             return
-        self._axes.clear()
-        self._playback_marker = self._axes.axvline(
-            self._axis_time(self._current_time_s),
-            color="#df4d66",
-            linewidth=1.2,
-            label="Playback",
-        )
+        if self._playback_marker is None:
+            self._playback_marker = self._axes.axvline(
+                self._axis_time(self._current_time_s),
+                color="#df4d66",
+                linewidth=1.2,
+                label="Playback",
+            )
+        else:
+            self._playback_marker.set_xdata(
+                [
+                    self._axis_time(self._current_time_s),
+                    self._axis_time(self._current_time_s),
+                ]
+            )
         self._update_status_text()
 
         station = self._selected_ground_station()
@@ -373,6 +383,10 @@ class GroundStationProfileRendererBase(
             result = self._results.get(station.station_id)
             if result is not None:
                 self._draw_profile(result, station)
+            else:
+                self._profile_artist_binding.clear()
+        else:
+            self._profile_artist_binding.clear()
 
         self._axes.set_xlabel("UTC")
         self._axes.xaxis.set_major_formatter(
@@ -394,8 +408,6 @@ class GroundStationProfileRendererBase(
         if self._legend_panel is not None:
             self._legend_panel.set_handles(tuple(handles))
         style_axes(self._axes)
-        if self._canvas is not None:
-            self._canvas.draw_idle()
 
     def _draw_profile(
         self,
@@ -404,17 +416,28 @@ class GroundStationProfileRendererBase(
     ) -> None:
         if self._axes is None or self._time_range is None:
             return
+        interval_polygons: list[np.ndarray] = []
         if self.panel_mode == "elevation-profile":
             for index, interval in enumerate(self._visible_intervals(result)):
-                self._axes.axvspan(
-                    self._axis_time(interval.start_s),
-                    self._axis_time(interval.end_s),
-                    color="#d6e8ff",
-                    alpha=0.45,
-                    label="Access interval" if index == 0 else None,
+                left = self._axis_time(interval.start_s)
+                right = self._axis_time(interval.end_s)
+                interval_polygons.append(
+                    np.asarray(
+                        (
+                            (left, 0.0),
+                            (right, 0.0),
+                            (right, 95.0),
+                            (left, 95.0),
+                            (left, 0.0),
+                        ),
+                        dtype=float,
+                    )
                 )
 
         sampler = self._station_time_sampling()
+        profile_segments: list[tuple[np.ndarray, np.ndarray]] = []
+        profile_labels: list[str | None] = []
+        plotted_profile = False
         for profile in result.look_angle_profiles:
             profile_times = profile.times_s
             first = int(
@@ -488,20 +511,36 @@ class GroundStationProfileRendererBase(
                     display_values[below_mask, 0] = np.nan
                     display_values = display_values[:, 0]
                 display_values = np.asarray(display_values, dtype=float).copy()
-            self._axes.plot(
-                self._axis_times(display_times),
-                display_values,
-                linewidth=1.3,
-                label=f"{station.name} · segment",
+            profile_segments.append(
+                (
+                    self._axis_times(display_times),
+                    display_values,
+                )
             )
+            profile_labels.append(
+                f"{station.name} · segment" if not plotted_profile else None
+            )
+            plotted_profile = True
+        mask_segment: tuple[np.ndarray, np.ndarray] | None = None
         if self.panel_mode == "elevation-profile":
-            self._axes.axhline(
-                station.minimum_elevation_deg,
-                color="#c74343",
-                linestyle="--",
-                linewidth=1.0,
-                label="Station mask",
+            left, right = self._axis_bounds(self._time_range, self._coverage)
+            mask_segment = (
+                np.asarray((left, right), dtype=float),
+                np.asarray(
+                    (
+                        station.minimum_elevation_deg,
+                        station.minimum_elevation_deg,
+                    ),
+                    dtype=float,
+                ),
             )
+        self._profile_artist_binding.sync(
+            self._axes,
+            profile_segments,
+            profile_labels=profile_labels,
+            interval_polygons=interval_polygons,
+            mask_segment=mask_segment,
+        )
 
     def _visible_intervals(
         self,

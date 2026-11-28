@@ -171,7 +171,7 @@ class TimeRangeActionsMixin:
         *,
         dragging: bool | None = None,
     ) -> None:
-        """Apply range and cursor state to visible data_views, deferring hidden panels."""
+        """Apply range/cursor state to visible views and defer hidden panels."""
         coverage = (self.clock.t_start, self.clock.t_end)
         selected_time = self.clock.t_now if time_s is None else time_s
         context = self._store_state.view_context
@@ -180,8 +180,6 @@ class TimeRangeActionsMixin:
             context.plot_range != resolved or context.coverage != coverage
         ):
             self._store_state.view_context = context.with_range(resolved, coverage)
-            if plot_changed:
-                self._queue_store_view_refresh()
         if dragging is not None:
             self._range_dragging = dragging
         self._publish_range_hint()

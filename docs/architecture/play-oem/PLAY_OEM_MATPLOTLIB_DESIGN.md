@@ -68,6 +68,10 @@ remove/rebuild loops:
 - `StoreLineSegmentBinding` owns reusable `Line2D` artists for projected or
   otherwise post-processed segments. It syncs a sequence of `(x, y)` pairs,
   removes excess artists, and preserves the caller's style and marker policy.
+- `StationProfileArtistBinding` owns reusable Ground Station profile
+  `Line2D`, access `Polygon`, and mask `Line2D` artists. It synchronizes
+  sampled profiles and range overlays without clearing the station axes or
+  rebuilding the playback/canvas structure.
 - `StationAccessBinding` owns station/store/range identity and repeated
   station-access preparation. It returns one set of store queries and adapted
   station results. Cursor-only updates and unchanged station/range contexts
@@ -77,6 +81,11 @@ Bindings are presentation/query owners, not data-store owners. They never
 copy orbit-size arrays or replace store snapshot lifecycle. Store snapshots,
 range hints, coverage, tier subscriptions, and station policy remain owned by
 `StoreViewContext`, `StoreViewBinding`, and `OemDataStore`.
+
+Range-only dispatch is separate from store-snapshot refresh. `_dispatch_time_range`
+updates visible view ranges directly and defers hidden panels; `_refresh_store_data_views`
+is reserved for snapshot/tier/coverage and panel-rebuild changes. This avoids
+one plot-range edit triggering both a range setter and a full store-view refresh.
 
 ### Ground Track call-site shape
 
@@ -117,6 +126,24 @@ The binding owns exact preparation keys and deduplicates repeated
 configuration, pass-range mode, and view-specific extra keys. It does not
 filter pass intervals or select pass UI state; Pass List and Sky View retain
 those view-specific operations.
+
+Profile renderers synchronize presentation artists through
+`StationProfileArtistBinding`:
+
+```python
+self._profile_artist_binding.sync(
+    self._axes,
+    profile_segments,
+    profile_labels=profile_labels,
+    interval_polygons=interval_polygons,
+    mask_segment=mask_segment,
+)
+```
+
+The binding retains compatible artists across range changes and station
+updates, removes excess segments, and does not call `Axes.clear()`. The
+playback marker remains an in-place artist, while range/coverage changes only
+update x limits and synchronized profile data.
 
 ## Proposed architecture: make the common path the easy path
 

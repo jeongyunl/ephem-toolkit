@@ -164,6 +164,78 @@ without changing range, coverage, station, or pass semantics.
 This baseline is retained for feature-preserving 5 Hz drag feedback. It is not
 comparable with analysis-1 attempts that suppressed range redraws during drag.
 
+## Attempt 4: Ground Station profile artist reuse
+
+Status: **effective**
+
+Changed implementation:
+
+- Added `StationProfileArtistBinding` for reusable station profile `Line2D`
+  artists, access-range `Polygon` artists, and mask `Line2D` artists.
+- Ground Station profile renderers no longer call `Axes.clear()` during range
+  or snapshot refreshes.
+- The playback marker remains in place and is updated in place.
+- Profile range/coverage changes now synchronize existing artists instead of
+  rebuilding Matplotlib axes and patches.
+
+Short-scenario evidence:
+
+| Metric | Attempt 3 | Attempt 4 | Change |
+| --- | ---: | ---: | ---: |
+| Instrumented total | 33.482 s | 28.230 s | 15.7% lower |
+| Function calls | 34.421M | 23.806M | 30.8% lower |
+| Matplotlib draw cumulative | 16.407 s | 13.121 s | 20.0% lower |
+| `_prepare_access` cumulative | 4.223 s | 2.842 s | 32.7% lower |
+| Station `query_station_access` cumulative | 4.219 s | 2.842 s | 32.6% lower |
+
+The retained-scenario rerun for the combined final implementation is now
+captured below under Attempt 5. An Attempt 4-only full profile was not
+captured separately, but the full Attempt 5 profile contains both the Ground
+Station artist reuse and range-dispatch deduplication changes.
+
+## Attempt 5: range-dispatch/store-refresh deduplication
+
+Status: **effective**
+
+Changed implementation:
+
+- Range-only `_dispatch_time_range` updates no longer queue a full
+  `_refresh_store_data_views` pass after updating the same visible views.
+- Visible store-backed views receive their range setter directly.
+- Hidden panels retain pending-range state and catch up when they become
+  visible.
+- Store snapshot/tier notices continue to use the separate refresh path.
+
+Short-scenario evidence:
+
+| Metric | Attempt 4 | Attempt 5 | Change |
+| --- | ---: | ---: | ---: |
+| Instrumented total | 28.230 s | 24.920 s | 11.7% lower |
+| Function calls | 23.806M | 16.939M | 28.9% lower |
+| Matplotlib draw cumulative | 13.121 s | 11.537 s | 12.1% lower |
+| `_on_timer` cumulative | 9.232 s | 8.390 s | 9.1% lower |
+| `_refresh_store_data_views` cumulative | 9.126 s | 8.287 s | 9.2% lower |
+| Ground Station prepare cumulative | 2.844 s | 3.215 s | 13.0% higher |
+| Station `query_station_access` cumulative | 2.842 s | 3.213 s | 13.1% higher |
+
+The cProfile result is strong for overall time and call count, and it is
+consistent with removing duplicate visible-view range rebuild work. Station
+preparation and query totals increased in this run, so those values are not
+claimed as an independent station gain. The full retained-scenario rerun
+is now available below.
+
+Retained recorded-scenario evidence:
+
+| Metric | Baseline | Attempt 5 | Change |
+| --- | ---: | ---: | ---: |
+| Wall time | 128 s | not remeasured outside cProfile | — |
+| Instrumented total | 125.492 s | 72.596 s | 42.2% lower |
+| Function calls | 165.147M | 51.519M | 68.8% lower |
+| Matplotlib draw cumulative | 33.544 s | 17.895 s | 46.6% lower |
+| `_dispatch_time_range` cumulative | 33.901 s | 11.474 s | 66.2% lower |
+| `_prepare_access`/station query cumulative | 11.756 s / 11.728 s | 8.916 s / 8.905 s | 24.2% / 24.1% lower |
+| Ground Station profile range updates | 256 + 256 calls | 139 + 139 calls | 45.7% lower |
+
 ## Reproduce
 
 ```sh
@@ -189,7 +261,9 @@ Each attempt must:
 ## Next hypotheses
 
 1. Batch or coalesce Matplotlib artist replacement in `_apply_store_context`.
-2. Avoid repeated Ground Station patch/path construction during range refresh.
+2. Apply similar in-place artist reuse to Ground Station Pass/Sky `_draw_sky_plot`
+   and pass-table rebuilds where range/station refresh repeatedly recreates
+   Matplotlib artists.
 3. Cache or reuse visible data-view range snapshots within a 5 Hz dispatch.
 4. Deduplicate station-access queries by exact settled/visible range lifecycle.
 5. Bound and coalesce `_on_timer` redraw/store notice work.

@@ -101,6 +101,47 @@ def test_coverage_growth_does_not_rebuild_an_unchanged_plot_range() -> None:
     assert _range_needs_update(opened, plot, (15.0, 100.0))
 
 
+def test_time_range_dispatch_updates_visible_views_without_full_store_rebuild(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    player, data_views, _canvases, _frames = make_app(
+        monkeypatch,
+        data_views=("speed-altitude",),
+    )
+    player.open_data_view("speed-altitude")
+    view = data_views[-1]
+    range_updates: list[
+        tuple[time_range.ResolvedTimeRange | None, tuple[float, float]]
+    ] = []
+    view.set_time_range = lambda bounds, coverage: range_updates.append(
+        (bounds, coverage)
+    )
+    queue_calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
+    player._queue_store_view_refresh = lambda *args, **kwargs: queue_calls.append(
+        (args, kwargs)
+    )
+    monkeypatch.setattr(
+        player.workspace,
+        "is_data_view_panel_visible",
+        lambda _panel: True,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        player.workspace,
+        "queue_data_view_redraw",
+        lambda _panel: None,
+        raising=False,
+    )
+
+    resolved = time_range.ResolvedTimeRange(10.0, 20.0)
+    player._dispatch_time_range(resolved, 15.0)
+
+    assert range_updates == [(resolved, (player.clock.t_start, player.clock.t_end))]
+    assert queue_calls == []
+    assert player._refresh_state.pending_store_view_ids == set()
+    player.close()
+
+
 @pytest.fixture(autouse=True)
 def isolate_play_oem_toml_files(
     monkeypatch: pytest.MonkeyPatch,

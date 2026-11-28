@@ -9,7 +9,7 @@ import numpy as np
 from matplotlib.artist import Artist
 from matplotlib.axes import Axes
 from matplotlib.lines import Line2D
-from matplotlib.patches import PathPatch
+from matplotlib.patches import PathPatch, Polygon
 from matplotlib.path import Path
 from matplotlib.transforms import Affine2D
 
@@ -40,6 +40,7 @@ class StoreLineSegmentBinding:
         color: str = "C0",
         linewidth: float = 1.5,
         markers: Sequence[str | None] | None = None,
+        linestyle: str = "solid",
         zorder: float | None = None,
         label: str | None = None,
     ) -> tuple[Line2D, ...]:
@@ -60,7 +61,7 @@ class StoreLineSegmentBinding:
                     linewidth=linewidth,
                     marker=marker,
                     markersize=4,
-                    linestyle="solid" if marker in (None, "None") else "None",
+                    linestyle=linestyle if marker in (None, "None") else "None",
                     zorder=zorder,
                     label=label or "_nolegend_",
                 )
@@ -72,7 +73,7 @@ class StoreLineSegmentBinding:
                 artist.set_marker(marker)
                 artist.set_markersize(4)
                 artist.set_linestyle(
-                    "solid" if marker in (None, "None") else "None"
+                    linestyle if marker in (None, "None") else "None"
                 )
                 if zorder is not None:
                     artist.set_zorder(zorder)
@@ -83,6 +84,92 @@ class StoreLineSegmentBinding:
             artist.remove()
         self.artists = tuple(artists)
         return self.artists
+
+
+class StationProfileArtistBinding:
+    """Reuse Ground Station profile lines, access polygons, and mask lines."""
+
+    def __init__(self) -> None:
+        self.profile_binding = StoreLineSegmentBinding()
+        self.mask_binding = StoreLineSegmentBinding()
+        self._interval_artists: tuple[Polygon, ...] = ()
+
+    def clear(self) -> None:
+        self.profile_binding.clear()
+        self.mask_binding.clear()
+        for artist in self._interval_artists:
+            artist.remove()
+        self._interval_artists = ()
+
+    def sync(
+        self,
+        axes: Axes,
+        profile_segments: Sequence[tuple[np.ndarray, np.ndarray]],
+        *,
+        profile_labels: Sequence[str | None] | None = None,
+        interval_polygons: Sequence[np.ndarray] = (),
+        mask_segment: tuple[np.ndarray, np.ndarray] | None = None,
+    ) -> None:
+        self.profile_binding.sync(
+            axes,
+            profile_segments,
+            linewidth=1.3,
+            markers=tuple(
+                None
+                for _ in profile_segments
+            ),
+            label=None,
+        )
+        if profile_labels is not None:
+            for artist, label in zip(
+                self.profile_binding.artists,
+                profile_labels,
+            ):
+                artist.set_label(label or "_nolegend_")
+
+        existing = iter(self._interval_artists)
+        artists: list[Polygon] = []
+        for index, vertices in enumerate(interval_polygons):
+            artist = next(existing, None)
+            label = "Access interval" if index == 0 else "_nolegend_"
+            if artist is None:
+                artist = Polygon(
+                    vertices,
+                    closed=True,
+                    facecolor="#d6e8ff",
+                    edgecolor="#d6e8ff",
+                    linewidth=0.0,
+                    alpha=0.45,
+                    label=label,
+                )
+                axes.add_patch(artist)
+            else:
+                artist.set_xy(vertices)
+                artist.set_facecolor("#d6e8ff")
+                artist.set_edgecolor("#d6e8ff")
+                artist.set_linewidth(0.0)
+                artist.set_alpha(0.45)
+                artist.set_label(label)
+                artist.set_visible(True)
+            artists.append(artist)
+        for artist in existing:
+            artist.remove()
+        self._interval_artists = tuple(artists)
+
+        if mask_segment is None:
+            self.mask_binding.sync(axes, ())
+        else:
+            mask_x, mask_y = mask_segment
+            self.mask_binding.sync(
+                axes,
+                ((mask_x, mask_y),),
+                color="#c74343",
+                linewidth=1.0,
+                markers=(None,),
+                linestyle="--",
+                zorder=2,
+                label="Station mask",
+            )
 
 
 class StoreArtistBinding:

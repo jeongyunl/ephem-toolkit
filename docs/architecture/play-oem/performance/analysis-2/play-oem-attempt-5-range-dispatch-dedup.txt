@@ -1,0 +1,45 @@
+Sat Nov 28 01:34:36 2026    docs/architecture/play-oem/performance/analysis-2/play-oem-attempt-5-range-dispatch-dedup.prof
+
+         16938757 function calls (16660948 primitive calls) in 24.920 seconds
+
+   Ordered by: cumulative time
+   List reduced from 6243 to 35 due to restriction <35>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+    791/1    0.017    0.000   25.311   25.311 {built-in method builtins.exec}
+        1    0.000    0.000   25.311   25.311 profile_play_oem_ui.py:1(<module>)
+        1    0.000    0.000   24.490   24.490 profile_play_oem_ui.py:92(main)
+        1    0.000    0.000   24.269   24.269 player_app.py:537(run)
+        1    0.000    0.000   24.050   24.050 core.py:2250(MainLoop)
+        1    1.134    1.134   24.050   24.050 {MainLoop}
+      188    0.026    0.000   11.537    0.061 backend_wxagg.py:10(draw)
+      189    0.001    0.000   11.247    0.060 backend_agg.py:380(draw)
+      188    0.000    0.000   11.166    0.059 artist.py:93(draw_wrapper)
+17917/188    0.022    0.000   11.166    0.059 artist.py:54(draw_wrapper)
+      188    0.002    0.000   11.166    0.059 figure.py:3142(draw)
+      151    0.035    0.000   10.616    0.070 backend_wx.py:632(_on_paint)
+  370/188    0.003    0.000    8.684    0.046 image.py:114(_draw_list_compositing_images)
+       67    0.000    0.000    8.390    0.125 player_app.py:899(_on_timer)
+       40    0.001    0.000    8.287    0.207 player_store_data_view_refresh.py:157(_refresh_store_data_views)
+      182    0.002    0.000    8.024    0.044 _base.py:3072(draw)
+      350    0.003    0.000    5.926    0.017 axis.py:1415(draw)
+       67    0.001    0.000    5.619    0.084 player_store_data_view_refresh.py:64(_drain_store_notices)
+     3182    5.406    0.002    5.406    0.002 {method 'set_text' of 'matplotlib.ft2font.FT2Font' objects}
+       53    0.001    0.000    4.789    0.090 speed_altitude.py:146(_apply_store_context)
+     5384    0.027    0.000    4.739    0.001 text.py:737(draw)
+       17    0.000    0.000    4.655    0.274 speed_altitude.py:107(update_from_store)
+       53    0.000    0.000    4.548    0.086 data_view_base.py:220(series)
+       53    0.000    0.000    4.548    0.086 data_view_base.py:181(series_groups)
+       53    0.000    0.000    4.408    0.083 data_store.py:540(series)
+       53    4.392    0.083    4.408    0.083 series_tier.py:56(query_series)
+     2135    0.009    0.000    4.389    0.002 backend_agg.py:186(draw_text)
+      147    0.000    0.000    3.217    0.022 data_view_base.py:241(query_bounds)
+       44    0.000    0.000    3.215    0.073 ground_station.py:350(_prepare_access)
+       44    0.000    0.000    3.215    0.073 data_view_base.py:566(prepare)
+       74    0.000    0.000    3.214    0.043 data_view_base.py:280(station_access)
+       74    0.000    0.000    3.213    0.043 data_view_base.py:289(<lambda>)
+       74    0.000    0.000    3.213    0.043 data_store.py:601(station_access)
+       74    1.943    0.026    3.213    0.043 station_access_tier.py:90(query_station_access)
+     1919    0.006    0.000    3.157    0.002 axis.py:269(draw)
+
+
