@@ -117,12 +117,16 @@ class _RangeGrip(wx.Control):
         dc.Clear()
         w, h = self.GetClientSize()
         cx, cy = w // 2, h // 2
+        range_dragging = (
+            self.kind == "playback"
+            and getattr(self.slider, "_playback_range_dragging", False)
+        )
+        dragging = self.slider._drag_source is self or range_dragging
         color = (
             wx.SystemSettings.GetColour(wx.SYS_COLOUR_HIGHLIGHT)
-            if self.slider._drag_source is self
+            if dragging
             else self.color
         )
-        dragging = self.slider._drag_source is self
         dc.SetPen(wx.Pen(color, 3 if dragging else 2))
         if self.kind == "playback":
             dc.SetBrush(wx.Brush(color))
@@ -338,6 +342,13 @@ class PlaybackTimeSlider(TimeSlider):
     def _playback_connector_hovered(self) -> bool:
         return self._pointer_between_playback_handles(self._pointer_position)
 
+    @property
+    def _playback_range_dragging(self) -> bool:
+        return (
+            self._drag_source is self
+            and getattr(self, "_range_drag_origin", None) is not None
+        )
+
     def _pointer_between_playback_handles(self, position: wx.Point | None) -> bool:
         range_drag_origin = getattr(self, "_range_drag_origin", None)
         if position is None or (
@@ -385,6 +396,8 @@ class PlaybackTimeSlider(TimeSlider):
         source.Refresh()
         if source is self:
             self._seek_grip.Refresh()
+            for grip in getattr(self, "_grips", {}).values():
+                grip.Refresh()
         elif source is self._seek_grip:
             self.Refresh()
         self._on_range_dragging(True)
@@ -401,6 +414,8 @@ class PlaybackTimeSlider(TimeSlider):
             source.Refresh()
             if source is self:
                 self._seek_grip.Refresh()
+                for grip in getattr(self, "_grips", {}).values():
+                    grip.Refresh()
             elif source is self._seek_grip:
                 self.Refresh()
         if release_capture and source.HasCapture():

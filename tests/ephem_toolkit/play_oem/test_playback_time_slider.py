@@ -157,6 +157,21 @@ def test_track_highlight_follows_hover_and_seek_drag() -> None:
     assert len(refreshes) == 2
 
 
+def test_playback_range_dragging_marks_slider_for_handle_highlight() -> None:
+    slider = SimpleNamespace(
+        _drag_source=None,
+        _range_drag_origin=None,
+    )
+    dragging = PlaybackTimeSlider._playback_range_dragging.__get__
+
+    assert not dragging(slider)
+    slider._drag_source = slider
+    slider._range_drag_origin = (50.0, 20.0, 80.0)
+    assert dragging(slider)
+    slider._range_drag_origin = None
+    assert not dragging(slider)
+
+
 def test_playback_connector_highlights_only_between_handles() -> None:
     slider = SimpleNamespace(
         _pointer_position=SimpleNamespace(x=50, y=54),
