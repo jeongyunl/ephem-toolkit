@@ -14,6 +14,7 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 
 from .. import time_unit
+from ..matplotlib_helpers import configure_figure_layout
 from ..time_range import ResolvedTimeRange
 from ..widgets import FloatingMatplotlibLegend, PanelCorner, PanelInteraction
 from .data_view_base import (
@@ -58,6 +59,7 @@ class OrbitTimeSeriesView(
     ) -> Figure | wx.Window:
         self._figure = figure
         axes = tuple(figure.axes)
+        configure_figure_layout(figure)
         self._configure_time_series_axes(
             axes,
             start_time_s=start_time_s,

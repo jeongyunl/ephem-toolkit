@@ -113,7 +113,7 @@ class SpeedAltitudeView(OrbitTimeSeriesView):
     def _create_figure(
         self, display_time_unit: time_unit.TimeUnit
     ) -> tuple[Figure, Axes, Axes]:
-        figure = create_figure(FIGURE_SIZE_INCHES)
+        figure = create_figure(FIGURE_SIZE_INCHES, constrained_layout=False)
         speed_axes, altitude_axes = figure.subplots(2, 1, sharex=True)
         speed_axes.set_ylabel("Speed (km/s)")
         altitude_axes.set_ylabel("Altitude (km)")

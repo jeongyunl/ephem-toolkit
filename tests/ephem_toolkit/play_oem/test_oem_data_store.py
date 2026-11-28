@@ -1928,6 +1928,51 @@ def test_station_profiles_are_lazy_shared_and_threshold_independent() -> None:
     )
 
 
+def test_station_access_reuses_layout_interval_cache(monkeypatch) -> None:
+    import ephem_toolkit.play_oem.oem_data_store.station_access_tier as station_access_tier
+
+    times = np.arange(0.0, 12_001.0, 60.0)
+    states = np.tile(
+        np.array([7_378_137.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+        (times.size, 1),
+    )
+    store = _store_with_samples(
+        times,
+        states,
+        np.zeros(times.size, dtype=np.int64),
+        metadata=(("CENTER_NAME", "EARTH"), ("REF_FRAME", "ITRF")),
+    )
+    station = GroundStation("equator", "Equator", 0.0, 0.0, 0.0)
+    snapshot = store.snapshot()
+
+    interval_calls = [0]
+    original_intervals = station_access_tier._intervals_for_segment
+
+    def counted_intervals(*args, **kwargs):
+        interval_calls[0] += 1
+        return original_intervals(*args, **kwargs)
+
+    monkeypatch.setattr(
+        station_access_tier,
+        "_intervals_for_segment",
+        counted_intervals,
+    )
+
+    first = store.station_access(snapshot, station, (3_000.0, 9_000.0), wait=True)
+    calls_after_first = interval_calls[0]
+    assert calls_after_first == 1
+
+    overlapping = store.station_access(
+        snapshot,
+        station,
+        (3_600.0, 9_600.0),
+        wait=True,
+    )
+    assert interval_calls[0] == calls_after_first
+    assert first.value.intervals
+    assert overlapping.value.intervals
+
+
 def test_station_access_reuses_covering_interval_cache(monkeypatch) -> None:
     import ephem_toolkit.play_oem.oem_data_store.station_access_tier as station_access_tier
 

@@ -78,7 +78,7 @@ class StateComponentsView(OrbitTimeSeriesView):
         """Build from raw state columns."""
         if self._figure is not None:
             raise RuntimeError("state-components view has already been built")
-        figure = create_figure(FIGURE_SIZE_INCHES)
+        figure = create_figure(FIGURE_SIZE_INCHES, constrained_layout=False)
         axes_array = cast(
             np.ndarray,
             figure.subplots(

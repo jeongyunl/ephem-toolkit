@@ -142,6 +142,7 @@ def clear_station_profiles(store: OemDataStore) -> None:
                 store._chunk_ranges.pop(key, None)
     store._station_profiles.clear()
     store._station_interval_cache.clear()
+    store._station_interval_layout_cache.clear()
 
 
 def compute_profile_ranges(

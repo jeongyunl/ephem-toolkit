@@ -64,7 +64,7 @@ class AngularVelocityView(OrbitTimeSeriesView):
         """Build from range-limited angular-rate columns owned by the store."""
         if self._figure is not None:
             raise RuntimeError("angular-velocity view has already been built")
-        figure = create_figure(FIGURE_SIZE_INCHES)
+        figure = create_figure(FIGURE_SIZE_INCHES, constrained_layout=False)
         axes_array = figure.subplots(2, 1, sharex=True)
         rates = (
             ("Angular Velocity (deg/s)", "Angular Velocity / Attitude Rate vs Time"),

@@ -43,6 +43,7 @@ currently usable. Chunk size is 4096 rows.
 | Earth-fixed point-state cache | Converted six-component sample states used by point lookup | `(epoch, source frame, sample row)`; LRU, 8192 entries. |
 | Station profile tier | Regularly sampled station look-angle data | `(epoch, raw revision, policy revision, station identity and coordinates)`; chunked by row. |
 | Station interval cache | Derived access intervals for a station query | Epoch, raw revision, policy revision, station, time bounds and elevation threshold; up to 128 entries. |
+| Station layout interval cache | Access intervals assembled once for a complete OEM segment layout | Epoch, raw revision, policy revision, station, elevation threshold and layout identity; up to 128 entries. |
 | Ground Track result cache | Complete, seam-split coordinate groups | `(epoch, raw revision, bounds, margin, map center)`; up to 4 entries and subject to the derived memory budget. |
 | Footprint cache | Footprint geometry for a point state and elevation threshold | `(epoch, time, Earth-fixed position, threshold)`; LRU, 32 entries. |
 
@@ -84,11 +85,13 @@ Cache identity follows the data that produced each value:
   the new epoch's derived data.
 - **Raw append:** publishes a new raw revision. Ground Track results are cleared
   because their range and completeness depend on that revision. Station profile
-  tiers and interval results are also cleared. Completed series and Earth-fixed
+  tiers, range interval results, and layout interval results are also cleared.
+  Completed series and Earth-fixed
   chunks for earlier committed rows can remain reusable; the unfinished tail is
   recomputed as needed.
 - **Interpolation policy change:** increments the policy revision and clears
-  station profile and interval data. Their sampled states depend on interpolation.
+  station profile, range interval, and layout interval data. Their sampled states
+  depend on interpolation.
   Converted exact Earth-fixed samples and Earth-fixed range chunks remain valid.
   Old snapshots are rejected by point-state lookup after the policy changes.
 - **Derived-chunk eviction:** clears the chunk's ready markers and memo entry so a

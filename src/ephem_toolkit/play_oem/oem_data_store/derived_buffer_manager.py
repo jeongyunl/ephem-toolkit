@@ -254,6 +254,7 @@ class DerivedBufferManager:
                     continue
                 if candidate.kind == "station-access":
                     store._station_interval_cache.clear()
+                    store._station_interval_layout_cache.clear()
                 store._chunk_access_order.pop(chunk_key, None)
                 store._chunk_ranges.pop(chunk_key, None)
                 resident_bytes -= candidate.size_bytes

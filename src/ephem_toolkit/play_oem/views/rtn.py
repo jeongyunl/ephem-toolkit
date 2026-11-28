@@ -62,7 +62,7 @@ class RtnDeltaView(OrbitTimeSeriesView):
         """Build from range-limited RTN columns owned by the data store."""
         if self._figure is not None:
             raise RuntimeError("RTN-delta view has already been built")
-        figure = create_figure(FIGURE_SIZE_INCHES)
+        figure = create_figure(FIGURE_SIZE_INCHES, constrained_layout=False)
         axes_array = figure.subplots(3, 1, sharex=True)
         titles = (
             "Radial Position Delta vs Time",

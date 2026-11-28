@@ -164,3 +164,8 @@ def _configure_figure_layout(figure: Figure) -> None:
     )
     if current_params == default_params:
         figure.tight_layout(pad=0.2)
+
+
+def configure_figure_layout(figure: Figure) -> None:
+    """Configure a figure once after its axes have been created."""
+    _configure_figure_layout(figure)

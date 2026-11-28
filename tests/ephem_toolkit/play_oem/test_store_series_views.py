@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 from matplotlib.backends.backend_agg import FigureCanvasAgg
+from matplotlib.layout_engine import ConstrainedLayoutEngine
 from matplotlib.patches import PathPatch
 from matplotlib.path import Path
 
@@ -327,6 +328,10 @@ def test_store_history_data_views_use_store_owned_paths(
     view = view_type(100.0, "Test spacecraft")
     figure = view.build_from_store(context)
     FigureCanvasAgg(figure).draw()
+    assert not isinstance(
+        figure.get_layout_engine(),
+        ConstrainedLayoutEngine,
+    )
 
     assert view._store_query is not None
     groups = (

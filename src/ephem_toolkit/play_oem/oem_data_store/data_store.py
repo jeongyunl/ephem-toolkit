@@ -167,6 +167,9 @@ class OemDataStore:
         self._station_interval_cache: dict[
             tuple[object, ...], tuple[AccessInterval, ...]
         ] = {}
+        self._station_interval_layout_cache: dict[
+            tuple[object, ...], tuple[AccessInterval, ...]
+        ] = {}
         self._footprint_cache: OrderedDict[tuple[object, ...], GroundFootprints] = (
             OrderedDict()
         )

@@ -67,7 +67,7 @@ class DirectionChangeView(OrbitTimeSeriesView):
         """Build from range-limited direction-rate columns owned by the store."""
         if self._figure is not None:
             raise RuntimeError("direction-change view has already been built")
-        figure = create_figure(FIGURE_SIZE_INCHES)
+        figure = create_figure(FIGURE_SIZE_INCHES, constrained_layout=False)
         angle_axes, rate_axes = figure.subplots(2, 1, sharex=True)
         angle_axes.grid(True)
         angle_axes.ticklabel_format(style="plain", axis="y")

@@ -18,6 +18,7 @@ from ..station_access import (
     AccessInterval,
     _intervals_for_segment,
 )
+from .internal_types import _StoreStationCursor
 from .public_types import (
     STATION_PROFILE_COLUMNS,
     LoadStatus,
@@ -29,7 +30,6 @@ from .public_types import (
     StoreSnapshot,
     TimeCoverage,
 )
-from .internal_types import _StoreStationCursor
 from .store_support import (
     _earth_centered_frame_name,
     _row_spans,
@@ -68,6 +68,31 @@ def _find_covering_station_intervals(
         return None
     clipped: list[AccessInterval] = []
     for interval in covering[1]:
+        start_s = max(interval.start_s, bounds[0])
+        end_s = min(interval.end_s, bounds[1])
+        if start_s <= end_s:
+            clipped.append(
+                replace(
+                    interval,
+                    start_s=start_s,
+                    end_s=end_s,
+                    clipped_at_start=(
+                        interval.clipped_at_start or interval.start_s < bounds[0]
+                    ),
+                    clipped_at_end=(
+                        interval.clipped_at_end or interval.end_s > bounds[1]
+                    ),
+                )
+            )
+    return tuple(clipped)
+
+
+def _clip_station_intervals(
+    intervals: tuple[AccessInterval, ...],
+    bounds: tuple[float, float],
+) -> tuple[AccessInterval, ...]:
+    clipped: list[AccessInterval] = []
+    for interval in intervals:
         start_s = max(interval.start_s, bounds[0])
         end_s = min(interval.end_s, bounds[1])
         if start_s <= end_s:
@@ -265,6 +290,83 @@ def query_station_access(
             coverage_spans.append((covered_start, covered_stop))
         if len(values) < 2 or cached_intervals is not None:
             continue
+        layout_cache_key = (
+            snapshot.epoch,
+            snapshot.revision,
+            snapshot.policy_revision,
+            tier.station_key,
+            threshold,
+            layout.segment_id,
+            layout.raw_start,
+            layout.raw_stop,
+            layout.base_index,
+            layout.row_count,
+        )
+        with store._lock:
+            layout_intervals = store._station_interval_layout_cache.get(
+                layout_cache_key
+            )
+        if layout_intervals is not None:
+            intervals.extend(
+                _clip_station_intervals(layout_intervals, bounds)
+            )
+            continue
+
+        full_ready = False
+        if tier.ready is not None:
+            with store._derived_compute_lock:
+                full_ready = sum(
+                    span.stop - span.first
+                    for span in _row_spans(
+                        tier.ready,
+                        layout.base_index,
+                        layout.base_index + layout.row_count,
+                        ready_value=True,
+                    )
+                ) == layout.row_count
+        if full_ready:
+            full_values = tier.buffer[
+                layout.base_index : layout.base_index + layout.row_count
+            ]
+            profile_events = cast(
+                Callable[
+                    [np.ndarray, GroundStation, _StoreStationCursor, int],
+                    # Python 3.9 compatibility: avoid PEP 604 unions in runtime casts.
+                    Iterator[tuple[float, Optional[StationMetrics]]],
+                ],
+                public_store._station_profile_events,
+            )
+            events = profile_events(
+                full_values,
+                selected_station,
+                cursor,
+                threshold,
+            )
+            timed_events, metric_events = tee(events)
+            layout_intervals = tuple(
+                _intervals_for_segment(
+                    selected_station,
+                    cursor,
+                    (event[0] for event in timed_events),
+                    (event[1] for event in metric_events),
+                    starts_at_coverage=layout.raw_start == 0,
+                    ends_at_coverage=layout.raw_stop == snapshot.sample_count,
+                    starts_after_gap=layout.raw_start > 0,
+                    ends_before_gap=layout.raw_stop < snapshot.sample_count,
+                )
+            )
+            with store._lock:
+                store._station_interval_layout_cache[layout_cache_key] = (
+                    layout_intervals
+                )
+                if len(store._station_interval_layout_cache) > 128:
+                    oldest = next(iter(store._station_interval_layout_cache))
+                    store._station_interval_layout_cache.pop(oldest)
+            intervals.extend(
+                _clip_station_intervals(layout_intervals, bounds)
+            )
+            continue
+
         profile_events = cast(
             Callable[
                 [np.ndarray, GroundStation, _StoreStationCursor, int],

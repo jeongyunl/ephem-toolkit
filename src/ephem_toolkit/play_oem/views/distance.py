@@ -68,7 +68,7 @@ class GeocentricDistanceView(OrbitTimeSeriesView):
         """Build from range-limited distance columns owned by the data store."""
         if self._figure is not None:
             raise RuntimeError("geocentric-distance view has already been built")
-        figure = create_figure(FIGURE_SIZE_INCHES)
+        figure = create_figure(FIGURE_SIZE_INCHES, constrained_layout=False)
         distance_axes, delta_axes = figure.subplots(2, 1, sharex=True)
         distance_axes.set_ylabel("Geocentric Distance (km)")
         distance_axes.set_title("Geocentric Distance vs Time")

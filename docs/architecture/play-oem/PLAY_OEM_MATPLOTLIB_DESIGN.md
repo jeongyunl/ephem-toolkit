@@ -182,6 +182,13 @@ suptitle set its 12-point size when the title is created.
 The non-constrained fallback uses `tight_layout(pad=0.2)` only when subplot
 parameters remain at Matplotlib defaults.
 
+Store-backed orbit time-series views use
+`constrained_layout=False` because they have fixed stacked-axis topology.
+`configure_figure_layout(figure)` is called once after those axes exist, applying
+the same default-subplot fallback before panel realization. This removes
+per-redraw constrained-layout execution from these views while preserving a
+single fixed layout pass.
+
 ### `MatplotlibPanel`
 
 `src/ephem_toolkit/play_oem/widgets/matplotlib_panel.py` provides a

@@ -1,0 +1,45 @@
+Sat Nov 28 02:16:24 2026    docs/architecture/play-oem/performance/analysis-2/play-oem-attempt-14-full-stability.prof
+
+         51699825 function calls (50812312 primitive calls) in 72.779 seconds
+
+   Ordered by: cumulative time
+   List reduced from 6498 to 35 due to restriction <35>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+    865/1    0.019    0.000   73.670   73.670 {built-in method builtins.exec}
+        1    0.000    0.000   73.670   73.670 profile_play_oem_ui.py:1(<module>)
+        1    0.000    0.000   73.032   73.032 profile_play_oem_ui.py:92(main)
+        1    0.000    0.000   72.829   72.829 player_app.py:537(run)
+        1    0.000    0.000   72.628   72.628 core.py:2250(MainLoop)
+        1   40.266   40.266   72.628   72.628 {MainLoop}
+      633    0.021    0.000   18.056    0.029 backend_wxagg.py:10(draw)
+      634    0.004    0.000   17.555    0.028 backend_agg.py:380(draw)
+      633    0.001    0.000   17.505    0.028 artist.py:93(draw_wrapper)
+60251/633    0.072    0.000   17.504    0.028 artist.py:54(draw_wrapper)
+      633    0.007    0.000   17.503    0.028 figure.py:3142(draw)
+      557    0.006    0.000   16.497    0.030 backend_wx.py:632(_on_paint)
+     4146    0.023    0.000   12.047    0.003 profile_play_oem_ui.py:229(on_tick)
+      274    0.004    0.000   11.787    0.043 player_time_range_actions.py:45(_apply_playback_bounds)
+      155    0.004    0.000   11.438    0.074 player_time_range_actions.py:167(_dispatch_time_range)
+ 1269/633    0.007    0.000   11.424    0.018 image.py:114(_draw_list_compositing_images)
+      636    0.005    0.000   10.393    0.016 _base.py:3072(draw)
+      141    0.001    0.000   10.278    0.073 ground_station.py:773(set_time_range)
+      141    0.001    0.000   10.276    0.073 ground_station.py:208(set_time_range)
+      570    0.000    0.000    7.202    0.013 data_view_base.py:241(query_bounds)
+      147    0.002    0.000    7.201    0.049 ground_station.py:350(_prepare_access)
+      147    0.001    0.000    7.197    0.049 data_view_base.py:566(prepare)
+      286    0.001    0.000    7.191    0.025 data_view_base.py:280(station_access)
+      286    0.000    0.000    7.189    0.025 data_view_base.py:289(<lambda>)
+      286    0.001    0.000    7.189    0.025 data_store.py:601(station_access)
+      286    1.536    0.005    7.188    0.025 station_access_tier.py:90(query_station_access)
+      162    0.001    0.000    5.837    0.036 layout_engine.py:260(execute)
+      162    0.002    0.000    5.836    0.036 _constrained_layout.py:63(do_constrained_layout)
+     1260    0.011    0.000    5.780    0.005 axis.py:1415(draw)
+ 1887/637    0.003    0.000    5.739    0.009 artist.py:1403(_get_tightbbox_for_layout_only)
+      637    0.002    0.000    5.738    0.009 deprecation.py:446(wrapper)
+      637    0.011    0.000    5.736    0.009 _base.py:4419(get_tightbbox)
+      324    0.004    0.000    5.685    0.018 _constrained_layout.py:335(make_layout_margins)
+      636    0.002    0.000    5.663    0.009 _constrained_layout.py:614(get_pos_and_bbox)
+    14242    0.221    0.000    5.591    0.000 axis.py:1295(_update_ticks)
+
+

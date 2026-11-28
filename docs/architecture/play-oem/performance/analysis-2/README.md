@@ -335,6 +335,242 @@ The cache introduced lookup/memory overhead and was not stable across
 repeated runs. Its modest draw/text reduction did not produce a reliable
 total/call improvement, so it was reverted.
 
+## Attempt 10: Ground Station static-axis decoration
+
+Status: **inconclusive; reverted**
+
+Hypothesis:
+
+- Move Ground Station xlabel, UTC formatter, ylabel, grid, and typography setup
+  from every range `_draw()` call to panel build time.
+- Preserve only limits/profile artist updates during range-only redraws.
+
+Short-scenario evidence:
+
+| Run | Instrumented total | Calls | Matplotlib draw | `set_text` |
+| --- | ---: | ---: | ---: | ---: |
+| Attempt 5 baseline | 24.920 s | 16.939M | 11.537 s | 5.406 s |
+| Attempt 10 first | 26.296 s | 19.854M | 9.879 s | 4.311 s |
+| Attempt 10 repeat | 26.610 s | 19.640M | 10.709 s | 4.814 s |
+
+Both repeats lowered Matplotlib text/draw work, but total and call counts
+were higher. That tradeoff was not stable enough to justify the change, so
+the static-axis setup was reverted.
+
+## Attempt 11: retained long-scenario retry
+
+Status: **effective; stable on the longer scenario**
+
+Captured the [retained recorded scenario](scenario-recorded.json) against the
+current implementation, including the already-validated Ground Station
+Profile and Sky artist reuse work.
+
+Retained-scenario evidence:
+
+| Metric | Baseline | Attempt 11 | Change |
+| --- | ---: | ---: | ---: |
+| Wall time | 128 s | not remeasured outside cProfile | — |
+| Instrumented total | 125.492 s | 72.718 s | 42.0% lower |
+| Function calls | 165.147M | 50.941M | 69.2% lower |
+| Matplotlib draw cumulative | 33.544 s | 17.732 s | 47.1% lower |
+| `_dispatch_time_range` cumulative | 33.901 s | 11.659 s | 65.6% lower |
+| `_prepare_access`/station query cumulative | 11.756 s / 11.728 s | 7.207 s / 7.190 s | 38.7% / 38.7% lower |
+| Axis tick update cumulative | 12.747 s | 5.467 s | 57.1% lower |
+
+Comparison with Attempt 5:
+
+| Metric | Attempt 5 | Attempt 11 | Change |
+| --- | ---: | ---: | ---: |
+| Instrumented total | 72.596 s | 72.718 s | 0.17% higher |
+| Function calls | 51.519M | 50.941M | 1.1% lower |
+| Matplotlib draw cumulative | 17.895 s | 17.732 s | 0.9% lower |
+| `_dispatch_time_range` cumulative | 11.474 s | 11.659 s | 1.6% higher |
+
+The longer retry is effectively stable relative to Attempt 5: no material
+total, call, or draw regression. Remaining high-cost areas are constrained
+layout/tight-bbox execution and repeated axis/tick/text work, but the latest
+layout and static-axis hypotheses did not justify a change on repeated short
+tests.
+
+## Attempt 12: live-status text deduplication
+
+Status: **inconclusive; reverted**
+
+Hypothesis:
+
+- Skip unchanged `_set_time_series_status()` writes across 5 Hz cursor/update
+  ticks, keeping status label updates only on text changes.
+
+Short-scenario evidence:
+
+| Metric | Attempt 5 | Attempt 12 | Change |
+| --- | ---: | ---: | ---: |
+| Instrumented total | 24.920 s | 24.202 s | 2.9% lower |
+| Function calls | 16.939M | 15.163M | 10.5% lower |
+| Matplotlib draw cumulative | 11.537 s | 10.389 s | 10.0% lower |
+| `_set_text` cumulative | 5.406 s | 4.999 s | 7.5% lower |
+
+Full-scenario evidence:
+
+| Metric | Attempt 11 | Attempt 12 | Change |
+| --- | ---: | ---: | ---: |
+| Instrumented total | 72.718 s | 73.473 s | 1.0% higher |
+| Function calls | 50.941M | 52.228M | 2.5% higher |
+| Matplotlib draw cumulative | 17.732 s | 18.330 s | 3.4% higher |
+
+The short result was positive but not preserved in the retained longer
+scenario. Status deduplication was therefore reverted after the full profile
+showed no reliable end-to-end gain.
+
+## Attempt 13: defer station preparation during active range drag
+
+Status: **ineffective; reverted**
+
+Hypothesis:
+
+- Keep immediate axis/cursor feedback while range dragging.
+- Defer `StationAccessBinding` preparation, station interval/profile queries,
+  pass-row rebuilding, and profile/polar refresh until the settled range.
+
+Short-scenario evidence:
+
+| Metric | Attempt 12 | Attempt 13 | Change |
+| --- | ---: | ---: | ---: |
+| Instrumented total | 24.202 s | 27.201 s | 12.4% higher |
+| Function calls | 15.163M | 22.131M | 45.9% higher |
+| Matplotlib draw cumulative | 10.389 s | 10.205 s | 1.8% lower |
+| `query_station_access` cumulative | 1.338 s | 7.488 s | 459.6% higher |
+| `_prepare_access` cumulative | 1.340 s | 7.491 s | 459.0% higher |
+| `_dispatch_time_range` cumulative | 5.338 s | 10.636 s | 99.2% higher |
+| `_on_timer` cumulative | 5.701 s | 5.890 s | 3.3% higher |
+
+The short run did not reduce station preparation in the settled range scenario;
+it increased station and dispatch work substantially. The change was reverted.
+No additional station drag-deferral behavior is retained.
+
+## Attempt 14: retained full-scenario stability rerun
+
+Status: **effective; stable**
+
+Repeated the retained recorded scenario against the reverted implementation
+with a physical wall-time measurement and cProfile capture.
+
+| Metric | Attempt 11 | Attempt 14 | Change |
+| --- | ---: | ---: | ---: |
+| Wall time | not remeasured outside cProfile | 74.04 s | measured |
+| Instrumented total | 72.718 s | 72.779 s | 0.08% higher |
+| Function calls | 50.941M | 51.700M | 1.49% higher |
+| Matplotlib draw cumulative | 17.732 s | 18.056 s | 1.83% higher |
+| `_dispatch_time_range` cumulative | 11.659 s | 11.438 s | 1.90% lower |
+| `_prepare_access`/station query cumulative | 7.207 s / 7.190 s | 7.201 s / 7.188 s | effectively unchanged |
+
+The rerun confirms the retained implementation is stable across repeated full
+runs, while remaining far below the 128-second baseline wall time and
+125.492-second instrumented baseline. The remaining station, layout, axis/tick,
+and draw costs are repeatable profile hotspots, but no new untested change has
+a stable evidence-backed full-scenario gain. Further implementation attempts
+should use a fresh short profile and full rerun before retention.
+
+## Attempt 15: StoreViewContext-bound station query cache
+
+Status: **ineffective; reverted**
+
+Hypothesis:
+
+- Reuse one exact-range complete `StationAccessView` query across elevation,
+  azimuth, range, pass, and Sky views bound to the same context.
+- Preserve snapshot/range/policy identity and bound the cache to 32 entries.
+
+Short-scenario evidence:
+
+| Metric | Attempt 5 short baseline | Attempt 15 | Change |
+| --- | ---: | ---: | ---: |
+| Instrumented total | 24.920 s | 27.083 s | 8.7% higher |
+| Function calls | 16.939M | 19.615M | 15.8% higher |
+| Matplotlib draw cumulative | 11.537 s | 13.352 s | 15.7% higher |
+| `query_station_access` cumulative | 3.213 s | 2.571 s | 20.0% lower |
+| `_prepare_access` cumulative | 3.215 s | 2.574 s | 19.9% lower |
+
+The context-local cache increased rather than reduced station and dispatch
+work. It was reverted, and no station exact-query cache is retained.
+
+## Attempt 16: fixed-layout store time-series figures
+
+Status: **effective; retained**
+
+Changed implementation:
+
+- Store-backed orbit time-series figures now disable constrained layout at
+  construction and apply one fixed tight-layout pass after their axes exist.
+- The shared orbit time-series presenter calls `configure_figure_layout`
+  once before panel realization.
+- The change covers Speed/Altitude, Geocentric Distance, state components,
+  angular velocity, direction-change, and RTN views.
+
+Short-scenario evidence:
+
+| Run | Instrumented total | Function calls | Matplotlib draw | Constrained layout | Axis ticks |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Prior short run | 24.202 s | 15.163M | 10.389 s | 1.910 s | 1.870 s |
+| Attempt 16 first | 22.140 s | 10.733M | 7.465 s | 0.155 s | 0.592 s |
+| Attempt 16 repeat | 21.217 s | 9.640M | 5.596 s | 0.131 s | 0.514 s |
+| Physical wall | 23.07 s first / 21.87 s repeat | — | — | — | — |
+
+Retained-scenario evidence:
+
+| Metric | Attempt 14 | Attempt 16 first | Attempt 16 repeat | Change first / repeat |
+| --- | ---: | ---: | ---: | ---: |
+| Wall time | 74.04 s | 64.74 s | 60.64 s | 12.6% / 18.1% lower |
+| Instrumented total | 72.779 s | 63.576 s | 59.723 s | 12.6% / 17.9% lower |
+| Function calls | 51.700M | 26.413M | 22.777M | 48.9% / 56.0% lower |
+| Matplotlib draw cumulative | 18.056 s | 10.014 s | 8.235 s | 44.5% / 54.4% lower |
+| Constrained layout cumulative | 5.837 s | 0.083 s | 0.072 s | 98.6% / 98.8% lower |
+| Axis tick update cumulative | 5.591 s | 1.537 s | 1.254 s | 72.5% / 77.6% lower |
+| `query_station_access` cumulative | 7.188 s | 7.438 s | 4.737 s | 3.5% higher / 34.1% lower |
+
+The improvement is stable in two short runs and two full runs, including the
+largest call-count and draw-time reductions in the optimization record. It
+removes Matplotlib constrained-layout execution from the fixed orbit
+time-series figures while retaining their one-time tight layout.
+
+## Attempt 17: station layout interval cache
+
+Status: **effective; retained**
+
+Changed implementation:
+
+- Cache assembled access intervals once per OEM segment layout, snapshot,
+  policy revision, station identity, and elevation threshold.
+- Reuse full-layout intervals for overlapping ranges by clipping them to the
+  requested bounds.
+- Preserve the existing range-bound station profile columns and exact/covering
+  interval cache semantics.
+- Clear layout interval entries with raw station-profile or policy invalidation.
+
+Short-scenario evidence:
+
+| Run | Instrumented total | Function calls | `query_station_access` | Profile events | `_intervals_for_segment` |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Attempt 16 repeat | 21.217 s | 9.640M | 5.983 s | 286,962 calls | 34 calls |
+| Attempt 17 first | 21.453 s | 8.989M | 2.947 s | 187,357 calls | 24 calls |
+| Attempt 17 repeat | 21.893 s | 9.971M | 5.370 s | 245,255 calls | 30 calls |
+
+Full-scenario evidence:
+
+| Metric | Attempt 16 repeat | Attempt 17 first | Attempt 17 repeat | Change repeat |
+| --- | ---: | ---: | ---: | ---: |
+| Wall time | 60.64 s | 62.82 s | 60.53 s | 0.2% lower |
+| Instrumented total | 59.723 s | 61.758 s | 59.454 s | 0.45% lower |
+| Function calls | 22.777M | 24.385M | 22.429M | 1.53% lower |
+| Matplotlib draw cumulative | 8.235 s | 8.959 s | 8.010 s | 2.73% lower |
+| `query_station_access` cumulative | 4.737 s | 5.113 s | 4.919 s | effectively neutral |
+| Station profile event cumulative | 2.572 s | 2.199 s | 2.148 s | 16.5% lower |
+| `_intervals_for_segment` cumulative | 2.926 s | 2.583 s | 2.496 s | 14.7% lower |
+
+The repeated full run retained the fixed-layout win while reducing interval
+assembly and total calls. The cache remains bounded and policy/snapshot-aware,
+and it was accepted after the full suite and repeated profile.
+
 ## Reproduce
 
 ```sh
@@ -359,12 +595,9 @@ Each attempt must:
 
 ## Next hypotheses
 
-1. Batch or coalesce Matplotlib artist replacement in `_apply_store_context`.
-2. Apply similar in-place artist reuse to Ground Station Pass/Sky `_draw_sky_plot`
+1. Apply similar in-place artist reuse to Ground Station Pass/Sky `_draw_sky_plot`
    and pass-table rebuilds where range/station refresh repeatedly recreates
    Matplotlib artists.
-3. Cache or reuse visible data-view range snapshots within a 5 Hz dispatch.
-4. Deduplicate station-access queries by exact settled/visible range lifecycle.
-5. Bound and coalesce `_on_timer` redraw/store notice work.
-6. Re-evaluate station interval reuse now that retained drag feedback restores
-   repeated station queries.
+2. Bound and coalesce `_on_timer` redraw/store notice work.
+3. Reuse or batch `_apply_store_context` series and status updates after
+   range/cursor work has established the latest key.
