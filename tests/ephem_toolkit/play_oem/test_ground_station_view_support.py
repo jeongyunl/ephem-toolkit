@@ -93,6 +93,27 @@ def test_station_access_binding_deduplicates_same_context_and_range() -> None:
     assert station.station_id in binding.queries
 
 
+def test_profile_static_axis_configuration_is_reused() -> None:
+    figure = Figure()
+    axes = figure.add_subplot(111)
+    renderer = object.__new__(ElevationProfileRenderer)
+    renderer._axes = axes
+    renderer._cursor = SimpleNamespace(t_start=100.0)
+    renderer._time_unit = TimeUnit.MINUTES
+    renderer._display_time_zone = "UTC"
+    renderer.y_label = "Elevation (degrees)"
+    renderer._profile_static_axis_configured = False
+    renderer._profile_static_axis_zone = None
+
+    renderer._configure_profile_static_axis()
+    formatter = axes.xaxis.get_major_formatter()
+    renderer._configure_profile_static_axis()
+
+    assert axes.xaxis.get_major_formatter() is formatter
+    assert axes.get_xlabel() == "UTC"
+    assert axes.get_ylabel() == "Elevation (degrees)"
+
+
 def test_station_profile_artist_binding_reuses_profile_artists() -> None:
     figure = Figure()
     axes = figure.add_subplot(111)

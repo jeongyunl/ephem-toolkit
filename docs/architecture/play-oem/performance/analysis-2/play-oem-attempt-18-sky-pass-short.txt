@@ -1,0 +1,45 @@
+Sat Nov 28 02:44:50 2026    docs/architecture/play-oem/performance/analysis-2/play-oem-attempt-18-sky-pass-short.prof
+
+         11178202 function calls (10974774 primitive calls) in 22.161 seconds
+
+   Ordered by: cumulative time
+   List reduced from 6713 to 35 due to restriction <35>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+    865/1    0.019    0.000   22.569   22.569 {built-in method builtins.exec}
+        1    0.000    0.000   22.569   22.569 profile_play_oem_ui.py:1(<module>)
+        1    0.000    0.000   21.944   21.944 profile_play_oem_ui.py:92(main)
+        1    0.000    0.000   21.738   21.738 player_app.py:537(run)
+        1    0.000    0.000   21.453   21.453 core.py:2250(MainLoop)
+        1    1.924    1.924   21.453   21.453 {MainLoop}
+      190    0.002    0.000    8.460    0.045 profile_play_oem_ui.py:229(on_tick)
+       29    0.001    0.000    8.140    0.281 player_time_range_actions.py:167(_dispatch_time_range)
+       10    0.000    0.000    6.883    0.688 player_app.py:639(_set_range_dragging)
+      119    0.000    0.000    6.458    0.054 data_view_base.py:241(query_bounds)
+       42    0.000    0.000    6.456    0.154 data_view_base.py:566(prepare)
+       64    0.000    0.000    6.455    0.101 data_view_base.py:280(station_access)
+       64    0.000    0.000    6.455    0.101 data_view_base.py:289(<lambda>)
+       64    0.000    0.000    6.454    0.101 data_store.py:604(station_access)
+       64    4.819    0.075    6.454    0.101 station_access_tier.py:115(query_station_access)
+       90    0.001    0.000    6.402    0.071 player_app.py:899(_on_timer)
+       32    0.001    0.000    6.235    0.195 player_store_data_view_refresh.py:157(_refresh_store_data_views)
+      151    0.064    0.000    5.962    0.039 backend_wxagg.py:10(draw)
+      155    0.001    0.000    5.729    0.037 backend_agg.py:380(draw)
+      151    0.000    0.000    5.691    0.038 artist.py:93(draw_wrapper)
+14168/151    0.017    0.000    5.691    0.038 artist.py:54(draw_wrapper)
+      151    0.002    0.000    5.691    0.038 figure.py:3142(draw)
+  297/151    0.002    0.000    5.609    0.037 image.py:114(_draw_list_compositing_images)
+       24    0.000    0.000    4.958    0.207 ground_station.py:788(set_time_range)
+       24    0.000    0.000    4.957    0.207 ground_station.py:210(set_time_range)
+      146    0.001    0.000    4.551    0.031 _base.py:3072(draw)
+      123    0.014    0.000    4.246    0.035 backend_wx.py:632(_on_paint)
+       30    0.000    0.000    3.904    0.130 ground_station.py:353(_prepare_access)
+       90    0.001    0.000    3.371    0.037 player_store_data_view_refresh.py:64(_drain_store_notices)
+     2687    3.193    0.001    3.193    0.001 {method 'set_text' of 'matplotlib.ft2font.FT2Font' objects}
+       90    0.001    0.000    3.031    0.034 player_incremental_loader.py:104(_poll_incremental_load)
+       10    0.000    0.000    2.988    0.299 player_panel_management.py:400(_open_data_view)
+      274    0.003    0.000    2.911    0.011 axis.py:1415(draw)
+       40    0.001    0.000    2.885    0.072 speed_altitude.py:146(_apply_store_context)
+        3    0.000    0.000    2.795    0.932 player_store_data_view_refresh.py:245(_refresh_incremental_data_views)
+
+

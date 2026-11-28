@@ -128,6 +128,8 @@ class GroundStationProfileRendererBase(
         self._figure: Figure | None = None
         self._playback_marker: Line2D | None = None
         self._profile_artist_binding = StationProfileArtistBinding()
+        self._profile_static_axis_configured = False
+        self._profile_static_axis_zone: str | None = None
 
         self._initialize_store_time_series(
             cursor.t_start,
@@ -232,6 +234,7 @@ class GroundStationProfileRendererBase(
 
     def set_display_time_zone(self, display_time_zone: str) -> None:
         self._display_time_zone = display_time_zone
+        self._profile_static_axis_configured = False
         self._draw()
 
     def close(self) -> None:
@@ -358,10 +361,35 @@ class GroundStationProfileRendererBase(
         self._store_queries = dict(self._station_access_binding.queries)
         self._results = dict(self._station_access_binding.results)
 
+    def _configure_profile_static_axis(self) -> None:
+        if self._axes is None:
+            return
+        if (
+            self._profile_static_axis_configured
+            and self._profile_static_axis_zone == self._display_time_zone
+        ):
+            return
+        self._axes.set_xlabel("UTC")
+        self._axes.xaxis.set_major_formatter(
+            FuncFormatter(
+                lambda value, _position: format_tt(
+                    self._cursor.t_start + value * self._time_unit.get_divisor_s(),
+                    self._display_time_zone,
+                    fractional_second_places=0,
+                )
+            )
+        )
+        self._axes.set_ylabel(self.y_label)
+        self._axes.grid(True, alpha=0.25)
+        style_axes(self._axes)
+        self._profile_static_axis_configured = True
+        self._profile_static_axis_zone = self._display_time_zone
+
     def _draw(self) -> None:
         if self._axes is None:
             self._update_status_text()
             return
+        self._configure_profile_static_axis()
         if self._playback_marker is None:
             self._playback_marker = self._axes.axvline(
                 self._axis_time(self._current_time_s),
@@ -388,26 +416,13 @@ class GroundStationProfileRendererBase(
         else:
             self._profile_artist_binding.clear()
 
-        self._axes.set_xlabel("UTC")
-        self._axes.xaxis.set_major_formatter(
-            FuncFormatter(
-                lambda value, _position: format_tt(
-                    self._cursor.t_start + value * self._time_unit.get_divisor_s(),
-                    self._display_time_zone,
-                    fractional_second_places=0,
-                )
-            )
-        )
         left, right = self._axis_bounds(self._time_range, self._coverage)
         self._axes.set_xlim(left, right)
         if self.y_limits is not None:
             self._axes.set_ylim(*self.y_limits)
-        self._axes.set_ylabel(self.y_label)
-        self._axes.grid(True, alpha=0.25)
         handles, _labels = self._axes.get_legend_handles_labels()
         if self._legend_panel is not None:
             self._legend_panel.set_handles(tuple(handles))
-        style_axes(self._axes)
 
     def _draw_profile(
         self,

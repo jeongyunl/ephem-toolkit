@@ -182,6 +182,11 @@ suptitle set its 12-point size when the title is created.
 The non-constrained fallback uses `tight_layout(pad=0.2)` only when subplot
 parameters remain at Matplotlib defaults.
 
+Ground Station profile axes keep static UTC formatter, axis labels, ylabel,
+grid, and typography configuration in a view-local cache. Range refreshes
+reapply only x/ylim, profile artists, playback markers, and legend content.
+Changing the display time zone invalidates and recreates the formatter only.
+
 Store-backed orbit time-series views use
 `constrained_layout=False` because they have fixed stacked-axis topology.
 `configure_figure_layout(figure)` is called once after those axes exist, applying

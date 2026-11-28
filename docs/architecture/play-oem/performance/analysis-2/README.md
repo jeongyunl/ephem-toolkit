@@ -571,6 +571,63 @@ The repeated full run retained the fixed-layout win while reducing interval
 assembly and total calls. The cache remains bounded and policy/snapshot-aware,
 and it was accepted after the full suite and repeated profile.
 
+## Attempt 18: reused Ground Station static-axis decoration
+
+Status: **effective; retained**
+
+Changed implementation:
+
+- Cache the Ground Station profile xlabel, UTC formatter, ylabel, grid, and
+  shared typography once per display-time-zone configuration.
+- Reapply only range limits and dynamic profile/legend artists on range refresh.
+- Invalidates the static configuration when the display time zone changes.
+
+Short-scenario evidence:
+
+| Run | Instrumented total | Function calls | Matplotlib draw | Set-text | Ground station prepare |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Attempt 17 repeat | 21.893 s | 9.971M | 8.203 s | 5.397 s | 5.372 s |
+| Attempt 18 first | 21.708 s | 10.293M | 5.790 s | 3.080 s | 5.745 s |
+| Attempt 18 repeat | 20.981 s | 8.667M | 7.522 s | 5.053 s | 0.989 s |
+
+The repeated short run lowered total/call/draw work even though station timing
+can vary significantly between runs. The display-time-zone invalidation test
+preserves formatter identity until the zone changes.
+
+Full-scenario evidence:
+
+| Metric | Attempt 17 repeat | Attempt 18 first | Attempt 18 repeat | Change repeat |
+| --- | ---: | ---: | ---: | ---: |
+| Wall time | 60.53 s | 61.50 s | 60.19 s | 0.6% lower |
+| Instrumented total | 59.454 s | 60.710 s | 59.153 s | 0.51% lower |
+| Function calls | 22.429M | 22.157M | 21.622M | 3.60% lower |
+| Matplotlib draw cumulative | 8.010 s | 8.626 s | 7.822 s | 2.35% lower |
+| Set-text cumulative | 1.022 s | 1.264 s | 0.894 s | 12.5% lower |
+| Axis tick update cumulative | 1.275 s | 1.283 s | 1.227 s | 3.76% lower |
+| `_prepare_access` cumulative | 4.924 s | 4.939 s | 4.907 s | effectively unchanged |
+
+The repeated full profile confirms the static-axis reuse is stable and
+preserves station behavior while reducing text/draw work and primitive calls.
+
+## Attempt 19: Pass/Sky short-scenario profile
+
+Status: **inconclusive; no implementation**
+
+Opened Pass List and Sky View in a temporary state copy for the short
+scenario. Evidence:
+
+| Metric | Static-axis short repeat | With Pass/Sky open | Change |
+| --- | ---: | ---: | ---: |
+| Wall time | 21.83 s | 22.92 s | 5.0% higher |
+| Instrumented total | 20.981 s | 22.161 s | 5.6% higher |
+| Function calls | 8.667M | 11.178M | 29.0% higher |
+| `query_station_access` cumulative | 0.987 s | 6.454 s | run-dependent |
+| Pass `_refresh_rows` cumulative | — | 0.162 s | measured only with panels open |
+| Sky `_draw_sky_plot` cumulative | — | 0.082 s | measured only with panels open |
+
+The direct Pass/Sky refresh/draw functions are small relative to the station
+query and Matplotlib draw totals. No Pass/Sky code change was retained.
+
 ## Reproduce
 
 ```sh
@@ -595,9 +652,13 @@ Each attempt must:
 
 ## Next hypotheses
 
-1. Apply similar in-place artist reuse to Ground Station Pass/Sky `_draw_sky_plot`
-   and pass-table rebuilds where range/station refresh repeatedly recreates
-   Matplotlib artists.
-2. Bound and coalesce `_on_timer` redraw/store notice work.
-3. Reuse or batch `_apply_store_context` series and status updates after
-   range/cursor work has established the latest key.
+No implementation is currently justified by an independently stable hotspot:
+
+- `_on_timer` is 3.180 s cumulative in the latest repeated full profile.
+- `_refresh_store_data_views` is 2.767 s.
+- `_update_time_display` is 0.554 s.
+- `_apply_store_context` is 0.488 s.
+- `_set_time_series_status` is 0.024 s.
+
+Further work should require a new recorded scenario or a reproducible
+cross-run gain in one of these areas rather than speculative cache changes.
