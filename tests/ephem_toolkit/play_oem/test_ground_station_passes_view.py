@@ -591,6 +591,23 @@ def test_sky_plot_uses_clockwise_azimuth_and_cached_pass_profile() -> None:
     view.update(10.0)
     canvas.draw()
 
+    mask_artist = next(
+        line for line in view._axes.lines if line.get_label() == "10° mask"
+    )
+    pass_artist = next(
+        line for line in view._axes.lines if line.get_label() == "Selected pass"
+    )
+    playback_artist = view._playback_marker
+    view._draw_sky_plot()
+    view.update(10.0)
+    assert next(
+        line for line in view._axes.lines if line.get_label() == "10° mask"
+    ) is mask_artist
+    assert next(
+        line for line in view._axes.lines if line.get_label() == "Selected pass"
+    ) is pass_artist
+    assert view._playback_marker is playback_artist
+
     assert view._axes.get_theta_direction() == -1
     assert view._axes.get_theta_offset() == np.pi / 2
     assert view._axes.lines[0].get_label() == "10° mask"

@@ -1,0 +1,45 @@
+Sat Nov 28 01:49:10 2026    docs/architecture/play-oem/performance/analysis-2/play-oem-attempt-8-sky-artist-reuse.prof
+
+         19815360 function calls (19512139 primitive calls) in 26.674 seconds
+
+   Ordered by: cumulative time
+   List reduced from 6498 to 35 due to restriction <35>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+    865/1    0.020    0.000   27.352   27.352 {built-in method builtins.exec}
+        1    0.000    0.000   27.352   27.352 profile_play_oem_ui.py:1(<module>)
+        1    0.000    0.000   26.703   26.703 profile_play_oem_ui.py:92(main)
+        1    0.000    0.000   26.444   26.444 player_app.py:537(run)
+        1    0.000    0.000   26.227   26.227 core.py:2250(MainLoop)
+        1    2.166    2.166   26.227   26.227 {MainLoop}
+      205    0.053    0.000   12.033    0.059 backend_wxagg.py:10(draw)
+      206    0.001    0.000   11.643    0.057 backend_agg.py:380(draw)
+      205    0.000    0.000   11.526    0.056 artist.py:93(draw_wrapper)
+19507/205    0.024    0.000   11.526    0.056 artist.py:54(draw_wrapper)
+      205    0.003    0.000   11.525    0.056 figure.py:3142(draw)
+      161    0.034    0.000   10.830    0.067 backend_wx.py:632(_on_paint)
+  402/205    0.002    0.000    9.178    0.045 image.py:114(_draw_list_compositing_images)
+      197    0.002    0.000    8.457    0.043 _base.py:3072(draw)
+       93    0.001    0.000    7.947    0.085 player_app.py:899(_on_timer)
+       44    0.001    0.000    7.842    0.178 player_store_data_view_refresh.py:157(_refresh_store_data_views)
+      380    0.004    0.000    6.345    0.017 axis.py:1415(draw)
+     3500    5.354    0.002    5.354    0.002 {method 'set_text' of 'matplotlib.ft2font.FT2Font' objects}
+     5833    0.029    0.000    5.346    0.001 text.py:737(draw)
+       93    0.001    0.000    5.166    0.056 player_store_data_view_refresh.py:64(_drain_store_notices)
+     2321    0.009    0.000    5.018    0.002 backend_agg.py:186(draw_text)
+       68    0.001    0.000    4.379    0.064 speed_altitude.py:146(_apply_store_context)
+       26    0.000    0.000    4.214    0.162 speed_altitude.py:107(update_from_store)
+     2076    0.006    0.000    3.975    0.002 axis.py:269(draw)
+       68    0.000    0.000    3.973    0.058 data_view_base.py:220(series)
+       68    0.000    0.000    3.973    0.058 data_view_base.py:181(series_groups)
+       68    0.000    0.000    3.785    0.056 data_store.py:540(series)
+       68    3.762    0.055    3.785    0.056 series_tier.py:56(query_series)
+      184    0.002    0.000    3.289    0.018 profile_play_oem_ui.py:229(on_tick)
+       85    0.001    0.000    3.159    0.037 player_time_range_actions.py:45(_apply_playback_bounds)
+       48    0.001    0.000    2.969    0.062 player_time_range_actions.py:167(_dispatch_time_range)
+       93    0.001    0.000    2.781    0.030 player_incremental_loader.py:104(_poll_incremental_load)
+        6    0.000    0.000    2.744    0.457 player_panel_management.py:400(_open_data_view)
+        3    0.000    0.000    2.625    0.875 player_store_data_view_refresh.py:245(_refresh_incremental_data_views)
+        3    0.000    0.000    2.625    0.875 player_panel_management.py:263(open_panel_data_view)
+
+

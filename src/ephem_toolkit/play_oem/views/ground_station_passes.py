@@ -10,6 +10,7 @@ import numpy as np
 import wx
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg
 from matplotlib.figure import Figure
+from matplotlib.text import Text
 
 from .. import cursor as playback_cursor
 from ..display_time import UTC_DISPLAY, format_tt
@@ -31,7 +32,7 @@ from .data_view_base import (
     store_load_status_message,
 )
 from .data_view_registry import DataViewSpecMixin
-from .plotting import bounded_sample_indices
+from .plotting import StoreLineSegmentBinding, bounded_sample_indices
 
 _TABLE_COLUMN_WIDTHS = (190, 90, 150, 155, 155)
 _TABLE_PANEL_MIN_WIDTH = sum(_TABLE_COLUMN_WIDTHS)
@@ -152,6 +153,11 @@ class GroundStationPassesView(RangeLifecycleSupport, StoreStationViewSupport):
         self._canvas: FigureCanvasWxAgg | None = None
         self._plot_panel: MatplotlibPanel | None = None
         self._playback_marker: Any = None
+        self._sky_mask_binding = StoreLineSegmentBinding()
+        self._sky_pass_binding = StoreLineSegmentBinding()
+        self._sky_marker_binding = StoreLineSegmentBinding()
+        self._sky_playback_binding = StoreLineSegmentBinding()
+        self._sky_status_artist: Text | None = None
         self._refreshing_rows = False
         self._layout_orientation: int | None = None
         self._closed = False
@@ -778,7 +784,6 @@ class GroundStationPassesView(RangeLifecycleSupport, StoreStationViewSupport):
         figure = self._figure
         if axes is None or figure is None:
             return
-        axes.clear()
         axes.set_theta_zero_location("N")
         axes.set_theta_direction(-1)
         axes.set_ylim(0.0, 90.0)
@@ -791,22 +796,30 @@ class GroundStationPassesView(RangeLifecycleSupport, StoreStationViewSupport):
             "va": "center",
             "transform": axes.transAxes,
         }
+        status_text: str | None = None
         station = self._selected_station()
         result = self._result_for(station.station_id) if station is not None else None
         interval = self._selected_interval()
         if station is not None:
             mask_radius = 90.0 - station.minimum_elevation_deg
             theta = np.linspace(0.0, 2.0 * np.pi, 361)
-            axes.plot(
-                theta,
-                np.full_like(theta, mask_radius),
+            self._sky_mask_binding.sync(
+                axes,
+                ((theta, np.full_like(theta, mask_radius)),),
                 color="#c74343",
-                linestyle="--",
                 linewidth=1.4,
+                linestyle="--",
                 label=f"{station.minimum_elevation_deg}° mask",
             )
             axes.set_title(f"{station.name} sky view")
+        else:
+            self._sky_mask_binding.sync(axes, ())
         self._playback_marker = None
+        pass_segments: list[tuple[np.ndarray, np.ndarray]] = []
+        pass_labels: list[str | None] = []
+        marker_segments: list[tuple[np.ndarray, np.ndarray]] = []
+        marker_markers: list[str | None] = []
+        marker_styles: list[tuple[str, str]] = []
         if interval is not None and result is not None and station is not None:
             plotted = False
             for profile in result.look_angle_profiles:
@@ -828,12 +841,14 @@ class GroundStationPassesView(RangeLifecycleSupport, StoreStationViewSupport):
                     if not run.size:
                         continue
                     unwrapped_azimuth = np.unwrap(np.deg2rad(azimuths[run]))
-                    axes.plot(
-                        unwrapped_azimuth,
-                        90.0 - elevations[run],
-                        color="#247a9b",
-                        linewidth=2.0,
-                        label="Selected pass" if not plotted else "_nolegend_",
+                    pass_segments.append(
+                        (
+                            unwrapped_azimuth,
+                            90.0 - elevations[run],
+                        )
+                    )
+                    pass_labels.append(
+                        "Selected pass" if not plotted else "_nolegend_"
                     )
                     plotted = True
             for time_s, marker, label, color in (
@@ -861,61 +876,75 @@ class GroundStationPassesView(RangeLifecycleSupport, StoreStationViewSupport):
                     continue
                 if look_angle[1] < station.minimum_elevation_deg - 1e-8:
                     continue
-                axes.plot(
-                    np.deg2rad(look_angle[0]),
-                    90.0 - look_angle[1],
-                    marker=marker,
-                    color=color,
-                    linestyle="none",
-                    markersize=9,
-                    label=label,
+                marker_segments.append(
+                    (
+                        np.asarray([np.deg2rad(look_angle[0])], dtype=float),
+                        np.asarray([90.0 - look_angle[1]], dtype=float),
+                    )
                 )
-            (self._playback_marker,) = axes.plot(
-                [],
-                [],
-                marker="o",
-                markersize=8,
-                markerfacecolor="#e74d69",
-                markeredgecolor="white",
-                linestyle="none",
-                label="Playback time",
-                zorder=8,
-            )
+                marker_markers.append(marker)
+                marker_styles.append((color, label))
             if not plotted:
-                axes.text(
-                    0.5,
-                    0.5,
-                    "Selected pass sky path unavailable",
-                    **status_text_kwargs,
-                )
+                status_text = "Selected pass sky path unavailable"
         elif station is None:
-            axes.text(
-                0.5,
-                0.5,
-                "Add or select a ground station to inspect passes.",
-                **status_text_kwargs,
-            )
+            status_text = "Add or select a ground station to inspect passes."
         elif not self._oem_loaded:
-            axes.text(
-                0.5,
-                0.5,
-                "Load an Earth-centered OEM to view the sky plot.",
-                **status_text_kwargs,
-            )
+            status_text = "Load an Earth-centered OEM to view the sky plot."
         elif result is not None and result.limitation:
-            axes.text(
-                0.5,
-                0.5,
-                result.limitation,
-                **status_text_kwargs,
-            )
+            status_text = result.limitation
         elif interval is None:
-            axes.text(
+            status_text = "Select a pass to view its sky path."
+
+        self._sky_pass_binding.sync(
+            axes,
+            pass_segments,
+            color="#247a9b",
+            linewidth=2.0,
+            markers=tuple(None for _ in pass_segments),
+            label=None,
+        )
+        for artist, label in zip(
+            self._sky_pass_binding.artists,
+            pass_labels,
+        ):
+            artist.set_label(label or "_nolegend_")
+
+        self._sky_marker_binding.sync(
+            axes,
+            marker_segments,
+            color="#247a9b",
+            linewidth=1.0,
+            markers=tuple(marker_markers),
+            linestyle="None",
+            label=None,
+        )
+        for artist, (marker, style) in zip(
+            self._sky_marker_binding.artists,
+            zip(marker_markers, marker_styles),
+        ):
+            color, label = style
+            artist.set_marker(marker)
+            artist.set_markersize(9)
+            artist.set_color(color)
+            artist.set_label(label)
+
+        if status_text is None:
+            if self._sky_status_artist is not None:
+                self._sky_status_artist.set_visible(False)
+        elif self._sky_status_artist is None:
+            self._sky_status_artist = axes.text(
                 0.5,
                 0.5,
-                "Select a pass to view its sky path.",
+                status_text,
                 **status_text_kwargs,
             )
+        else:
+            self._sky_status_artist.set_text(status_text)
+            self._sky_status_artist.set_visible(True)
+
+        legend = axes.get_legend()
+        if legend is not None:
+            legend.remove()
         bottom_margin = 0.08
         if axes.get_legend_handles_labels()[0]:
             legend = axes.legend(
@@ -934,12 +963,8 @@ class GroundStationPassesView(RangeLifecycleSupport, StoreStationViewSupport):
             top=0.92,
         )
         self._update_playback_marker()
-        if self._canvas is not None:
-            self._canvas.draw_idle()
 
     def _update_playback_marker(self) -> None:
-        if self._playback_marker is not None:
-            self._playback_marker.set_data([], [])
         interval = self._selected_interval()
         result = (
             self._result_for(self._selected_station_id)
@@ -947,6 +972,7 @@ class GroundStationPassesView(RangeLifecycleSupport, StoreStationViewSupport):
             else None
         )
         station = self._selected_station()
+        playback_segment: tuple[np.ndarray, np.ndarray] | None = None
         status = "No pass selected."
         if interval is not None and result is not None and station is not None:
             status = (
@@ -963,15 +989,52 @@ class GroundStationPassesView(RangeLifecycleSupport, StoreStationViewSupport):
                     and look_angle[1] >= station.minimum_elevation_deg
                 ):
                     status += " · Playhead within selected pass."
-                    if self._playback_marker is not None:
-                        self._playback_marker.set_data(
-                            [np.deg2rad(look_angle[0])],
-                            [90.0 - look_angle[1]],
-                        )
+                    playback_segment = (
+                        np.asarray([np.deg2rad(look_angle[0])], dtype=float),
+                        np.asarray([90.0 - look_angle[1]], dtype=float),
+                    )
                 else:
                     status += " · Playhead look angle unavailable."
             else:
                 status += " · Playhead outside selected pass."
+        if self._axes is not None:
+            if playback_segment is None:
+                artists = self._sky_playback_binding.sync(
+                    self._axes,
+                    (
+                        (
+                            np.asarray([], dtype=float),
+                            np.asarray([], dtype=float),
+                        ),
+                    ),
+                    color="#e74d69",
+                    linewidth=1.0,
+                    markers=("o",),
+                    linestyle="None",
+                    zorder=8,
+                    label="Playback time",
+                )
+                self._playback_marker = artists[0] if artists else None
+                if self._playback_marker is not None:
+                    self._playback_marker.set_markersize(8)
+                    self._playback_marker.set_markerfacecolor("#e74d69")
+                    self._playback_marker.set_markeredgecolor("white")
+            else:
+                artists = self._sky_playback_binding.sync(
+                    self._axes,
+                    (playback_segment,),
+                    color="#e74d69",
+                    linewidth=1.0,
+                    markers=("o",),
+                    linestyle="None",
+                    zorder=8,
+                    label="Playback time",
+                )
+                self._playback_marker = artists[0] if artists else None
+                if self._playback_marker is not None:
+                    self._playback_marker.set_markersize(8)
+                    self._playback_marker.set_markerfacecolor("#e74d69")
+                    self._playback_marker.set_markeredgecolor("white")
         if self._sky_summary is not None:
             self._sky_summary_text = status
             self._sky_summary.SetLabel(status)
@@ -1051,6 +1114,11 @@ class GroundStationPassesView(RangeLifecycleSupport, StoreStationViewSupport):
         self._context_unsubscribe = lambda: None
         self._close_station_store()
         self._store_queries.clear()
+        self._sky_mask_binding.clear()
+        self._sky_pass_binding.clear()
+        self._sky_marker_binding.clear()
+        self._sky_playback_binding.clear()
+        self._sky_status_artist = None
         self._canvas = None
         self._figure = None
         self._plot_panel = None

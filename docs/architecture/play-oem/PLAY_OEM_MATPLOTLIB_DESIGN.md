@@ -145,6 +145,12 @@ updates, removes excess segments, and does not call `Axes.clear()`. The
 playback marker remains an in-place artist, while range/coverage changes only
 update x limits and synchronized profile data.
 
+Ground Station Pass/Sky polar rendering also uses shared `StoreLineSegmentBinding`
+instances for the mask circle, selected-pass path, endpoint markers, and
+playback marker. `_draw_sky_plot()` updates polar axes configuration and
+legend/text state in place instead of calling `axes.clear()` and recreating
+every line artist. Pass selection and interval filtering remain view-specific.
+
 ## Proposed architecture: make the common path the easy path
 
 ### Pure Matplotlib helpers

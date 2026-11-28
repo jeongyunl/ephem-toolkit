@@ -236,6 +236,79 @@ Retained recorded-scenario evidence:
 | `_prepare_access`/station query cumulative | 11.756 s / 11.728 s | 8.916 s / 8.905 s | 24.2% / 24.1% lower |
 | Ground Station profile range updates | 256 + 256 calls | 139 + 139 calls | 45.7% lower |
 
+## Attempt 6: stable post-initial constrained-layout lifecycle
+
+Status: **ineffective; reverted**
+
+Hypothesis:
+
+- Prevent `_on_canvas_size` from re-enabling the constrained layout after the
+  first draw has stabilized the embedded figure.
+- Keep the layout engine disabled for subsequent resize and redraw work.
+
+Short-scenario evidence:
+
+| Metric | Attempt 5 | Attempt 6 | Change |
+| --- | ---: | ---: | ---: |
+| Instrumented total | 24.920 s | 27.141 s | 8.9% higher |
+| Function calls | 16.939M | 20.671M | 22.1% higher |
+| Matplotlib draw cumulative | 11.537 s | 12.867 s | 11.5% higher |
+| `_set_text` cumulative | 5.406 s | 6.147 s | 13.7% higher |
+
+The stable-layout change was not a net improvement and was reverted. It
+does not establish that constrained layout is universally harmful; the
+existing first-draw stabilization remains unchanged, and resize behavior
+continues to use the prior layout-engine lifecycle.
+
+## Attempt 7: exact station-access query cache
+
+Status: **ineffective; reverted**
+
+Hypothesis:
+
+- Cache complete exact-range `StationAccessView` queries alongside the existing
+  interval cache.
+- Reuse the full store query for repeated identical snapshot/range/station
+  requests while preserving interval clipping and partial-range semantics.
+
+Short-scenario evidence:
+
+| Metric | Attempt 5 | Attempt 7 | Change |
+| --- | ---: | ---: | ---: |
+| Instrumented total | 24.920 s | 26.314 s | 5.6% higher |
+| Function calls | 16.939M | 18.789M | 10.9% higher |
+| Matplotlib draw cumulative | 11.537 s | 11.956 s | 3.6% higher |
+
+The exact full-query cache did not improve this range pan and introduced
+cache/lookup overhead. It was reverted; the existing covering-range interval
+cache remains the station-access reuse mechanism.
+
+## Attempt 8: Sky View polar artist reuse
+
+Status: **effective architecture; performance inconclusive**
+
+Changed implementation:
+
+- Replaced Sky View `axes.clear()` rebuilds with reusable mask, pass, marker,
+  and playback `Line2D` bindings.
+- The polar playback marker retains a stable artist and switches between an
+  empty data array outside a pass and the live look-angle point inside a pass.
+- Status text and legend presentation are retained or synchronized rather than
+  recreating the full polar axes for each pass/range refresh.
+
+Short-scenario evidence:
+
+| Metric | Attempt 5 | Attempt 8 | Change |
+| --- | ---: | ---: | ---: |
+| Instrumented total | 24.920 s | 26.674 s | 7.0% higher |
+| Function calls | 16.939M | 19.815M | 17.0% higher |
+| Matplotlib draw cumulative | 11.537 s | 12.033 s | 4.3% higher |
+
+The repeated short profile did not open Sky, so this result is not a
+measured Sky performance gain. It is kept for architecture and test coverage:
+it removes repeated polar axes and artist construction and introduces a stable
+artist identity for pass/mask/playback content.
+
 ## Reproduce
 
 ```sh
