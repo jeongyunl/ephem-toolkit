@@ -309,6 +309,32 @@ measured Sky performance gain. It is kept for architecture and test coverage:
 it removes repeated polar axes and artist construction and introduces a stable
 artist identity for pass/mask/playback content.
 
+## Attempt 9: complete range-snapshot series cache
+
+Status: **inconclusive; reverted**
+
+Hypothesis:
+
+- Reuse complete exact-range series query results across forward/reverse range
+  pans through `StoreViewContext`.
+- Preserve partial/incomplete-range queries without caching and bound the
+  exact-range cache to 32 entries.
+
+Short-scenario evidence:
+
+| Run | Metric | Attempt 5 | Attempt 9 | Change |
+| --- | --- | ---: | ---: | ---: |
+| First | Instrumented total | 24.920 s | 25.137 s | 0.87% higher |
+| First | Function calls | 16.939M | 16.975M | 0.21% higher |
+| First | Matplotlib draw cumulative | 11.537 s | 10.565 s | 8.4% lower |
+| Repeat | Instrumented total | 24.920 s | 25.763 s | 3.4% higher |
+| Repeat | Function calls | 16.939M | 20.173M | 19.1% higher |
+| Repeat | Matplotlib draw cumulative | 11.537 s | 11.318 s | 1.9% lower |
+
+The cache introduced lookup/memory overhead and was not stable across
+repeated runs. Its modest draw/text reduction did not produce a reliable
+total/call improvement, so it was reverted.
+
 ## Reproduce
 
 ```sh
