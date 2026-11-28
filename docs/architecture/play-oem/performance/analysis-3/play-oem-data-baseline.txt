@@ -1,0 +1,58 @@
+         33812265 function calls (33771251 primitive calls) in 13.588 seconds
+
+   Ordered by: cumulative time
+   List reduced from 5755 to 50 due to restriction <50>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.000    0.000   14.700   14.700 profile_oem_data_paths.py:103(run)
+        4    0.000    0.000   14.629    3.657 profile_oem_data_paths.py:52(_measure)
+        9    0.002    0.000   13.696    1.522 profile_oem_data_paths.py:117(range_work)
+      588    0.002    0.000   13.453    0.023 data_store.py:604(station_access)
+      588    0.016    0.000   13.451    0.023 station_access_tier.py:115(query_station_access)
+      462    0.246    0.001    8.657    0.019 station_access.py:172(_intervals_for_segment)
+  1387419    0.197    0.000    7.804    0.000 station_access_tier.py:389(<genexpr>)
+  1387419    0.826    0.000    7.607    0.000 station_profile_support.py:96(station_profile_events)
+   296430    0.091    0.000    6.386    0.000 data_store.py:495(earth_fixed_state_at)
+   296433    0.989    0.000    6.297    0.000 state_lookup.py:21(state_at)
+      152    0.001    0.000    4.586    0.030 chunk_memo.py:87(get_or_compute)
+      588    0.001    0.000    4.550    0.008 data_store.py:630(_compute_station_profile_ranges)
+      588    0.004    0.000    4.549    0.008 station_profile_tier.py:148(compute_profile_ranges)
+      143    0.267    0.002    4.530    0.032 station_profile_tier.py:214(compute)
+    13466    0.061    0.000    4.135    0.000 station_access.py:126(_refine_peak)
+   161592    0.072    0.000    4.073    0.000 station_access.py:137(evaluate)
+      141    0.010    0.000    3.795    0.027 __init__.py:1(<module>)
+   296427    1.196    0.000    2.921    0.000 ground_stations.py:173(station_metrics_from_ecef)
+   177503    0.048    0.000    2.693    0.000 internal_types.py:129(lookup)
+    51183    1.730    0.000    2.449    0.000 wgs.py:710(ecef_to_lla)
+      462    0.059    0.000    1.893    0.004 station_profile_support.py:74(station_metrics_from_profile_rows)
+  1387419    0.986    0.000    1.824    0.000 station_profile_support.py:83(<genexpr>)
+   177503    0.064    0.000    1.808    0.000 station_access.py:308(_metrics_for_state)
+    98930    0.169    0.000    1.239    0.000 state_lookup.py:60(sample)
+     2103    0.003    0.000    1.056    0.001 ground_track.py:132(_state_to_itrf_m_normalized)
+     2103    0.003    0.000    1.047    0.000 ground_track.py:97(_convert_inertial_state_to_itrf)
+   1549/2    0.003    0.000    0.970    0.485 <frozen importlib._bootstrap>:1002(_find_and_load)
+   1084/2    0.002    0.000    0.970    0.485 <frozen importlib._bootstrap>:967(_find_and_load_unlocked)
+   1040/2    0.002    0.000    0.970    0.485 <frozen importlib._bootstrap>:659(_load_unlocked)
+    955/2    0.001    0.000    0.970    0.485 <frozen importlib._bootstrap_external>:844(exec_module)
+   1386/2    0.000    0.000    0.970    0.485 <frozen importlib._bootstrap>:220(_call_with_frames_removed)
+   1019/2    0.004    0.000    0.969    0.485 {built-in method builtins.exec}
+       15    0.001    0.000    0.946    0.063 __init__.py:3(<module>)
+        3    0.000    0.000    0.933    0.311 profile_oem_data_paths.py:113(state_work)
+3864/2583    0.002    0.000    0.913    0.000 <frozen importlib._bootstrap>:1033(_handle_fromlist)
+    287/1    0.000    0.000    0.912    0.912 {built-in method builtins.__import__}
+        1    0.000    0.000    0.911    0.911 frame_utils.py:1(<module>)
+   398793    0.444    0.000    0.754    0.000 linalg.py:2383(norm)
+  4159023    0.746    0.000    0.746    0.000 station_profile_support.py:109(sample)
+        1    0.000    0.000    0.725    0.725 horizons_wrapper.py:1(<module>)
+   303218    0.101    0.000    0.511    0.000 fromnumeric.py:2421(all)
+     2273    0.010    0.000    0.510    0.000 station_access.py:274(_refine_crossing)
+   354610    0.183    0.000    0.475    0.000 fromnumeric.py:71(_wrapreduction)
+    47747    0.034    0.000    0.437    0.000 interpolator.py:242(interpolate_view)
+   655846    0.434    0.000    0.434    0.000 {method 'reduce' of 'numpy.ufunc' objects}
+        1    0.000    0.000    0.406    0.406 core.py:4(<module>)
+    47747    0.229    0.000    0.394    0.000 interpolator.py:266(_interpolate_view_locked)
+       34    0.000    0.000    0.373    0.011 __init__.py:2(<module>)
+   291178    0.074    0.000    0.326    0.000 fromnumeric.py:1332(searchsorted)
+   301234    0.059    0.000    0.323    0.000 {method 'all' of 'numpy.ndarray' objects}
+
+

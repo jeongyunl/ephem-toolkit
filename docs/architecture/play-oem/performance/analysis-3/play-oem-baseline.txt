@@ -1,0 +1,45 @@
+Sat Nov 28 03:02:49 2026    docs/architecture/play-oem/performance/analysis-3/play-oem-baseline.prof
+
+         22888691 function calls (22502971 primitive calls) in 60.368 seconds
+
+   Ordered by: cumulative time
+   List reduced from 6230 to 35 due to restriction <35>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+    791/1    0.016    0.000   60.980   60.980 {built-in method builtins.exec}
+        1    0.000    0.000   60.980   60.980 profile_play_oem_ui.py:1(<module>)
+        1    0.000    0.000   60.198   60.198 profile_play_oem_ui.py:92(main)
+        1    0.000    0.000   59.982   59.982 player_app.py:537(run)
+        1    0.000    0.000   59.752   59.752 core.py:2250(MainLoop)
+        1   40.662   40.662   59.752   59.752 {MainLoop}
+      414    0.023    0.000    8.507    0.021 backend_wxagg.py:10(draw)
+     4183    0.045    0.000    8.203    0.002 profile_play_oem_ui.py:229(on_tick)
+      416    0.003    0.000    8.154    0.020 backend_agg.py:380(draw)
+      414    0.000    0.000    8.112    0.020 artist.py:93(draw_wrapper)
+40467/414    0.047    0.000    8.112    0.020 artist.py:54(draw_wrapper)
+      414    0.004    0.000    8.111    0.020 figure.py:3142(draw)
+  836/414    0.004    0.000    7.915    0.019 image.py:114(_draw_list_compositing_images)
+       91    0.002    0.000    7.578    0.083 player_time_range_actions.py:167(_dispatch_time_range)
+      412    0.004    0.000    7.109    0.017 backend_wx.py:632(_on_paint)
+      274    0.004    0.000    7.062    0.026 player_time_range_actions.py:45(_apply_playback_bounds)
+      422    0.004    0.000    6.906    0.016 _base.py:3072(draw)
+       84    0.000    0.000    6.832    0.081 ground_station.py:788(set_time_range)
+       84    0.000    0.000    6.830    0.081 ground_station.py:210(set_time_range)
+       90    0.001    0.000    5.030    0.056 ground_station.py:353(_prepare_access)
+       90    0.001    0.000    5.028    0.056 data_view_base.py:566(prepare)
+      342    0.000    0.000    5.022    0.015 data_view_base.py:241(query_bounds)
+      172    0.000    0.000    5.015    0.029 data_view_base.py:280(station_access)
+      172    0.000    0.000    5.015    0.029 data_view_base.py:289(<lambda>)
+      172    0.001    0.000    5.015    0.029 data_store.py:604(station_access)
+      172    1.595    0.009    5.014    0.029 station_access_tier.py:115(query_station_access)
+      830    0.007    0.000    3.784    0.005 axis.py:1415(draw)
+     1363    0.027    0.000    3.498    0.003 player_app.py:899(_on_timer)
+       89    0.001    0.000    3.086    0.035 ground_station.py:388(_draw)
+       86    0.001    0.000    3.046    0.035 player_store_data_view_refresh.py:157(_refresh_store_data_views)
+     1363    0.018    0.000    2.808    0.002 player_incremental_loader.py:104(_poll_incremental_load)
+        6    0.000    0.000    2.674    0.446 player_panel_management.py:400(_open_data_view)
+      166    0.089    0.001    2.552    0.015 station_access.py:172(_intervals_for_segment)
+        4    0.000    0.000    2.544    0.636 player_store_data_view_refresh.py:245(_refresh_incremental_data_views)
+        3    0.000    0.000    2.544    0.848 player_panel_management.py:263(open_panel_data_view)
+
+

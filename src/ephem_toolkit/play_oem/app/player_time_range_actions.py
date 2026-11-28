@@ -35,6 +35,25 @@ def _range_needs_update(opened, resolved, coverage) -> bool:
 class TimeRangeActionsMixin:
     """Validate and apply playback-linked and customized plot-range edits."""
 
+    def _dispatch_range_during_drag(
+        self: PlayerAppState,
+        resolved: time_range.ResolvedTimeRange | None,
+        time_s: float,
+    ) -> None:
+        """Dispatch a drag range/cursor update at the shared 5 Hz cadence."""
+        now = time.monotonic()
+        last_dispatch = getattr(
+            self,
+            "_range_drag_last_dispatch_monotonic_s",
+            None,
+        )
+        if (
+            last_dispatch is None
+            or now - last_dispatch >= DRAG_RANGE_DISPATCH_INTERVAL_S
+        ):
+            self._dispatch_time_range(resolved, time_s)
+            self._range_drag_last_dispatch_monotonic_s = now
+
     def _begin_time_range_edit(self: PlayerAppState) -> None:
         self._timeline_restore_state.file_current_time_s = None
         self._load_state.cursor_anchor_s = None
@@ -61,7 +80,11 @@ class TimeRangeActionsMixin:
         self._load_state.cursor_anchor_s = None
         self._playback_handle_bounds = (bounds.start_s, bounds.end_s)
         self._playback_handles_fixed_during_load = True
-        self.clock.set_playback_bounds(bounds.start_s, bounds.end_s)
+        setattr(self, "_range_drag_playback_bounds_dispatching", True)
+        try:
+            self.clock.set_playback_bounds(bounds.start_s, bounds.end_s)
+        finally:
+            setattr(self, "_range_drag_playback_bounds_dispatching", False)
         resolved = time_range.resolve_plot_range(
             self.plot_time_range,
             (self.clock.t_start, self.clock.t_end),
@@ -70,18 +93,7 @@ class TimeRangeActionsMixin:
         )
         if resolved != previous_range:
             if getattr(self, "_range_dragging", False):
-                now = time.monotonic()
-                last_dispatch = getattr(
-                    self,
-                    "_range_drag_last_dispatch_monotonic_s",
-                    None,
-                )
-                if (
-                    last_dispatch is None
-                    or now - last_dispatch >= DRAG_RANGE_DISPATCH_INTERVAL_S
-                ):
-                    self._dispatch_time_range(resolved, self.clock.t_now)
-                    self._range_drag_last_dispatch_monotonic_s = now
+                self._dispatch_range_during_drag(resolved, self.clock.t_now)
             elif self.clock.t_now == previous_time:
                 self._dispatch_time_range(resolved, self.clock.t_now)
         self._publish_range_hint()

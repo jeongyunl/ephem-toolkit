@@ -39,6 +39,7 @@ from ephem_toolkit.play_oem.app.player_store_data_view_refresh import (
     _append_affects_plot,
     _tier_affects_display,
 )
+import ephem_toolkit.play_oem.app.player_time_range_actions as time_range_actions
 from ephem_toolkit.play_oem.app.player_time_range_actions import _range_needs_update
 from ephem_toolkit.play_oem.clock import PlaybackClock
 from ephem_toolkit.play_oem.cursor import StoreCursor
@@ -99,6 +100,38 @@ def test_coverage_growth_does_not_rebuild_an_unchanged_plot_range() -> None:
     assert not _range_needs_update(opened, plot, (0.0, 100.0))
     assert _range_needs_update(opened, time_range.ResolvedTimeRange(10.0, 40.0), (0.0, 100.0))
     assert _range_needs_update(opened, plot, (15.0, 100.0))
+
+
+def test_seek_grip_drag_dispatches_cursor_updates_at_5hz(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    player, _data_views, _canvases, _frames = make_app(monkeypatch)
+    player._range_dragging = True
+    player._range_drag_last_dispatch_monotonic_s = None
+    now = [0.0]
+    monkeypatch.setattr(
+        time_range_actions.time,
+        "monotonic",
+        lambda: now[0],
+    )
+    dispatches: list[tuple[object, float]] = []
+    player._dispatch_time_range = lambda resolved, time_s: dispatches.append(
+        (resolved, time_s)
+    )
+
+    player._on_clock_time_changed(150.0)
+    assert len(dispatches) == 1
+    assert dispatches[-1][1] == 150.0
+
+    now[0] = 0.020
+    player._on_clock_time_changed(151.0)
+    assert len(dispatches) == 1
+
+    now[0] = 0.220
+    player._on_clock_time_changed(152.0)
+    assert len(dispatches) == 2
+    assert dispatches[-1][1] == 152.0
+    player.close()
 
 
 def test_time_range_dispatch_updates_visible_views_without_full_store_rebuild(

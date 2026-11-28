@@ -600,6 +600,19 @@ class PlayerApp(
         if self._closed:
             return
         if self._range_dragging:
+            if getattr(
+                self,
+                "_range_drag_playback_bounds_dispatching",
+                False,
+            ):
+                return
+            resolved = time_range.resolve_plot_range(
+                self.plot_time_range,
+                (self.clock.t_start, self.clock.t_end),
+                (self.clock.playback_start, self.clock.playback_end),
+                time_s,
+            )
+            self._dispatch_range_during_drag(resolved, time_s)
             return
         if self._installing_incremental_batch and self._load_state.initial_range_ready:
             resolved = self._resolved_plot_range()

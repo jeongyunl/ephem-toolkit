@@ -1,0 +1,41 @@
+state_version = 11
+
+[window]
+width = 1100
+height = 1071
+maximized = false
+position = [327, 34]
+
+[workspace]
+open_data_views = ["speed-altitude", "elevation-profile", "ground-track"]
+
+[ground_track]
+minimum_elevation_deg = 10
+
+projection = "Robinson"
+background = "Political map"
+center_longitude_deg = 2.777134922471646
+xlim = [-16986823.309998643, 16986823.309998643]
+ylim = [-8615513.010731071, 8615513.010731071]
+
+[recent_files]
+paths = [
+    "/Users/jeongyun/Projects/ephem-toolkit/tests/data/ISS_2026-05-20.OEM",
+    "/Users/jeongyun/Projects/ephem-toolkit/tests/data/JPSS-1.oem",
+    "/Users/jeongyun/Projects/ephem-toolkit/tests/data/ISS_2026-05-20_small.12m.OEM"
+]
+
+[files."/Users/jeongyun/Projects/ephem-toolkit/tests/data/ISS_2026-05-20_small.12m.OEM"]
+playback_range = [832555783.184, 832642183.184]
+plot_range = { enabled = true, start = { mode = "follow", value_s = 0.0 }, end = { mode = "follow", value_s = 0.0 } }
+time_scrubber = { current_time_tt = 832601476.184, viewport_tt = [832550469.184, 832723269.184] }
+
+[files."/Users/jeongyun/Projects/ephem-toolkit/tests/data/JPSS-1.oem"]
+playback_range = [836616984.684, 836661406.684]
+plot_range = { enabled = true, start = { mode = "follow", value_s = 0.0 }, end = { mode = "follow", value_s = 0.0 } }
+time_scrubber = { current_time_tt = 836634499.684, viewport_tt = [836580368.3407433, 836815776.8301129] }
+
+[files."/Users/jeongyun/Projects/ephem-toolkit/tests/data/ISS_2026-05-20.OEM"]
+playback_range = [832653326.184, 832698326.184]
+plot_range = { enabled = true, start = { mode = "follow", value_s = 0.0 }, end = { mode = "follow", value_s = 0.0 } }
+time_scrubber = { current_time_tt = 832698326.184, viewport_tt = [832550469.184, 833846469.184] }
