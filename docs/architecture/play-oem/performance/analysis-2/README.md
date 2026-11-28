@@ -134,6 +134,33 @@ Retained recorded-scenario evidence:
 | Instrumented total | 100.061 s | 100.157 s | 0.1% higher |
 | Function calls | 111.845M | 113.323M | 1.3% higher |
 
+## Attempt 3: shared Ground Track and Ground Station bindings
+
+Status: **effective architecture; performance inconclusive**
+
+Changed implementation:
+
+- Added `StoreLineSegmentBinding` for reusable projected `Line2D` segments.
+- Ground Track now syncs projected track segments in place instead of removing
+  and recreating every track line.
+- Added `StationAccessBinding` for shared station/snapshot/range/policy
+  preparation identity.
+- Ground Station profile renderers and Pass/Sky views now reuse the same
+  binding for store queries and adapted station results.
+
+Short-scenario evidence:
+
+| Metric | Attempt 2 | Attempt 3 | Change |
+| --- | ---: | ---: | ---: |
+| Wall time | 32 s | 34 s | 6.3% higher |
+| Instrumented total | 31.040 s | 33.482 s | 7.9% higher |
+| Function calls | 30.009M | 34.421M | 14.7% higher |
+
+The wall-time and call-count change is inconclusive and includes run-to-run
+variation. This attempt is kept for architectural simplification and reuse:
+it reduces duplicate preparation code and view-local artist rebuild loops
+without changing range, coverage, station, or pass semantics.
+
 This baseline is retained for feature-preserving 5 Hz drag feedback. It is not
 comparable with analysis-1 attempts that suppressed range redraws during drag.
 

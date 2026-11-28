@@ -10,6 +10,8 @@ import pytest
 import wx
 from matplotlib.figure import Figure
 
+from ephem_toolkit.play_oem.app.player_app_state import PlayerAppState
+from ephem_toolkit.play_oem.app.player_data_view_factory import PlayerViewFactoryMixin
 from ephem_toolkit.play_oem.ground_stations import GroundStation
 from ephem_toolkit.play_oem.station_access import LookAngleProfile, StationAccess
 from ephem_toolkit.play_oem.station_analysis import (
@@ -19,6 +21,7 @@ from ephem_toolkit.play_oem.time_range import ResolvedTimeRange
 from ephem_toolkit.play_oem.time_unit import TimeUnit
 from ephem_toolkit.play_oem.views.data_view_base import (
     GroundStationAnalysisMixin,
+    StationAccessBinding,
     StoreViewContext,
 )
 from ephem_toolkit.play_oem.views.ground_station import (
@@ -29,8 +32,6 @@ from ephem_toolkit.play_oem.views.ground_station import (
     RangeProfileRenderer,
 )
 from tests.ephem_toolkit.play_oem.cursor_helpers import make_store_context
-from ephem_toolkit.play_oem.app.player_app_state import PlayerAppState
-from ephem_toolkit.play_oem.app.player_data_view_factory import PlayerViewFactoryMixin
 
 
 class _GroundStationSupport(GroundStationAnalysisMixin):
@@ -59,6 +60,36 @@ def test_ground_station_analysis_mixin_synchronizes_station_selection() -> None:
     support._set_ground_station_stations((north,))
     assert support.selected_station_id == "north"
     support._close_ground_station_analysis()
+
+
+def test_station_access_binding_deduplicates_same_context_and_range() -> None:
+    station = GroundStation("north", "North", 0.0, 0.0, 0.0)
+    context = make_store_context(
+        [0.0, 60.0, 120.0],
+        [
+            np.asarray([7_000_000.0, 0.0, 0.0, 0.0, 7_500.0, 0.0]),
+            np.asarray([0.0, 7_000_000.0, 0.0, -7_500.0, 0.0, 0.0]),
+            np.asarray([-7_000_000.0, 0.0, 0.0, 0.0, -7_500.0, 0.0]),
+        ],
+        TimeUnit.MINUTES,
+    )
+    binding = StationAccessBinding()
+
+    first = binding.prepare(
+        context,
+        stations=(station,),
+        oem_loaded=True,
+    )
+    second = binding.prepare(
+        context,
+        stations=(station,),
+        oem_loaded=True,
+    )
+
+    assert first
+    assert not second
+    assert station.station_id in binding.results
+    assert station.station_id in binding.queries
 
 
 @pytest.mark.parametrize(

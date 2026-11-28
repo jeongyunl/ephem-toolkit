@@ -361,6 +361,7 @@ class StoreStationViewSupport:
         self._station_store_context: StoreViewContext | None = None
         self._store_context: StoreViewContext | None = None
         self._store_binding = StoreViewBinding(tiers)
+        self._station_access_binding = StationAccessBinding()
         self._station_access_preparation_key: tuple[object, ...] | None = None
 
     def _prepare_station_store_context(self, context: StoreViewContext) -> None:
@@ -405,6 +406,7 @@ class StoreStationViewSupport:
         self._store_binding.close()
         self._station_store_context = None
         self._store_context = None
+        self._station_access_binding.clear()
         self._station_access_preparation_key = None
 
     def _station_time_sampling(self) -> TimeSamplingPolicy:
@@ -536,6 +538,81 @@ def station_access_from_store(value: StationAccessView) -> StationAccess:
         value.limitation,
         look_angle_profiles=tuple(profiles),
     )
+
+
+class StationAccessBinding:
+    """Deduplicate station-access preparation for store-bound Station views."""
+
+    def __init__(self) -> None:
+        self.context: StoreViewContext | None = None
+        self.results: dict[str, StationAccess] = {}
+        self.queries: dict[str, StoreQuery[StationAccessView]] = {}
+        self._preparation_key: tuple[object, ...] | None = None
+
+    @staticmethod
+    def _station_key(stations: Sequence[GroundStation]) -> tuple[object, ...]:
+        return tuple(
+            (
+                station.station_id,
+                station.name,
+                station.latitude_deg,
+                station.longitude_deg,
+                station.altitude_m,
+                station.minimum_elevation_deg,
+            )
+            for station in stations
+        )
+
+    def prepare(
+        self,
+        context: object | None,
+        *,
+        stations: Sequence[GroundStation],
+        oem_loaded: bool,
+        extra_key: tuple[object, ...] = (),
+        empty_range: bool = False,
+    ) -> bool:
+        """Prepare once per snapshot/range/station/policy identity."""
+        if not oem_loaded or not isinstance(context, StoreViewContext):
+            preparation_key = ("unavailable",)
+            if preparation_key == self._preparation_key:
+                return False
+            self._preparation_key = preparation_key
+            self.context = None
+            self.results.clear()
+            self.queries.clear()
+            return True
+
+        preparation_key = (
+            context.snapshot.epoch,
+            context.snapshot.revision,
+            context.snapshot.policy_revision,
+            context.plot_range,
+            context.coverage,
+            self._station_key(stations),
+            extra_key,
+        )
+        if preparation_key == self._preparation_key:
+            return False
+        self._preparation_key = preparation_key
+        self.context = context
+        self.results.clear()
+        self.queries.clear()
+        if empty_range:
+            for station in stations:
+                self.results[station.station_id] = StationAccess(station, ())
+            return True
+        for station in stations:
+            query = context.station_access(station)
+            self.queries[station.station_id] = query
+            self.results[station.station_id] = station_access_from_store(query.value)
+        return True
+
+    def clear(self) -> None:
+        self.context = None
+        self.results.clear()
+        self.queries.clear()
+        self._preparation_key = None
 
 
 def store_load_status_message(context: StoreViewContext | None) -> str | None:

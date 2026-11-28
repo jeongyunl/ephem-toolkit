@@ -8,6 +8,7 @@ from matplotlib.figure import Figure
 from ephem_toolkit.play_oem.views.plotting import (
     MAX_DISPLAY_POINTS_PER_SEGMENT,
     StoreArtistBinding,
+    StoreLineSegmentBinding,
     bounded_sample_indices,
     decimate_indices,
     plot_segments,
@@ -65,6 +66,33 @@ def test_store_artist_binding_reuses_compatible_artists() -> None:
 
     assert second[0] is original
     np.testing.assert_allclose(second[0].get_path().vertices[:, 1], [3.0, 4.0])
+
+
+def test_store_line_segment_binding_reuses_projected_lines() -> None:
+    figure = Figure()
+    axes = figure.subplots()
+    binding = StoreLineSegmentBinding()
+
+    first = binding.sync(
+        axes,
+        [(np.array([0.0, 1.0]), np.array([2.0, 3.0]))],
+        color="#3b5ccc",
+        linewidth=1.8,
+        zorder=3,
+    )
+    original = first[0]
+
+    second = binding.sync(
+        axes,
+        [(np.array([4.0, 5.0]), np.array([6.0, 7.0]))],
+        color="#3b5ccc",
+        linewidth=1.8,
+        zorder=3,
+    )
+
+    assert second[0] is original
+    np.testing.assert_array_equal(original.get_xdata(), [4.0, 5.0])
+    np.testing.assert_array_equal(original.get_ydata(), [6.0, 7.0])
 
 
 def _reference_decimate_indices(values: np.ndarray, maximum: int) -> np.ndarray:

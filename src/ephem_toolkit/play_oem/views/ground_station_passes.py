@@ -23,17 +23,15 @@ from ..station_access import (
 )
 from ..station_analysis import StationAnalysisContext, StationAnalysisSelection
 from ..time_range import ResolvedTimeRange
-from ..time_unit import TimeUnit
 from ..widgets.matplotlib_panel import MatplotlibPanel
 from .data_view_base import (
     RangeLifecycleSupport,
     StoreStationViewSupport,
     StoreViewContext,
-    station_access_from_store,
     store_load_status_message,
 )
-from .plotting import bounded_sample_indices
 from .data_view_registry import DataViewSpecMixin
+from .plotting import bounded_sample_indices
 
 _TABLE_COLUMN_WIDTHS = (190, 90, 150, 155, 155)
 _TABLE_PANEL_MIN_WIDTH = sum(_TABLE_COLUMN_WIDTHS)
@@ -350,53 +348,32 @@ class GroundStationPassesView(RangeLifecycleSupport, StoreStationViewSupport):
         self._wrap_sky_summary()
 
     def _prepare_access(self) -> None:
-        if not self._oem_loaded:
-            self._station_access_preparation_key = ("unavailable",)
-            self._store_queries.clear()
-            self._access_results = ()
+        changed = self._station_access_binding.prepare(
+            self._station_store_context,
+            stations=self._stations,
+            oem_loaded=self._oem_loaded,
+            extra_key=(self._limit_to_range, self._prepare_range),
+            empty_range=(
+                self._limit_to_range and self._prepare_range is None
+            ),
+        )
+        if not changed:
             return
-        if self._station_store_context is not None:
-            station_key = tuple(
-                (
-                    station.station_id,
-                    station.name,
-                    station.latitude_deg,
-                    station.longitude_deg,
-                    station.altitude_m,
-                    station.minimum_elevation_deg,
+        if self._station_store_context is None:
+            self._store_queries = {}
+            self._access_results = (
+                tuple(
+                    StationAccess(station, ())
+                    for station in self._stations
                 )
-                for station in self._stations
+                if self._oem_loaded
+                else ()
             )
-            preparation_key = (
-                self._station_store_context.snapshot.epoch,
-                self._station_store_context.snapshot.revision,
-                self._station_store_context.snapshot.policy_revision,
-                self._station_store_context.plot_range,
-                self._station_store_context.coverage,
-                self._limit_to_range,
-                self._prepare_range,
-                station_key,
-            )
-            if preparation_key == self._station_access_preparation_key:
-                return
-            self._station_access_preparation_key = preparation_key
-            self._store_queries.clear()
-            if self._limit_to_range and self._prepare_range is None:
-                self._access_results = tuple(
-                    StationAccess(station, ()) for station in self._stations
-                )
-                return
-            results: list[StationAccess] = []
-            for station in self._stations:
-                query = self._station_store_context.station_access(station)
-                self._store_queries[station.station_id] = query
-                results.append(station_access_from_store(query.value))
-            self._access_results = tuple(results)
             return
-        self._station_access_preparation_key = ("unavailable",)
-        self._store_queries.clear()
+        self._store_queries = dict(self._station_access_binding.queries)
         self._access_results = tuple(
-            StationAccess(station, ()) for station in self._stations
+            self._station_access_binding.results[station.station_id]
+            for station in self._stations
         )
 
     def _refresh_station_choice(self) -> None:
@@ -1045,9 +1022,8 @@ class GroundStationPassesView(RangeLifecycleSupport, StoreStationViewSupport):
         self._missing_initial_station = False
         self._prepare_access()
         self._refresh_station_choice()
-        if not selection_retained:
-            self._selected_interval_key = None
         self._refresh_rows()
+        self._selected_interval_key = None
 
     def set_oem(
         self,

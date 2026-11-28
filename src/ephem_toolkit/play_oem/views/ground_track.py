@@ -34,21 +34,23 @@ from ..ground_track import (
 from ..matplotlib_helpers import create_figure
 from ..oem_data_store import GroundTrackGroups, StoreQuery
 from ..time_range import ResolvedTimeRange
-from ..time_unit import TimeUnit
 from ..widgets import (
     FloatingMatplotlibLegend,
     FloatingPanel,
     PanelCorner,
     PanelInteraction,
 )
+from .compact_controls import compact_controls
 from .data_view_base import (
     RangeLifecycleSupport,
     StoreViewBinding,
     StoreViewContext,
 )
-from .compact_controls import compact_controls
-from .plotting import bounded_sample_indices
 from .data_view_registry import DataViewSpecMixin
+from .plotting import (
+    StoreLineSegmentBinding,
+    bounded_sample_indices,
+)
 
 PROJECTION_SPECS = {
     "Equirectangular": ("eqc", {}),
@@ -244,6 +246,7 @@ class GroundTrackView(RangeLifecycleSupport, DataViewSpecMixin):
         self._axes: Any = None
         self._projection: Any = None
         self._track_artists: list[Any] = []
+        self._track_artist_binding = StoreLineSegmentBinding()
         self._track_status_artist: Any = None
         self._effective_plot_range: tuple[float, float] | None = None
         self._marker: Line2D | None = None
@@ -1057,7 +1060,6 @@ class GroundTrackView(RangeLifecycleSupport, DataViewSpecMixin):
         )
         x0, x1 = sorted(self._axes.get_xlim())
         y0, y1 = sorted(self._axes.get_ylim())
-        xspan, yspan = x1 - x0, y1 - y0
         xpos, xoverflow = _scrollbar_metrics(x0, x1, world_x)
         ypos, yoverflow = _scrollbar_metrics(y0, y1, world_y, reverse=True)
         self._horizontal_scroll.SetScrollbar(
@@ -1148,12 +1150,6 @@ class GroundTrackView(RangeLifecycleSupport, DataViewSpecMixin):
     def _update_track_artists(self) -> None:
         if self._axes is None or self._projection is None:
             return
-        for artist in self._track_artists:
-            try:
-                artist.remove()
-            except ValueError:
-                pass
-        self._track_artists.clear()
         store_query = (
             None
             if self._store_context is None
@@ -1162,6 +1158,8 @@ class GroundTrackView(RangeLifecycleSupport, DataViewSpecMixin):
             )
         )
         self._store_track_query = store_query
+        segments: list[tuple[np.ndarray, np.ndarray]] = []
+        markers: list[str | None] = []
         if store_query is not None:
             for group in store_query.value:
                 longitude_index = group.columns.index("longitude")
@@ -1179,16 +1177,18 @@ class GroundTrackView(RangeLifecycleSupport, DataViewSpecMixin):
                     x, y = self._projection(
                         longitude_deg, latitude_deg, errcheck=True
                     )
-                    (line,) = self._axes.plot(
-                        x,
-                        y,
-                        color="#3b5ccc",
-                        linewidth=1.8,
-                        solid_capstyle="round",
-                        marker="o" if len(indices) == 1 else "None",
-                        zorder=3,
-                    )
-                    self._track_artists.append(line)
+                    segments.append((np.asarray(x), np.asarray(y)))
+                    markers.append("o" if len(indices) == 1 else None)
+        track_artists = self._track_artist_binding.sync(
+            self._axes,
+            segments,
+            color="#3b5ccc",
+            linewidth=1.8,
+            markers=markers,
+            zorder=3,
+            label="Ground Track",
+        )
+        self._track_artists = list(track_artists)
         if self._track_status_artist is not None:
             if self._effective_plot_range is None:
                 message = "Plot range does not overlap OEM coverage"
@@ -1325,6 +1325,7 @@ class GroundTrackView(RangeLifecycleSupport, DataViewSpecMixin):
         self._panel = None
         self._figure = None
         self._axes = None
+        self._track_artist_binding.clear()
         self._track_artists.clear()
         self._track_status_artist = None
         self._marker = None

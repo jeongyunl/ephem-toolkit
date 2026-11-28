@@ -57,6 +57,67 @@ The existing data/artist helpers in `views/plotting.py` are a separate layer:
 conversion, and shared x limits. Keep these out of the wx widget and preserve
 their established behavior.
 
+## Store and artist binding abstractions
+
+Store-backed Matplotlib views use shared bindings rather than view-local
+remove/rebuild loops:
+
+- `StoreArtistBinding` owns one Matplotlib axis's reusable `Line2D`/
+  `PathPatch` collection. It supports store-derived segments, raw-state
+  segments, and arbitrary point pairs.
+- `StoreLineSegmentBinding` owns reusable `Line2D` artists for projected or
+  otherwise post-processed segments. It syncs a sequence of `(x, y)` pairs,
+  removes excess artists, and preserves the caller's style and marker policy.
+- `StationAccessBinding` owns station/store/range identity and repeated
+  station-access preparation. It returns one set of store queries and adapted
+  station results. Cursor-only updates and unchanged station/range contexts
+  do not reissue store queries.
+
+Bindings are presentation/query owners, not data-store owners. They never
+copy orbit-size arrays or replace store snapshot lifecycle. Store snapshots,
+range hints, coverage, tier subscriptions, and station policy remain owned by
+`StoreViewContext`, `StoreViewBinding`, and `OemDataStore`.
+
+### Ground Track call-site shape
+
+Ground Track keeps projection, map axes, station controls, and dynamic
+footprint overlays view-specific. Store track rows and projected track lines
+move behind bindings:
+
+```python
+self._track_binding.sync(
+    self._axes,
+    store_query.value,
+    projection=self._projection,
+    center_longitude_deg=self.center_longitude_deg,
+)
+```
+
+The binding reconstructs only projected display segments. It reuses existing
+track `Line2D` instances and calls no store query when the bound context,
+projection center, or range key has not changed.
+
+### Ground Station call-site shape
+
+Ground Station profile and pass views share `StationAccessBinding`:
+
+```python
+changed = self._station_access_binding.prepare(
+    self._active_station_store_context,
+    stations=self._stations,
+    oem_loaded=self._oem_loaded,
+    extra_key=(...),
+)
+if changed:
+    self._draw()
+```
+
+The binding owns exact preparation keys and deduplicates repeated
+`station_access()` calls across snapshot, range, coverage, policy, station
+configuration, pass-range mode, and view-specific extra keys. It does not
+filter pass intervals or select pass UI state; Pass List and Sky View retain
+those view-specific operations.
+
 ## Proposed architecture: make the common path the easy path
 
 ### Pure Matplotlib helpers

@@ -17,7 +17,7 @@ from .. import cursor as playback_cursor
 from ..display_time import UTC_DISPLAY, format_tt
 from ..ground_stations import GroundStation
 from ..matplotlib_helpers import create_figure, style_axes
-from ..oem_data_store import StationAccessView, StoreQuery, TierName
+from ..oem_data_store import StationAccessView, StoreQuery
 from ..station_access import AccessInterval, StationAccess
 from ..station_analysis import StationAnalysisContext, StationAnalysisSelection
 from ..time_range import ResolvedTimeRange
@@ -33,7 +33,6 @@ from .data_view_base import (
     StoreTimeSeriesView,
     StoreViewBinding,
     StoreViewContext,
-    station_access_from_store,
     store_load_status_message,
 )
 from .plotting import (
@@ -346,40 +345,15 @@ class GroundStationProfileRendererBase(
         self._station_choice.SetSelection(selected_index)
 
     def _prepare_access(self) -> None:
-        store_context = self._active_station_store_context
-        if not self._oem_loaded or store_context is None:
-            self._station_access_preparation_key = ("unavailable",)
-            self._results.clear()
-            self._store_queries.clear()
-            return
-        station_key = tuple(
-            (
-                station.station_id,
-                station.name,
-                station.latitude_deg,
-                station.longitude_deg,
-                station.altitude_m,
-                station.minimum_elevation_deg,
-            )
-            for station in self._stations
+        changed = self._station_access_binding.prepare(
+            self._active_station_store_context,
+            stations=self._stations,
+            oem_loaded=self._oem_loaded,
         )
-        preparation_key = (
-            store_context.snapshot.epoch,
-            store_context.snapshot.revision,
-            store_context.snapshot.policy_revision,
-            store_context.plot_range,
-            store_context.coverage,
-            station_key,
-        )
-        if preparation_key == self._station_access_preparation_key:
+        if not changed:
             return
-        self._station_access_preparation_key = preparation_key
-        self._results.clear()
-        self._store_queries.clear()
-        for station in self._stations:
-            query = store_context.station_access(station)
-            self._store_queries[station.station_id] = query
-            self._results[station.station_id] = station_access_from_store(query.value)
+        self._store_queries = dict(self._station_access_binding.queries)
+        self._results = dict(self._station_access_binding.results)
 
     def _draw(self) -> None:
         if self._axes is None:

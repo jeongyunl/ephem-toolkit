@@ -21,6 +21,70 @@ MAX_DISPLAY_POINTS_PER_SEGMENT = 2000
 MAX_MATPLOTLIB_3D_DISPLAY_POINTS = 500
 
 
+class StoreLineSegmentBinding:
+    """Reuse Line2D artists for store-derived or projected segment pairs."""
+
+    def __init__(self) -> None:
+        self.artists: tuple[Line2D, ...] = ()
+
+    def clear(self) -> None:
+        for artist in self.artists:
+            artist.remove()
+        self.artists = ()
+
+    def sync(
+        self,
+        axes: Axes,
+        segments: Sequence[tuple[np.ndarray, np.ndarray]],
+        *,
+        color: str = "C0",
+        linewidth: float = 1.5,
+        markers: Sequence[str | None] | None = None,
+        zorder: float | None = None,
+        label: str | None = None,
+    ) -> tuple[Line2D, ...]:
+        existing = iter(self.artists)
+        artists: list[Line2D] = []
+        for index, (x_values, y_values) in enumerate(segments):
+            marker = (
+                "None"
+                if markers is None or markers[index] is None
+                else markers[index]
+            )
+            artist = next(existing, None)
+            if artist is None:
+                artist = Line2D(
+                    x_values,
+                    y_values,
+                    color=color,
+                    linewidth=linewidth,
+                    marker=marker,
+                    markersize=4,
+                    linestyle="solid" if marker in (None, "None") else "None",
+                    zorder=zorder,
+                    label=label or "_nolegend_",
+                )
+                axes.add_line(artist)
+            else:
+                artist.set_data(x_values, y_values)
+                artist.set_color(color)
+                artist.set_linewidth(linewidth)
+                artist.set_marker(marker)
+                artist.set_markersize(4)
+                artist.set_linestyle(
+                    "solid" if marker in (None, "None") else "None"
+                )
+                if zorder is not None:
+                    artist.set_zorder(zorder)
+                artist.set_label(label or "_nolegend_")
+                artist.set_visible(True)
+            artists.append(artist)
+        for artist in existing:
+            artist.remove()
+        self.artists = tuple(artists)
+        return self.artists
+
+
 class StoreArtistBinding:
     """Reuse Matplotlib artists while synchronizing store-backed plot segments."""
 

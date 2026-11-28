@@ -17,8 +17,8 @@ from ephem_toolkit.play_oem.time_range import ResolvedTimeRange
 from ephem_toolkit.play_oem.time_unit import TimeUnit
 from ephem_toolkit.play_oem.views import ground_track
 from ephem_toolkit.play_oem.views.data_view_base import StoreViewContext
-from tests.ephem_toolkit.play_oem.cursor_helpers import make_store_context
 from ephem_toolkit.play_oem.views.plotting import MAX_DISPLAY_POINTS_PER_SEGMENT
+from tests.ephem_toolkit.play_oem.cursor_helpers import make_store_context
 
 
 @pytest.fixture(scope="module")
@@ -304,6 +304,7 @@ def test_ground_track_store_view_uses_bound_queries_and_point_footprints() -> No
         "10° minimum elevation",
         "Test object",
     )
+    original_track_artists = tuple(view._track_artists)
 
     view.update(10.0)
     assert view._marker is not None and len(view._marker.get_xdata()) == 1
@@ -317,6 +318,10 @@ def test_ground_track_store_view_uses_bound_queries_and_point_footprints() -> No
     view.set_time_range(ResolvedTimeRange(10.0, 20.0), context.coverage)
     assert view._store_track_query is not None
     assert len(view._track_artists) == 2
+    assert all(
+        current is original
+        for current, original in zip(view._track_artists, original_track_artists)
+    )
     view.set_time_range(None, context.coverage)
     assert view._store_track_query is not None
     assert view._store_track_query.coverage.requested_s is None
@@ -469,16 +474,6 @@ def test_station_marker_selection_does_not_seek_playback() -> None:
     from matplotlib.figure import Figure
 
     station = GroundStation("site-id", "Site", 0.0, 0.0, 0.0, 10)
-    lookup_calls: list[float] = []
-    cursor = type(
-        "Cursor",
-        (),
-        {
-            "t_start": 0.0,
-            "t_end": 10.0,
-            "lookup": lambda _self, time_s: lookup_calls.append(time_s),
-        },
-    )()
     view = ground_track.GroundTrackView(
         cast(Any, None),
         "Test object",
@@ -499,7 +494,6 @@ def test_station_marker_selection_does_not_seek_playback() -> None:
     view._on_map_release(release)
 
     assert view._selected_station_id == station.station_id
-    assert lookup_calls == []
     view.close()
 
 
