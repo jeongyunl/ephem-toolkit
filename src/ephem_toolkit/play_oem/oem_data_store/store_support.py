@@ -26,6 +26,7 @@ from .station_profile_support import (
     station_profile_events,
     station_profile_row_range,
     station_profile_row_time,
+    station_profile_row_times,
 )
 from .mapped_buffers import (
     _mapped_float_array,
@@ -101,6 +102,7 @@ _series_segment_spans = series_segment_spans
 _capacity_for_file = capacity_for_file
 _earth_centered_frame_name = earth_centered_frame_name
 _station_profile_row_time = station_profile_row_time
+_station_profile_row_times = station_profile_row_times
 _station_profile_row_range = station_profile_row_range
 _station_metrics_from_profile_row = station_metrics_from_profile_row
 _station_metrics_from_profile_rows = station_metrics_from_profile_rows

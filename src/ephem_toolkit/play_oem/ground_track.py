@@ -129,6 +129,42 @@ def state_position_to_itrf_m(
     )[:3].copy()
 
 
+def states_to_itrf_m_batch(
+    states_m: np.ndarray,
+    frame_name: str,
+    epoch_tt_s: np.ndarray,
+) -> np.ndarray:
+    """Convert many OEM states, using array copies for fixed source frames."""
+    states_m = np.asarray(states_m, dtype=float)
+    epochs_tt_s = np.asarray(epoch_tt_s, dtype=float)
+    if (
+        states_m.ndim != 2
+        or states_m.shape[1:] != (6,)
+        or states_m.shape[0] != epochs_tt_s.size
+    ):
+        raise GroundTrackPreparationError("Earth-fixed state batch shape is invalid")
+    if (
+        epochs_tt_s.ndim != 1
+        or not np.isfinite(states_m).all()
+        or not np.isfinite(epochs_tt_s).all()
+    ):
+        raise GroundTrackPreparationError("Earth-fixed state batch is invalid")
+
+    normalized_frame = normalize_conversion_frame_name(frame_name)
+    if normalized_frame == EARTH_FIXED_FRAME_NAME:
+        return states_m.copy()
+
+    converted = np.empty_like(states_m)
+    for index, (epoch_tt_s_value, state_m) in enumerate(zip(epochs_tt_s, states_m)):
+        converted[index] = _state_to_itrf_m_normalized(
+            state_m,
+            normalized_frame,
+            float(epoch_tt_s_value),
+            source_frame_name=frame_name,
+        )
+    return converted
+
+
 def _state_to_itrf_m_normalized(
     state_m: np.ndarray,
     normalized_frame: str,
@@ -181,69 +217,108 @@ def split_ground_track_runs(
     relative_lon = (coordinates.longitude_rad - center_rad + np.pi) % (
         2.0 * np.pi
     ) - np.pi
+    if coordinates.timestamps_s.size == 1:
+        return (
+            GroundTrackRun(
+                coordinates.timestamps_s.copy(),
+                coordinates.latitude_rad.copy(),
+                relative_lon.copy(),
+            ),
+        )
+
+    segment_changes = np.flatnonzero(
+        coordinates.segment_ids[1:] != coordinates.segment_ids[:-1]
+    ) + 1
+    previous_lon = relative_lon[:-1]
+    current_lon = relative_lon[1:]
+    delta_lon = current_lon - previous_lon
+    crossing_indices = np.flatnonzero(
+        (delta_lon < -np.pi) | (delta_lon > np.pi)
+    ) + 1
+    crossing_indices = crossing_indices[
+        ~np.isin(crossing_indices, segment_changes)
+    ]
+
+    event_indices = np.unique(
+        np.concatenate((segment_changes, crossing_indices))
+    )
     runs: list[GroundTrackRun] = []
-    run_times: list[float] = []
-    run_latitudes: list[float] = []
-    run_longitudes: list[float] = []
+    run_times: list[np.ndarray] = []
+    run_latitudes: list[np.ndarray] = []
+    run_longitudes: list[np.ndarray] = []
+    run_start = 0
+
+    def append_segment(first: int, stop: int) -> None:
+        if first >= stop:
+            return
+        run_times.append(coordinates.timestamps_s[first:stop])
+        run_latitudes.append(coordinates.latitude_rad[first:stop])
+        run_longitudes.append(relative_lon[first:stop])
 
     def finish_run() -> None:
         if not run_times:
             return
         runs.append(
             GroundTrackRun(
-                np.asarray(run_times, dtype=float),
-                np.asarray(run_latitudes, dtype=float),
-                np.asarray(run_longitudes, dtype=float),
+                np.concatenate(run_times),
+                np.concatenate(run_latitudes),
+                np.concatenate(run_longitudes),
             )
         )
         run_times.clear()
         run_latitudes.clear()
         run_longitudes.clear()
 
-    for index in range(coordinates.timestamps_s.size):
-        if (
-            index == 0
-            or coordinates.segment_ids[index] != coordinates.segment_ids[index - 1]
-        ):
+    for index in event_indices:
+        if index in segment_changes:
+            append_segment(run_start, index)
             finish_run()
-            run_times.append(float(coordinates.timestamps_s[index]))
-            run_latitudes.append(float(coordinates.latitude_rad[index]))
-            run_longitudes.append(float(relative_lon[index]))
+            run_start = index
             continue
 
-        previous_lon = run_longitudes[-1]
-        current_lon = float(relative_lon[index])
-        delta_lon = current_lon - previous_lon
-        if delta_lon < -np.pi:
-            unwrapped_lon = current_lon + 2.0 * np.pi
+        previous_index = index - 1
+        append_segment(run_start, index)
+        previous_lon_value = float(relative_lon[previous_index])
+        current_lon_value = float(relative_lon[index])
+        delta_lon_value = current_lon_value - previous_lon_value
+        if delta_lon_value < -np.pi:
+            unwrapped_lon = current_lon_value + 2.0 * np.pi
             seam_lon = np.pi
             opposite_seam_lon = -np.pi
-        elif delta_lon > np.pi:
-            unwrapped_lon = current_lon - 2.0 * np.pi
+        else:
+            unwrapped_lon = current_lon_value - 2.0 * np.pi
             seam_lon = -np.pi
             opposite_seam_lon = np.pi
-        else:
-            run_times.append(float(coordinates.timestamps_s[index]))
-            run_latitudes.append(float(coordinates.latitude_rad[index]))
-            run_longitudes.append(current_lon)
-            continue
-
-        fraction = (seam_lon - previous_lon) / (unwrapped_lon - previous_lon)
-        seam_time = coordinates.timestamps_s[index - 1] + fraction * (
-            coordinates.timestamps_s[index] - coordinates.timestamps_s[index - 1]
+        fraction = (
+            (seam_lon - previous_lon_value)
+            / (unwrapped_lon - previous_lon_value)
         )
-        seam_latitude = coordinates.latitude_rad[index - 1] + fraction * (
-            coordinates.latitude_rad[index] - coordinates.latitude_rad[index - 1]
+        seam_time = coordinates.timestamps_s[previous_index] + fraction * (
+            coordinates.timestamps_s[index]
+            - coordinates.timestamps_s[previous_index]
         )
-        run_times.append(float(seam_time))
-        run_latitudes.append(float(seam_latitude))
-        run_longitudes.append(float(seam_lon))
+        seam_latitude = coordinates.latitude_rad[previous_index] + fraction * (
+            coordinates.latitude_rad[index]
+            - coordinates.latitude_rad[previous_index]
+        )
+        run_times.append(np.asarray([seam_time], dtype=float))
+        run_latitudes.append(np.asarray([seam_latitude], dtype=float))
+        run_longitudes.append(np.asarray([seam_lon], dtype=float))
         finish_run()
-        run_times.extend((float(seam_time), float(coordinates.timestamps_s[index])))
-        run_latitudes.extend(
-            (float(seam_latitude), float(coordinates.latitude_rad[index]))
+        run_times.append(
+            np.asarray([seam_time, coordinates.timestamps_s[index]], dtype=float)
         )
-        run_longitudes.extend((float(opposite_seam_lon), current_lon))
+        run_latitudes.append(
+            np.asarray(
+                [seam_latitude, coordinates.latitude_rad[index]],
+                dtype=float,
+            )
+        )
+        run_longitudes.append(
+            np.asarray([opposite_seam_lon, current_lon_value], dtype=float)
+        )
+        run_start = index + 1
 
+    append_segment(run_start, coordinates.timestamps_s.size)
     finish_run()
     return tuple(runs)

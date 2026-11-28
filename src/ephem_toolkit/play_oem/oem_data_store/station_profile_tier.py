@@ -158,7 +158,7 @@ def compute_profile_ranges(
 
     from .store_support import (
         _row_spans,
-        _station_profile_row_time,
+        _station_profile_row_times,
     )
 
     ready = tier.ready
@@ -217,15 +217,9 @@ def compute_profile_ranges(
                     import ephem_toolkit.play_oem.oem_data_store as public_store
 
                     row_indices = np.arange(span.first, span.stop, dtype=np.intp)
-                    epoch_times = np.asarray(
-                        [
-                            _station_profile_row_time(
-                                layout,
-                                int(row_index) - layout.base_index,
-                            )
-                            for row_index in row_indices
-                        ],
-                        dtype=float,
+                    epoch_times = _station_profile_row_times(
+                        layout,
+                        row_indices - layout.base_index,
                     )
                     batch_states = store.earth_fixed_states_at(
                         snapshot,
@@ -237,18 +231,40 @@ def compute_profile_ranges(
                         batch_positions,
                     )
                     tier.buffer[span.first : span.stop, 0] = epoch_times
-                    for offset, metrics in enumerate(batch_metrics):
-                        if cancel_event is not None and cancel_event.is_set():
-                            raise CancelledError()
-                        row = tier.buffer[int(row_indices[offset])]
-                        if metrics is None:
-                            row[1:] = np.nan
-                        else:
-                            row[1:] = (
-                                metrics.azimuth_deg,
-                                metrics.elevation_deg,
-                                metrics.slant_range_km,
-                            )
+                    metrics_values = np.full(
+                        (len(batch_metrics), 3),
+                        np.nan,
+                        dtype=float,
+                    )
+                    valid = np.fromiter(
+                        (metrics is not None for metrics in batch_metrics),
+                        dtype=bool,
+                        count=len(batch_metrics),
+                    )
+                    if np.any(valid):
+                        valid_metrics = [
+                            metrics
+                            for metrics in batch_metrics
+                            if metrics is not None
+                        ]
+                        metrics_values[valid, 0] = np.fromiter(
+                            (metrics.azimuth_deg for metrics in valid_metrics),
+                            dtype=float,
+                            count=len(valid_metrics),
+                        )
+                        metrics_values[valid, 1] = np.fromiter(
+                            (metrics.elevation_deg for metrics in valid_metrics),
+                            dtype=float,
+                            count=len(valid_metrics),
+                        )
+                        metrics_values[valid, 2] = np.fromiter(
+                            (metrics.slant_range_km for metrics in valid_metrics),
+                            dtype=float,
+                            count=len(valid_metrics),
+                        )
+                    tier.buffer[span.first : span.stop, 1:] = metrics_values
+                    if cancel_event is not None and cancel_event.is_set():
+                        raise CancelledError()
                     ready[span.first : span.stop] = True
                     store._publish_notice(
                         TierNotice(

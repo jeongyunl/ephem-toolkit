@@ -23,6 +23,25 @@ def station_profile_row_time(
     return layout.start_s + index * step
 
 
+def station_profile_row_times(
+    layout: _StationSegmentLayout,
+    indices: np.ndarray,
+) -> np.ndarray:
+    """Return timestamps for a batch of profile row indices."""
+    indices = np.asarray(indices, dtype=np.intp)
+    if indices.ndim != 1 or np.any(indices < 0) or np.any(
+        indices >= layout.row_count
+    ):
+        raise ValueError("profile row indices are out of bounds")
+    if layout.regular_count < 2:
+        raise ValueError("regular station profile layout requires at least two rows")
+    step = (layout.end_s - layout.start_s) / (layout.regular_count - 1)
+    epoch_times = layout.start_s + indices * step
+    epoch_times = np.asarray(epoch_times, dtype=float)
+    epoch_times[indices == layout.regular_count - 1] = layout.end_s
+    return epoch_times
+
+
 def station_profile_row_range(
     layout: _StationSegmentLayout,
     bounds: TimeBounds,
@@ -116,22 +135,43 @@ def station_profile_events(
         return
     yield sample(0)
     last_peak_time: float | None = None
-    for index in range(1, len(values) - 1):
-        previous = sample(index - 1)
-        current = sample(index)
-        following = sample(index + 1)
+    valid = np.asarray(
+        [metrics is not None for metrics in metric_rows],
+        dtype=bool,
+    )
+    elevations = np.full(len(metric_rows), np.nan, dtype=float)
+    elevations[valid] = np.asarray(
+        [metrics.elevation_deg for metrics in metric_rows if metrics is not None],
+        dtype=float,
+    )
+    access = np.asarray(
+        [
+            metrics.access
+            if metrics is not None
+            else False
+            for metrics in metric_rows
+        ],
+        dtype=bool,
+    )
+    candidate_indices = np.flatnonzero(
+        valid[1:-1]
+        & ~access[1:-1]
+        & valid[:-2]
+        & valid[2:]
+        & (elevations[1:-1] >= elevations[:-2])
+        & (elevations[1:-1] >= elevations[2:])
+    ) + 1
+
+    start = 1
+    for index in candidate_indices:
+        for normal_index in range(start, int(index)):
+            yield sample(normal_index)
+        previous = sample(int(index) - 1)
+        current = sample(int(index))
+        following = sample(int(index) + 1)
         current_metrics = current[1]
-        previous_metrics = previous[1]
-        following_metrics = following[1]
         refined: tuple[float, StationMetrics] | None = None
-        if (
-            current_metrics is not None
-            and not current_metrics.access
-            and previous_metrics is not None
-            and following_metrics is not None
-            and current_metrics.elevation_deg >= previous_metrics.elevation_deg
-            and current_metrics.elevation_deg >= following_metrics.elevation_deg
-        ):
+        if current_metrics is not None:
             peak_time, peak_metrics = _refine_peak(
                 station,
                 cursor,
@@ -166,5 +206,8 @@ def station_profile_events(
         yield current
         if refined is not None and refined[0] >= current[0]:
             yield refined
+        start = int(index) + 1
+    for normal_index in range(start, len(values) - 1):
+        yield sample(normal_index)
     if len(values) > 1:
         yield sample(len(values) - 1)

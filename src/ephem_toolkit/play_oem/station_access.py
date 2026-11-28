@@ -180,71 +180,135 @@ def _intervals_for_segment(
     starts_after_gap: bool,
     ends_before_gap: bool,
 ) -> list[AccessInterval]:
+    times = np.asarray(tuple(sample_times), dtype=float)
+    metric_values = tuple(metrics)
+    if len(times) != len(metric_values):
+        raise ValueError("station access sample times and metrics must have matching lengths")
+    if len(times) == 0:
+        return []
+    valid = np.asarray(
+        [metric is not None for metric in metric_values],
+        dtype=bool,
+    )
+    access = np.asarray(
+        [
+            metric.access
+            if metric is not None
+            else False
+            for metric in metric_values
+        ],
+        dtype=bool,
+    )
+    if not np.any(valid):
+        return []
+
     intervals: list[AccessInterval] = []
-    active_interval: _ActiveAccessInterval | None = None
-    first_time: float | None = None
-    last_time: float | None = None
-    previous_time: float | None = None
-    previous_access = False
-    for epoch, current_metrics in zip(sample_times, metrics):
-        if first_time is None:
-            first_time = epoch
-        last_time = epoch
-        if current_metrics is None:
-            if (
-                previous_access
-                and previous_time is not None
-                and active_interval is not None
-            ):
-                intervals.append(
-                    active_interval.finish(
-                        previous_time,
-                        clipped_at_end=True,
-                        limited_by_gap_at_start=False,
-                        limited_by_gap_at_end=False,
-                    )
-                )
-            active_interval = None
-            previous_time = None
-            previous_access = False
+    first_time = float(times[0])
+    last_time = float(times[-1])
+
+    run_starts = np.flatnonzero(
+        valid
+        & access
+        & (
+            (np.arange(len(times)) == 0)
+            | ~valid[np.maximum(np.arange(len(times)) - 1, 0)]
+            | ~access[np.maximum(np.arange(len(times)) - 1, 0)]
+        )
+    )
+    run_stops: list[int] = []
+    not_access_indices = np.flatnonzero(~(valid & access))
+    for run_start in run_starts:
+        position = int(np.searchsorted(not_access_indices, int(run_start), side="right"))
+        stop = (
+            int(not_access_indices[position])
+            if position < len(not_access_indices)
+            else len(times)
+        )
+        run_stops.append(stop)
+
+    for run_start_value, run_stop in zip(run_starts, run_stops):
+        run_start = int(run_start_value)
+        if run_start >= run_stop:
             continue
-        access = current_metrics.access
-        if access:
-            if active_interval is None:
-                if not previous_access and previous_time is not None:
-                    active_start, active_start_metrics = _refine_crossing(
-                        station,
-                        cursor,
-                        previous_time,
-                        epoch,
-                        entering=True,
-                    )
-                    active_start_clipped = False
-                else:
-                    active_start = epoch
-                    active_start_metrics = current_metrics
-                    active_start_clipped = starts_at_coverage
-                active_interval = _ActiveAccessInterval(
-                    active_start,
-                    active_start_clipped,
-                    active_start_metrics,
-                    epoch,
-                    current_metrics,
-                    epoch,
-                    current_metrics,
-                    current_metrics,
-                )
-            else:
-                active_interval.observe(epoch, current_metrics)
-        if previous_access and not access and previous_time is not None:
-            end_time, end_metrics = _refine_crossing(
+        first_metric = metric_values[run_start]
+        if first_metric is None:
+            continue
+        if run_start == 0:
+            active_start = first_time
+            active_start_metrics = first_metric
+            active_start_clipped = starts_at_coverage
+        elif valid[run_start - 1] and not access[run_start - 1]:
+            active_start, active_start_metrics = _refine_crossing(
                 station,
                 cursor,
-                previous_time,
-                epoch,
-                entering=False,
+                float(times[run_start - 1]),
+                float(times[run_start]),
+                entering=True,
             )
-            if active_interval is not None:
+            active_start_clipped = False
+        elif not valid[run_start - 1]:
+            active_start = float(times[run_start])
+            active_start_metrics = first_metric
+            active_start_clipped = starts_at_coverage
+        else:
+            active_start = float(times[run_start])
+            active_start_metrics = first_metric
+            active_start_clipped = False
+
+        active_interval = _ActiveAccessInterval(
+            active_start,
+            active_start_clipped,
+            active_start_metrics,
+            float(times[run_start]),
+            first_metric,
+            float(times[run_start]),
+            first_metric,
+            first_metric,
+        )
+        run_metrics = [
+            metric
+            for metric in metric_values[run_start:run_stop]
+            if metric is not None
+        ]
+        if run_metrics:
+            run_times = times[run_start:run_stop]
+            elevations = np.asarray(
+                [metric.elevation_deg for metric in run_metrics],
+                dtype=float,
+            )
+            ranges = np.asarray(
+                [metric.slant_range_km for metric in run_metrics],
+                dtype=float,
+            )
+            peak_offset = int(np.argmax(elevations))
+            range_offset = int(np.argmin(ranges))
+            peak_time = float(run_times[peak_offset])
+            peak_metric = run_metrics[peak_offset]
+            minimum_range_time = float(run_times[range_offset])
+            minimum_range_metric = run_metrics[range_offset]
+            if peak_metric.elevation_deg > active_interval.peak_metrics.elevation_deg:
+                active_interval.peak_time_s = peak_time
+                active_interval.peak_metrics = peak_metric
+            elif peak_metric.elevation_deg == active_interval.peak_metrics.elevation_deg:
+                if peak_time < active_interval.peak_time_s:
+                    active_interval.peak_time_s = peak_time
+                    active_interval.peak_metrics = peak_metric
+            if minimum_range_metric.slant_range_km < active_interval.minimum_range_metrics.slant_range_km:
+                active_interval.minimum_range_time_s = minimum_range_time
+                active_interval.minimum_range_metrics = minimum_range_metric
+            active_interval.last_access_metrics = run_metrics[-1]
+
+        if run_stop < len(times):
+            next_is_valid = valid[run_stop]
+            next_is_access = access[run_stop]
+            if next_is_valid and not next_is_access:
+                end_time, end_metrics = _refine_crossing(
+                    station,
+                    cursor,
+                    float(times[run_stop - 1]),
+                    float(times[run_stop]),
+                    entering=False,
+                )
                 intervals.append(
                     active_interval.finish(
                         end_time,
@@ -254,20 +318,27 @@ def _intervals_for_segment(
                         end_metrics=end_metrics,
                     )
                 )
-            active_interval = None
-        previous_time = epoch
-        previous_access = access
-    if active_interval is not None and last_time is not None:
-        intervals.append(
-            active_interval.finish(
-                last_time,
-                clipped_at_end=ends_at_coverage,
-                limited_by_gap_at_start=(
-                    starts_after_gap and active_interval.start_s == first_time
-                ),
-                limited_by_gap_at_end=ends_before_gap,
+            else:
+                intervals.append(
+                    active_interval.finish(
+                        float(times[run_stop - 1]),
+                        clipped_at_end=True,
+                        limited_by_gap_at_start=False,
+                        limited_by_gap_at_end=False,
+                    )
+                )
+        else:
+            intervals.append(
+                active_interval.finish(
+                    last_time,
+                    clipped_at_end=ends_at_coverage,
+                    limited_by_gap_at_start=(
+                        starts_after_gap
+                        and active_interval.start_s == first_time
+                    ),
+                    limited_by_gap_at_end=ends_before_gap,
+                )
             )
-        )
     return intervals
 
 

@@ -8,6 +8,37 @@ from ephem_toolkit.play_oem.oem_data_store import InterpolationPolicy, OemDataSt
 from ephem_toolkit.play_oem import ground_track
 
 
+def test_fixed_frame_batch_uses_array_copy_without_inertial_conversion(monkeypatch):
+    def forbidden(*args, **kwargs):
+        raise AssertionError("fixed-frame batch must not call inertial conversion")
+
+    monkeypatch.setattr(
+        ground_track,
+        "_convert_inertial_state_to_itrf",
+        forbidden,
+    )
+    states = np.column_stack(
+        (
+            np.arange(4, dtype=float),
+            np.arange(4, dtype=float) + 1.0,
+            np.arange(4, dtype=float) + 2.0,
+            np.arange(4, dtype=float) + 3.0,
+            np.arange(4, dtype=float) + 4.0,
+            np.arange(4, dtype=float) + 5.0,
+        )
+    )
+    epochs = np.arange(4, dtype=float) * 60.0
+
+    converted = ground_track.states_to_itrf_m_batch(
+        states,
+        "ITRF93",
+        epochs,
+    )
+
+    np.testing.assert_array_equal(converted, states)
+    assert converted is not states
+
+
 @pytest.mark.parametrize(
     "method,degree",
     [("linear", None), ("hermite", 3), ("lagrange", 3), ("chebyshev", 3)],

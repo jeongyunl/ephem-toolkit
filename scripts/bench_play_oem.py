@@ -406,6 +406,129 @@ def run_vectorization_benchmarks(
         )
         _print_measurement(f"Vectorized series {group}", samples)
 
+    from ephem_toolkit.play_oem.ground_track import (
+        GroundTrackCoordinates,
+        split_ground_track_runs,
+    )
+
+    ground_track_coordinates = GroundTrackCoordinates(
+        timestamps_s=np.arange(row_count, dtype=float),
+        latitude_rad=np.linspace(-1.0, 1.0, row_count),
+        longitude_rad=np.linspace(-np.pi + 0.001, np.pi - 0.001, row_count),
+        segment_ids=np.zeros(row_count, dtype=np.int64),
+        source_frame="ITRF1993",
+    )
+    split_ground_track_runs(ground_track_coordinates, 0.0)
+    _print_measurement(
+        "Vectorized Ground Track split",
+        _measure(
+            lambda: split_ground_track_runs(
+                ground_track_coordinates,
+                0.0,
+            ),
+            repeats,
+        ),
+    )
+
+    from ephem_toolkit.play_oem.ground_track import states_to_itrf_m_batch
+
+    fixed_states = raw[:, 1:7].copy()
+    fixed_epochs = raw[:, 0].copy()
+    states_to_itrf_m_batch(
+        fixed_states,
+        "ITRF1993",
+        fixed_epochs,
+    )
+    _print_measurement(
+        "Vectorized Earth-fixed ITRF copy",
+        _measure(
+            lambda: states_to_itrf_m_batch(
+                fixed_states,
+                "ITRF1993",
+                fixed_epochs,
+            ),
+            repeats,
+        ),
+    )
+
+    from ephem_toolkit.play_oem.oem_data_store import InterpolationPolicy
+    polynomial_store = OemDataStore()
+    polynomial_store.begin(row_count)
+    polynomial_reservation = polynomial_store.reserve(row_count)
+    polynomial_reservation.raw[:] = raw
+    polynomial_reservation.segment_ids[:] = 0
+    polynomial_store.commit(polynomial_reservation, row_count)
+    polynomial_store.mark_complete(
+        polynomial_store.snapshot().epoch,
+        (),
+        (
+            ("CENTER_NAME", "EARTH"),
+            ("REF_FRAME", "ITRF1993"),
+        ),
+    )
+    polynomial_store.set_interpolation(InterpolationPolicy("lagrange", 5))
+    polynomial_snapshot = polynomial_store.snapshot()
+    polynomial_queries = np.linspace(
+        0.5,
+        240.0 * (row_count - 1) - 0.5,
+        10_000,
+        dtype=float,
+    )
+    polynomial_store.earth_fixed_states_at(
+        polynomial_snapshot,
+        polynomial_queries,
+    )
+    _print_measurement(
+        "Batched polynomial Earth-fixed interpolation",
+        _measure(
+            lambda: polynomial_store.earth_fixed_states_at(
+                polynomial_snapshot,
+                polynomial_queries,
+            ),
+            repeats,
+        ),
+    )
+    polynomial_store.close()
+
+    from ephem_toolkit.play_oem.station_access import _intervals_for_segment
+    from ephem_toolkit.play_oem.ground_stations import StationMetrics
+
+    station_interval_metrics = (
+        StationMetrics(0.0, 45.0, 1000.0, True),
+    ) * row_count
+    station_interval_times = np.arange(row_count, dtype=float)
+
+    class _BenchmarkCursor:
+        def lookup(self, _epoch: float, /):
+            raise AssertionError("synthetic access benchmark has no crossing")
+
+    def benchmark_station_interval_assembly() -> None:
+        _intervals_for_segment(
+            GroundStation(
+                "benchmark-interval",
+                "Benchmark interval",
+                0.0,
+                0.0,
+                0.0,
+            ),
+            _BenchmarkCursor(),
+            station_interval_times,
+            station_interval_metrics,
+            starts_at_coverage=True,
+            ends_at_coverage=True,
+            starts_after_gap=False,
+            ends_before_gap=False,
+        )
+
+    benchmark_station_interval_assembly()
+    _print_measurement(
+        "Vectorized station interval assembly",
+        _measure(
+            benchmark_station_interval_assembly,
+            repeats,
+        ),
+    )
+
     def station_access_query() -> None:
         store = OemDataStore()
         store.begin(OemDataStore.capacity_for_file(source))

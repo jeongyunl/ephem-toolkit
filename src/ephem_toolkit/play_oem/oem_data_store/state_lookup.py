@@ -158,8 +158,7 @@ def earth_fixed_states_at(
         return states
 
     from ..ground_track import (
-        _state_to_itrf_m_normalized,
-        normalize_conversion_frame_name,
+        states_to_itrf_m_batch,
     )
     from .frame_support import earth_centered_frame_name
 
@@ -182,22 +181,29 @@ def earth_fixed_states_at(
     if exact_indices.size:
         unique_exact_indices = np.unique(exact_indices)
         exact_states = {}
+        uncached_exact_indices = []
         for index in unique_exact_indices:
             key = (snapshot.epoch, frame_name, int(index))
             with store._lock:
                 converted = store._earth_fixed_state_cache.get(key)
-            if converted is None:
-                converted = _state_to_itrf_m_normalized(
-                    raw[int(index), 1:7],
-                    normalize_conversion_frame_name(frame_name),
-                    float(raw[int(index), 0]),
-                    source_frame_name=frame_name,
-                )
+            if converted is not None:
+                exact_states[int(index)] = converted
+            else:
+                uncached_exact_indices.append(int(index))
+        if uncached_exact_indices:
+            uncached_array = np.asarray(uncached_exact_indices, dtype=np.intp)
+            batch_converted = states_to_itrf_m_batch(
+                raw[uncached_array, 1:7],
+                frame_name,
+                raw[uncached_array, 0],
+            )
+            for index, converted in zip(uncached_exact_indices, batch_converted):
+                key = (snapshot.epoch, frame_name, index)
                 with store._lock:
                     store._earth_fixed_state_cache[key] = converted
                     if len(store._earth_fixed_state_cache) > 8192:
                         store._earth_fixed_state_cache.popitem(last=False)
-            exact_states[int(index)] = converted
+                exact_states[index] = converted
         for query_index, raw_index in zip(
             np.flatnonzero(exact),
             exact_indices,
@@ -229,22 +235,29 @@ def earth_fixed_states_at(
                 np.concatenate((lower, upper))
             )
             converted_by_index = {}
+            uncached_indices = []
             for index in unique_indices:
                 key = (snapshot.epoch, frame_name, int(index))
                 with store._lock:
                     converted = store._earth_fixed_state_cache.get(key)
-                if converted is None:
-                    converted = _state_to_itrf_m_normalized(
-                        raw[int(index), 1:7],
-                        normalize_conversion_frame_name(frame_name),
-                        float(raw[int(index), 0]),
-                        source_frame_name=frame_name,
-                    )
+                if converted is not None:
+                    converted_by_index[int(index)] = converted
+                else:
+                    uncached_indices.append(int(index))
+            if uncached_indices:
+                uncached_array = np.asarray(uncached_indices, dtype=np.intp)
+                batch_converted = states_to_itrf_m_batch(
+                    raw[uncached_array, 1:7],
+                    frame_name,
+                    raw[uncached_array, 0],
+                )
+                for index, converted in zip(uncached_indices, batch_converted):
+                    key = (snapshot.epoch, frame_name, index)
                     with store._lock:
                         store._earth_fixed_state_cache[key] = converted
                         if len(store._earth_fixed_state_cache) > 8192:
                             store._earth_fixed_state_cache.popitem(last=False)
-                converted_by_index[int(index)] = converted
+                    converted_by_index[index] = converted
 
             lower_states = np.stack(
                 [converted_by_index[int(index)] for index in lower]
@@ -257,6 +270,8 @@ def earth_fixed_states_at(
                 + fractions[:, np.newaxis] * (upper_states - lower_states)
             )
         else:
+            support_ranges = []
+            support_indices = []
             for query_index, query_time in zip(
                 interpolated_query_indices,
                 queries[interpolated],
@@ -282,30 +297,61 @@ def earth_fixed_states_at(
                     ),
                 )
                 stop = start + count
-                support_states = []
-                for index in range(start, stop):
+                support_ranges.append((int(query_index), start, stop))
+                support_indices.extend(range(start, stop))
+
+            converted_support_by_index = {}
+            uncached_support_indices = []
+            for index in np.unique(np.asarray(support_indices, dtype=np.intp)):
+                index_value = int(index)
+                key = (snapshot.epoch, frame_name, index_value)
+                with store._lock:
+                    converted = store._earth_fixed_state_cache.get(key)
+                if converted is not None:
+                    converted_support_by_index[index_value] = converted
+                else:
+                    uncached_support_indices.append(index_value)
+            if uncached_support_indices:
+                uncached_array = np.asarray(uncached_support_indices, dtype=np.intp)
+                batch_converted = states_to_itrf_m_batch(
+                    raw[uncached_array, 1:7],
+                    frame_name,
+                    raw[uncached_array, 0],
+                )
+                for index, converted in zip(
+                    uncached_support_indices,
+                    batch_converted,
+                ):
                     key = (snapshot.epoch, frame_name, index)
                     with store._lock:
-                        converted = store._earth_fixed_state_cache.get(key)
-                    if converted is None:
-                        converted = _state_to_itrf_m_normalized(
-                            raw[index, 1:7],
-                            normalize_conversion_frame_name(frame_name),
-                            float(raw[index, 0]),
-                            source_frame_name=frame_name,
-                        )
-                        with store._lock:
-                            store._earth_fixed_state_cache[key] = converted
-                            if len(store._earth_fixed_state_cache) > 8192:
-                                store._earth_fixed_state_cache.popitem(last=False)
-                    support_states.append(converted)
-                interpolated_state = interpolator.interpolate_view(
-                    times[start:stop],
-                    np.stack(support_states),
-                    float(query_time),
-                    snapshot.segment_ids[start:stop],
+                        store._earth_fixed_state_cache[key] = converted
+                        if len(store._earth_fixed_state_cache) > 8192:
+                            store._earth_fixed_state_cache.popitem(last=False)
+                    converted_support_by_index[index] = converted
+
+            query_times_by_window: dict[tuple[int, int], list[tuple[int, float]]] = {}
+            for query_index, start, stop in support_ranges:
+                query_times_by_window.setdefault((start, stop), []).append(
+                    (
+                        query_index,
+                        float(queries[query_index]),
+                    )
                 )
-                if interpolated_state is not None:
-                    states[query_index] = interpolated_state
+            for (start, stop), window_queries in query_times_by_window.items():
+                support_states = np.stack(
+                    [
+                        converted_support_by_index[index]
+                        for index in range(start, stop)
+                    ]
+                )
+                for query_index, query_time in window_queries:
+                    interpolated_state = interpolator.interpolate_view(
+                        times[start:stop],
+                        support_states,
+                        query_time,
+                        snapshot.segment_ids[start:stop],
+                    )
+                    if interpolated_state is not None:
+                        states[query_index] = interpolated_state
 
     return states

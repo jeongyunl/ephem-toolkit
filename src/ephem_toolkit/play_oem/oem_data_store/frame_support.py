@@ -7,8 +7,7 @@ import numpy as np
 from ..ground_track import (
     EARTH_CENTERS,
     GroundTrackPreparationError,
-    normalize_conversion_frame_name,
-    _state_to_itrf_m_normalized,
+    states_to_itrf_m_batch,
 )
 from ..series import SeriesGroupName, compute_series_chunk
 from .public_types import LoadStatus, StoreSnapshot
@@ -62,12 +61,10 @@ def write_earth_fixed_chunk(
     frame_name = earth_centered_frame_name(snapshot, "Earth-fixed positions")
     if frame_name is None:
         raise RuntimeError("Earth-fixed frame metadata is unavailable")
-    normalized_frame = normalize_conversion_frame_name(frame_name)
-    for row in range(start, stop):
-        output[row, 0] = snapshot.raw[row, 0]
-        output[row, 1:4] = _state_to_itrf_m_normalized(
-            snapshot.raw[row, 1:7],
-            normalized_frame,
-            float(snapshot.raw[row, 0]),
-            source_frame_name=frame_name,
-        )[:3]
+    output[start:stop, 0] = snapshot.raw[start:stop, 0]
+    converted = states_to_itrf_m_batch(
+        snapshot.raw[start:stop, 1:7],
+        frame_name,
+        snapshot.raw[start:stop, 0],
+    )
+    output[start:stop, 1:4] = converted[:, :3]
