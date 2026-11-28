@@ -368,6 +368,62 @@ def run_parser_benchmarks(source: Path, repeats: int) -> None:
     _print_measurement("Direct raw-store parsing", _measure(parse, repeats))
 
 
+def run_series_worker_benchmarks(
+    source: Path,
+    repeats: int,
+    range_days: float,
+) -> None:
+    """Compare store-backed cold and warm four-series computation."""
+    def measure(worker_count: int) -> tuple[list[float], list[float]]:
+        cold_times: list[float] = []
+        warm_times: list[float] = []
+        for _ in range(repeats):
+            store = OemDataStore(series_executor_workers=worker_count)
+            try:
+                store.begin(OemDataStore.capacity_for_file(source))
+                completion = read_oem_into_store(
+                    source,
+                    store,
+                    batch_size=512,
+                    on_append=lambda _notice: None,
+                    cancel_event=Event(),
+                )
+                snapshot = store.snapshot()
+                if completion.state_count != snapshot.sample_count:
+                    raise RuntimeError("store and completion counts do not match")
+                start_s = float(snapshot.raw[0, 0])
+                end_s = min(
+                    start_s + range_days * 86_400.0,
+                    float(snapshot.raw[-1, 0]),
+                )
+                bounds = (start_s, end_s)
+                cold_started = time.perf_counter()
+                store.series(snapshot, bounds, wait=True)
+                cold_times.append(time.perf_counter() - cold_started)
+
+                warm_started = time.perf_counter()
+                store.series(snapshot, bounds, wait=True)
+                warm_times.append(time.perf_counter() - warm_started)
+            finally:
+                store.close()
+        return cold_times, warm_times
+
+    print(
+        "Store-backed series benchmark: "
+        f"input={source}; workers=1,2,4; range_days={range_days:.3f}"
+    )
+    for worker_count in (1, 2, 4):
+        cold_times, warm_times = measure(worker_count)
+        _print_measurement(
+            f"Four-series cold (workers={worker_count})",
+            cold_times,
+        )
+        _print_measurement(
+            f"Four-series warm (workers={worker_count})",
+            warm_times,
+        )
+
+
 def run_vectorization_benchmarks(
     source: Path,
     repeats: int,
@@ -1234,6 +1290,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="benchmark vectorized series chunks and cold station profiles",
     )
     parser.add_argument(
+        "--series-worker-bench",
+        action="store_true",
+        help="compare store-backed four-series work with 1, 2, and 4 workers",
+    )
+    parser.add_argument(
         "--skip-data-benchmarks",
         action="store_true",
         help="skip one-shot data benchmarks (requires another probe)",
@@ -1287,6 +1348,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.repeats,
             args.range_days,
         )
+    if args.series_worker_bench:
+        run_series_worker_benchmarks(
+            args.oem,
+            args.repeats,
+            args.range_days,
+        )
     if args.gui_overlap_probe:
         run_gui_stall_probe(args.oem, range_probe=True)
     elif args.gui_range_baseline_probe:
@@ -1299,6 +1366,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         or args.parser_bench
         or args.batch_size_bench
         or args.vectorization_bench
+        or args.series_worker_bench
         or args.gui_stall_probe
         or args.gui_overlap_probe
         or args.gui_range_baseline_probe

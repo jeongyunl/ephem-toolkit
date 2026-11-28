@@ -239,6 +239,10 @@ class PrefetchScheduler:
             wait=True,
             cancel_futures=True,
         )
+        store._series_executor.shutdown(
+            wait=True,
+            cancel_futures=True,
+        )
 
     def reprioritize_locked(self) -> None:
         store = self.store

@@ -983,6 +983,129 @@ def test_series_groups_are_lazy_chunked_data_views_matching_reference_computatio
     assert _one_group(repeated, "kinematics").values.shape == (4, 4)
 
 
+def test_series_groups_compute_concurrently(monkeypatch) -> None:
+    times, states, segments = _series_samples()
+    store = OemDataStore(series_executor_workers=4)
+    epoch = store.begin(len(times))
+    reservation = store.reserve(len(times))
+    reservation.raw[:, 0] = times
+    reservation.raw[:, 1:7] = states
+    reservation.segment_ids[:] = segments
+    store.commit(reservation, len(times))
+    store.mark_complete(epoch, (), ())
+    snapshot = store.snapshot()
+
+    entered: set[oem_data_store.SeriesGroupName] = set()
+    first_two_entered = Event()
+    release = Event()
+    original_write = oem_data_store._write_series_chunk
+
+    def blocked_write(
+        snapshot,
+        group,
+        start,
+        stop,
+        output,
+    ) -> None:
+        entered.add(group)
+        if len(entered) >= 2:
+            first_two_entered.set()
+        assert release.wait(3)
+        original_write(snapshot, group, start, stop, output)
+
+    monkeypatch.setattr(
+        "ephem_toolkit.play_oem.oem_data_store._write_series_chunk",
+        blocked_write,
+    )
+    errors: list[BaseException] = []
+
+    def compute() -> None:
+        try:
+            store.series(snapshot, (60.0, 360.0), wait=True)
+        except BaseException as error:
+            errors.append(error)
+
+    worker = Thread(target=compute)
+    worker.start()
+    try:
+        assert first_two_entered.wait(3)
+        assert len(entered) >= 2
+    finally:
+        release.set()
+        worker.join(3)
+
+    assert not worker.is_alive()
+    assert errors == []
+    store.close()
+
+
+def test_overlapping_series_requests_share_in_flight_chunk(monkeypatch) -> None:
+    times, states, segments = _series_samples()
+    store = _store_with_samples(times, states, segments)
+    snapshot = store.snapshot()
+    entered = Event()
+    release = Event()
+    original_write = oem_data_store._write_series_chunk
+
+    def blocked_write(snapshot, group, start, stop, output) -> None:
+        if group == "kinematics":
+            entered.set()
+            assert release.wait(3)
+        original_write(snapshot, group, start, stop, output)
+
+    monkeypatch.setattr(
+        "ephem_toolkit.play_oem.oem_data_store._write_series_chunk",
+        blocked_write,
+    )
+    first_errors: list[BaseException] = []
+    second_errors: list[BaseException] = []
+    second_started = Event()
+
+    def first_compute() -> None:
+        try:
+            store.series(
+                snapshot,
+                (60.0, 360.0),
+                groups=("kinematics",),
+                wait=True,
+            )
+        except BaseException as error:
+            first_errors.append(error)
+
+    def second_compute() -> None:
+        second_started.set()
+        try:
+            store.series(
+                snapshot,
+                (120.0, 300.0),
+                groups=("kinematics",),
+                wait=True,
+            )
+        except BaseException as error:
+            second_errors.append(error)
+
+    first = Thread(target=first_compute)
+    first.start()
+    assert entered.wait(3)
+
+    second = Thread(target=second_compute)
+    second.start()
+    assert second_started.wait(3)
+    assert not release.wait(0.05)
+    release.set()
+    first.join(3)
+    second.join(3)
+
+    assert not first.is_alive()
+    assert not second.is_alive()
+    assert first_errors == []
+    assert second_errors == []
+    counters = store.series_chunk_counters("kinematics")
+    assert counters.chunks_computed == 1
+    assert counters.deduplicated >= 1
+    store.close()
+
+
 def test_compute_series_chunk_matches_batch_reference_without_store_state() -> None:
     times, states, segments = _series_samples()
     raw = np.column_stack((times, states))

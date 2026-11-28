@@ -8,7 +8,7 @@ from threading import Event
 
 import numpy as np
 
-from ..chunk_memo import ChunkMemo
+from ..chunk_memo import ChunkMemo, ChunkState
 from .public_types import LoadStatus, RowSpan, StoreSnapshot
 
 
@@ -60,7 +60,13 @@ def compute_missing_chunk_ranges(
         if not missing_spans:
             memo.record_hit()
             continue
-        memo.discard(chunk_index)
+        chunk_state = memo.state(
+            chunk_index,
+            epoch=snapshot.epoch,
+            policy_revision=policy_revision,
+        )
+        if chunk_state is not ChunkState.COMPUTING:
+            memo.discard(chunk_index)
         tentative = (
             snapshot.status is LoadStatus.LOADING
             and chunk_stop < chunk_start + chunk_size

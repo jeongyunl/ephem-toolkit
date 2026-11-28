@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
-from concurrent.futures import CancelledError
+from concurrent.futures import CancelledError, Future
 from threading import Event
 from types import MappingProxyType
 from typing import TYPE_CHECKING
 
 import numpy as np
 
-from ..chunk_memo import ChunkMemo
+from ..chunk_memo import ChunkMemo, ChunkState
 from ..series import SERIES_GROUPS, SeriesGroupName, _SERIES_COLUMNS
 from .public_types import (
     ColumnGroupView,
@@ -116,6 +116,62 @@ def query_series(
 
     result: dict[SeriesGroupName, tuple[ColumnGroupView, ...]] = {}
     ready_by_group: list[tuple[RowSpan, ...]] = []
+    series_futures: list[Future[None]] = []
+    wait_states: dict[
+        SeriesGroupName,
+        tuple[np.ndarray, ChunkMemo[int, RowSpan], np.ndarray],
+    ] = {}
+    for group in selected_groups:
+        if cancel_event is not None and cancel_event.is_set():
+            raise CancelledError()
+        if start == stop:
+            continue
+        if wait:
+            buffer, memo, ready = series_storage(store, snapshot, group)
+            wait_states[group] = (buffer, memo, ready)
+            needs_computation = bool(np.any(~ready[start:stop]))
+            if not needs_computation:
+                first_chunk = start // public_store.DERIVED_CHUNK_SIZE
+                last_chunk = (stop - 1) // public_store.DERIVED_CHUNK_SIZE
+                for chunk_index in range(first_chunk, last_chunk + 1):
+                    chunk_state = memo.state(
+                        chunk_index,
+                        epoch=snapshot.epoch,
+                        policy_revision=0,
+                    )
+                    if chunk_state is ChunkState.TENTATIVE:
+                        needs_computation = True
+                        break
+                    if chunk_state is ChunkState.COMPLETE:
+                        memo.record_hit()
+            if needs_computation:
+                series_futures.append(
+                    store._series_executor.submit(
+                        store._compute_series_range,
+                        snapshot,
+                        group,
+                        start,
+                        stop,
+                        buffer,
+                        memo,
+                        ready,
+                        cancel_event=cancel_event,
+                        on_chunk=lambda span, group_name=group: store._publish_notice(
+                            TierNotice(
+                                snapshot.epoch,
+                                "series",
+                                group_name,
+                                None,
+                                span.first,
+                                span.stop,
+                            )
+                        ),
+                    )
+                )
+
+    for future in series_futures:
+        future.result()
+
     for group in selected_groups:
         if cancel_event is not None and cancel_event.is_set():
             raise CancelledError()
@@ -124,33 +180,12 @@ def query_series(
             ready_by_group.append(())
             continue
         if wait:
-            buffer, memo, ready = series_storage(store, snapshot, group)
-            store._compute_series_range(
-                snapshot,
-                group,
-                start,
-                stop,
-                buffer,
-                memo,
-                ready,
-                cancel_event=cancel_event,
-                on_chunk=lambda span: store._publish_notice(
-                    TierNotice(
-                        snapshot.epoch,
-                        "series",
-                        group,
-                        None,
-                        span.first,
-                        span.stop,
-                    )
-                ),
-            )
+            buffer, memo, ready = wait_states[group]
         else:
             with store._lock:
                 buffer = store._series_buffers.get(group)
                 memo = store._series_memos.get(group)
                 ready = store._series_ready.get(group)
-
         if buffer is None or memo is None or ready is None:
             ready_spans = ()
             group_data_views = ()

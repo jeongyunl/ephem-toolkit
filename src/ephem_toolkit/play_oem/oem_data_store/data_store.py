@@ -116,13 +116,29 @@ class OemDataStore:
     the current epoch.
     """
 
-    def __init__(self, derived_memory_budget_bytes: int = 256 * 1024 * 1024) -> None:
+    def __init__(
+        self,
+        derived_memory_budget_bytes: int = 256 * 1024 * 1024,
+        *,
+        series_executor_workers: int | None = None,
+    ) -> None:
         if (
             isinstance(derived_memory_budget_bytes, bool)
             or not isinstance(derived_memory_budget_bytes, int)
             or derived_memory_budget_bytes < 1
         ):
             raise ValueError("derived_memory_budget_bytes must be a positive integer")
+        if series_executor_workers is None:
+            series_executor_workers = len(SERIES_GROUPS)
+        if (
+            isinstance(series_executor_workers, bool)
+            or not isinstance(series_executor_workers, int)
+            or not 1 <= series_executor_workers <= len(SERIES_GROUPS)
+        ):
+            raise ValueError(
+                "series_executor_workers must be an integer from 1 to "
+                f"{len(SERIES_GROUPS)}"
+            )
         self._lock = RLock()
         self._derived_compute_lock = RLock()
         self._derived_memory_budget_bytes = derived_memory_budget_bytes
@@ -180,6 +196,10 @@ class OemDataStore:
         self._scheduler_executor = ThreadPoolExecutor(
             max_workers=1,
             thread_name_prefix="oem-derived",
+        )
+        self._series_executor = ThreadPoolExecutor(
+            max_workers=series_executor_workers,
+            thread_name_prefix="oem-series",
         )
         self._scheduled_work: dict[
             tuple[int, int, int, QueryRequest], _ScheduledWork
@@ -757,29 +777,28 @@ class OemDataStore:
         cancel_event: Event | None = None,
         on_chunk: Callable[[RowSpan], None] | None = None,
     ) -> None:
-        with self._derived_compute_lock:
-            compute_missing_chunk_ranges(
+        compute_missing_chunk_ranges(
+            snapshot,
+            ready,
+            start,
+            stop,
+            memo,
+            public_store.DERIVED_CHUNK_SIZE,
+            lambda span: cast(
+                Callable[
+                    [StoreSnapshot, SeriesGroupName, int, int, np.ndarray], None
+                ],
+                public_store._write_series_chunk,
+            )(
                 snapshot,
-                ready,
-                start,
-                stop,
-                memo,
-                public_store.DERIVED_CHUNK_SIZE,
-                lambda span: cast(
-                    Callable[
-                        [StoreSnapshot, SeriesGroupName, int, int, np.ndarray], None
-                    ],
-                    public_store._write_series_chunk,
-                )(
-                    snapshot,
-                    group,
-                    span.first,
-                    span.stop,
-                    buffer,
-                ),
-                cancel_event=cancel_event,
-                on_chunk=on_chunk,
-            )
+                group,
+                span.first,
+                span.stop,
+                buffer,
+            ),
+            cancel_event=cancel_event,
+            on_chunk=on_chunk,
+        )
 
     def _compute_earth_fixed_range(
         self,
